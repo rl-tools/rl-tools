@@ -63,6 +63,7 @@
 #endif
 
 namespace rlt = rl_tools;
+using rlt::is_miss;
 
 #ifdef RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND
 using BACKEND = rlt::rendering::raytracing::backends::Default;
@@ -279,14 +280,22 @@ namespace {
             }
             double total_abs_diff = 0;
             size_t outliers = 0;
+            size_t comparable_pixels = golden_depth.size();
             for(size_t pixel_i = 0; pixel_i < golden_depth.size(); pixel_i++){
+                const bool ours_miss = is_miss(ours[pixel_i]);
+                const bool golden_miss = is_miss(golden_depth[pixel_i]);
+                if(ours_miss || golden_miss){
+                    outliers += ours_miss != golden_miss;
+                    comparable_pixels -= ours_miss != golden_miss;
+                    continue;
+                }
                 const double diff = (double)ours[pixel_i] - (double)golden_depth[pixel_i];
                 const double abs_diff = diff < 0 ? -diff : diff;
                 total_abs_diff += abs_diff;
                 const double magnitude = std::max((double)golden_depth[pixel_i], 1e-6);
                 outliers += abs_diff / magnitude > DEPTH_OUTLIER_REL;
             }
-            const double depth_mad = total_abs_diff / (double)golden_depth.size() / (double)rendered.max_depth;
+            const double depth_mad = comparable_pixels > 0 ? total_abs_diff / (double)comparable_pixels / (double)rendered.max_depth : 0;
             const double outlier_fraction = (double)outliers / (double)golden_depth.size();
             EXPECT_LE(depth_mad, DEPTH_MAD_THRESHOLD) << name << " pose " << id << ": normalized depth mean abs diff " << depth_mad;
             EXPECT_LE(outlier_fraction, DEPTH_OUTLIER_FRACTION) << name << " pose " << id << ": depth outlier fraction " << outlier_fraction;

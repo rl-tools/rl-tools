@@ -157,7 +157,7 @@ if arguments.camera_input != "static":
     else:
         if renderer.backend != "optix":
             raise SystemExit(f"--camera-input {arguments.camera_input} requires the OptiX backend (got {renderer.backend})")
-        tensor_set = hyperdrone.cuda.upload(all_sets)
+        tensor_set = hyperdrone._cuda.upload(all_sets)
         if arguments.camera_input == "dlpack":
             views = [tensor_set.view(s) for s in range(num_sets)]
             set_device = renderer._renderer.set_cameras_device

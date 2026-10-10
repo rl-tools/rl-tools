@@ -29,7 +29,6 @@ override fc_has_observation: bool = false;
 // main_resolve
 override fc_dynamic_motion_blur: bool = false;
 override fc_resolve_rgb: bool = false;
-override fc_resolve_depth: bool = false;
 override fc_num_overlays: u32 = 0u;
 override fc_overlay_capacity: u32 = 0u;
 
@@ -46,7 +45,6 @@ struct LaunchParams{
     num_cameras: u32,
     num_probes: u32,
     num_scene_lights: u32,
-    max_depth: f32,
     max_dist: f32,
     ambient_color: array<f32, 3>,
     miss_color_0: array<f32, 3>,
@@ -81,7 +79,6 @@ struct LaunchParams{
     out_flow_forward_status: u32,
     out_observation: u32,
     out_rgb_accumulator: u32,
-    out_depth_accumulator: u32,
     out_collision: u32,
 }
 
@@ -701,10 +698,6 @@ fn trace_any_composed(camera: i32, origin: vec3<f32>, direction: vec3<f32>, t_mi
     return trace_any_composed_region(dispatch_params.overlay_region, camera, origin, direction, t_min, t_max);
 }
 
-fn trace_depth_distance(camera: i32, origin: vec3<f32>, direction: vec3<f32>, max_depth: f32) -> f32{
-    let hit = trace_closest_composed(camera, origin, direction, 0.0, max_depth);
-    return select(max_depth, hit.t, hit.valid);
-}
 
 struct PixelLaunchContext{
     cam_idx: i32,
@@ -1184,31 +1177,21 @@ fn main_rgb(@builtin(global_invocation_id) global_id: vec3<u32>){
 
 @compute @workgroup_size(8, 4, 1)
 fn main_depth(@builtin(global_invocation_id) global_id: vec3<u32>){
-    let pixel_id = global_id.xy;
-    let ctx = pixel_launch_context(pixel_id);
+    let ctx = pixel_launch_context(global_id.xy);
     if(!ctx.valid){
         return;
     }
-
-    var accumulated = 0.0;
-    let inv_aa_grid = 1.0 / f32(fc_aa_grid);
-    let motion_samples = select(fc_motion_samples, 1, fc_dynamic_motion_blur);
-    for(var motion_i = 0; motion_i < motion_samples; motion_i++){
-        let cam = shutter_camera(ctx.cam_idx, motion_i);
-        for(var aa_y = 0; aa_y < fc_aa_grid; aa_y++){
-            for(var aa_x = 0; aa_x < fc_aa_grid; aa_x++){
-                let screen = (vec2<f32>(f32(ctx.local_x), f32(ctx.local_y)) + vec2<f32>((f32(aa_x) + 0.5) * inv_aa_grid, (f32(aa_y) + 0.5) * inv_aa_grid)) / vec2<f32>(f32(params.cam_width), f32(params.cam_height));
-                let direction = normalize(cam.dir_00 + screen.x * cam.dir_du + screen.y * cam.dir_dv);
-                accumulated += trace_depth_distance(ctx.cam_idx, cam.pos, direction, params.max_depth);
-            }
-        }
+    let cam = camera_close(ctx.cam_idx);
+    let screen = (vec2<f32>(f32(ctx.local_x), f32(ctx.local_y)) + vec2<f32>(0.5)) / vec2<f32>(f32(params.cam_width), f32(params.cam_height));
+    let direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
+    let normal = normalize(cross(camera_dir_du(cam), camera_dir_dv(cam)));
+    let hit = trace_closest_composed(ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30);
+    if(hit.valid){
+        out_set_f32(params.out_depth + u32(ctx.fb_offset), hit.t * abs(dot(direction, normal)));
     }
-    let samples = motion_samples * fc_aa_grid * fc_aa_grid;
-    if(fc_dynamic_motion_blur){
-        out_add_f32(params.out_depth_accumulator + u32(ctx.fb_offset), accumulated * (1.0 / f32(samples)));
-        return;
+    else{
+        outputs[params.out_depth + u32(ctx.fb_offset)] = 0x7f800000u;
     }
-    out_set_f32(params.out_depth + u32(ctx.fb_offset), accumulated * (1.0 / f32(samples)));
 }
 
 // divides the accumulated linear radiance by the sample count and writes the declared outputs
@@ -1242,9 +1225,6 @@ fn main_resolve(@builtin(global_invocation_id) global_id: vec3<u32>){
             outputs[params.out_frame_buffer + u32(ctx.fb_offset)] = make_linear_rgba_from_linear(color);
         }
     }
-    if(fc_resolve_depth){
-        out_set_f32(params.out_depth + u32(ctx.fb_offset), out_f32(params.out_depth_accumulator + u32(ctx.fb_offset)) * inv_samples);
-    }
 }
 
 @compute @workgroup_size(8, 4, 1)
@@ -1274,7 +1254,7 @@ fn main_collision(@builtin(global_invocation_id) global_id: vec3<u32>){
     // two OUTPUTS words per probe: {distance: f32, hit: u32}
     let result_base = params.out_collision + u32(cam_idx * i32(params.num_probes) + probe_idx) * 2u;
     if(!hit.valid){
-        out_set_f32(result_base, params.max_dist);
+        outputs[result_base] = 0x7f800000u;
         outputs[result_base + 1u] = 0u;
     }
     else{

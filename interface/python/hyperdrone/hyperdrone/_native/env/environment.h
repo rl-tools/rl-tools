@@ -23,7 +23,7 @@
 #include <string>
 #include <vector>
 
-#if !defined(HYPERDRONE_ENV_NUM_ENVIRONMENTS) || !defined(HYPERDRONE_ENV_INSTANCES) || !defined(HYPERDRONE_ENV_CAM_WIDTH) || !defined(HYPERDRONE_ENV_CAM_HEIGHT) || !defined(HYPERDRONE_ENV_SHADING) || !defined(HYPERDRONE_ENV_MB_SAMPLES) || !defined(HYPERDRONE_ENV_HISTORY_LENGTH) || !defined(HYPERDRONE_ENV_PRESET) || !defined(HYPERDRONE_ENV_TASK) || !defined(HYPERDRONE_ENV_N_AGENTS) || !defined(HYPERDRONE_ENV_DEVICE_CUDA)
+#if !defined(HYPERDRONE_ENV_NUM_ENVIRONMENTS) || !defined(HYPERDRONE_ENV_INSTANCES) || !defined(HYPERDRONE_ENV_CAM_WIDTH) || !defined(HYPERDRONE_ENV_CAM_HEIGHT) || !defined(HYPERDRONE_ENV_SHADING) || !defined(HYPERDRONE_ENV_MB_SAMPLES) || !defined(HYPERDRONE_ENV_PRESET) || !defined(HYPERDRONE_ENV_TASK) || !defined(HYPERDRONE_ENV_N_AGENTS) || !defined(HYPERDRONE_ENV_DEVICE_CUDA)
 #error "every HYPERDRONE_ENV_* configuration define must be set (hyperdrone.env.EnvConfig.defines())"
 #endif
 #if HYPERDRONE_ENV_DEVICE_CUDA && !defined(HYPERDRONE_ENV_CUDA)
@@ -72,7 +72,10 @@ namespace HYPERDRONE_MODULE_NAME {
                 l2f::observation::OrientationRotationMatrix<l2f::observation::OrientationRotationMatrixSpecification<T, TI,
                 l2f::observation::LinearVelocity<l2f::observation::LinearVelocitySpecification<T, TI,
                 l2f::observation::AngularVelocity<l2f::observation::AngularVelocitySpecification<T, TI>>>>>>>>;
-        using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
+        using OBSERVATION_TYPE_PRIVILEGED = l2f::observation::Position<l2f::observation::PositionSpecificationPrivileged<T, TI,
+                l2f::observation::OrientationRotationMatrix<l2f::observation::OrientationRotationMatrixSpecificationPrivileged<T, TI,
+                l2f::observation::LinearVelocity<l2f::observation::LinearVelocitySpecificationPrivileged<T, TI,
+                l2f::observation::AngularVelocity<l2f::observation::AngularVelocitySpecificationPrivileged<T, TI>>>>>>>>;
         static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
         using PARAMETERS = PARAMETERS_TYPE;
         static constexpr auto dynamics = l2f::parameters::dynamics::registry<l2f::parameters::dynamics::REGISTRY::crazyflie, PARAMETERS_SPEC>;
@@ -118,7 +121,6 @@ namespace HYPERDRONE_MODULE_NAME {
         static constexpr TI CAM_HEIGHT = HYPERDRONE_ENV_CAM_HEIGHT;
         static constexpr bool ENABLE_MOTION_BLUR = HYPERDRONE_ENV_MB_SAMPLES > 1;
         static constexpr TI MOTION_BLUR_SAMPLES = HYPERDRONE_ENV_MB_SAMPLES;
-        static constexpr TI HISTORY_LENGTH = HYPERDRONE_ENV_HISTORY_LENGTH;
         static constexpr TI MAX_DRONES = 8;
         using SHADING = rlt::utils::typing::conditional_t<HYPERDRONE_ENV_SHADING == 0, rlt::rendering::raytracing::Low,
                         rlt::utils::typing::conditional_t<HYPERDRONE_ENV_SHADING == 1, rlt::rendering::raytracing::Medium,
@@ -158,11 +160,16 @@ namespace HYPERDRONE_MODULE_NAME {
     struct FrameStride<WORLD_TYPE, rlt::utils::typing::void_t<decltype(WORLD_TYPE::FRAME_STRIDE)>> { static constexpr TI VALUE = WORLD_TYPE::FRAME_STRIDE; };
     constexpr TI OBSERVATION_DIM_IMU = ObservationIMUDim<WORLD>::VALUE;
 
+    template <typename WORLD_TYPE, typename = void>
+    struct SynchronizedResets { static constexpr bool VALUE = false; };
+    template <typename WORLD_TYPE>
+    struct SynchronizedResets<WORLD_TYPE, rlt::utils::typing::void_t<decltype(WORLD_TYPE::SYNCHRONIZED_RESETS)>> { static constexpr bool VALUE = WORLD_TYPE::SYNCHRONIZED_RESETS; };
+
     // The environment behind the binding. The World, its RNG and every instance tensor live in the
     // World's memory (GPU under CUDA_WORLD, impl.cpp is then compiled by nvcc) and every verb is
     // enqueued on stream(). A `resident` array lives in the World's memory and is read or written
     // in place on that stream; any other array is a host array, staged through the environment
-    // with a synchronization. A null mask selects every instance (reset) or none (render)
+    // with a synchronization. A null reset mask selects every instance.
     struct Environment {
         struct Impl;
         Impl* impl;
@@ -171,7 +178,7 @@ namespace HYPERDRONE_MODULE_NAME {
         Environment(const Environment&) = delete;
         Environment& operator=(const Environment&) = delete;
         // drones: the shared table, one asset (SELF_VISIBLE) and one resolved parameter set per entry
-        void init(const std::vector<std::string>& scenes, const std::vector<std::optional<std::string>>& drone_assets, const std::vector<std::string>& drone_parameters, const std::optional<std::string>& gate_asset, unsigned long long seed);
+        void init(const std::vector<std::string>& scenes, const std::vector<std::optional<std::string>>& drone_assets, const std::vector<std::string>& drone_parameters, const std::map<std::string, std::string>& assets, unsigned long long seed);
         std::string segmentation_taxonomy() const;
         std::map<uint32_t, std::string> segmentation_classes() const;
         std::string parameters_json();
@@ -187,7 +194,6 @@ namespace HYPERDRONE_MODULE_NAME {
         // spawn_points (one per selected instance, see spawn_points_json, a host mask): the
         // entry's nominal drone at the recorded placement and poses; empty samples as usual
         void reset(const bool* mask, bool resident, const std::string& spawn_points = "");
-        void render(const bool* mask, bool resident);
         void step(const float* actions, bool resident);
         void observe(float* out, bool resident);
         void depth(float* out, bool resident);
@@ -218,9 +224,6 @@ namespace HYPERDRONE_MODULE_NAME {
     };
 
     inline ObservationLayout observation_layout(){
-#ifdef HYPERDRONE_ENV_SPEC_HEADER
-        return {{WORLD::OBSERVATION_DIM}, "flat", {{"observation", 0, WORLD::OBSERVATION_DIM}}};
-#else
         constexpr TI HEIGHT = WORLD::Observation::HEIGHT;
         constexpr TI WIDTH = WORLD::Observation::WIDTH;
         constexpr TI CHANNELS = WORLD::Observation::CHANNELS;
@@ -237,7 +240,6 @@ namespace HYPERDRONE_MODULE_NAME {
         layout.blocks.push_back({"image", 0, CHANNELS});
 #endif
         return layout;
-#endif
     }
 
     inline ObservationLayout observation_layout_privileged(){

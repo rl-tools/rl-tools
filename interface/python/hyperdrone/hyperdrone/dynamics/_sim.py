@@ -2,88 +2,64 @@ import json
 
 import numpy as np
 
-from .._dlpack import DLPackBuffer as _DLPackBuffer
-from ._component import ensure_sim_library, load_core, resolve_device
-from ._config import MODELS, STATE_COMPONENTS, SimConfig
+from .. import _cuda
+from .._dlpack import DLPackBuffer as _DLPackBuffer, is_cuda
+from .._parameters import resolve
+from ._component import ensure_sim_library, load_core, _resolve_device
+from ._config import STATE_COMPONENTS, SimConfig
 
-IDENTITY_MOUNT = np.array(
-    [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]], dtype=np.float32
-)
+IDENTITY_MOUNT = np.array([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]], dtype=np.float32)
 
 
-class SimParameters:
-    """Per-drone runtime physical parameters (host numpy in/out). Writes persist until
-    the next reset(), which restores the model preset before optional randomization."""
-
-    NAMES = ("mass", "hovering_throttle_relative", "dt")
-
-    def __init__(self, sim):
-        self._sim = sim
-
-    def __getitem__(self, name):
-        out = np.empty(self._sim.num_drones, dtype=np.float32)
-        self._sim._sim.read_parameter(name, out)
-        return out
-
-    def __setitem__(self, name, values):
-        array = np.ascontiguousarray(np.broadcast_to(np.asarray(values, dtype=np.float32), (self._sim.num_drones,)))
-        self._sim._sim.write_parameter(name, array)
-
-    def keys(self):
-        return self.NAMES
+def _load_cuda_core():
+    return load_core("cuda")
 
 
 class SimState:
-    """Zero-copy views of the published state component buffers, (num_drones, dim) each;
-    device-resident on the CUDA variant. Refreshed in place by step()/reset()."""
+    """Owned state snapshots; assignment updates the authoritative simulation state."""
 
     def __init__(self, sim):
         self._sim = sim
 
     def __getitem__(self, name):
-        component, _ = STATE_COMPONENTS[name]
-        jit = self._sim._sim
-        return _DLPackBuffer(self._sim, lambda: jit.state_dlpack(component), jit.buffer_device_type)
-
-    def __setitem__(self, name, values):
-        component, dim = STATE_COMPONENTS[name]
-        array = np.ascontiguousarray(values, dtype=np.float32).reshape(self._sim.num_drones, dim)
-        self._sim._sim.set_state(component, array)
-
-    def numpy(self, name):
         component, dim = STATE_COMPONENTS[name]
         out = np.empty((self._sim.num_drones, dim), dtype=np.float32)
         self._sim._sim.read_state(component, out)
+        self._sim._pending_inputs.clear()
         return out
+
+    def __setitem__(self, name, values):
+        component, dim = STATE_COMPONENTS[name]
+        array = np.ascontiguousarray(values, dtype=np.float32)
+        if array.shape != (self._sim.num_drones, dim):
+            raise ValueError(f"hyperdrone: state {name!r} must have shape ({self._sim.num_drones}, {dim})")
+        self._sim._sim.set_state(component, array)
+        self._sim._pending_inputs.clear()
 
     def keys(self):
         return STATE_COMPONENTS.keys()
 
 
 class Sim:
-    """Vectorized, stateful L2F multirotor simulator.
+    """Vectorized L2F dynamics with a fixed shared parameter set and explicit state updates.
 
-    Compile-time constants (num_drones, domain randomization) select a JIT-compiled
-    library; the model preset, integration dt, and all physical parameters are runtime.
-    On device="cuda" the state, observation, and camera-basis buffers are CUDA-resident
-    and hand over to the renderer without touching the host.
+    A seed initializes independent dynamics and observation streams once. Reset restores selected drones' nominal parameters and state; sample_states=True samples their initial states from a continuing host stream. Host accessors return owned arrays; *_dlpack accessors borrow publication buffers until the next producer update. Consumers must finish reading borrowed buffers before that update.
     """
 
-    def __init__(self, num_drones, model="crazyflie", dt=None, device="auto", domain_randomization=False):
-        if model not in MODELS:
-            raise ValueError(f"model must be one of {MODELS}")
-        self.config = SimConfig(num_drones=int(num_drones), domain_randomization=bool(domain_randomization))
-        self.device = resolve_device(device).lower()
-        library = ensure_sim_library(self.config, self.device)
-        core = load_core(self.device)
-        self._sim = core.JitSim(str(library), self.config.canonical())
-        if not self._sim.set_model(model):
-            raise ValueError(f"hyperdrone: unknown dynamics model {model}")
-        self.model = model
-        if dt is not None:
-            self._sim.set_dt(float(dt))
+    def __init__(self, num_drones, *, parameters=None, seed=0, device="cpu"):
+        self._config = SimConfig(num_drones=num_drones)
+        if type(seed) is not int or not 0 <= seed <= 0xFFFFFFFF:
+            raise ValueError("hyperdrone: seed must be an integer in [0, 2**32 - 1]")
+        self.device = _resolve_device(device)
+        library = ensure_sim_library(self._config, self.device)
+        self._core = load_core(self.device)
+        self._sim = self._core.JitSim(str(library), self._config.canonical())
+        nominal = resolve(json.loads(self._sim.parameters()), {} if parameters is None else parameters, self._core.model_json)
+        self._sim.init(seed, json.dumps(nominal))
+        self._pending_inputs = []
         self.state = SimState(self)
-        self.parameters = SimParameters(self)
+        if self.device == "cuda":
+            _cuda.register_provider(_load_cuda_core)
 
     @property
     def num_drones(self):
@@ -98,83 +74,93 @@ class Sim:
         return self._sim.observation_dim
 
     @property
-    def dt(self):
-        return self._sim.dt
+    def parameters(self):
+        return json.loads(self._sim.parameters())
 
-    @dt.setter
-    def dt(self, value):
-        self._sim.set_dt(float(value))
+    @property
+    def dt(self):
+        return self.parameters["dynamics"]["integration"]["dt"]
 
     @property
     def stream(self):
-        """cudaStream_t handle of the sim's stream (0 on the cpu variant); pass to
-        renderer.set_cameras(..., stream=...) for event-ordered device hand-off."""
+        """The CUDA stream handle (0 on CPU), for ordering device handoffs."""
         return self._sim.stream
 
-    def set_model(self, model):
-        if not self._sim.set_model(model):
-            raise ValueError(f"hyperdrone: unknown dynamics model {model}")
-        self.model = model
+    def _mask(self, mask):
+        if mask is None:
+            return np.ones(self.num_drones, dtype=np.bool_)
+        array = np.ascontiguousarray(mask, dtype=np.bool_)
+        if array.shape != (self.num_drones,):
+            raise ValueError(f"hyperdrone: mask must have shape ({self.num_drones},)")
+        return array
 
-    def model_parameters(self):
-        """The nominal l2f dynamics of the model preset (rotor_positions, rotor_torque_directions,
-        thrust and torque constants, mass, J, ...): the schema of
-        MultiEnvironment.parameters["dynamics"]["dynamics"]. Runtime per-drone edits through
-        parameters[...] and domain randomization are not reflected."""
-        return json.loads(load_core(self.device).model_json(self.model))
+    def reset(self, mask=None, *, sample_states=False):
+        self._sim.reset(self._mask(mask), bool(sample_states))
+        self._pending_inputs.clear()
 
-    def reset(self, seed=0, sample_states=True, sample_parameters=False):
-        """Deterministic given seed. Sampling runs on the host with the rl_tools CPU
-        engine, so cpu and cuda variants reset to identical states and parameters."""
-        self._sim.reset(int(seed), bool(sample_parameters), bool(sample_states))
-        return self
+    def instance_parameters(self):
+        return json.loads(self._sim.instance_parameters())
 
-    def step(self, actions, stream=0):
-        """Advance all drones by one dt. actions: (num_drones, action_dim) float32 in
-        [-1, 1] (normalized rotor commands), any DLPack producer; CUDA-resident tensors
-        stay on the device (stream: the producer's cudaStream_t handle)."""
-        device = getattr(actions, "__dlpack_device__", None)
-        if device is not None and device()[0] == 2:  # kDLCUDA
-            if not hasattr(self._sim, "step_device"):
+    def set_instance_parameters(self, overrides, mask=None):
+        mask = self._mask(mask)
+        selected = np.flatnonzero(mask)
+        if isinstance(overrides, dict):
+            overrides = [overrides] * len(selected)
+        if len(overrides) != len(selected):
+            raise ValueError(f"hyperdrone: {len(overrides)} overrides for {len(selected)} selected drones")
+        current = self.instance_parameters()
+        merged = [resolve(current[index], values, self._core.model_json) for index, values in zip(selected, overrides)]
+        self._sim.set_instance_parameters(mask, json.dumps(merged))
+        self._pending_inputs.clear()
+
+    def step(self, actions, *, stream=0):
+        """Advance one dt with normalized rotor commands of shape (num_drones, action_dim)."""
+        if is_cuda(actions):
+            if self.device != "cuda":
                 raise RuntimeError("hyperdrone: device-resident actions require the cuda dynamics variant")
-            self._sim.step_device(actions, stream)
-            return self
+            self._sim.step_device(actions, int(stream))
+            self._pending_inputs.append(actions)
+            return
         array = np.ascontiguousarray(np.asarray(actions), dtype=np.float32)
         if array.shape != (self.num_drones, self.action_dim):
             raise ValueError(f"actions must have shape ({self.num_drones}, {self.action_dim})")
         self._sim.step(array)
-        return self
 
     def synchronize(self):
         self._sim.synchronize()
+        self._pending_inputs.clear()
 
-    def observations(self):
-        """Zero-copy view of the observation buffer; call update first via observe()."""
+    def _buffer(self, producer):
+        return _DLPackBuffer(self, producer, self._sim.buffer_device_type, self._sim.buffer_device_id, self._sim.order_consumer)
+
+    def state_dlpack(self, name):
+        component, _ = STATE_COMPONENTS[name]
+        return self._buffer(lambda: self._sim.state_dlpack(component))
+
+    def observe_dlpack(self):
         self._sim.update_observations()
-        return _DLPackBuffer(self, self._sim.observations_dlpack, self._sim.buffer_device_type)
+        return self._buffer(self._sim.observations_dlpack)
 
     def observe(self):
-        """Observations as a host numpy array, (num_drones, observation_dim)."""
         self._sim.update_observations()
         out = np.empty((self.num_drones, self.observation_dim), dtype=np.float32)
         self._sim.read_observations(out)
+        self._pending_inputs.clear()
         return out
 
-    def camera_bases(self, mount=None, fov=80.0, aspect=1.0):
-        """Packed camera ray-gen bases (num_drones, 12) derived from the drone poses:
-        zero-copy DLPack producer, CUDA-resident on the cuda variant — feed directly to
-        renderer.set_cameras(bases, stream=sim.stream). mount is a body-frame (3, 4)
-        transform (camera looks along body +X by default); fov is in degrees."""
-        if mount is None:
-            mount_array = IDENTITY_MOUNT
-        else:
-            mount_array = np.ascontiguousarray(np.asarray(mount), dtype=np.float32).reshape(3, 4)
+    def camera_bases_dlpack(self, *, mount=None, fov=80.0, aspect):
+        """Borrow packed camera bases derived from authoritative drone poses; fov is in degrees."""
+        mount_array = IDENTITY_MOUNT if mount is None else np.ascontiguousarray(mount, dtype=np.float32)
+        if mount_array.shape != (3, 4):
+            raise ValueError("hyperdrone: mount must have shape (3, 4)")
+        if not np.isfinite(fov) or not 0 < fov < 180 or not np.isfinite(aspect) or aspect <= 0:
+            raise ValueError("hyperdrone: fov must be in (0, 180) and aspect must be positive")
         self._sim.update_camera_bases(mount_array, float(fov), float(aspect))
-        return _DLPackBuffer(self, self._sim.camera_bases_dlpack, self._sim.buffer_device_type)
+        return self._buffer(self._sim.camera_bases_dlpack)
 
-    def camera_bases_numpy(self, mount=None, fov=80.0, aspect=1.0):
-        self.camera_bases(mount=mount, fov=fov, aspect=aspect)
+    def camera_bases(self, *, mount=None, fov=80.0, aspect):
+        self.camera_bases_dlpack(mount=mount, fov=fov, aspect=aspect)
         out = np.empty((self.num_drones, 12), dtype=np.float32)
         self._sim.read_camera_bases(out)
+        self._pending_inputs.clear()
         return out
-

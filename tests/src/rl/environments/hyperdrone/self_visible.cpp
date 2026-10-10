@@ -189,6 +189,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE, OWN_DRONE_AND_ARTICULATIO
     // live per render, driven by StateRenderRotorPhase
     arrange(device, parameters, states, (T)(M_PI / 2));
     rlt::set_all(device, reset_mask, false);
+    rlt::request_render(device, world);
     rlt::render(device, world, parameters, states, reset_mask);
     rlt::observe(device, world, parameters, states, typename WORLD::Observation{}, observations, rng);
     for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){

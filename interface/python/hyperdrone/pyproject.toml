@@ -4,12 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hyperdrone"
-version = "0.1.7"
+dynamic = ["version"]
 authors = [{name = "Jonas Eschmann", email = "jonas.eschmann@gmail.com"}]
 license = {text = "MIT"}
 description = "The fastest drone simulator and renderer (raytracer)."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = ["numpy", "nanobind>=2.0", "conta"]
 
 [project.optional-dependencies]
@@ -24,6 +24,9 @@ exclude = [
     "__pycache__/", ".build*/", "build/", "build-*/", "cmake-build-*/",
     "CMakeFiles/", "CMakeCache.txt",
 ]
+
+[tool.hatch.version]
+path = "hyperdrone/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["hyperdrone"]

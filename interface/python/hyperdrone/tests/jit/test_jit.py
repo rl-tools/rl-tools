@@ -1,4 +1,4 @@
-"""hyperdrone.jit unit tests against the toy component: configure, per-config build,
+"""hyperdrone._jit unit tests against the toy component: configure, per-config build,
 cache hits, artifact validation, and multi-process lock contention — all in seconds,
 without any rendering or dynamics dependency."""
 import ctypes
@@ -6,7 +6,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from hyperdrone import jit
+from hyperdrone import _jit as jit
 
 TOY_SOURCE = Path(__file__).resolve().parent / "toy"
 
@@ -64,7 +64,7 @@ def test_cache_hit_does_not_rebuild():
 
 
 def test_existing_tree_moves_fetchcontent_state_into_cache():
-    from hyperdrone.jit import _workspace
+    from hyperdrone._jit import _workspace
 
     component = toy_component()
     config = ToyConfig(value=8)
@@ -100,7 +100,7 @@ def test_concurrent_builds_do_not_race():
     code = (
         "import sys; sys.path.insert(0, sys.argv[1]); "
         "from test_jit import ToyConfig, toy_component, load_toy; "
-        "from hyperdrone import jit; "
+        "from hyperdrone import _jit as jit; "
         "artifact = jit.ensure(toy_component(), ToyConfig(value=int(sys.argv[2]))); "
         "assert load_toy(artifact).hyperdrone_toy_value() == int(sys.argv[2]); "
         "print(artifact)"
@@ -120,10 +120,24 @@ def test_concurrent_builds_do_not_race():
 
 
 def test_workspace_layout():
-    from hyperdrone.jit import _workspace
+    from hyperdrone._jit import _workspace
 
     component = toy_component()
     directory = jit.build_dir(component)
     assert directory.name == f"toy-cpu-{jit.workspace_tag()}"
     assert directory.parent == jit.cache_root()
     assert _workspace.dependencies_root() == jit.cache_root() / ".dependencies"
+
+
+def test_native_host_targets_have_separate_workspaces(monkeypatch):
+    from hyperdrone._jit import _workspace
+
+    monkeypatch.setattr(_workspace, "host_target", lambda: "x86_64|avx avx2")
+    newer = _workspace.workspace_tag()
+    monkeypatch.setattr(_workspace, "host_target", lambda: "x86_64|avx")
+    assert _workspace.workspace_tag() != newer
+    component = jit.Component(name="dynamics", variant="cuda", needs_cuda=True)
+    monkeypatch.setattr(_workspace, "cuda_target", lambda: "8.9")
+    older_gpu = _workspace.workspace_tag(component)
+    monkeypatch.setattr(_workspace, "cuda_target", lambda: "12.0")
+    assert _workspace.workspace_tag(component) != older_gpu

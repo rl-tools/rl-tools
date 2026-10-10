@@ -44,13 +44,11 @@ int main(){
     fs::create_directories(output);
 
     henv::Environment env;
-    env.init({scene.string()}, {std::nullopt}, {env.parameters_json()}, std::nullopt, SEED);
+    env.init({scene.string()}, {std::nullopt}, {env.parameters_json()}, {}, SEED);
 
     constexpr size_t total = henv::TOTAL;
     std::array<bool, total> all;
     all.fill(true);
-    std::array<bool, total> none;
-    none.fill(false);
     std::vector<float> observations, observations_privileged, rewards;
     std::vector<uint8_t> terminated;
     std::vector<float> snapshot(total * henv::WORLD::OBSERVATION_DIM);
@@ -64,7 +62,6 @@ int main(){
     };
 
     env.reset(all.data(), true);
-    env.render(all.data(), true);
     record();
     std::vector<float> actions(total * henv::WORLD::ACTION_DIM);
     std::vector<float> step_rewards(total);
@@ -76,7 +73,6 @@ int main(){
             }
         }
         env.step(actions.data(), true);
-        env.render(none.data(), true);
         record();
         env.rewards(step_rewards.data(), true);
         rewards.insert(rewards.end(), step_rewards.begin(), step_rewards.end());
@@ -107,7 +103,6 @@ int main(){
         {"HYPERDRONE_ENV_CAM_HEIGHT", HYPERDRONE_ENV_CAM_HEIGHT},
         {"HYPERDRONE_ENV_SHADING", HYPERDRONE_ENV_SHADING},
         {"HYPERDRONE_ENV_MB_SAMPLES", HYPERDRONE_ENV_MB_SAMPLES},
-        {"HYPERDRONE_ENV_HISTORY_LENGTH", HYPERDRONE_ENV_HISTORY_LENGTH},
         {"HYPERDRONE_ENV_PRESET", HYPERDRONE_ENV_PRESET},
         {"HYPERDRONE_ENV_TASK", HYPERDRONE_ENV_TASK},
         {"HYPERDRONE_ENV_N_AGENTS", HYPERDRONE_ENV_N_AGENTS},

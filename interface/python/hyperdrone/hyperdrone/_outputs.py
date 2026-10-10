@@ -15,11 +15,13 @@ class FlowStatus(IntEnum):
 
 def normalize_outputs(output):
     if isinstance(output, str):
-        output = output.lower()
-        output = {"rgbd": ("rgb", "depth"),
-                  "rgbd_segmentation": ("rgb", "depth", "segmentation")}.get(output, (output,))
-    if not isinstance(output, (tuple, list)) or not output or any(not isinstance(name, str) for name in output):
-        raise ValueError(f"output must be a channel name or a nonempty sequence of {CHANNELS}")
+        output = (output,)
+    try:
+        output = tuple(output)
+    except TypeError:
+        raise ValueError(f"output must name one or more of {CHANNELS}") from None
+    if not output or any(not isinstance(name, str) for name in output):
+        raise ValueError(f"output must name one or more of {CHANNELS}")
     names = {name.lower() for name in output}
     if names.difference(CHANNELS):
         raise ValueError(f"unknown outputs {sorted(names.difference(CHANNELS))}; choose from {CHANNELS}")

@@ -86,10 +86,12 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localiz
         using TI = typename NEXT_WORLD::TI;
         static_assert(HasIMUMeasurement<typename NEXT_WORLD::State>::VALUE, "the visual-inertial localization task needs l2f::StateIMU in the dynamics state chain (e.g. presets::X500FPVIMU)");
         static_assert(NEXT_WORLD::SPEC::N_AGENTS == 1, "the visual-inertial localization task is single-agent");
+        static_assert(NEXT_WORLD::SPEC::HISTORY_LENGTH == 1, "the visual-inertial localization task holds one camera frame");
 
         using Parameters = ParametersVisualInertialLocalization<ParametersSpecification<T, TI, TASK_SPEC::NUM_WAYPOINTS, typename NEXT_WORLD::Parameters>>;
         using State = StateVisualInertialLocalization<ComponentSpecification<T, TI, typename NEXT_WORLD::State>>;
         static constexpr TI FRAME_STRIDE = TASK_SPEC::FRAME_STRIDE;
+        static constexpr bool SYNCHRONIZED_RESETS = true;
         static constexpr TI INITIALIZATION_HOLD_STEPS = TASK_SPEC::INITIALIZATION_HOLD_STEPS;
         static constexpr TI ACTION_DIM = 0;
         using AUTOPILOT = Autopilot<NEXT_WORLD>;
@@ -115,7 +117,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localiz
 
         AUTOPILOT autopilot;
         std::string autopilot_policy_path = TASK_SPEC::AUTOPILOT_POLICY; // override before init
-        TI task_step = 0; // env-step counter driving the camera stride phase (history_step only counts rendered frames)
+        TI task_step = 0;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

@@ -331,6 +331,8 @@ void bank_and_stack_semantics(){
 
     // no reset, moved states: cached target byte-identical, stack shifts
     rlt::set_all(device_gpu, reset_mask, false);
+    rlt::step(device_gpu, world, parameters, states, actions, next_states, rng);
+    rlt::copy(device_gpu, device_gpu, next_states, states);
     rlt::copy(device_gpu, host_device, states, states_host);
     for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
         typename WORLD::State state = rlt::get(host_device, states_host, instance_i);

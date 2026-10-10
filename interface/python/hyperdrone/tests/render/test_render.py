@@ -1,14 +1,14 @@
 import os
 import subprocess
 import sys
-from dataclasses import replace
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import numpy as np
 import pytest
 
 import hyperdrone
-from hyperdrone import jit, render
+from hyperdrone import _jit as jit, render
 
 
 def test_backend_announcement_reaches_python_for_each_renderer():
@@ -93,7 +93,7 @@ import sys
 import hyperdrone
 hyperdrone.set_verbosity("warning")
 assert hyperdrone.verbosity() == "warning"
-assert "hyperdrone.jit" not in sys.modules
+assert "hyperdrone._jit" not in sys.modules
 """], check=True)
 
 
@@ -160,7 +160,7 @@ def test_environment_solid_background(fidelity):
     renderer.init(scene)
     look_forward(renderer)
     renderer.render()
-    expected = 255 * background if fidelity == "low" else linear_to_rgb8(background)
+    expected = linear_to_rgb8(background)
     frame = renderer.frame()[0, :, :, :3]
     np.testing.assert_allclose(frame, np.broadcast_to(expected, frame.shape), atol=1.1)
 
@@ -237,6 +237,8 @@ def test_collision_probes():
     renderer.probe()
     distances, hits = renderer.collisions()
     assert distances.shape == (1, 4)
+    assert hits.dtype == bool
+    assert np.isposinf(distances[~hits]).all()
     # probe 0 is the camera forward direction and must hit the wall at ~3m
     assert hits[0, 0] == 1
     assert abs(distances[0, 0] - 3.0) < 1e-2
@@ -244,7 +246,7 @@ def test_collision_probes():
 
 @pytest.mark.parametrize("asynchronous", [False, True])
 def test_render_and_probe_are_independent(asynchronous):
-    renderer = render.Renderer(width=16, height=16, output="rgbd_segmentation", fidelity="low")
+    renderer = render.Renderer(width=16, height=16, output=("rgb", "depth", "segmentation"), fidelity="low")
     renderer.init(make_scene(3.0))
     look_forward(renderer)
     renderer.generate_probe_directions()
@@ -324,8 +326,7 @@ def test_motion_blur_camera_buffers_and_split_render():
     renderer.set_motion_blur_cameras(camera_open[None], camera_close[None])
     renderer.render_launch()
     renderer.render_sync()
-    blurred_depth = renderer.depth()[0, 8, 8]
-    assert 2.0 < blurred_depth < 3.0
+    assert abs(renderer.depth()[0, 8, 8] - 3.0) < 1e-5
 
     renderer.set_cameras(camera_open[None])
     renderer.render()
@@ -333,8 +334,6 @@ def test_motion_blur_camera_buffers_and_split_render():
 
 
 def test_dynamic_motion_blur_object():
-    # static camera (shutter open == close), overlay translating from x=2 to x=4 across the
-    # shutter: 2 samples at midpoint times hit x=2.5 and x=3.5, so the blurred depth is 3.0
     scene = make_scene(8.0)
     asset_pool = render.AssetPool()
     dynamic = render.Object(name="dynamic")
@@ -351,27 +350,27 @@ def test_dynamic_motion_blur_object():
         max_overlays_per_camera=1,
         dynamic_motion_blur=True,
     )
-    renderer.init(scene, asset_pool)
+    renderer.init(scene, asset_pool=asset_pool)
     camera = renderer.camera(position=(0.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=60.0)
     renderer.set_motion_blur_cameras(camera[None], camera[None])
     renderer.attach(0, 0)
     placement = renderer.spawn(0, asset, render.make_transform(position=(4.0, 0.0, 0.0)))
-    renderer.set_transform_pair(0, placement, render.make_transform(position=(2.0, 0.0, 0.0)), render.make_transform(position=(4.0, 0.0, 0.0)))
+    renderer.set_transform_pair(placement, render.make_transform(position=(2.0, 0.0, 0.0)), render.make_transform(position=(4.0, 0.0, 0.0)))
     renderer.update()
     renderer.render()
-    assert abs(renderer.depth()[0, 0, 0] - 3.0) < 1e-2
+    assert abs(renderer.depth()[0, 0, 0] - 4.0) < 1e-5
 
     # the whole-tensor form: per-sample world poses for every slot (the sample times are
     # (s + 0.5) / 2, so x = 2.5 and 3.5) plus the shutter-close poses
     samples = np.zeros((2, 1, 2, 3, 4), dtype=np.float32)
     close = np.zeros((1, 2, 3, 4), dtype=np.float32)
-    samples[0, 0, placement[0]] = render.make_transform(position=(2.5, 0.0, 0.0))
-    samples[1, 0, placement[0]] = render.make_transform(position=(3.5, 0.0, 0.0))
-    close[0, placement[0]] = render.make_transform(position=(4.0, 0.0, 0.0))
+    samples[0, 0, placement.first_slot] = render.make_transform(position=(2.5, 0.0, 0.0))
+    samples[1, 0, placement.first_slot] = render.make_transform(position=(3.5, 0.0, 0.0))
+    close[0, placement.first_slot] = render.make_transform(position=(4.0, 0.0, 0.0))
     renderer.set_all_motion_transforms(samples, close)
     renderer.update()
     renderer.render()
-    assert abs(renderer.depth()[0, 0, 0] - 3.0) < 1e-2
+    assert abs(renderer.depth()[0, 0, 0] - 4.0) < 1e-5
 
 
 def test_overlay_pipeline(tmp_path):
@@ -391,35 +390,35 @@ def test_overlay_pipeline(tmp_path):
         height=48,
         num_cameras=2,
         num_probes=2,
-        output="rgbd_segmentation",
+        output=("rgb", "depth", "segmentation"),
         fidelity="low",
         num_overlays=2,
         max_overlay_instances=2,
         max_overlays_per_camera=2,
     )
-    renderer.init(scene, asset_pool)
+    renderer.init(scene, asset_pool=asset_pool)
     look_forward(renderer)
     assert renderer.can_attach(0, 0)
     assert renderer.can_spawn(0, asset)
     renderer.attach(0, 0)
     placement = renderer.spawn(0, asset, render.make_transform(position=(4.0, 0.75, 0.0)))
-    assert placement == (0, 1, 0)
+    assert (placement.first_slot, placement.num_parts) == (0, 1)
     renderer.update()
     renderer.render()
 
-    instance_id = scene.num_instances + placement[0]
-    segmentation_live = renderer.segmentation(copy=False)
+    instance_id = scene.num_instances + placement.first_slot
+    segmentation_live = renderer.segmentation()
     first_mask = segmentation_live[0] == instance_id
     assert first_mask.sum() > 4
     assert not np.any(segmentation_live[1] == instance_id)
     assert np.mean(renderer.frame()[0][first_mask, 0]) > 100
     assert np.mean(renderer.depth()[0][first_mask]) < 5.0
 
-    renderer.set_transform(0, placement, render.make_transform(position=(4.0, -0.75, 0.0)))
+    renderer.set_transform(placement, render.make_transform(position=(4.0, -0.75, 0.0)))
     renderer.update()
     renderer.render_launch()
     renderer.render_sync()
-    second_view = renderer.segmentation(copy=False)
+    second_view = renderer.segmentation(out=segmentation_live)
     second_mask = second_view[0] == instance_id
     assert np.shares_memory(segmentation_live, second_view)
     assert second_mask.sum() > 4
@@ -433,28 +432,31 @@ def test_overlay_pipeline(tmp_path):
     assert not np.any(segmentation[0] == instance_id)
     assert np.any(segmentation[1] == instance_id)
 
-    renderer.despawn(0, placement)
+    renderer.despawn(placement)
     renderer.update()
     renderer.render()
     assert not np.any(renderer.segmentation() == instance_id)
     assert renderer.can_spawn(0, asset)
     replacement = renderer.spawn(0, asset, render.make_transform(position=(4.0, -0.75, 0.0)))
-    assert replacement == placement
+    assert replacement.first_slot == placement.first_slot
+    assert replacement != placement
+    with pytest.raises(ValueError, match="stale"):
+        renderer.set_transform(placement, render.make_transform())
     renderer.update()
     renderer.render()
     assert np.any(renderer.segmentation()[1] == instance_id)
 
     assert not renderer.can_spawn(0, assembly_asset)
-    renderer.despawn(0, replacement)
+    renderer.despawn(replacement)
     assert renderer.can_spawn(0, assembly_asset)
     assembly_placement = renderer.spawn(0, assembly_asset, render.make_transform())
-    assert assembly_placement == (0, 2, 1)
+    assert (assembly_placement.first_slot, assembly_placement.num_parts) == (0, 2)
     # per-part world poses: part 0 stays at its rest frame, part 1 moves into view
     poses = np.stack([
         np.asarray(assembly.part(0)[1], dtype=np.float32),
         np.asarray(render.make_transform(position=(0.0, 2.0, 0.0)), dtype=np.float32),
     ])
-    renderer.set_transforms(0, assembly_placement, poses)
+    renderer.set_transforms(assembly_placement, poses)
     renderer.update()
     renderer.render()
     segmentation = renderer.segmentation()
@@ -481,7 +483,7 @@ def test_semantic_segmentation_with_overlay():
         max_overlays_per_camera=1,
         semantic_segmentation=True,
     )
-    renderer.init(scene, asset_pool)
+    renderer.init(scene, asset_pool=asset_pool)
     look_forward(renderer)
     renderer.attach(0, 0)
     renderer.spawn(0, asset, render.make_transform(position=(4.0, 0.0, 0.0)))
@@ -494,7 +496,7 @@ def test_semantic_segmentation_with_overlay():
 
 def test_jit_cache_reuse():
     config = render.RendererConfig(
-        width=16, height=16, num_cameras=1, num_probes=1, fidelity=0, output=("depth",),
+        width=16, height=16, num_cameras=1, num_probes=1, fidelity="low", output=("depth",),
         motion_blur_samples=1, anti_aliasing_grid=1, num_overlays=0,
         max_overlay_instances=0, max_overlays_per_camera=0, semantic_segmentation=False,
     )
@@ -503,14 +505,15 @@ def test_jit_cache_reuse():
     renderer = render.Renderer(width=16, height=16, num_cameras=1, output="depth", fidelity="low")
     assert library.exists()
     modification_time = library.stat().st_mtime
-    renderer_again = render.Renderer(width=16, height=16, num_cameras=1, output="depth", fidelity="low")
+    renderer_again = render.Renderer(**asdict(config))
+    assert renderer_again.config == config
     assert library.stat().st_mtime == modification_time
 
 
 def test_different_renderer_configurations_share_scene():
     scene = make_scene(3.0)
     depth_renderer = render.Renderer(width=16, height=16, output="depth", fidelity="low")
-    rgbd_renderer = render.Renderer(width=16, height=16, output="rgbd", fidelity="low")
+    rgbd_renderer = render.Renderer(width=16, height=16, output=("rgb", "depth"), fidelity="low")
     for renderer in (depth_renderer, rgbd_renderer):
         renderer.init(scene)
         look_forward(renderer)
@@ -537,7 +540,7 @@ def test_output_views_keep_renderer_and_scene_alive():
     look_forward(renderer)
     renderer.render()
     snapshot = renderer.depth()
-    views = [renderer.depth(copy=False)]
+    views = [renderer.depth()]
     if renderer.backend != "optix":
         views.append(np.from_dlpack(renderer.depth_dlpack()))
     del renderer, scene
@@ -546,25 +549,23 @@ def test_output_views_keep_renderer_and_scene_alive():
         np.testing.assert_array_equal(view, snapshot)
 
 
-def test_zero_copy_host_view():
+def test_reused_host_output():
     renderer = render.Renderer(width=16, height=16, num_cameras=1, output="depth", fidelity="low")
     renderer.init(make_scene(2.0))
     look_forward(renderer)
     renderer.render()
-    first_view = renderer.depth(copy=False)
+    first_view = renderer.depth()
     assert abs(first_view[0, 8, 8] - 2.0) < 1e-2
-    # stepping the camera back must update the earlier view in place (it aliases the
-    # renderer's staging buffer)
     camera = renderer.camera(position=(-1.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=60.0)
     renderer.set_cameras(camera[None])
     renderer.render()
-    second_view = renderer.depth(copy=False)
+    second_view = renderer.depth(out=first_view)
     assert np.shares_memory(first_view, second_view)
     assert abs(first_view[0, 8, 8] - 3.0) < 1e-2
 
 
 def test_dlpack_export():
-    renderer = render.Renderer(width=16, height=16, num_cameras=1, output="rgbd", fidelity="low")
+    renderer = render.Renderer(width=16, height=16, num_cameras=1, output=("rgb", "depth"), fidelity="low")
     renderer.init(make_scene(2.0))
     look_forward(renderer)
     renderer.render()
@@ -611,7 +612,7 @@ def test_dlpack_camera_input():
     assert abs(renderer.depth()[0, 8, 8] - 2.0) < 1e-2
 
 
-@pytest.mark.skipif(render._backend() != "OPTIX", reason="device camera input requires the OptiX backend")
+@pytest.mark.skipif(render._backend() != "optix", reason="device camera input requires the OptiX backend")
 def test_device_camera_input():
     renderer = render.Renderer(width=32, height=32, num_cameras=2, output="depth", fidelity="low")
     renderer.init(make_scene(2.0))
@@ -623,7 +624,7 @@ def test_device_camera_input():
     renderer.render()
     host_frame = renderer.depth()
 
-    tensor_set = hyperdrone.cuda.upload(cameras[None])  # one set of two cameras
+    tensor_set = hyperdrone._cuda.upload(cameras[None])  # one set of two cameras
     renderer.set_cameras(tensor_set.view(0))            # dispatches on __dlpack_device__ == kDLCUDA
     renderer.render()
     device_frame = renderer.depth()
@@ -714,7 +715,7 @@ def test_glb_roundtrip(tmp_path):
     assert scene.num_objects == 1
     assert scene.num_instances == 1
     assert scene.num_lights == 3  # neutral fill lights added for light-less files
-    renderer = render.Renderer(width=32, height=32, num_cameras=1, output="rgbd", fidelity="medium")
+    renderer = render.Renderer(width=32, height=32, num_cameras=1, output=("rgb", "depth"), fidelity="medium")
     renderer.init(scene)
     look_forward(renderer)
     renderer.render()
@@ -790,7 +791,7 @@ def test_glb_scene():
     scene = render.load_scene(GLB, fidelity="high")
     assert scene.num_objects >= 1
     assert scene.num_instances >= 1
-    renderer = render.Renderer(width=64, height=48, num_cameras=1, output="rgbd", fidelity="high")
+    renderer = render.Renderer(width=64, height=48, num_cameras=1, output=("rgb", "depth"), fidelity="high")
     renderer.init(scene)
     bounds = renderer.scene_bounds
     assert bounds["camera_radius"] > 0
@@ -878,7 +879,7 @@ def test_loaded_semantics_survive_assembly_and_pool(labelled_glb):
     renderer = render.Renderer(width=24, height=24, fidelity='low', output='segmentation',
                                semantic_segmentation=True, num_overlays=1,
                                max_overlay_instances=4, max_overlays_per_camera=1)
-    renderer.init(scene, pool)
+    renderer.init(scene, asset_pool=pool)
     renderer.attach(0, 0)
     handle = renderer.spawn(0, asset, render.make_transform(position=(-1, 0, 0)))
     camera = renderer.camera(position=(0, 1.5, 0), look_at=(2, 1.5, 0))
@@ -886,7 +887,7 @@ def test_loaded_semantics_survive_assembly_and_pool(labelled_glb):
     renderer.update()
     renderer.render()
     assert renderer.segmentation()[0, 12, 12] == 21
-    renderer.set_transform(0, handle, render.make_transform(position=(-1, 2, 0)))
+    renderer.set_transform(handle, render.make_transform(position=(-1, 2, 0)))
     renderer.update()
     renderer.render()
     assert renderer.segmentation()[0, 12, 12] == 162
@@ -933,7 +934,7 @@ def test_explicit_class_assignment_repairs_welded_labels(labelled_glb, target):
     renderer = render.Renderer(width=24, height=24, fidelity='low', output='segmentation',
                                semantic_segmentation=True, num_overlays=1,
                                max_overlay_instances=4, max_overlays_per_camera=1)
-    renderer.init(scene, pool)
+    renderer.init(scene, asset_pool=pool)
     if pool is not None:
         renderer.attach(0, 0)
         renderer.spawn(0, asset, render.make_transform(position=(0, 0, 0)))
@@ -983,7 +984,7 @@ def test_label_remapping_across_scene_and_pool(labelled_glb):
     renderer = render.Renderer(width=24, height=24, fidelity='low', output='segmentation',
                                semantic_segmentation=True, num_overlays=1,
                                max_overlay_instances=4, max_overlays_per_camera=1)
-    renderer.init(scene, pool)
+    renderer.init(scene, asset_pool=pool)
     renderer.attach(0, 0)
     handle = renderer.spawn(0, asset, render.make_transform(position=(-1, 0, 0)))
     camera = renderer.camera(position=(0, 1.5, 0), look_at=(2, 1.5, 0))
@@ -991,7 +992,7 @@ def test_label_remapping_across_scene_and_pool(labelled_glb):
     renderer.update()
     renderer.render()
     assert renderer.segmentation()[0, 12, 12] == 2147483648
-    renderer.set_transform(0, handle, render.make_transform(position=(-1, 2, 0)))
+    renderer.set_transform(handle, render.make_transform(position=(-1, 2, 0)))
     renderer.update()
     renderer.render()
     assert renderer.segmentation()[0, 12, 12] == 4294967294
@@ -1023,3 +1024,220 @@ def test_object_and_pool_remapping_is_explicit(labelled_glb):
     assert obj.segmentation_class == 4294967294
     with pytest.raises(ValueError, match='reserved'):
         render.Object(segmentation_class=0xffffffff)
+
+
+def test_overlay_handles_validate_complete_allocation():
+    scene = make_scene(8)
+    pool = render.AssetPool()
+    asset = pool.add_mesh(make_quad(0))
+    renderer = render.Renderer(8, 8, output="segmentation", num_overlays=2, max_overlay_instances=2, max_overlays_per_camera=1)
+    renderer.init(scene, asset_pool=pool)
+    first = renderer.spawn(0, asset, render.make_transform(position=(2, 0, 0)))
+    neighbor = renderer.spawn(0, asset, render.make_transform(position=(3, 0, 0)))
+    renderer.spawn(1, asset, render.make_transform(position=(4, 0, 0)))
+    forged = (replace(first, num_parts=2), replace(first, first_slot=neighbor.first_slot), replace(first, overlay=1), replace(first, first_slot=2**64 - 1))
+    for placement in forged:
+        for verb in (lambda: renderer.despawn(placement), lambda: renderer.set_transform(placement, render.make_transform()), lambda: renderer.set_transforms(placement, np.zeros((2, 3, 4), np.float32)), lambda: renderer.set_motion_transforms(placement, None, None)):
+            with pytest.raises(ValueError, match="allocation"):
+                verb()
+    with pytest.raises(TypeError, match="OverlayPlacement"):
+        renderer.despawn((0, 1, 0))
+    other = render.Renderer(8, 8, output="segmentation", num_overlays=2, max_overlay_instances=2, max_overlays_per_camera=1)
+    with pytest.raises(ValueError, match="another renderer"):
+        other.despawn(first)
+    renderer.despawn(first)
+    replacement = renderer.spawn(0, asset, render.make_transform())
+    assert replacement.first_slot == first.first_slot
+    assert replacement != first
+    with pytest.raises(ValueError, match="stale"):
+        renderer.set_transform(first, render.make_transform())
+    class UnreadableCuda:
+        def __dlpack_device__(self):
+            raise AssertionError("a rejected handle must not consume its tensor")
+    with pytest.raises(ValueError, match="stale"):
+        renderer.set_transforms(first, UnreadableCuda())
+    assert not renderer._pending_inputs
+    renderer.set_transform(neighbor, render.make_transform())
+    for raw in ((2**64 - 1, 2, 0), (0, 0, 0), (2, 1, 0)):
+        with pytest.raises(ValueError):
+            renderer._renderer.despawn(0, raw)
+
+
+def test_overlay_errors_leave_renderer_usable():
+    scene = make_scene(8)
+    pool = render.AssetPool()
+    with pytest.raises(ValueError, match="at least one part"):
+        pool.add_assembly(render.ObjectAssembly())
+    asset = pool.add_mesh(make_quad(0))
+    renderer = render.Renderer(8, 8, num_overlays=2, max_overlay_instances=1, max_overlays_per_camera=1)
+    renderer.init(scene, asset_pool=pool)
+    for camera, overlay in ((1, 0), (0, 2)):
+        with pytest.raises(ValueError, match="out of range"):
+            renderer.attach(camera, overlay)
+        with pytest.raises(ValueError, match="out of range"):
+            renderer.detach(camera, overlay)
+    renderer.attach(0, 0)
+    with pytest.raises(RuntimeError, match="capacity"):
+        renderer.attach(0, 1)
+    for overlay, handle in ((2, asset), (0, asset + 1)):
+        with pytest.raises(ValueError, match="out of range"):
+            renderer.spawn(overlay, handle, render.make_transform())
+    placement = renderer.spawn(0, asset, render.make_transform())
+    with pytest.raises(RuntimeError, match="capacity"):
+        renderer.spawn(0, asset, render.make_transform())
+    renderer.despawn(placement)
+    assert renderer.can_spawn(0, asset)
+
+
+@pytest.mark.parametrize("name", ["width", "height", "num_cameras", "motion_blur_samples", "anti_aliasing_grid"])
+@pytest.mark.parametrize("value", [0, -1, 1.5, True])
+def test_renderer_dimensions_fail_before_build(name, value):
+    options = {"width": 8, "height": 8, name: value}
+    with pytest.raises(ValueError, match=name):
+        render.Renderer(**options)
+
+
+@pytest.mark.parametrize("name,dtype,channels", [("frame", np.uint8, 4), ("frame_raw", np.uint32, 1), ("depth", np.float32, 1), ("segmentation", np.uint32, 1), ("normals", np.float32, 3), ("flow", np.float32, 2), ("flow_status", np.uint32, 1)])
+def test_output_rejects_invalid_arrays_before_native(name, dtype, channels):
+    renderer = object.__new__(render.Renderer)
+    from types import SimpleNamespace
+    renderer.config = SimpleNamespace(num_cameras=1, width=8, height=8)
+    shape = (1, 8, 8) + ((channels,) if channels > 1 else ())
+    output = np.zeros(shape, dtype=dtype)
+    readonly = output.copy()
+    readonly.flags.writeable = False
+    invalid = [output.astype(np.float64), output[:, ::2], readonly, np.empty((8, 8), dtype=dtype)]
+    if np.dtype(dtype).itemsize > 1:
+        invalid.append(np.ndarray(shape, dtype=dtype, buffer=bytearray(output.nbytes + 1), offset=1))
+    for out in invalid:
+        with pytest.raises(ValueError, match="out must be"):
+            getattr(renderer, name)(out=out)
+
+
+def test_depth_is_axial_close_sample_and_misses_are_infinite():
+    renderer = render.Renderer(16, 16, output=("depth", "segmentation"), motion_blur_samples=4, anti_aliasing_grid=2)
+    renderer.init(make_scene(3))
+    camera_open = renderer.camera((0, 0, 0), (1, 0, 0))
+    camera_close = renderer.camera((-1, 0, 0), (1, 0, 0))
+    renderer.set_motion_blur_cameras(camera_open, camera_close)
+    renderer.render()
+    depth = renderer.depth()
+    hit = renderer.segmentation() != 0xFFFFFFFF
+    assert hit.any() and (~hit).any()
+    np.testing.assert_allclose(depth[hit], 4, atol=1e-6)
+    assert np.isposinf(depth[~hit]).all()
+    renderer.set_cameras(camera_close)
+    renderer.render()
+    np.testing.assert_array_equal(renderer.depth(), depth)
+
+
+@pytest.mark.skipif(render._backend() != "optix", reason="device camera ordering requires OptiX")
+def test_device_cameras_are_retained_and_order_probes():
+    renderer = render.Renderer(256, 256, output=("rgb", "depth"), motion_blur_samples=2)
+    renderer.init(make_scene(3))
+    renderer.generate_probe_directions()
+    opening = renderer.camera((0, 0, 0), (1, 0, 0))
+    closing = renderer.camera((-1, 0, 0), (1, 0, 0))
+    renderer.set_motion_blur_cameras(opening, closing)
+    renderer.render()
+    expected = renderer.depth()
+    renderer.probe()
+    distances, hits = renderer.collisions()
+    from hyperdrone import _cuda
+    cuda_open = _cuda.upload(np.asarray(opening).reshape(1, 12)).view()
+    cuda_close = _cuda.upload(np.asarray(closing).reshape(1, 12)).view()
+    with pytest.raises(ValueError, match="same memory"):
+        renderer.set_motion_blur_cameras(cuda_open, closing)
+    renderer.set_motion_blur_cameras(cuda_open, cuda_close, stream=np.int64(0))
+    assert renderer._pending_cameras == [cuda_open, cuda_close]
+    renderer.render()
+    assert not renderer._pending_cameras
+    np.testing.assert_array_equal(renderer.depth(), expected)
+    for _ in range(8):
+        renderer.set_cameras(opening)
+        renderer.render_launch()
+        renderer.set_cameras(cuda_close)
+        assert renderer._pending_cameras == [cuda_close]
+        renderer.probe()
+        assert not renderer._pending_cameras
+        actual_distances, actual_hits = renderer.collisions()
+        np.testing.assert_array_equal(actual_distances, distances)
+        np.testing.assert_array_equal(actual_hits, hits)
+    renderer.synchronize()
+
+
+def test_oversized_asset_does_not_consume_renderer():
+    pool = render.AssetPool()
+    assembly = render.ObjectAssembly()
+    obj = render.Object()
+    obj.add_mesh(make_quad(0))
+    for _ in range(2):
+        assembly.add_part(obj, render.make_transform())
+    pool.add_assembly(assembly)
+    renderer = render.Renderer(8, 8, num_overlays=1, max_overlay_instances=1, max_overlays_per_camera=1)
+    scene = make_scene(4)
+    with pytest.raises(ValueError, match="part count"):
+        renderer.init(scene, asset_pool=pool)
+    assert renderer.init(scene) is None
+    look_forward(renderer)
+    assert renderer.render() is None
+    assert renderer.frame().shape == (1, 8, 8, 4)
+
+
+@pytest.mark.skipif(render._backend() != "optix", reason="CUDA producer ordering requires OptiX")
+def test_cameras_wait_for_nondefault_producer_stream():
+    import ctypes
+    from hyperdrone import _cuda as cuda
+
+    runtime = ctypes.CDLL("libcudart.so")
+    runtime.cudaStreamCreateWithFlags.argtypes = [ctypes.POINTER(ctypes.c_void_p), ctypes.c_uint]
+    runtime.cudaStreamSynchronize.argtypes = [ctypes.c_void_p]
+    runtime.cudaStreamDestroy.argtypes = [ctypes.c_void_p]
+    runtime.cudaMalloc.argtypes = [ctypes.POINTER(ctypes.c_void_p), ctypes.c_size_t]
+    runtime.cudaMallocHost.argtypes = [ctypes.POINTER(ctypes.c_void_p), ctypes.c_size_t]
+    runtime.cudaFree.argtypes = [ctypes.c_void_p]
+    runtime.cudaFreeHost.argtypes = [ctypes.c_void_p]
+    runtime.cudaMemsetAsync.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_size_t, ctypes.c_void_p]
+    runtime.cudaMemcpyAsync.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int, ctypes.c_void_p]
+    get_pointer = ctypes.pythonapi.PyCapsule_GetPointer
+    get_pointer.argtypes = [ctypes.py_object, ctypes.c_char_p]
+    get_pointer.restype = ctypes.c_void_p
+    renderer = render.Renderer(16, 16, output="depth")
+    renderer.init(make_scene(3))
+    camera = renderer.camera((-1, 0, 0), (1, 0, 0)).reshape(1, 12)
+    renderer.set_cameras(camera)
+    renderer.render()
+    expected = renderer.depth()
+    initial = renderer.camera((0, 0, 0), (1, 0, 0)).reshape(1, 12)
+    source = cuda.upload(initial).view()
+    capsule = source.__dlpack__()
+    pointer = ctypes.c_void_p.from_address(get_pointer(capsule, b"dltensor")).value
+    stream, scratch, pinned = ctypes.c_void_p(), ctypes.c_void_p(), ctypes.c_void_p()
+    try:
+        assert runtime.cudaStreamCreateWithFlags(ctypes.byref(stream), 1) == 0
+        assert runtime.cudaMalloc(ctypes.byref(scratch), 64 * 1024 * 1024) == 0
+        assert runtime.cudaMallocHost(ctypes.byref(pinned), camera.nbytes) == 0
+        ctypes.memmove(pinned, camera.ctypes.data, camera.nbytes)
+        for _ in range(32):
+            assert runtime.cudaMemsetAsync(scratch, 0, 64 * 1024 * 1024, stream) == 0
+        assert runtime.cudaMemcpyAsync(pointer, pinned, camera.nbytes, 1, stream) == 0
+        renderer.set_cameras(source, stream=stream.value)
+        renderer.render()
+        np.testing.assert_array_equal(renderer.depth(), expected)
+    finally:
+        renderer.synchronize()
+        if stream:
+            runtime.cudaStreamSynchronize(stream)
+            runtime.cudaStreamDestroy(stream)
+        if scratch:
+            runtime.cudaFree(scratch)
+        if pinned:
+            runtime.cudaFreeHost(pinned)
+
+
+
+def test_placement_handles_cannot_cross_processes_by_pickle():
+    import pickle
+    placement = render.OverlayPlacement(overlay=0, first_slot=0, num_parts=1, _generation=0, _renderer=0)
+    with pytest.raises(TypeError, match="cannot be pickled"):
+        pickle.dumps(placement)

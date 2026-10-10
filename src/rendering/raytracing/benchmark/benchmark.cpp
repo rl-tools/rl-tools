@@ -131,7 +131,7 @@ int main(int ac, char** av){
     long long total_frames = (long long)num_iterations * SPEC::NUM_CAMERAS;
     long long total_rgb_pixels = (long long)SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT * total_frames;
     long long total_rgb_rays = SPEC::HAS_RGB ? total_rgb_pixels * SPEC::RGB_SAMPLES : 0;
-    long long total_depth_rays = SPEC::HAS_DEPTH ? total_rgb_pixels * SPEC::DEPTH_SAMPLES : 0;
+    long long total_depth_rays = SPEC::HAS_DEPTH ? total_rgb_pixels : 0;
     long long total_probe_rays = (long long)num_iterations * SPEC::NUM_CAMERAS * SPEC::NUM_PROBES;
     long long total_rays = total_rgb_rays + total_depth_rays + total_probe_rays;
     double total_mrays = total_rays / 1e6;
@@ -147,7 +147,7 @@ int main(int ac, char** av){
     rlt::log(device, device.logger, "  RGB samples/pixel:   ", SPEC::RGB_SAMPLES);
 #endif
 #if RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_OUTPUT_MODE != RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB
-    rlt::log(device, device.logger, "  Depth samples/pixel: ", SPEC::DEPTH_SAMPLES);
+    rlt::log(device, device.logger, "  Depth samples/pixel: ", 1);
     rlt::log(device, device.logger, "  Total depth rays:    ", total_depth_rays);
 #endif
     rlt::log(device, device.logger, "  Total probe rays:    ", total_probe_rays);

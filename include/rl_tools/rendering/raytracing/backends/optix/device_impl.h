@@ -147,7 +147,7 @@ namespace rl_tools
   }
 
 #if RL_TOOLS_RENDERING_RAYTRACING_ENABLE_DEPTH_PROGRAMS
-  inline __device__ float trace_depth_distance(OptixTraversableHandle world, const owl::vec3f &pos, const owl::vec3f &direction, float max_depth)
+  inline __device__ float trace_depth_distance(OptixTraversableHandle world, const owl::vec3f &pos, const owl::vec3f &direction, float max_depth, bool& hit)
   {
     unsigned int u0 = __float_as_uint(max_depth);
     unsigned int u1 = 0;
@@ -162,17 +162,18 @@ namespace rl_tools
                OPTIX_RAY_FLAG_DISABLE_ANYHIT,
                1, NUM_RAY_TYPES, 1,
                u0, u1, u2);
+    hit = hit || u1 != 0;
     return __uint_as_float(u0);
   }
 
-  inline __device__ float trace_depth_distance_composed(OptixTraversableHandle world, int camera, const owl::vec3f &pos, const owl::vec3f &direction, float max_depth)
+  inline __device__ float trace_depth_distance_composed(OptixTraversableHandle world, int camera, const owl::vec3f &pos, const owl::vec3f &direction, float max_depth, bool& hit)
   {
-    float best = trace_depth_distance(world, pos, direction, max_depth);
+    float best = trace_depth_distance(world, pos, direction, max_depth, hit);
     const int overlay_count = optixLaunchParams.overlay_count;
     for (int k = 0; k < overlay_count; k++) {
       const uint32_t overlay = optixLaunchParams.attachments[camera * overlay_count + k];
       if (overlay == 0xFFFFFFFFu) continue;
-      best = trace_depth_distance((OptixTraversableHandle)optixLaunchParams.overlays[overlay], pos, direction, best);
+      best = trace_depth_distance((OptixTraversableHandle)optixLaunchParams.overlays[overlay], pos, direction, best, hit);
     }
     return best;
   }
@@ -216,23 +217,7 @@ namespace rl_tools
     }
   };
 
-#if RL_TOOLS_RENDERING_RAYTRACING_ENABLE_DEPTH_PROGRAMS
-  struct DepthOutput
-  {
-    using Accumulator = float;
-    inline __device__ static Accumulator zero() { return 0.f; }
-    template <typename RAYGEN_DATA>
-    inline __device__ static void accumulate(const RAYGEN_DATA &self, Accumulator &acc, int camera, const owl::vec3f &pos, const owl::vec3f &direction)
-    {
-      acc += trace_depth_distance_composed(self.world, camera, pos, direction, self.max_depth);
-    }
-    template <typename RAYGEN_DATA>
-    inline __device__ static void store(const RAYGEN_DATA &self, const PixelLaunchContext &ctx, Accumulator acc, int samples)
-    {
-      self.depth_ptr[ctx.fb_offset] = acc * (1.f / float(samples));
-    }
-  };
-#endif
+
 
   template <typename OUTPUT, bool MOTION_BLUR, int MOTION_SAMPLES, int AA_GRID, typename RAYGEN_DATA>
   inline __device__ void rayGenImpl()
@@ -299,23 +284,7 @@ namespace rl_tools
     }
   };
 
-#if RL_TOOLS_RENDERING_RAYTRACING_ENABLE_DEPTH_PROGRAMS
-  struct DepthAccumulateOutput
-  {
-    using Accumulator = float;
-    inline __device__ static Accumulator zero() { return 0.f; }
-    template <typename RAYGEN_DATA>
-    inline __device__ static void accumulate(const RAYGEN_DATA &self, Accumulator &acc, int camera, const owl::vec3f &pos, const owl::vec3f &direction)
-    {
-      acc += trace_depth_distance_composed(self.world, camera, pos, direction, self.max_depth);
-    }
-    template <typename RAYGEN_DATA>
-    inline __device__ static void store(const RAYGEN_DATA &self, const PixelLaunchContext &ctx, Accumulator acc, int samples)
-    {
-      self.depth_accum_ptr[ctx.fb_offset] += acc * (1.f / float(samples));
-    }
-  };
-#endif
+
 
   template <typename OUTPUT, int AA_GRID, typename RAYGEN_DATA>
   inline __device__ void rayGenAccumulateImpl()
@@ -350,12 +319,7 @@ namespace rl_tools
   OPTIX_RAYGEN_PROGRAM(accumRayGenAA3)() { rayGenAccumulateImpl<RgbAccumulateOutput, 3, AccumulateRayGenData>(); }
   OPTIX_RAYGEN_PROGRAM(accumRayGenAA4)() { rayGenAccumulateImpl<RgbAccumulateOutput, 4, AccumulateRayGenData>(); }
 
-#if RL_TOOLS_RENDERING_RAYTRACING_ENABLE_DEPTH_PROGRAMS
-  OPTIX_RAYGEN_PROGRAM(depthAccumRayGen)() { rayGenAccumulateImpl<DepthAccumulateOutput, 1, AccumulateDepthRayGenData>(); }
-  OPTIX_RAYGEN_PROGRAM(depthAccumRayGenAA2)() { rayGenAccumulateImpl<DepthAccumulateOutput, 2, AccumulateDepthRayGenData>(); }
-  OPTIX_RAYGEN_PROGRAM(depthAccumRayGenAA3)() { rayGenAccumulateImpl<DepthAccumulateOutput, 3, AccumulateDepthRayGenData>(); }
-  OPTIX_RAYGEN_PROGRAM(depthAccumRayGenAA4)() { rayGenAccumulateImpl<DepthAccumulateOutput, 4, AccumulateDepthRayGenData>(); }
-#endif
+
 
 #define RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(SRGB_NAME, LINEAR_NAME, MOTION_BLUR, MOTION_SAMPLES, AA_GRID, DATA) \
   OPTIX_RAYGEN_PROGRAM(SRGB_NAME)() { rayGenImpl<RgbOutput<true>, MOTION_BLUR, MOTION_SAMPLES, AA_GRID, DATA>(); } \
@@ -389,35 +353,25 @@ namespace rl_tools
 #undef RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN
 
 #if RL_TOOLS_RENDERING_RAYTRACING_ENABLE_DEPTH_PROGRAMS
-#define RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(NAME, MOTION_BLUR, MOTION_SAMPLES, AA_GRID, DATA) \
-  OPTIX_RAYGEN_PROGRAM(NAME)() { rayGenImpl<DepthOutput, MOTION_BLUR, MOTION_SAMPLES, AA_GRID, DATA>(); }
-
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGen, false, 1, 1, DepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur2, true, 2, 1, MotionBlurDepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur4, true, 4, 1, MotionBlurDepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur8, true, 8, 1, MotionBlurDepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur16, true, 16, 1, MotionBlurDepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur32, true, 32, 1, MotionBlurDepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenAA2, false, 1, 2, DepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenAA3, false, 1, 3, DepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenAA4, false, 1, 4, DepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur2AA2, true, 2, 2, MotionBlurDepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur2AA3, true, 2, 3, MotionBlurDepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur2AA4, true, 2, 4, MotionBlurDepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur4AA2, true, 4, 2, MotionBlurDepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur4AA3, true, 4, 3, MotionBlurDepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur4AA4, true, 4, 4, MotionBlurDepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur8AA2, true, 8, 2, MotionBlurDepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur8AA3, true, 8, 3, MotionBlurDepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur8AA4, true, 8, 4, MotionBlurDepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur16AA2, true, 16, 2, MotionBlurDepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur16AA3, true, 16, 3, MotionBlurDepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur16AA4, true, 16, 4, MotionBlurDepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur32AA2, true, 32, 2, MotionBlurDepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur32AA3, true, 32, 3, MotionBlurDepthRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur32AA4, true, 32, 4, MotionBlurDepthRayGenData)
-
-#undef RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN
+  OPTIX_RAYGEN_PROGRAM(depthRayGen)(){
+    const auto& self = owl::getProgramData<DepthRayGenData>();
+    const auto ctx = pixel_launch_context(self);
+    if(!ctx.valid){
+      return;
+    }
+    const auto& cam = self.cameras[ctx.cam_idx];
+    const owl::vec2f screen = (owl::vec2f(ctx.local_x, ctx.local_y) + owl::vec2f(.5f)) / owl::vec2f(self.cam_size);
+    const owl::vec3f direction = normalize(cam.dir_00 + screen.u * cam.dir_du + screen.v * cam.dir_dv);
+    const owl::vec3f normal = normalize(cross(cam.dir_du, cam.dir_dv));
+    bool hit = false;
+    const float distance = trace_depth_distance_composed(self.world, ctx.cam_idx, cam.pos, direction, 1e30f, hit);
+    if(hit){
+      self.depth_ptr[ctx.fb_offset] = distance * fabsf(dot(direction, normal));
+    }
+    else{
+      store_miss(self.depth_ptr[ctx.fb_offset]);
+    }
+  }
 #endif
 
   // geometry lives in object space under the instance (top-level) group; the intrinsics apply
@@ -789,7 +743,12 @@ namespace rl_tools
           u0, u1, u2);
     }
 
-    result.distance = __uint_as_float(u0);
+    if(u1 != 0){
+      result.distance = __uint_as_float(u0);
+    }
+    else{
+      store_miss(result.distance);
+    }
     result.hit = u1;
     self.results[cam_idx * self.num_probes + probe_idx] = result;
   }

@@ -9,6 +9,14 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
+    template <typename DEVICE, typename TASK_SPEC>
+    bool set_asset(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, const std::string& name, const std::string& path){
+        if(name == "gate"){
+            world.gate_asset_path = path;
+            return true;
+        }
+        return set_asset(device, static_cast<typename TASK_SPEC::NEXT_WORLD&>(world), name, path);
+    }
 
     namespace rl::environments::hyperdrone::tasks::moving_gate {
         template <typename DEVICE, typename TASK_SPEC>
@@ -127,6 +135,9 @@ namespace rl_tools {
     // CUDA kernel does), then forward to the inner render
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
     void render(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input) {
+        if(!world.render_pending){
+            return;
+        }
         request_render(device, world, reset_mask_input);
         auto& reset_mask = world.render_reset;
         using T = typename TASK_SPEC::T;
@@ -164,6 +175,11 @@ namespace rl_tools {
         using TI = typename TASK_SPEC::TI;
         using WORLD = rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>;
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
+        if constexpr (NEXT_WORLD::SPEC::HISTORY_LENGTH > 1 || NEXT_WORLD::SPEC::OUTPUT_FLOW){
+            if(world.render_pending){
+                render(device, world, parameters, states, world.render_reset);
+            }
+        }
         step(device, static_cast<NEXT_WORLD&>(world), parameters, states, actions, next_states, rng);
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             const auto& instance_parameters = get_ref(device, parameters, instance_i);
@@ -243,6 +259,10 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 // arguments, so the task's overloads must be reachable through the member type's namespace
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::hyperdrone::tasks::moving_gate {
+    template <typename DEVICE, typename TASK_SPEC>
+    bool set_asset(DEVICE& device, World<TASK_SPEC>& world, const std::string& name, const std::string& path){
+        return ::rl_tools::set_asset(device, world, name, path);
+    }
     template <typename DEVICE, typename TASK_SPEC, typename DATASET>
     void init(DEVICE& device, World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, const DATASET& dataset, const typename DATASET::Corpus& corpus, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index){
         ::rl_tools::init(device, world, shared, dataset, corpus, first_scene, num_scenes, member_index);

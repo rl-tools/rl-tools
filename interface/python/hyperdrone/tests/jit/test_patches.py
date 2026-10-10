@@ -1,6 +1,6 @@
 import pytest
 
-from hyperdrone.jit import _patches, _workspace
+from hyperdrone._jit import _patches, _workspace
 
 
 @pytest.mark.parametrize("cached_sources", [False, True])

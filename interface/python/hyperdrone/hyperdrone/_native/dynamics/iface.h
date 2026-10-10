@@ -1,19 +1,19 @@
 #pragma once
 #include <cstdint>
+#include <string>
 
 // ABI boundary between the hyperdrone dynamics core module and the JIT-compiled simulator
 // libraries. Buffer exchange uses raw float pointers sized by config(); state is published
 // after every mutation as SoA component buffers (device-resident on the CUDA variant) so
 // consumers get stable zero-copy views. Bump HYPERDRONE_DYNAMICS_IFACE_VERSION on any
 // change to this file.
-#define HYPERDRONE_DYNAMICS_IFACE_VERSION 4
+#define HYPERDRONE_DYNAMICS_IFACE_VERSION 5
 
 namespace hyperdrone::dynamics {
     struct Config {
         uint32_t num_drones;
         uint32_t action_dim;
         uint32_t observation_dim;
-        bool domain_randomization;
     };
 
     // SoA state component buffers, each (num_drones, dim) float32
@@ -35,14 +35,13 @@ namespace hyperdrone::dynamics {
         virtual unsigned long long stream() const = 0;  // cudaStream_t handle (0 on cpu)
         virtual void synchronize() = 0;
 
-        virtual bool set_model(const char* name) = 0;   // registry preset, all drones
-        virtual void set_dt(float dt) = 0;
-        virtual float dt() const = 0;
-
-        // deterministic given seed: default parameters (+ optional domain-randomization
-        // sampling) and sampled initial states. All sampling runs on the host with the
-        // rl_tools CPU engine so cpu and cuda variants reset to identical states.
-        virtual void reset(unsigned long long seed, bool sample_parameters, bool sample_states) = 0;
+        virtual int buffer_device_id() const = 0;
+        virtual void order_consumer(unsigned long long stream) = 0;
+        virtual std::string parameters_json() = 0;
+        virtual void init(unsigned long long seed, const std::string& parameters) = 0;
+        virtual void reset(const bool* mask, bool sample_states) = 0;
+        virtual std::string instance_parameters_json() = 0;
+        virtual void set_instance_parameters(const bool* mask, const std::string& parameters) = 0;
 
         // actions (num_drones, action_dim) float32, normalized [-1, 1];
         // actions_device_type: 1 = host pointer, 2 = CUDA device pointer
@@ -61,10 +60,6 @@ namespace hyperdrone::dynamics {
         virtual void update_camera_bases(const float mount[12], float fov_degrees, float aspect) = 0;
         virtual const float* camera_bases_buffer() const = 0;
 
-        // per-drone runtime physical parameters (host pointers, num_drones scalars each;
-        // parameters are host-authoritative). False for unknown names.
-        virtual bool read_parameter(const char* name, float* dst) = 0;
-        virtual bool write_parameter(const char* name, const float* values) = 0;
     };
 }
 

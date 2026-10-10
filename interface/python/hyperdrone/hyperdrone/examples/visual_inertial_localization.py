@@ -29,8 +29,8 @@ GRAVITY = np.array([0.0, 0.0, -9.81])
 
 env = MultiEnvironment(
     [arguments.model or procthor_scene_path()],
-    config=EnvConfig(instances=arguments.instances, cam_width=arguments.width, cam_height=arguments.height,
-                     shading="high", preset="x500_fpv_imu", task="visual_inertial_localization"),
+    config=EnvConfig(instances_per_environment=arguments.instances, width=arguments.width, height=arguments.height,
+                     fidelity="high", preset="x500_fpv_imu", task="visual_inertial_localization"),
     seed=arguments.seed,
 )
 steps = arguments.steps or env.episode_step_limit
@@ -128,7 +128,6 @@ frames_rendered = 0
 
 start = time.perf_counter()
 for step in range(steps):
-    env.render(reset_mask)
     reset_mask = no_reset
     if step % env.frame_stride == 0:
         frames = env.frames()  # (instances, height, width, 3) in [0, 1]: the estimator's camera input
@@ -147,7 +146,7 @@ elapsed = time.perf_counter() - start
 if video_writer is not None:
     video_writer.close()
     print(f"saved {arguments.video}")
-print(f"{steps} IMU steps x {env.total_instances} instances, {frames_rendered} frames at {env.cam_width}x{env.cam_height} "
+print(f"{steps} IMU steps x {env.total_instances} instances, {frames_rendered} frames at {env.width}x{env.height} "
       f"in {elapsed:.1f}s ({steps * env.total_instances / elapsed:.0f} steps/s)")
 for instance in range(env.total_instances):
     print(f"instance {instance}: dead reckoning ATE {metrics.ate()[instance]:.3f} m | "

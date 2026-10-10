@@ -50,6 +50,7 @@ struct JitSim {
 };
 
 using HostFloatArray = nb::ndarray<const float, nb::c_contig, nb::device::cpu>;
+using HostMask = nb::ndarray<const bool, nb::c_contig, nb::device::cpu>;
 
 NB_MODULE(hyperdrone_dynamics_core, m){
     m.doc() = "hyperdrone dynamics core: JIT loader for the vectorized L2F multirotor simulator";
@@ -73,21 +74,31 @@ NB_MODULE(hyperdrone_dynamics_core, m){
         .def_prop_ro("num_drones", [](const JitSim& jit){ return jit->config().num_drones; })
         .def_prop_ro("action_dim", [](const JitSim& jit){ return jit->config().action_dim; })
         .def_prop_ro("observation_dim", [](const JitSim& jit){ return jit->config().observation_dim; })
-        .def_prop_ro("domain_randomization", [](const JitSim& jit){ return jit->config().domain_randomization; })
         .def_prop_ro("device_name", [](const JitSim& jit){ return std::string(jit->device_name()); })
         .def_prop_ro("buffer_device_type", [](const JitSim& jit){ return jit->buffer_device_type(); })
+        .def_prop_ro("buffer_device_id", [](const JitSim& jit){ return jit->buffer_device_id(); })
+        .def("order_consumer", [](JitSim& jit, uintptr_t stream){ jit->order_consumer(stream); })
         .def_prop_ro("stream", [](const JitSim& jit){ return (uintptr_t)jit->stream(); })
         .def("synchronize", [](JitSim& jit){
             nb::gil_scoped_release release;
             jit->synchronize();
         })
-        .def("set_model", [](JitSim& jit, const std::string& name){ return jit->set_model(name.c_str()); }, nb::arg("name"))
-        .def("set_dt", [](JitSim& jit, float dt){ jit->set_dt(dt); }, nb::arg("dt"))
-        .def_prop_ro("dt", [](const JitSim& jit){ return jit->dt(); })
-        .def("reset", [](JitSim& jit, uint64_t seed, bool sample_parameters, bool sample_states){
+        .def("parameters", [](JitSim& jit){ return jit->parameters_json(); })
+        .def("init", [](JitSim& jit, uint64_t seed, const std::string& parameters){ jit->init(seed, parameters); })
+        .def("reset", [](JitSim& jit, HostMask mask, bool sample_states){
+            if(mask.ndim() != 1 || mask.size() != jit->config().num_drones){
+                throw std::invalid_argument("hyperdrone: mask must have shape (num_drones,)");
+            }
             nb::gil_scoped_release release;
-            jit->reset(seed, sample_parameters, sample_states);
-        }, nb::arg("seed"), nb::arg("sample_parameters"), nb::arg("sample_states"))
+            jit->reset(mask.data(), sample_states);
+        }, nb::arg("mask"), nb::arg("sample_states"))
+        .def("instance_parameters", [](JitSim& jit){ return jit->instance_parameters_json(); })
+        .def("set_instance_parameters", [](JitSim& jit, HostMask mask, const std::string& parameters){
+            if(mask.ndim() != 1 || mask.size() != jit->config().num_drones){
+                throw std::invalid_argument("hyperdrone: mask must have shape (num_drones,)");
+            }
+            jit->set_instance_parameters(mask.data(), parameters);
+        })
         .def("step", [](JitSim& jit, HostFloatArray actions){
             const hdd::Config config = jit->config();
             if(actions.ndim() != 2 || actions.shape(0) != config.num_drones || actions.shape(1) != config.action_dim){
@@ -100,7 +111,7 @@ NB_MODULE(hyperdrone_dynamics_core, m){
             const hdd::Config config = jit->config();
             const size_t dim = jit.component_dim(component);
             return nb::ndarray<>((void*)jit->state_buffer(component), {config.num_drones, dim}, nb::find(&jit), {},
-                                 nb::dtype<float>(), jit->buffer_device_type(), 0);
+                                 nb::dtype<float>(), jit->buffer_device_type(), jit->buffer_device_id());
         }, nb::arg("component"))
         .def("read_state", [](JitSim& jit, int component, nb::ndarray<float, nb::c_contig, nb::device::cpu> out){
             const hdd::Config config = jit->config();
@@ -127,7 +138,7 @@ NB_MODULE(hyperdrone_dynamics_core, m){
         .def("observations_dlpack", [](JitSim& jit){
             const hdd::Config config = jit->config();
             return nb::ndarray<>((void*)jit->observation_buffer(), {config.num_drones, config.observation_dim}, nb::find(&jit), {},
-                                 nb::dtype<float>(), jit->buffer_device_type(), 0);
+                                 nb::dtype<float>(), jit->buffer_device_type(), jit->buffer_device_id());
         })
         .def("read_observations", [](JitSim& jit, nb::ndarray<float, nb::c_contig, nb::device::cpu> out){
             const hdd::Config config = jit->config();
@@ -147,7 +158,7 @@ NB_MODULE(hyperdrone_dynamics_core, m){
         .def("camera_bases_dlpack", [](JitSim& jit){
             const hdd::Config config = jit->config();
             return nb::ndarray<>((void*)jit->camera_bases_buffer(), {config.num_drones, (size_t)12}, nb::find(&jit), {},
-                                 nb::dtype<float>(), jit->buffer_device_type(), 0);
+                                 nb::dtype<float>(), jit->buffer_device_type(), jit->buffer_device_id());
         })
         .def("read_camera_bases", [](JitSim& jit, nb::ndarray<float, nb::c_contig, nb::device::cpu> out){
             const hdd::Config config = jit->config();
@@ -156,23 +167,7 @@ NB_MODULE(hyperdrone_dynamics_core, m){
             }
             nb::gil_scoped_release release;
             jit.copy_out(jit->camera_bases_buffer(), out.data(), (size_t)config.num_drones * 12);
-        }, nb::arg("out"))
-        .def("read_parameter", [](JitSim& jit, const std::string& name, nb::ndarray<float, nb::c_contig, nb::device::cpu> out){
-            if(out.size() != jit->config().num_drones){
-                throw std::invalid_argument("hyperdrone: parameter output must have num_drones elements");
-            }
-            if(!jit->read_parameter(name.c_str(), out.data())){
-                throw std::invalid_argument("hyperdrone: unknown parameter " + name);
-            }
-        }, nb::arg("name"), nb::arg("out"))
-        .def("write_parameter", [](JitSim& jit, const std::string& name, HostFloatArray values){
-            if(values.size() != jit->config().num_drones){
-                throw std::invalid_argument("hyperdrone: parameter values must have num_drones elements");
-            }
-            if(!jit->write_parameter(name.c_str(), values.data())){
-                throw std::invalid_argument("hyperdrone: unknown parameter " + name);
-            }
-        }, nb::arg("name"), nb::arg("values"));
+        }, nb::arg("out"));
 
 #if defined(HYPERDRONE_DYNAMICS_CUDA)
     m.attr("HAS_CUDA") = true;

@@ -13,7 +13,6 @@
 #include <rl_tools/rl/environments/l2f/parameters/default.h>
 
 #include "iface.h"
-#include "../common/models.h"
 
 #include <cmath>
 #include <cstdio>
@@ -21,17 +20,21 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <limits>
 
 #ifndef HYPERDRONE_DYNAMICS_NUM_DRONES
 #error "HYPERDRONE_DYNAMICS_NUM_DRONES must be defined"
-#endif
-#ifndef HYPERDRONE_DYNAMICS_DOMAIN_RANDOMIZATION
-#define HYPERDRONE_DYNAMICS_DOMAIN_RANDOMIZATION 0
 #endif
 
 namespace rlt = rl_tools;
 
 namespace hyperdrone_dynamics_impl {
+    using rlt::malloc;
+    using rlt::free;
+    using rlt::json;
+    using rlt::from_json;
+    using rlt::initial_state;
+    using rlt::sample_initial_state;
     using DEVICE_CPU = rlt::devices::CPU<rlt::devices::DefaultCPUSpecification>;
     using T = float;
     using TI = DEVICE_CPU::index_t;
@@ -40,8 +43,7 @@ namespace hyperdrone_dynamics_impl {
 
     using namespace rlt::rl::environments::l2f;
 
-    using DR_OPTIONS = parameters::DEFAULT_DOMAIN_RANDOMIZATION_OPTIONS<HYPERDRONE_DYNAMICS_DOMAIN_RANDOMIZATION != 0>;
-    using FACTORY = parameters::DEFAULT_PARAMETERS_FACTORY<T, TI, 5, DR_OPTIONS>;
+    using FACTORY = parameters::DEFAULT_PARAMETERS_FACTORY<T, TI, 5>;
 
     struct STATIC_PARAMETERS{
         static constexpr auto ACTION_INTERFACE = parameters::ActionInterface::DIRECT_MOTOR;
@@ -60,8 +62,8 @@ namespace hyperdrone_dynamics_impl {
             observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI>>>>>>>>;
         using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
         static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
-        using PARAMETERS = typename FACTORY::PARAMETERS_TYPE;
-        static constexpr PARAMETERS PARAMETER_VALUES = FACTORY::nominal_parameters;
+        using PARAMETERS = ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<typename FACTORY::PARAMETERS_SPEC>>>;
+        static constexpr PARAMETERS PARAMETER_VALUES = {{FACTORY::dynamics, FACTORY::integration, FACTORY::mdp}, FACTORY::disturbances};
         static constexpr T STATE_LIMIT_POSITION_X = 100000;
         static constexpr T STATE_LIMIT_POSITION_Y = 100000;
         static constexpr T STATE_LIMIT_POSITION_Z = 100000;
@@ -80,8 +82,6 @@ namespace hyperdrone_dynamics_impl {
     constexpr TI ACTION_DIM = ENVIRONMENT::ACTION_DIM;
     constexpr TI OBSERVATION_DIM = ENVIRONMENT::Observation::DIM;
 
-    using DYNAMICS = typename FACTORY::PARAMETERS_TYPE::Dynamics;
-    using PARAMETERS_SPEC = typename FACTORY::PARAMETERS_SPEC;
 
     HYPERDRONE_HD inline void publish_one(const STATE& state, float* position, float* orientation, float* linear_velocity, float* angular_velocity, float* rpm){
         for(int i = 0; i < 3; i++){
@@ -194,11 +194,11 @@ namespace hyperdrone_dynamics_impl {
         }
     }
 
-    __global__ void kernel_camera_bases(const float* position, const float* orientation,
+    __global__ void kernel_camera_bases(const STATE* states,
                                         const float* mount, float scale, float aspect, float* out){
         const TI drone = blockIdx.x * blockDim.x + threadIdx.x;
         if(drone < NUM_DRONES){
-            camera_base_one(&position[drone * 3], &orientation[drone * 4], mount, scale, aspect, &out[drone * 12]);
+            camera_base_one(states[drone].position, states[drone].orientation, mount, scale, aspect, &out[drone * 12]);
         }
     }
 
@@ -222,10 +222,10 @@ namespace hyperdrone_dynamics_impl {
         std::vector<ENVIRONMENT> envs;
         std::vector<PARAMETERS> parameters;
         std::vector<STATE> states, next_states;
-        std::vector<ENGINE> engines;
-        DYNAMICS model_dynamics;
-        std::string model_name = "crazyflie";
-        float integration_dt;
+        std::vector<ENGINE> engines, observe_engines;
+        ENGINE master_engine;
+        PARAMETERS nominal_parameters = STATIC_PARAMETERS::PARAMETER_VALUES;
+        bool initialized = false;
 
         // SoA buffers (device-resident on the CUDA variant)
         float *buffer_position, *buffer_orientation, *buffer_linear_velocity, *buffer_angular_velocity, *buffer_rpm;
@@ -240,8 +240,10 @@ namespace hyperdrone_dynamics_impl {
         STATE *device_states, *device_next_states;
         float* device_actions;
         float* device_mount;
-        curandState* device_rng;
+        curandState *device_rng, *device_observe_rng;
         cudaStream_t cuda_stream;
+        cudaEvent_t ordering_event;
+        int device_ordinal;
 #endif
 
         SimImpl(){
@@ -250,13 +252,14 @@ namespace hyperdrone_dynamics_impl {
             states.resize(NUM_DRONES);
             next_states.resize(NUM_DRONES);
             engines.resize(NUM_DRONES);
+            observe_engines.resize(NUM_DRONES);
+            malloc(device_cpu, master_engine);
             for(TI drone = 0; drone < NUM_DRONES; drone++){
                 rlt::malloc(device_cpu, envs[drone]);
                 rlt::init(device_cpu, envs[drone]);
-                rlt::malloc(device_cpu, engines[drone]);
+                malloc(device_cpu, engines[drone]);
+                malloc(device_cpu, observe_engines[drone]);
             }
-            hyperdrone::model_by_name<PARAMETERS_SPEC>(model_name, model_dynamics);
-            integration_dt = FACTORY::nominal_parameters.integration.dt;
 #if defined(HYPERDRONE_DYNAMICS_CUDA)
             device_envs = device_alloc<ENVIRONMENT>(NUM_DRONES);
             device_parameters = device_alloc<PARAMETERS>(NUM_DRONES);
@@ -265,6 +268,7 @@ namespace hyperdrone_dynamics_impl {
             device_actions = device_alloc<float>(NUM_DRONES * ACTION_DIM);
             device_mount = device_alloc<float>(12);
             device_rng = device_alloc<curandState>(NUM_DRONES);
+            device_observe_rng = device_alloc<curandState>(NUM_DRONES);
             buffer_position = device_alloc<float>(NUM_DRONES * 3);
             buffer_orientation = device_alloc<float>(NUM_DRONES * 4);
             buffer_linear_velocity = device_alloc<float>(NUM_DRONES * 3);
@@ -273,6 +277,10 @@ namespace hyperdrone_dynamics_impl {
             buffer_observations = device_alloc<float>(NUM_DRONES * OBSERVATION_DIM);
             buffer_camera_bases = device_alloc<float>(NUM_DRONES * 12);
             cudaStreamCreate(&cuda_stream);
+            cudaEventCreateWithFlags(&ordering_event, cudaEventDisableTiming);
+            cudaPointerAttributes attributes;
+            cudaPointerGetAttributes(&attributes, buffer_position);
+            device_ordinal = attributes.device;
             cudaMemcpy(device_envs, envs.data(), NUM_DRONES * sizeof(ENVIRONMENT), cudaMemcpyHostToDevice);
 #else
             host_position.resize(NUM_DRONES * 3);
@@ -290,19 +298,26 @@ namespace hyperdrone_dynamics_impl {
             buffer_observations = host_observations.data();
             buffer_camera_bases = host_camera_bases.data();
 #endif
-            reset(0, false, false);
         }
 
         ~SimImpl() override {
 #if defined(HYPERDRONE_DYNAMICS_CUDA)
+            cudaStreamSynchronize(cuda_stream);
+            cudaEventDestroy(ordering_event);
             cudaStreamDestroy(cuda_stream);
             cudaFree(device_envs); cudaFree(device_parameters);
             cudaFree(device_states); cudaFree(device_next_states);
-            cudaFree(device_actions); cudaFree(device_mount); cudaFree(device_rng);
+            cudaFree(device_actions); cudaFree(device_mount); cudaFree(device_rng); cudaFree(device_observe_rng);
             cudaFree(buffer_position); cudaFree(buffer_orientation);
             cudaFree(buffer_linear_velocity); cudaFree(buffer_angular_velocity); cudaFree(buffer_rpm);
             cudaFree(buffer_observations); cudaFree(buffer_camera_bases);
 #endif
+            for(TI drone = 0; drone < NUM_DRONES; drone++){
+                free(device_cpu, engines[drone]);
+                free(device_cpu, observe_engines[drone]);
+                free(device_cpu, envs[drone]);
+            }
+            free(device_cpu, master_engine);
         }
 
         hyperdrone::dynamics::Config config() const override {
@@ -310,7 +325,6 @@ namespace hyperdrone_dynamics_impl {
             c.num_drones = NUM_DRONES;
             c.action_dim = ACTION_DIM;
             c.observation_dim = OBSERVATION_DIM;
-            c.domain_randomization = HYPERDRONE_DYNAMICS_DOMAIN_RANDOMIZATION != 0;
             return c;
         }
 
@@ -344,35 +358,57 @@ namespace hyperdrone_dynamics_impl {
 #endif
         }
 
-        bool set_model(const char* name) override {
-            DYNAMICS dynamics_values;
-            if(!hyperdrone::model_by_name<PARAMETERS_SPEC>(name, dynamics_values)){
-                return false;
-            }
-            model_dynamics = dynamics_values;
-            model_name = name;
-            apply_parameter_overrides();
-            upload_parameters();
-            return true;
+        int buffer_device_id() const override {
+#if defined(HYPERDRONE_DYNAMICS_CUDA)
+            return device_ordinal;
+#else
+            return 0;
+#endif
         }
 
-        void set_dt(float dt) override {
-            integration_dt = dt;
+        void order_consumer(unsigned long long consumer_stream) override {
+#if defined(HYPERDRONE_DYNAMICS_CUDA)
+            auto consumer = reinterpret_cast<cudaStream_t>(consumer_stream);
+            if(consumer != cuda_stream){
+                cudaEventRecord(ordering_event, cuda_stream);
+                cudaStreamWaitEvent(consumer, ordering_event, 0);
+            }
+#else
+            (void)consumer_stream;
+#endif
+        }
+
+        std::string parameters_json() override {
+            return "{\"dynamics\":" + json(device_cpu, envs[0], nominal_parameters) + "}";
+        }
+
+        void init(unsigned long long seed, const std::string& input) override {
+            if(initialized){
+                throw std::invalid_argument("hyperdrone: a Sim can only be initialized once");
+            }
+            PARAMETERS parsed = nominal_parameters;
+            from_json(device_cpu, envs[0], nlohmann::json::parse(input).at("dynamics"), parsed);
+            if(!(parsed.integration.dt > 0)){
+                throw std::invalid_argument("hyperdrone: integration.dt must be positive");
+            }
+            nominal_parameters = parsed;
+            rl_tools::init(device_cpu, master_engine, seed);
+            const auto step_seed = rlt::random::uniform_int_distribution(device_cpu.random, uint32_t(0), std::numeric_limits<uint32_t>::max() - uint32_t(NUM_DRONES), master_engine);
+            const auto observe_seed = rlt::random::uniform_int_distribution(device_cpu.random, uint32_t(0), std::numeric_limits<uint32_t>::max() - uint32_t(NUM_DRONES), master_engine);
             for(TI drone = 0; drone < NUM_DRONES; drone++){
-                parameters[drone].integration.dt = dt;
+                rl_tools::init(device_cpu, engines[drone], step_seed + drone);
+                rl_tools::init(device_cpu, observe_engines[drone], observe_seed + drone);
+                parameters[drone] = nominal_parameters;
+                initial_state(device_cpu, envs[drone], parameters[drone], states[drone]);
             }
             upload_parameters();
-        }
-
-        float dt() const override {
-            return integration_dt;
-        }
-
-        void apply_parameter_overrides(){
-            for(TI drone = 0; drone < NUM_DRONES; drone++){
-                parameters[drone].dynamics = model_dynamics;
-                parameters[drone].integration.dt = integration_dt;
-            }
+            upload_states_and_publish();
+#if defined(HYPERDRONE_DYNAMICS_CUDA)
+            kernel_init_rng<<<GRID_DIM, BLOCK_DIM, 0, cuda_stream>>>(device_rng, step_seed);
+            kernel_init_rng<<<GRID_DIM, BLOCK_DIM, 0, cuda_stream>>>(device_observe_rng, observe_seed);
+            cudaStreamSynchronize(cuda_stream);
+#endif
+            initialized = true;
         }
 
         void upload_parameters(){
@@ -402,45 +438,33 @@ namespace hyperdrone_dynamics_impl {
 #endif
         }
 
-        // all sampling runs on the host with the rl_tools CPU engine so cpu and cuda
-        // variants reset to identical parameters and states
-        void reset(unsigned long long seed, bool sample_parameters, bool sample_states) override {
+        void reset(const bool* mask, bool sample_states) override {
+            download_states();
             for(TI drone = 0; drone < NUM_DRONES; drone++){
-                rlt::init(device_cpu, engines[drone], (TI)(seed + drone));
-                rlt::initial_parameters(device_cpu, envs[drone], parameters[drone]);
-                if(sample_parameters){
-                    rlt::sample_initial_parameters(device_cpu, envs[drone], parameters[drone], engines[drone]);
-                }
-            }
-            apply_parameter_overrides();
-            for(TI drone = 0; drone < NUM_DRONES; drone++){
-                if(sample_states){
-                    rlt::sample_initial_state(device_cpu, envs[drone], parameters[drone], states[drone], engines[drone]);
-                }
-                else {
-                    rlt::initial_state(device_cpu, envs[drone], parameters[drone], states[drone]);
+                if(mask[drone]){
+                    parameters[drone] = nominal_parameters;
+                    if(sample_states){
+                        sample_initial_state(device_cpu, envs[drone], parameters[drone], states[drone], master_engine);
+                    }
+                    else {
+                        initial_state(device_cpu, envs[drone], parameters[drone], states[drone]);
+                    }
                 }
             }
             upload_parameters();
             upload_states_and_publish();
-#if defined(HYPERDRONE_DYNAMICS_CUDA)
-            kernel_init_rng<<<GRID_DIM, BLOCK_DIM, 0, cuda_stream>>>(device_rng, seed);
-            cudaStreamSynchronize(cuda_stream);
-#endif
         }
 
         void step(const float* actions, int actions_device_type, unsigned long long producer_stream) override {
 #if defined(HYPERDRONE_DYNAMICS_CUDA)
             if(actions_device_type == 2){
                 cudaStream_t producer = (cudaStream_t)producer_stream;
-                if(producer != nullptr && producer != cuda_stream){
-                    cudaEvent_t actions_ready;
-                    cudaEventCreateWithFlags(&actions_ready, cudaEventDisableTiming);
-                    cudaEventRecord(actions_ready, producer);
-                    cudaStreamWaitEvent(cuda_stream, actions_ready, 0);
-                    cudaEventDestroy(actions_ready);
+                if(producer != cuda_stream){
+                    cudaEventRecord(ordering_event, producer);
+                    cudaStreamWaitEvent(cuda_stream, ordering_event, 0);
                 }
                 cudaMemcpyAsync(device_actions, actions, NUM_DRONES * ACTION_DIM * sizeof(float), cudaMemcpyDeviceToDevice, cuda_stream);
+                order_consumer(producer_stream);
             }
             else {
                 cudaMemcpyAsync(device_actions, actions, NUM_DRONES * ACTION_DIM * sizeof(float), cudaMemcpyHostToDevice, cuda_stream);
@@ -515,14 +539,14 @@ namespace hyperdrone_dynamics_impl {
         void update_observations() override {
 #if defined(HYPERDRONE_DYNAMICS_CUDA)
             kernel_observe<<<GRID_DIM, BLOCK_DIM, 0, cuda_stream>>>(device_cuda, device_envs, device_parameters,
-                                                                    device_states, device_rng, buffer_observations);
+                                                                    device_states, device_observe_rng, buffer_observations);
 #else
             #ifdef _OPENMP
             #pragma omp parallel for
             #endif
             for(TI drone = 0; drone < NUM_DRONES; drone++){
                 rlt::Matrix<rlt::matrix::Specification<T, TI, 1, OBSERVATION_DIM, false>> observation;
-                rlt::observe(device_cpu, envs[drone], parameters[drone], states[drone], typename ENVIRONMENT::Observation{}, observation, engines[drone]);
+                rlt::observe(device_cpu, envs[drone], parameters[drone], states[drone], typename ENVIRONMENT::Observation{}, observation, observe_engines[drone]);
                 for(TI i = 0; i < OBSERVATION_DIM; i++){
                     buffer_observations[drone * OBSERVATION_DIM + i] = rlt::get(observation, 0, i);
                 }
@@ -540,14 +564,14 @@ namespace hyperdrone_dynamics_impl {
             const float scale = 2.0f * std::tan(fov / 2.0f);
 #if defined(HYPERDRONE_DYNAMICS_CUDA)
             cudaMemcpyAsync(device_mount, mount, 12 * sizeof(float), cudaMemcpyHostToDevice, cuda_stream);
-            kernel_camera_bases<<<GRID_DIM, BLOCK_DIM, 0, cuda_stream>>>(buffer_position, buffer_orientation,
+            kernel_camera_bases<<<GRID_DIM, BLOCK_DIM, 0, cuda_stream>>>(device_states,
                                                                          device_mount, scale, aspect, buffer_camera_bases);
 #else
             #ifdef _OPENMP
             #pragma omp parallel for
             #endif
             for(TI drone = 0; drone < NUM_DRONES; drone++){
-                camera_base_one(&buffer_position[drone * 3], &buffer_orientation[drone * 4], mount, scale, aspect,
+                camera_base_one(states[drone].position, states[drone].orientation, mount, scale, aspect,
                                 &buffer_camera_bases[drone * 12]);
             }
 #endif
@@ -557,37 +581,43 @@ namespace hyperdrone_dynamics_impl {
             return buffer_camera_bases;
         }
 
-        template <typename ACCESSOR>
-        bool parameter_access(const char* name, ACCESSOR&& accessor){
-            const std::string key(name);
+        std::string instance_parameters_json() override {
+            nlohmann::json result = nlohmann::json::array();
             for(TI drone = 0; drone < NUM_DRONES; drone++){
-                DYNAMICS& dynamics_values = parameters[drone].dynamics;
-                if(key == "mass"){ accessor(drone, dynamics_values.mass); }
-                else if(key == "hovering_throttle_relative"){ accessor(drone, dynamics_values.hovering_throttle_relative); }
-                else if(key == "dt"){ accessor(drone, parameters[drone].integration.dt); }
-                else { return false; }
+                result.push_back({{"dynamics", nlohmann::json::parse(json(device_cpu, envs[drone], parameters[drone]))}});
             }
-            return true;
+            return result.dump();
         }
 
-        bool read_parameter(const char* name, float* dst) override {
-            return parameter_access(name, [dst](TI drone, T& value){ dst[drone] = value; });
-        }
-
-        bool write_parameter(const char* name, const float* values) override {
-            const bool known = parameter_access(name, [values](TI drone, T& value){ value = values[drone]; });
-            if(known){
-                upload_parameters();
+        void set_instance_parameters(const bool* mask, const std::string& input) override {
+            const auto entries = nlohmann::json::parse(input);
+            auto updated = parameters;
+            size_t entry = 0;
+            for(TI drone = 0; drone < NUM_DRONES; drone++){
+                if(mask[drone]){
+                    const auto& requested = entries.at(entry++).at("dynamics");
+                    auto current = nlohmann::json::parse(json(device_cpu, envs[drone], parameters[drone]));
+                    for(const auto& item : current.items()){
+                        if(item.key() != "dynamics" && requested.at(item.key()) != item.value()){
+                            throw std::invalid_argument("hyperdrone: only dynamics.dynamics varies per instance; set shared values through parameters=");
+                        }
+                    }
+                    from_json(device_cpu, envs[drone], requested, updated[drone]);
+                }
             }
-            return known;
+            if(entry != entries.size()){
+                throw std::invalid_argument("hyperdrone: set_instance_parameters takes one entry per selected drone");
+            }
+            synchronize();
+            parameters.swap(updated);
+            upload_parameters();
         }
 
     };
 
     static char config_string_buffer[64];
     const char* build_config_string(){
-        std::snprintf(config_string_buffer, sizeof(config_string_buffer), "n=%d;dr=%d",
-                      (int)NUM_DRONES, (int)(HYPERDRONE_DYNAMICS_DOMAIN_RANDOMIZATION != 0));
+        std::snprintf(config_string_buffer, sizeof(config_string_buffer), "n=%d", (int)NUM_DRONES);
         return config_string_buffer;
     }
 }

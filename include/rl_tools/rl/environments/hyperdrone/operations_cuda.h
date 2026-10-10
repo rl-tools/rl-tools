@@ -79,9 +79,8 @@ namespace rl_tools{
                 auto close = make_camera<DEVICE, T>(device, instance_parameters.agents[agent_i].camera, agent_state.orientation, agent_state.position, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin);
                 cameras[camera_i] = close;
                 if constexpr(SPEC::ENABLE_MOTION_BLUR){
-                    bool reset = history_step == 0 || get(device, reset_mask, instance_i);
+                    bool reset = history_step <= 1 || get(device, reset_mask, instance_i);
                     cameras_open[camera_i] = reset ? close : interpolate_camera(close, prev_cameras[camera_i], instance_parameters.shutter_fraction);
-                    prev_cameras[camera_i] = close;
                 }
             }
         }
@@ -164,7 +163,7 @@ namespace rl_tools{
                 TI instance_i = camera_i / WORLD::N_VIEWS;
                 TI pixel_i = thread_i % CAM_PIXELS;
                 if(pixel_i == 0 && camera_i % WORLD::N_VIEWS == 0 && get(device, reset_mask, instance_i)){
-                    episode_start[instance_i] = history_step;
+                    episode_start[instance_i] = history_step - 1;
                 }
                 const float scale = (float)get_ref(device, parameters, instance_i).brightness_scale;
                 for(TI channel_i = 0; channel_i < 3; channel_i++){
@@ -205,13 +204,22 @@ namespace rl_tools{
             }
         }
         template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename NEXT_STATE_SPEC, typename RNG>
-        __global__ void step_kernel(DEVICE device, typename World<SPEC>::DYNAMICS_ENV dynamics, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, const Tensor<ACTION_SPEC> actions, Tensor<NEXT_STATE_SPEC> next_states, RNG rng){
+        __global__ void step_kernel(DEVICE device, typename World<SPEC>::DYNAMICS_ENV dynamics, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, const Tensor<ACTION_SPEC> actions, Tensor<NEXT_STATE_SPEC> next_states, RNG rng, rendering::raytracing::Camera<typename SPEC::T>* prev_cameras){
             using TI = typename DEVICE::index_t;
             using WORLD = World<SPEC>;
             constexpr TI INSTANCES = WORLD::INSTANCES;
             static_assert(RNG::NUM_RNGS >= INSTANCES, "Please increase the number of CUDA RNGs");
             TI instance_i = threadIdx.x + blockIdx.x * blockDim.x;
             if(instance_i < INSTANCES){
+                if constexpr (SPEC::ENABLE_MOTION_BLUR){
+                    const auto& instance_parameters = get_ref(device, parameters, instance_i);
+                    const auto& state = get_ref(device, states, instance_i);
+                    const typename SPEC::T aspect = static_cast<typename SPEC::T>(SPEC::CAM_WIDTH) / static_cast<typename SPEC::T>(SPEC::CAM_HEIGHT);
+                    for(TI agent_i = 0; agent_i < WORLD::N_VIEWS; agent_i++){
+                        const auto& agent = _agent_state<SPEC>(state, agent_i);
+                        prev_cameras[instance_i * WORLD::N_VIEWS + agent_i] = make_camera<DEVICE, typename SPEC::T>(device, instance_parameters.agents[agent_i].camera, agent.orientation, agent.position, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin);
+                    }
+                }
                 auto& rng_state = get(rng.states, 0, instance_i);
                 Matrix<matrix::Specification<typename ACTION_SPEC::T, TI, 1, WORLD::ACTION_DIM, false>> action_matrix;
                 for(TI action_i = 0; action_i < WORLD::ACTION_DIM; action_i++){
@@ -298,6 +306,9 @@ namespace rl_tools{
     }
     template <typename DEV_SPEC, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
     void render(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input){
+        if(!world.render_pending){
+            return;
+        }
         request_render(device, world, reset_mask_input);
         auto& reset_mask = world.render_reset;
         using DEVICE = devices::CUDA<DEV_SPEC>;
@@ -348,10 +359,9 @@ namespace rl_tools{
         }
         render_launch(device, renderer);
         if constexpr (SPEC::OUTPUT_FLOW){
-            advance_flow_launch(device, renderer);
             world.flow_scene_version = world.scene_version;
         }
-        const TI history_slot = world.history_step % SPEC::HISTORY_LENGTH;
+        const TI history_slot = (world.history_step - 1) % SPEC::HISTORY_LENGTH;
         float* history_row = data(world.history) + history_slot * INSTANCES * WORLD::N_VIEWS * WORLD::FRAME_DIM;
         {
             constexpr TI BLOCKSIZE = 256;
@@ -359,8 +369,6 @@ namespace rl_tools{
             rl::environments::hyperdrone::cuda::scatter_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, data(renderer.observation), history_row, parameters, data(world.episode_start), reset_mask, world.history_step);
         }
         check_status(device);
-        world.history_step++;
-        set_all(device, world.render_reset, false);
         world.render_pending = false;
     }
     template <typename DEV_SPEC, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename OBSERVATION_SPEC, typename RNG>
@@ -404,9 +412,19 @@ namespace rl_tools{
         constexpr TI BLOCKSIZE = 32;
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
         devices::cuda::TAG<DEVICE, true> tag_device{};
+        if constexpr (SPEC::HISTORY_LENGTH > 1 || SPEC::OUTPUT_FLOW){
+            if(world.render_pending){
+                render(device, world, parameters, states, world.render_reset);
+            }
+        }
+        if constexpr (SPEC::OUTPUT_FLOW){
+            advance_flow_launch(device, get_renderer(device, world));
+        }
         auto world_rng = rl::environments::hyperdrone::cuda::instance_rng(device, world, rng);
-        rl::environments::hyperdrone::cuda::step_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, parameters, states, actions, next_states, world_rng);
+        rl::environments::hyperdrone::cuda::step_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, parameters, states, actions, next_states, world_rng, data(world.prev_cameras));
         check_status(device);
+        world.history_step++;
+        set_all(device, world.render_reset, false);
         request_render(device, world);
     }
     template <typename DEV_SPEC, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename NEXT_STATE_SPEC, typename REWARD_SPEC, typename RNG>

@@ -31,6 +31,7 @@ namespace rl_tools {
                 using TI = T_TI;
                 using SHADING = Medium;
                 static constexpr bool OUTPUT_RGB = true;
+                // Metric camera-forward (+X in FLU) depth at pixel center and shutter close; misses are +infinity.
                 static constexpr bool OUTPUT_DEPTH = false;
                 // segmentation writes one uint32 instance index per pixel (miss = 0xFFFFFFFF),
                 // always single-sample from the shutter-close camera: labels cannot be averaged,
@@ -65,9 +66,7 @@ namespace rl_tools {
                 static constexpr T_TI NUM_OVERLAYS = 0;
                 static constexpr T_TI MAX_OVERLAY_INSTANCES = 0;
                 static constexpr T_TI MAX_OVERLAYS_PER_CAMERA = 0;
-                // spec-driven observation output: the RGB ray gen writes OBSERVATION_T pixels
-                // ([0,1] linear or sRGB per SHADING) directly — no format-conversion pass. The
-                // packed frame buffer remains the video/golden output.
+                // RGB observations are [0,1] sRGB for every built-in shading tier; packed-frame alpha is always 255, reserved.
                 static constexpr bool OUTPUT_OBSERVATION = false;
                 using OBSERVATION_T = float;
             };
@@ -103,7 +102,6 @@ namespace rl_tools {
             static constexpr bool ENABLE_ANTI_ALIASING = CONFIG::ENABLE_ANTI_ALIASING && ANTI_ALIASING_GRID_SIZE > 1;
             static constexpr TI ANTI_ALIASING_SAMPLES = ENABLE_ANTI_ALIASING ? ANTI_ALIASING_GRID_SIZE * ANTI_ALIASING_GRID_SIZE : 1;
             static constexpr TI RGB_SAMPLES = (ENABLE_MOTION_BLUR ? MOTION_BLUR_SAMPLES : 1) * ANTI_ALIASING_SAMPLES;
-            static constexpr TI DEPTH_SAMPLES = RGB_SAMPLES;
             static_assert(ANTI_ALIASING_GRID_SIZE >= 1, "ANTI_ALIASING_GRID_SIZE must be at least 1");
             static_assert(!ENABLE_ANTI_ALIASING || ANTI_ALIASING_GRID_SIZE == 2 || ANTI_ALIASING_GRID_SIZE == 3 || ANTI_ALIASING_GRID_SIZE == 4, "ANTI_ALIASING_GRID_SIZE must be one of 2, 3, or 4");
             static constexpr TI GRID_COLS = [](){
@@ -425,12 +423,10 @@ namespace rl_tools {
             Tensor<TRANSFORMS_MOTION_TENSOR_SPEC> transforms_motion;
             std::vector<float> transforms_motion_staging;
             bool transforms_motion_pending[SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES] = {};
-            // linear-radiance accumulators, resolved into the packed frame buffer / depth buffer
+            // linear-radiance accumulators, resolved into the packed frame buffer
             // after the last sample pass; allocated only for the enabled outputs
             using RGB_ACCUMULATOR_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, 3>, true>;
             Tensor<RGB_ACCUMULATOR_TENSOR_SPEC> rgb_accumulator;
-            using DEPTH_ACCUMULATOR_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH>, true>;
-            Tensor<DEPTH_ACCUMULATOR_TENSOR_SPEC> depth_accumulator;
         };
 
         template <typename T_SPEC, typename T_BACKEND = backends::Default>
@@ -451,7 +447,7 @@ namespace rl_tools {
             using COLLISION_TENSOR_SPEC = tensor::Specification<CollisionResult, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::NUM_PROBES>, true>;
             Tensor<COLLISION_TENSOR_SPEC> collision_results;
 
-            // loader-authoritative (SceneMetadata): probe ray budget and depth miss sentinel
+            // Loader-authoritative (SceneMetadata) probe ray budget.
             T max_ray_length = 0;
             // resolved Scene::Environment (background pair + ambient), staged into the backend
             // launch params; set by init

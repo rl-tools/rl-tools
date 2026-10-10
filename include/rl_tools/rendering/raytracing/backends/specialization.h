@@ -26,7 +26,6 @@ namespace rl_tools{
             static constexpr bool HAS_OBSERVATION = SPEC::HAS_OBSERVATION;
             static constexpr bool DYNAMIC_MOTION_BLUR = SPEC::ENABLE_DYNAMIC_MOTION_BLUR;
             static constexpr bool RESOLVE_RGB = SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_RGB;
-            static constexpr bool RESOLVE_DEPTH = SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_DEPTH;
             // WGSL-only consumers (the other shader backends derive these in-shader)
             static constexpr int NUM_OVERLAYS = (int)SPEC::NUM_OVERLAYS;
             static constexpr int OVERLAY_CAPACITY = (int)SPEC::MAX_OVERLAY_INSTANCES;

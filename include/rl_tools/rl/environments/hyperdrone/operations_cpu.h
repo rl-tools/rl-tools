@@ -22,6 +22,10 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
+    template <typename DEVICE, typename SPEC>
+    bool set_asset(DEVICE&, rl::environments::hyperdrone::World<SPEC>&, const std::string&, const std::string&){
+        return false;
+    }
 
     template <typename DEVICE, typename SPEC>
     auto& get_renderer(DEVICE&, rl::environments::hyperdrone::World<SPEC>& world) {
@@ -46,6 +50,7 @@ namespace rl_tools {
         }
     }
 
+    // Direct state or parameter writes require request_render before acquiring the updated frame.
     template <typename DEVICE, typename SPEC, typename RESET_SPEC>
     void request_render(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, const Tensor<RESET_SPEC>& reset_mask){
         static_assert(length(typename RESET_SPEC::SHAPE{}) == 1 && get<0>(typename RESET_SPEC::SHAPE{}) == rl::environments::hyperdrone::World<SPEC>::INSTANCES);
@@ -54,12 +59,21 @@ namespace rl_tools {
             binary_operation(device, tensor::operations::binary::LogicalOr{}, reset, world.render_reset);
         }
         world.render_pending = true;
+        if(world.history_step == 0){
+            world.history_step = 1;
+        }
     }
 
     template <typename DEVICE, typename SPEC>
     void request_render(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world){
         world.render_pending = true;
+        if(world.history_step == 0){
+            world.history_step = 1;
+        }
     }
+
+    template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
+    void render(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input);
 
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world) {
@@ -161,7 +175,6 @@ namespace rl_tools {
         auto& render_device = get_rendering_device(device);
         init(device, world.dynamics);
         world.member_index = member_index;
-        world.episode_counter = 0;
         world.history_step = 0;
         world.flow_scene_version = 0;
         utils::assert_exit(device, num_scenes > 0, "hyperdrone::World: empty scene partition");
@@ -521,10 +534,10 @@ namespace rl_tools {
         RL_TOOLS_FUNCTION_PLACEMENT void _observe_dynamics(DEVICE& device, const typename World<SPEC>::DYNAMICS_ENV& dynamics, Parameters<SPEC>& parameters, const typename World<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng) {
             using TI = typename SPEC::TI;
             using WORLD = World<SPEC>;
-            constexpr TI PER_AGENT_DIM = WORLD::DYNAMICS_ENV::Observation::DIM;
+            constexpr TI PER_AGENT_DIM = WORLD::DYNAMICS_ENV::ObservationPrivileged::DIM;
             for (TI agent_i = 0; agent_i < SPEC::N_AGENTS; agent_i++) {
                 auto agent_observation = view(device, observation, matrix::ViewSpec<1, PER_AGENT_DIM>{}, 0, agent_i * PER_AGENT_DIM);
-                observe(device, dynamics, parameters.agents[agent_i].dynamics, _agent_state<SPEC>(state, agent_i), typename WORLD::DYNAMICS_ENV::Observation{}, agent_observation, rng);
+                observe(device, dynamics, parameters.agents[agent_i].dynamics, _agent_state<SPEC>(state, agent_i), typename WORLD::DYNAMICS_ENV::ObservationPrivileged{}, agent_observation, rng);
             }
         }
     }
@@ -587,13 +600,32 @@ namespace rl_tools {
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
         static_assert(rl::environments::hyperdrone::check_world_instance_tensors<WORLD, PARAMETER_SPEC, STATE_SPEC>());
         static_assert(get<1>(typename ACTION_SPEC::SHAPE{}) == WORLD::ACTION_DIM);
+        if constexpr (SPEC::HISTORY_LENGTH > 1 || SPEC::OUTPUT_FLOW){
+            if(world.render_pending){
+                render(device, world, parameters, states, world.render_reset);
+            }
+        }
+        if constexpr (SPEC::OUTPUT_FLOW){
+            advance_flow(device, get_renderer(device, world));
+        }
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
+            if constexpr (SPEC::ENABLE_MOTION_BLUR){
+                const auto& instance_parameters = get_ref(device, parameters, instance_i);
+                const auto& state = get_ref(device, states, instance_i);
+                const typename SPEC::T aspect = static_cast<typename SPEC::T>(SPEC::CAM_WIDTH) / static_cast<typename SPEC::T>(SPEC::CAM_HEIGHT);
+                for(TI agent_i = 0; agent_i < WORLD::N_VIEWS; agent_i++){
+                    const auto& agent = rl::environments::hyperdrone::_agent_state<SPEC>(state, agent_i);
+                    set(device, world.prev_cameras, rl::environments::hyperdrone::make_camera<DEVICE, typename SPEC::T>(device, instance_parameters.agents[agent_i].camera, agent.orientation, agent.position, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin), instance_i * WORLD::N_VIEWS + agent_i);
+                }
+            }
             Matrix<matrix::Specification<typename ACTION_SPEC::T, TI, 1, WORLD::ACTION_DIM, false>> action_matrix;
             for (TI action_i = 0; action_i < WORLD::ACTION_DIM; action_i++) {
                 set(action_matrix, 0, action_i, get(device, actions, instance_i, action_i));
             }
             step(device, world, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), action_matrix, get_ref(device, next_states, instance_i), rng);
         }
+        world.history_step++;
+        set_all(device, world.render_reset, false);
         request_render(device, world);
     }
     template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename NEXT_STATE_SPEC, typename REWARD_SPEC, typename RNG, typename utils::typing::enable_if<DEVICE::DEVICE_ID != devices::DeviceId::CUDA, bool>::type = true>
@@ -642,6 +674,9 @@ namespace rl_tools {
     // episode's history window
     template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
     void render(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input) {
+        if(!world.render_pending){
+            return;
+        }
         request_render(device, world, reset_mask_input);
         auto& reset_mask = world.render_reset;
         auto& renderer = get_renderer(device, world);
@@ -667,12 +702,11 @@ namespace rl_tools {
             for (TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++) {
                 const TI instance_i = camera_i / WORLD::N_VIEWS;
                 const auto& instance_parameters = get_ref(device, parameters, instance_i);
-                bool reset = world.history_step == 0 || get(device, reset_mask, instance_i);
+                bool reset = world.history_step <= 1 || get(device, reset_mask, instance_i);
                 const auto camera_close = get(device, world.camera_staging_close, camera_i);
                 set(device, world.camera_staging_open, reset ? camera_close : rl::environments::hyperdrone::interpolate_camera(camera_close, get(device, world.camera_staging_previous, camera_i), instance_parameters.shutter_fraction), camera_i);
             }
             copy(device, renderer.device, world.camera_staging_open, cameras_open(device, renderer));
-            copy(device, device, world.camera_staging_close, world.prev_cameras);
         }
         if constexpr (SPEC::SELF_VISIBLE) {
             for (TI instance_i = 0; instance_i < INSTANCES; instance_i++) {
@@ -718,11 +752,10 @@ namespace rl_tools {
         }
         render(device, renderer);
         if constexpr (SPEC::OUTPUT_FLOW){
-            advance_flow(device, renderer);
             world.flow_scene_version = world.scene_version;
         }
 
-        const TI history_slot = world.history_step % SPEC::HISTORY_LENGTH;
+        const TI history_slot = (world.history_step - 1) % SPEC::HISTORY_LENGTH;
         {
             constexpr TI CAM_PIXELS = SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT;
             std::vector<float> observation_staging(NUM_CAMERAS * CAM_PIXELS * 3);
@@ -755,13 +788,11 @@ namespace rl_tools {
             copy(device, device, world.episode_start, episode_start_alias);
             for (TI instance_i = 0; instance_i < INSTANCES; instance_i++) {
                 if (get(device, reset_mask, instance_i)) {
-                    episode_start_staging[instance_i] = world.history_step;
+                    episode_start_staging[instance_i] = world.history_step - 1;
                 }
             }
             copy(device, device, episode_start_alias, world.episode_start);
         }
-        world.history_step++;
-        set_all(device, world.render_reset, false);
         world.render_pending = false;
     }
 

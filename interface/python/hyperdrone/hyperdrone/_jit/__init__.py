@@ -1,4 +1,4 @@
-"""hyperdrone.jit — shared compile-and-cache infrastructure.
+"""hyperdrone._jit — shared compile-and-cache infrastructure.
 
 A *component* is a native code unit under hyperdrone/_native/<name>/: an optional nanobind
 core module built once per build tree, plus JIT artifacts compiled per configuration:

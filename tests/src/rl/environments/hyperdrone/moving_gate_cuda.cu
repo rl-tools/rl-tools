@@ -253,6 +253,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MOVING_GATE_CUDA, DEVICE_ENTITY_MECHANI
     }
     rlt::copy(device, device_gpu, host.parameters, tensors.parameters);
     rlt::set_all(device_gpu, tensors.reset_mask, false);
+    rlt::request_render(device_gpu, world);
     rlt::render(device_gpu, world, tensors.parameters, tensors.states, tensors.reset_mask);
     rlt::observe(device_gpu, world, tensors.parameters, tensors.states, typename BASE_WORLD::Observation{}, tensors.observations, rng);
     cudaDeviceSynchronize();

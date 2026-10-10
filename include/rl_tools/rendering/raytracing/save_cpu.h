@@ -105,21 +105,18 @@ namespace rl_tools{
         }
 
         template <typename SPEC, typename DEVICE>
-        void write_depth_grid_png(DEVICE& device, const float* depth_host, float max_ray_length, const char* filename){
+        void write_depth_grid_png(DEVICE& device, const float* depth_host, const char* filename){
             using TI = typename SPEC::TI;
             constexpr TI cam_pixels = SPEC::CAM_PIXELS;
             constexpr int grid_width = SPEC::GRID_COLS * SPEC::CAM_WIDTH;
             constexpr int grid_height = SPEC::GRID_ROWS * SPEC::CAM_HEIGHT;
             std::vector<uint32_t> grid_image(grid_width * grid_height, 0);
             constexpr size_t depth_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-            const float max_depth = max_ray_length > 0 ? max_ray_length : 1e30f;
-            const float valid_max_depth = max_depth * 0.999f;
             float min_valid_depth = std::numeric_limits<float>::max();
             float max_valid_depth = std::numeric_limits<float>::lowest();
             for(size_t depth_i = 0; depth_i < depth_count; depth_i++){
                 const float depth = depth_host[depth_i];
-                // no std::isfinite: unreliable under -ffast-math; the range check excludes inf/NaN
-                if(depth > 0.f && depth < valid_max_depth){
+                if(!is_miss(depth) && depth >= 0.f){
                     min_valid_depth = std::min(min_valid_depth, depth);
                     max_valid_depth = std::max(max_valid_depth, depth);
                 }
@@ -137,7 +134,7 @@ namespace rl_tools{
                     for(int x = 0; x < (int)SPEC::CAM_WIDTH; x++){
                         const float depth = depth_host[i * cam_pixels + y * SPEC::CAM_WIDTH + x];
                         uint8_t value = 0;
-                        if(has_valid_depth && depth > 0.f && depth < valid_max_depth){
+                        if(has_valid_depth && !is_miss(depth) && depth >= 0.f){
                             const float normalized = fminf(fmaxf((depth - min_valid_depth) / (valid_depth_range + 1e-6f), 0.f), 1.f);
                             value = static_cast<uint8_t>(normalized * 255.f);
                         }
@@ -289,7 +286,7 @@ namespace rl_tools{
         static_assert(SPEC::HAS_DEPTH, "save_depth_image requires a depth-capable renderer specification");
         std::vector<float> depth_host;
         rendering::raytracing::detail::save_staging(device, renderer, renderer.depth_buffer, depth_host);
-        rendering::raytracing::detail::write_depth_grid_png<SPEC>(device, depth_host.data(), renderer.max_ray_length, filename);
+        rendering::raytracing::detail::write_depth_grid_png<SPEC>(device, depth_host.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>

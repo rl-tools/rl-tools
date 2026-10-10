@@ -68,7 +68,6 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         uint32_t num_cameras;
         uint32_t num_probes;
         uint32_t num_scene_lights;
-        float max_depth;
         float max_dist;
         float ambient_color[3];
         float miss_color_0[3];
@@ -103,10 +102,9 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         uint32_t out_flow_forward_status;
         uint32_t out_observation;
         uint32_t out_rgb_accumulator;
-        uint32_t out_depth_accumulator;
         uint32_t out_collision;
     };
-    static_assert(sizeof(LaunchParams) == 204, "LaunchParams layout must match the WGSL declaration in device.wgsl");
+    static_assert(sizeof(LaunchParams) == 196, "LaunchParams layout must match the WGSL declaration in device.wgsl");
 
     struct TextureRef{
         uint32_t offset; // texel index into TEXTURE_DATA, ABSENT = no texture
@@ -196,7 +194,6 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         static constexpr uint32_t FLOW_FORWARD_STATUS_WORDS = SPEC::HAS_FLOW_FORWARD ? CAM_PIXEL_WORDS : 0;
         static constexpr uint32_t OBSERVATION_WORDS = SPEC::HAS_OBSERVATION ? CAM_PIXEL_WORDS * (uint32_t)SPEC::OBSERVATION_CHANNELS : 0;
         static constexpr uint32_t RGB_ACCUMULATOR_WORDS = (SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_RGB) ? CAM_PIXEL_WORDS * 3 : 0;
-        static constexpr uint32_t DEPTH_ACCUMULATOR_WORDS = (SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_DEPTH) ? CAM_PIXEL_WORDS : 0;
         static constexpr uint32_t FRAME_BUFFER_OFFSET = 0;
         static constexpr uint32_t DEPTH_OFFSET = FRAME_BUFFER_OFFSET + FRAME_BUFFER_WORDS;
         static constexpr uint32_t SEGMENTATION_OFFSET = DEPTH_OFFSET + DEPTH_WORDS;
@@ -207,8 +204,7 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         static constexpr uint32_t FLOW_FORWARD_STATUS_OFFSET = FLOW_FORWARD_OFFSET + FLOW_FORWARD_WORDS;
         static constexpr uint32_t OBSERVATION_OFFSET = FLOW_FORWARD_STATUS_OFFSET + FLOW_FORWARD_STATUS_WORDS;
         static constexpr uint32_t RGB_ACCUMULATOR_OFFSET = OBSERVATION_OFFSET + OBSERVATION_WORDS;
-        static constexpr uint32_t DEPTH_ACCUMULATOR_OFFSET = RGB_ACCUMULATOR_OFFSET + RGB_ACCUMULATOR_WORDS;
-        static constexpr uint32_t COLLISION_OFFSET = DEPTH_ACCUMULATOR_OFFSET + DEPTH_ACCUMULATOR_WORDS;
+        static constexpr uint32_t COLLISION_OFFSET = RGB_ACCUMULATOR_OFFSET + RGB_ACCUMULATOR_WORDS;
         static constexpr uint32_t OUTPUTS_WORDS = COLLISION_OFFSET + COLLISION_WORDS;
     };
 

@@ -163,3 +163,38 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, IMPORT_EXPORT){
         ASSERT_NEAR(diff, 1337, EPSILON);
     }
 }
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, FROM_JSON_REJECTS_ROTOR_COUNT_MISMATCH){
+    using rlt::init;
+    using rlt::malloc;
+    using rlt::free;
+    using rlt::json;
+    using rlt::from_json;
+    DEVICE device;
+    ENVIRONMENT environment;
+    init(device);
+    malloc(device, environment);
+    init(device, environment);
+    const auto original = environment.parameters.dynamics;
+    const auto serialized = json(device, environment, original);
+    const auto valid = nlohmann::json::parse(serialized);
+    for(const char* key : {"rotor_positions", "rotor_thrust_directions", "rotor_torque_directions", "rotor_thrust_coefficients", "rotor_torque_constants", "rotor_time_constants_rising", "rotor_time_constants_falling"}){
+        for(TI count : {TI(3), TI(6)}){
+            auto invalid = valid;
+            invalid[key] = nlohmann::json::array();
+            for(TI index = 0; index < count; index++){
+                invalid[key].push_back(valid[key][0]);
+            }
+            auto restored = original;
+            try {
+                from_json(device, environment, invalid, restored);
+                FAIL() << key << " accepted " << count << " rotor entries";
+            }
+            catch(const std::runtime_error& error){
+                EXPECT_NE(std::string(error.what()).find(std::string(key) + " has " + std::to_string(count) + " entries, expected 4"), std::string::npos);
+            }
+            EXPECT_EQ(json(device, environment, restored), serialized);
+        }
+    }
+    free(device, environment);
+}

@@ -6,14 +6,14 @@ instantiations are JIT-compiled per set of compile-time constants and cached; th
 is selected at first build via HYPERDRONE_RENDER_BACKEND (OPTIX|METAL|VULKAN|WEBGPU|GENERIC;
 AUTO default: first available of OptiX, Metal, Vulkan, WebGPU, Generic).
 """
-from .. import cuda as _cuda
+from .. import _cuda
 from .._outputs import FlowStatus
 from . import datasets
 from ._component import _backend, component, load_core
 from ._config import FIDELITY, RendererConfig
-from ._renderer import Renderer
+from ._renderer import OverlayPlacement, Renderer
 from ._rig import Rig
-from ._sampling import FreeSpaceSampler
+from ._sampling import ClearanceSampler
 from ._scene import (
     compose_transforms,
     load_assembly,
@@ -27,10 +27,11 @@ __all__ = [
     "AssetPool",
     "FIDELITY",
     "FlowStatus",
-    "FreeSpaceSampler",
+    "ClearanceSampler",
     "Mesh",
     "Object",
     "ObjectAssembly",
+    "OverlayPlacement",
     "Renderer",
     "RendererConfig",
     "Rig",

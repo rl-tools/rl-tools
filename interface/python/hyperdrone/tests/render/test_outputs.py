@@ -12,11 +12,10 @@ OUTPUTS = ("rgb", "depth", "segmentation", "normals", "flow")
 
 
 def test_output_selection():
-    config = render.RendererConfig(16, 16, 1, 0, 0, OUTPUTS, 1, 1, 0, 0, 0, False)
+    config = render.RendererConfig(width=16, height=16, num_cameras=1, num_probes=0, fidelity="low", output=OUTPUTS, motion_blur_samples=1, anti_aliasing_grid=1, num_overlays=0, max_overlay_instances=0, max_overlays_per_camera=0, semantic_segmentation=False)
     assert config == replace(config, output=tuple(reversed(OUTPUTS)) + ("flow",))
     assert config.key() == replace(config, output=list(reversed(OUTPUTS))).key()
-    assert replace(config, output="rgbd").key() == replace(config, output=("rgb", "depth")).key()
-    assert replace(config, output="rgbd_segmentation").output == OUTPUTS[:3]
+    assert replace(config, output=("rgb", "depth", "segmentation")).output == OUTPUTS[:3]
     for invalid in ((), ("velocity",), ("flow", 1), 3):
         with pytest.raises(ValueError):
             replace(config, output=invalid)
@@ -31,7 +30,8 @@ def test_typed_outputs_and_views(output):
                                fidelity="low", output=output)
     renderer.init(make_scene(2))
     look_forward(renderer)
-    renderer.render_launch().render_sync()
+    renderer.render_launch()
+    renderer.render_sync()
     for name, channels, dtype in (("depth", 1, np.float32), ("segmentation", 1, np.uint32),
                                   ("normals", 3, np.float32), ("flow", 2, np.float32),
                                   ("flow_status", 1, np.uint32)):
@@ -41,19 +41,20 @@ def test_typed_outputs_and_views(output):
                 accessor()
             continue
         shape = (2, 16, 16) + ((channels,) if channels > 1 else ())
-        snapshot, view = accessor(), accessor(copy=False)
+        snapshot = accessor()
+        view = accessor(out=np.empty(shape, dtype=dtype))
         assert snapshot.shape == shape and snapshot.dtype == dtype
         np.testing.assert_array_equal(snapshot, view)
         assert not np.shares_memory(snapshot, view)
-        assert np.shares_memory(view, accessor(copy=False))
+        assert np.shares_memory(view, accessor(out=view))
         if renderer.backend != "optix":
             dlpack = np.from_dlpack(getattr(renderer, name + "_dlpack")())
             np.testing.assert_array_equal(dlpack, snapshot)
-            assert np.shares_memory(view, dlpack)
+            assert not np.shares_memory(view, dlpack)
     if "normals" in output:
         np.testing.assert_array_equal(renderer.normals()[:, 8, 8], [[-1, 0, 0]] * 2)
         np.testing.assert_array_equal(renderer.normals()[:, 0, 0], 0)
-        retained = renderer.normals(copy=False)
+        retained = renderer.normals()
         expected = retained.copy()
         del renderer
         gc.collect()
@@ -78,9 +79,11 @@ def test_camera_flow_advances_only_explicitly():
     status = renderer.flow_status()
     assert status[0, 16, 16] == render.FlowStatus.VALID
     assert np.any(status == render.FlowStatus.OUT_OF_FRAME)
-    renderer.render_launch().render_sync()
+    renderer.render_launch()
+    renderer.render_sync()
     np.testing.assert_array_equal(renderer.flow(), flow)
-    renderer.advance_flow().render()
+    renderer.advance_flow()
+    renderer.render()
     np.testing.assert_allclose(renderer.flow(), 0, atol=1e-4)
 
 
@@ -94,7 +97,7 @@ def test_object_flow_and_semantic_labels():
     renderer = render.Renderer(width=32, height=32, num_probes=0, output=OUTPUTS, fidelity="low",
                                semantic_segmentation=True, num_overlays=1,
                                max_overlay_instances=1, max_overlays_per_camera=1)
-    renderer.init(scene, pool)
+    renderer.init(scene, asset_pool=pool)
     look_forward(renderer)
     renderer.attach(0, 0)
     placement = renderer.spawn(0, asset, render.make_transform(position=(2, 0, 0)))
@@ -102,7 +105,7 @@ def test_object_flow_and_semantic_labels():
     renderer.render()
     np.testing.assert_allclose(renderer.flow(), 0, atol=1e-4)
     renderer.advance_flow()
-    renderer.set_transform(0, placement, render.make_transform(position=(2, 0.2, 0)))
+    renderer.set_transform(placement, render.make_transform(position=(2, 0.2, 0)))
     renderer.update()
     renderer.render()
     assert renderer.segmentation()[0, 16, 16] == 23
@@ -112,7 +115,7 @@ def test_object_flow_and_semantic_labels():
 
 
 def test_cuda_output_dlpack():
-    if render._backend() != "OPTIX":
+    if render._backend() != "optix":
         pytest.skip("CUDA DLPack requires OptiX")
     torch = pytest.importorskip("torch")
     if not torch.cuda.is_available():

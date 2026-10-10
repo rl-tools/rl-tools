@@ -395,7 +395,7 @@ static std::string anti_aliasing_name_for_spec() {
 
 template <typename SPEC>
 static constexpr int samples_per_pixel_for_spec() {
-    return SPEC::HAS_DEPTH ? SPEC::DEPTH_SAMPLES : SPEC::RGB_SAMPLES;
+    return SPEC::HAS_DEPTH ? 1 : SPEC::RGB_SAMPLES;
 }
 
 template <typename SPEC>

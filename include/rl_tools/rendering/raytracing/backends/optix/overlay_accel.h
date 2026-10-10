@@ -48,7 +48,7 @@ namespace rl_tools::rendering::raytracing::backends::optix{
     // divides the linear accumulators by num_samples and writes the packed frame buffer (+
     // observation) / depth buffer with the exact quantization of the single-launch path;
     // null accumulator pointers skip the corresponding output
-    void overlay_accel_resolve(const float* rgb_accumulation, unsigned int* frame_buffer, float* observation, int srgb_output, const float* depth_accumulation, float* depth_buffer, unsigned int num_pixels, unsigned int num_samples, cudaStream_t stream);
+    void overlay_accel_resolve(const float* rgb_accumulation, unsigned int* frame_buffer, float* observation, int srgb_output, unsigned int num_pixels, unsigned int num_samples, cudaStream_t stream);
     // the device half of the host publish: for each of num_slabs slabs slab_stride rows apart,
     // writes rows[(slab * count + row) * 12] into target[(slab * slab_stride + indices[row]) * 12]
     void overlay_accel_scatter_rows(const unsigned int* indices, unsigned int count, const float* rows, float* target, unsigned int num_slabs, unsigned int slab_stride, cudaStream_t stream);

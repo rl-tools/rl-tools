@@ -13,7 +13,7 @@ POSITION = np.array([-0.97, -4.42, 1.5])
 YAWS_DEGREES = (150.0, 195.0, 240.0, 285.0)
 
 scene = render.load_scene(scene_reference, fidelity="high")
-renderer = render.Renderer(width=320, height=240, num_cameras=len(YAWS_DEGREES), output="rgbd", fidelity="high")
+renderer = render.Renderer(width=320, height=240, num_cameras=len(YAWS_DEGREES), output=("rgb", "depth"), fidelity="high")
 renderer.init(scene)
 
 cameras = []

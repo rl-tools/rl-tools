@@ -31,21 +31,21 @@ from test_env import make_room
 
 num_drones = 4
 scene = make_room()
-sim = dynamics.Sim(num_drones=num_drones, model="crazyflie", device="cuda")
+sim = dynamics.Sim(num_drones=num_drones, device="cuda")
 renderer = render.Renderer(width=32, height=32, num_cameras=num_drones, output="rgb", fidelity="low")
 renderer.init(scene)
 assert renderer.backend == "optix" and sim.device == "cuda"
 
 def spawn(positions):
-    sim.reset(seed=0, sample_states=False)
+    sim.reset()
     sim.state["position"] = positions
-    renderer.set_cameras(sim.camera_bases(aspect=renderer.aspect), stream=sim.stream)
+    renderer.set_cameras(sim.camera_bases_dlpack(aspect=renderer.aspect), stream=sim.stream)
 
 positions = np.array([[0.0, 0.0, 1.5], [1.0, 1.0, 1.5], [-1.0, 1.0, 1.0], [1.0, -1.0, 2.0]], dtype=np.float32)
 spawn(positions)
 actions = np.full((num_drones, sim.action_dim), 0.1, dtype=np.float32)
 sim.step(actions)
-renderer.set_cameras(sim.camera_bases(aspect=renderer.aspect), stream=sim.stream)
+renderer.set_cameras(sim.camera_bases_dlpack(aspect=renderer.aspect), stream=sim.stream)
 renderer.render()
 device_frame = renderer.frame_raw().copy()
 
@@ -53,7 +53,7 @@ device_frame = renderer.frame_raw().copy()
 spawn(positions)
 sim.step(actions)
 sim.synchronize()
-renderer.set_cameras(sim.camera_bases_numpy(aspect=renderer.aspect))
+renderer.set_cameras(sim.camera_bases(aspect=renderer.aspect))
 renderer.render()
 host_frame = renderer.frame_raw()
 
@@ -63,7 +63,7 @@ print("DEVICE HANDOFF OK")
 
 
 @pytest.mark.skipif(
-    render._backend() != "OPTIX" or not cuda_available(),
+    render._backend() != "optix" or not cuda_available(),
     reason="device hand-off requires the OptiX render backend and a CUDA driver",
 )
 def test_device_camera_handoff_matches_host():

@@ -311,8 +311,11 @@ namespace rl_tools::rendering::datasets::annotations {
                     const T avg_hit_dist = sum_hit_dist / static_cast<T>(hit_count);
                     const T avg_dist_norm = avg_hit_dist / max_dist;
                     const T near_ratio = static_cast<T>(very_near_hit_count) / static_cast<T>(NUM_PROBES);
-                    const T forward_dist = static_cast<T>(camera_probes[0].distance);
-                    const bool forward_open = camera_probes[0].hit && forward_dist > (T)parameters.forward_open_minimum && forward_dist < (T)parameters.forward_open_maximum;
+                    bool forward_open = false;
+                    if(camera_probes[0].hit){
+                        const T forward_dist = static_cast<T>(camera_probes[0].distance);
+                        forward_open = forward_dist > (T)parameters.forward_open_minimum && forward_dist < (T)parameters.forward_open_maximum;
+                    }
 
                     const T score =
                         (T)parameters.score_weight_hit_ratio * hit_ratio

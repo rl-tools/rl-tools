@@ -97,7 +97,6 @@ namespace {
             scene.triangle_mesh = triangle_mesh;
             scene.triangle_local = triangle_local;
             scene.num_triangles = 12;
-            scene.max_depth = 100;
             scene.max_dist = 100;
             scene.miss_color_0[0] = 0.8f; scene.miss_color_0[1] = 0.0f; scene.miss_color_0[2] = 0.0f;
             scene.miss_color_1[0] = 0.8f; scene.miss_color_1[1] = 0.8f; scene.miss_color_1[2] = 0.8f;
@@ -170,7 +169,7 @@ TEST(RENDERING_RAYTRACING_GENERIC, DEPTH_ANALYTIC){
     cube.scene.cameras_close = &camera;
     cube.scene.cameras_open = &camera;
     cube.scene.depth_buffer = &depth;
-    generic::render_frame<DEVICE, SPEC, generic::OutputDepth>(device, cube.scene);
+    generic::render_depth_frame<DEVICE, SPEC>(device, cube.scene);
     EXPECT_FLOAT_EQ(depth, 4.0f); // camera at x=-5, face at x=-1
 }
 
@@ -209,7 +208,7 @@ TEST(RENDERING_RAYTRACING_GENERIC, COLLISION_ANALYTIC){
     cube.scene.probe_directions = probe_directions_away;
     generic::render_collision<DEVICE, SPEC>(device, cube.scene);
     EXPECT_EQ(results[0].hit, 0);
-    EXPECT_FLOAT_EQ(results[0].distance, 100.0f);
+    EXPECT_TRUE(rlt::is_miss(results[0].distance));
     EXPECT_EQ(results[1].hit, 1);
     EXPECT_FLOAT_EQ(results[1].distance, 4.0f);
     EXPECT_EQ(results[2].hit, 0);
@@ -226,7 +225,7 @@ TEST(RENDERING_RAYTRACING_GENERIC, RGB_FLAT_AND_MISS){
     cube.scene.frame_buffer = &pixel;
     {
         using SPEC = Spec<ShadingLow, 1>;
-        generic::render_frame<DEVICE, SPEC, generic::OutputRGB>(device, cube.scene);
+        generic::render_frame<DEVICE, SPEC>(device, cube.scene);
         // flat shading: exactly the mesh color, linear packing: (0.25, 0.5, 0.75) -> (64, 128, 192)
         EXPECT_EQ(pixel, 0xFFC08040u);
     }
@@ -234,7 +233,7 @@ TEST(RENDERING_RAYTRACING_GENERIC, RGB_FLAT_AND_MISS){
         // anti-aliasing over a flat surface must not change the result
         using SPEC = Spec<ShadingLow, 1, true, 2>;
         pixel = 0;
-        generic::render_frame<DEVICE, SPEC, generic::OutputRGB>(device, cube.scene);
+        generic::render_frame<DEVICE, SPEC>(device, cube.scene);
         EXPECT_EQ(pixel, 0xFFC08040u);
     }
     {
@@ -244,7 +243,7 @@ TEST(RENDERING_RAYTRACING_GENERIC, RGB_FLAT_AND_MISS){
         cube.scene.cameras_close = &camera_away;
         cube.scene.cameras_open = &camera_away;
         pixel = 0;
-        generic::render_frame<DEVICE, SPEC, generic::OutputRGB>(device, cube.scene);
+        generic::render_frame<DEVICE, SPEC>(device, cube.scene);
         EXPECT_EQ(pixel, 0xFF0000CCu);
     }
 }

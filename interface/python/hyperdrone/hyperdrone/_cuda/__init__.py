@@ -1,9 +1,8 @@
-"""hyperdrone.cuda — CUDA staging helpers shared by render and dynamics.
+"""hyperdrone._cuda — CUDA staging helpers shared by render and dynamics.
 
 The native CudaBuffer class is compiled into every CUDA-capable component core
 (render on OptiX, dynamics on CUDA). This package defines the Python-side views and
-resolves a provider from whichever domain package registered one at import time, keeping
-the dependency direction render/dynamics -> cuda.
+resolves a provider registered by render or a CUDA Sim, keeping the dependency direction render/dynamics -> _cuda.
 """
 import numpy as np
 
@@ -11,8 +10,7 @@ _providers = []
 
 
 def register_provider(load_core):
-    """Called by domain packages (render, dynamics) at import time; load_core is a
-    zero-argument callable returning a core module that may expose CudaBuffer."""
+    """Register a zero-argument core loader that may expose CudaBuffer."""
     if load_core not in _providers:
         _providers.append(load_core)
 
@@ -30,7 +28,7 @@ def _core():
     detail = ("; ".join(errors)) if errors else "no CUDA-capable component core is available"
     raise RuntimeError(
         "hyperdrone: CUDA staging needs a CUDA-capable component (render on the OptiX "
-        f"backend, or dynamics on CUDA); import one first ({detail})"
+        f"backend, or a CUDA Sim); initialize one first ({detail})"
     )
 
 
@@ -48,7 +46,7 @@ class CudaView:
         return self._buffer.slice_dlpack(self._index)
 
     def __dlpack_device__(self):
-        return (2, 0)  # kDLCUDA
+        return (2, self._buffer.device_id)
 
 
 class TensorSet:

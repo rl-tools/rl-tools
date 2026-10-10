@@ -7,6 +7,27 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
+    // Byte copies keep the IEEE-754 miss sentinel defined under fast-math without aliasing float storage.
+    RL_TOOLS_FUNCTION_PLACEMENT inline void store_miss(float& value){
+        static_assert(sizeof(float) == 4 && sizeof(unsigned int) == 4, "rendering requires 32-bit float and unsigned int");
+        const unsigned int bits = 0x7f800000u;
+        const auto* source = reinterpret_cast<const unsigned char*>(&bits);
+        auto* destination = reinterpret_cast<unsigned char*>(&value);
+        for(unsigned int i = 0; i < sizeof(value); i++){
+            destination[i] = source[i];
+        }
+    }
+
+    RL_TOOLS_FUNCTION_PLACEMENT inline bool is_miss(const float& value){
+        unsigned int bits = 0;
+        const auto* source = reinterpret_cast<const unsigned char*>(&value);
+        auto* destination = reinterpret_cast<unsigned char*>(&bits);
+        for(unsigned int i = 0; i < sizeof(value); i++){
+            destination[i] = source[i];
+        }
+        return bits == 0x7f800000u;
+    }
+
     namespace rendering{
         struct SceneLight {
             int type; // 0=directional, 1=point, 2=spot
@@ -47,7 +68,7 @@ namespace rl_tools {
         using Medium = ShadingOptions<true, true, true, true, true, false>;
         using High = ShadingOptions<true, true, true, true, false, true>;
         using VeryHigh = ShadingOptions<true, true, true, true, false, true, true>;
-        using Low = ShadingOptions<false, false, false, false, false, false>;
+        using Low = ShadingOptions<false, false, false, true, false, false>;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

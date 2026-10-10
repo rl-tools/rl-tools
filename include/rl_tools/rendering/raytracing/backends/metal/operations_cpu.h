@@ -74,9 +74,6 @@ namespace rl_tools {
                 if(ctx.rgb_accumulator.get() != nullptr){
                     encoder->setBuffer(ctx.rgb_accumulator.get(), 0, bindings::RGB_ACCUMULATOR);
                 }
-                if(ctx.depth_accumulator.get() != nullptr){
-                    encoder->setBuffer(ctx.depth_accumulator.get(), 0, bindings::DEPTH_ACCUMULATOR);
-                }
                 encoder->setBytes(&shutter_t, sizeof(float), bindings::SHUTTER);
             }
             encoder->setBuffer(ctx.mesh_records.get(), 0, bindings::MESH_RECORDS);
@@ -129,10 +126,6 @@ namespace rl_tools {
             }
             if constexpr (SPEC::HAS_OBSERVATION){
                 encoder->setBuffer(ctx.observation.get(), 0, bindings::OBSERVATION);
-            }
-            if constexpr (SPEC::HAS_DEPTH){
-                encoder->setBuffer(ctx.depth_accumulator.get(), 0, bindings::DEPTH_ACCUMULATOR);
-                encoder->setBuffer(ctx.depth_buffer.get(), 0, bindings::DEPTH_OUTPUT);
             }
             encoder->dispatchThreads(MTL::Size::Make(SPEC::FB_WIDTH, SPEC::FB_HEIGHT, 1), MTL::Size::Make(8, 8, 1));
             encoder->endEncoding();
@@ -241,10 +234,6 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_RGB) {
                 ctx->rgb_accumulator = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * 3 * sizeof(float), MTL::ResourceStorageModeShared));
                 renderer.rgb_accumulator._data = (float*)ctx->rgb_accumulator->contents();
-            }
-            if constexpr (SPEC::HAS_DEPTH) {
-                ctx->depth_accumulator = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(float), MTL::ResourceStorageModeShared));
-                renderer.depth_accumulator._data = (float*)ctx->depth_accumulator->contents();
             }
         }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
@@ -575,7 +564,6 @@ namespace rl_tools {
         params->num_cameras = SPEC::NUM_CAMERAS;
         params->num_probes = SPEC::NUM_PROBES;
         params->num_scene_lights = (uint32_t)scene_lights.size();
-        params->max_depth = renderer.max_ray_length > 0 ? renderer.max_ray_length : 1e30f;
         params->max_dist = renderer.max_ray_length;
         for(int component = 0; component < 3; component++){
             params->ambient_color[component] = (float)renderer.ambient_color[component];
@@ -603,7 +591,6 @@ namespace rl_tools {
             bool has_observation = CONSTANTS::HAS_OBSERVATION;
             bool dynamic_motion_blur = CONSTANTS::DYNAMIC_MOTION_BLUR;
             bool resolve_rgb = CONSTANTS::RESOLVE_RGB;
-            bool resolve_depth = CONSTANTS::RESOLVE_DEPTH;
             constants->setConstantValue(&srgb_output, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::SRGB_OUTPUT);
             constants->setConstantValue(&motion_blur, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::MOTION_BLUR);
             constants->setConstantValue(&motion_samples, MTL::DataTypeInt, (NS::UInteger)metal::function_constants::MOTION_SAMPLES);
@@ -619,7 +606,6 @@ namespace rl_tools {
             constants->setConstantValue(&has_observation, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::HAS_OBSERVATION);
             constants->setConstantValue(&dynamic_motion_blur, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::DYNAMIC_MOTION_BLUR);
             constants->setConstantValue(&resolve_rgb, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::RESOLVE_RGB);
-            constants->setConstantValue(&resolve_depth, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::RESOLVE_DEPTH);
 
             auto make_pipeline = [&](const char* name) -> NS::SharedPtr<MTL::ComputePipelineState> {
                 NS::Error* error = nullptr;
@@ -952,9 +938,6 @@ namespace rl_tools {
                 if constexpr (SPEC::HAS_RGB){
                     blit->fillBuffer(ctx.rgb_accumulator.get(), NS::Range::Make(0, ctx.rgb_accumulator->length()), 0);
                 }
-                if constexpr (SPEC::HAS_DEPTH){
-                    blit->fillBuffer(ctx.depth_accumulator.get(), NS::Range::Make(0, ctx.depth_accumulator->length()), 0);
-                }
                 blit->endEncoding();
             }
             std::vector<NS::Object*> object_acceleration_structure_pointers;
@@ -984,11 +967,11 @@ namespace rl_tools {
                 if constexpr (SPEC::HAS_RGB) {
                     metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.rgb_pipeline.get(), ctx.frame_buffer.get(), shutter_t);
                 }
-                if constexpr (SPEC::HAS_DEPTH) {
-                    metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.depth_pipeline.get(), ctx.depth_buffer.get(), shutter_t);
-                }
             }
             encode_overlay_builds([&](TI overlay){ return ctx.overlay_instance_descriptors[overlay].get(); });
+            if constexpr (SPEC::HAS_DEPTH) {
+                metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.depth_pipeline.get(), ctx.depth_buffer.get());
+            }
             if constexpr (SPEC::HAS_SEGMENTATION) {
                 metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.segmentation_pipeline.get(), ctx.segmentation_buffer.get());
             }
@@ -1124,9 +1107,6 @@ namespace rl_tools {
             free(device, renderer.transforms_motion);
             if constexpr (SPEC::HAS_RGB) {
                 renderer.rgb_accumulator._data = nullptr;
-            }
-            if constexpr (SPEC::HAS_DEPTH) {
-                renderer.depth_accumulator._data = nullptr;
             }
         }
     }

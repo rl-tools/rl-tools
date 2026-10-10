@@ -99,19 +99,6 @@ namespace rl_tools {
         OptixCameraData *cameras_close;
     };
 
-    struct AccumulateDepthRayGenData
-    {
-        float *depth_accum_ptr;
-        const float *shutter_ptr;
-        owl::vec2i  fb_size;
-        owl::vec2i  cam_size;
-        int    grid_cols;
-        int    num_cameras;
-        OptixTraversableHandle world;
-        OptixCameraData *cameras_open;
-        OptixCameraData *cameras_close;
-        float max_depth;
-    };
 
     struct DepthRayGenData
     {
@@ -122,21 +109,8 @@ namespace rl_tools {
         int    num_cameras;
         OptixTraversableHandle world;
         OptixCameraData *cameras;
-        float max_depth;
     };
 
-    struct MotionBlurDepthRayGenData
-    {
-        float *depth_ptr;
-        owl::vec2i  fb_size;
-        owl::vec2i  cam_size;
-        int    grid_cols;
-        int    num_cameras;
-        OptixTraversableHandle world;
-        OptixCameraData *cameras_open;
-        OptixCameraData *cameras_close;
-        float max_depth;
-    };
 
     // launch params shared by every raygen/hit program: overlay traversables + per-camera
     // attachment table for min-t composition; overlay_count == 0 keeps every loop empty

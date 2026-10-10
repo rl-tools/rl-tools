@@ -19,7 +19,7 @@ env -u HYPERDRONE_RLTOOLS_ROOT \
     HYPERDRONE_CACHE_DIR="${WORK_DIR}/cache" \
     "${WORK_DIR}/venv/bin/python" - <<'PY'
 import numpy as np
-from hyperdrone import jit, render
+from hyperdrone import _jit as jit, render
 
 root = jit.source_root()
 assert "_vendor" in str(root), f"expected the vendored tree, resolved {root}"

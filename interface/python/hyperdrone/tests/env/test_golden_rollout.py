@@ -1,11 +1,4 @@
-"""The cross-language stability anchor: the C++ generator (tests/src/rl/environments/
-hyperdrone/python_golden.cpp, sharing the concrete C++ environment) records a seeded rollout;
-this test replays it through the binding and compares bit-exactly. Any C++ change that
-alters environment semantics fails here the same day; regenerating the golden is a
-deliberate, reviewed act. The golden is generated on the GENERIC backend — run this suite
-with HYPERDRONE_RENDER_BACKEND=GENERIC (rendering is pinned byte-identical across
-backends by the raytracing golden corpus, so other backends are expected to match too).
-"""
+"""The C++ generator records a seeded rollout for bit-exact replay on its GENERIC host build. Run with HYPERDRONE_RENDER_BACKEND=GENERIC; other renderer backends are qualified against measured bounds by the raytracing corpus, not claimed byte-identical. Regeneration is deliberate and reviewed."""
 import json
 import os
 from pathlib import Path
@@ -14,12 +7,12 @@ import numpy as np
 import pytest
 
 from hyperdrone.env import EnvConfig, MultiEnvironment, ObservationLayout
-from hyperdrone.jit import source_root
+from hyperdrone._jit import source_root
 
 GOLDEN = Path(__file__).parent / "golden"
 
 # the generator's World runs on the host; a CUDA World draws from a different RNG engine
-CONFIG = EnvConfig(num_environments=1, instances=2, cam_width=16, cam_height=16, shading="low", history_length=1, device="cpu")
+CONFIG = EnvConfig(num_environments=1, instances_per_environment=2, width=16, height=16, fidelity="low", device="cpu")
 
 
 def observe_pair(env):
@@ -61,13 +54,10 @@ def test_golden_rollout(scene_directory):
 
         rewards, terminated = [], []
         mask = np.ones(total, dtype=np.uint8)
-        none = np.zeros(total, dtype=np.uint8)
         env.reset(mask)
-        env.render(mask)
         observations = [observe_pair(env)]
         for step in range(steps):
             env.step(golden_actions(step, total, env.action_dim))
-            env.render(none)
             observations.append(observe_pair(env))
             rewards.append(env.rewards())
             terminated.append(env.terminated())

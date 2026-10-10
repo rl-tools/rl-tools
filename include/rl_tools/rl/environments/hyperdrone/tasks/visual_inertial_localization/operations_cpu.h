@@ -240,15 +240,16 @@ namespace rl_tools {
         utils::assert_exit(device, !any_reset || all_reset, "hyperdrone::tasks::visual_inertial_localization: resets must be synchronized (fixed-length episodes)");
         if (all_reset) {
             reset(device, world.autopilot.model, world.autopilot.state, rng);
+            world.task_step = 0;
         }
         request_render(device, world, reset_mask);
     }
 
-    // camera stride: the base render (and with it history/episode_start/shutter bookkeeping)
-    // runs only on frame boundaries; the shutter pair then spans the frame interval. Resets
-    // re-anchor the phase, so the reset step always produces a fresh frame
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
     void render(DEVICE& device, rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input) {
+        if(!world.render_pending){
+            return;
+        }
         request_render(device, world, reset_mask_input);
         auto& reset_mask = world.render_reset;
         using TI = typename TASK_SPEC::TI;
@@ -268,7 +269,6 @@ namespace rl_tools {
         if (world.task_step % WORLD::FRAME_STRIDE == 0) {
             render(device, static_cast<NEXT_WORLD&>(world), parameters, states, reset_mask);
         }
-        world.task_step++;
         world.render_pending = false;
     }
 
@@ -280,8 +280,12 @@ namespace rl_tools {
         using WORLD = rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>;
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         static_assert(get<1>(typename ACTION_SPEC::SHAPE{}) == WORLD::ACTION_DIM, "the visual-inertial localization task is autonomous: its action tensor is empty");
+        if(world.render_pending){
+            render(device, world, parameters, states, world.render_reset);
+        }
         rl::environments::hyperdrone::tasks::visual_inertial_localization::_control<DEVICE, TASK_SPEC>(device, world, parameters, states, rng);
         step(device, static_cast<NEXT_WORLD&>(world), parameters, states, world.autopilot.actions, next_states, rng);
+        world.task_step++;
         const bool hold = WORLD::INITIALIZATION_HOLD_STEPS > 0 && world.task_step <= WORLD::INITIALIZATION_HOLD_STEPS;
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             if (hold) {
@@ -314,8 +318,7 @@ namespace rl_tools {
         using WORLD = rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>;
         static_assert(get<0>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::INSTANCES);
         static_assert(get<1>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::ObservationIMU::DIM);
-        utils::assert_exit(device, world.task_step > 0, "hyperdrone::tasks::visual_inertial_localization: render must be called before observe");
-        const TI frame_age = (world.task_step - 1) % WORLD::FRAME_STRIDE;
+        const TI frame_age = world.task_step % WORLD::FRAME_STRIDE;
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             const auto& state = get_ref(device, states, instance_i);
             for (TI dim_i = 0; dim_i < 3; dim_i++) {

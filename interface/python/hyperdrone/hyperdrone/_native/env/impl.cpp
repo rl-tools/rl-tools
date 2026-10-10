@@ -33,6 +33,7 @@ namespace HYPERDRONE_MODULE_NAME {
     using rl_tools::normals_buffer;
     using rl_tools::flow_buffer;
     using rl_tools::flow_status_buffer;
+    using rl_tools::request_render;
 
 #if HYPERDRONE_ENV_DEVICE_CUDA
     using DEVICE = rlt::devices::CUDA<rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, HOST_DEVICE>>;
@@ -69,12 +70,14 @@ namespace HYPERDRONE_MODULE_NAME {
         ENV env{};
         RNG rng{};
         int device_id = 0;
+        std::array<bool, TOTAL> sampled{};
+        bool all_sampled = false;
         InstanceTensor<typename WORLD::Parameters> parameters{};
         InstanceTensor<typename WORLD::Parameters> parameters_host{};
         InstanceTensor<typename WORLD::State> states_host{};
         InstanceTensor<typename WORLD::State> states{}, next_states{};
         InstanceTensor<T> rewards{};
-        InstanceTensor<bool> terminated_flags{}, all_instances{}, no_instances{};
+        InstanceTensor<bool> terminated_flags{}, all_instances{};
         // host arrays pass through these on a CUDA World
         InstanceTensor<bool> mask_staging{};
         InstanceTensor<T, WORLD::ACTION_DIM> actions_staging{};
@@ -84,6 +87,36 @@ namespace HYPERDRONE_MODULE_NAME {
 
         HOST_DEVICE& host(){
             return rlt::get_rendering_device(device);
+        }
+        void require_sampled(const char* verb) const {
+            if(!all_sampled){
+                throw std::runtime_error(std::string("hyperdrone: reset every instance before ") + verb);
+            }
+        }
+        std::array<bool, TOTAL> reset_selection(const bool* mask, bool resident){
+            std::array<bool, TOTAL> selected{};
+            if(mask == nullptr){
+                selected.fill(true);
+            }
+            else if(CUDA_WORLD && resident){
+                InstanceTensor<bool> source, destination;
+                source._data = const_cast<bool*>(mask);
+                destination._data = selected.data();
+                rlt::copy(device, host(), source, destination);
+            }
+            else{
+                std::copy(mask, mask + TOTAL, selected.begin());
+            }
+            if constexpr (SynchronizedResets<WORLD>::VALUE){
+                for(TI environment_i = 0; environment_i < NUM_ENVIRONMENTS; environment_i++){
+                    const auto first = selected.begin() + environment_i * WORLD::INSTANCES;
+                    const auto last = first + WORLD::INSTANCES;
+                    if(std::any_of(first, last, [](bool value){ return value; }) && !std::all_of(first, last, [](bool value){ return value; })){
+                        throw std::invalid_argument("hyperdrone: the reset mask must be all-or-none per environment");
+                    }
+                }
+            }
+            return selected;
         }
         template <typename SPEC>
         rlt::Tensor<SPEC> input(const void* source, bool resident, rlt::Tensor<SPEC>& staging){
@@ -143,10 +176,11 @@ namespace HYPERDRONE_MODULE_NAME {
         }
     };
 
+    constexpr const char* CAMERA_SLOT = "fpv";
     template <typename DYNAMICS_PARAMETERS>
     std::string parameters_to_json(Environment::Impl& impl, const DYNAMICS_PARAMETERS& dynamics, const rlt::rl::environments::hyperdrone::Camera<T>& camera, std::optional<TI> drone = std::nullopt){
         const auto& world = impl.env.environments[0];
-        std::string value = "{\"dynamics\": " + rlt::json(impl.host(), world.dynamics, dynamics) + ", \"camera\": " + rlt::json(impl.host(), world, camera);
+        std::string value = "{\"dynamics\": " + rlt::json(impl.host(), world.dynamics, dynamics) + ", \"cameras\": {\"" + CAMERA_SLOT + "\": " + rlt::json(impl.host(), world, camera) + "}";
         if(drone){
             value += ", \"drone\": " + std::to_string(*drone);
         }
@@ -156,7 +190,11 @@ namespace HYPERDRONE_MODULE_NAME {
     void parameters_from_json(Environment::Impl& impl, const nlohmann::json& parameters, DYNAMICS_PARAMETERS& dynamics, rlt::rl::environments::hyperdrone::Camera<T>& camera){
         auto& world = impl.env.environments[0];
         rlt::from_json(impl.host(), world.dynamics, parameters.at("dynamics"), dynamics);
-        rlt::from_json(impl.host(), world, parameters.at("camera"), camera);
+        const auto& cameras = parameters.at("cameras");
+        if(cameras.size() != 1 || !cameras.contains(CAMERA_SLOT)){
+            throw std::invalid_argument("hyperdrone: cameras must contain only 'fpv'");
+        }
+        rlt::from_json(impl.host(), world, cameras.at(CAMERA_SLOT), camera);
     }
 
     template <typename WORLD_TYPE, typename = void>
@@ -164,15 +202,8 @@ namespace HYPERDRONE_MODULE_NAME {
     template <typename WORLD_TYPE>
     struct HasGateAssetPath<WORLD_TYPE, rlt::utils::typing::void_t<decltype(WORLD_TYPE::gate_asset_path)>> { static constexpr bool VALUE = true; };
 
-    template <typename WORLD_TYPE>
-    void set_gate_asset_path([[maybe_unused]] WORLD_TYPE& world, [[maybe_unused]] const std::string& path){
-        if constexpr (HasGateAssetPath<WORLD_TYPE>::VALUE){
-            world.gate_asset_path = path;
-        }
-    }
-
     // the drone table's checks as exceptions: the World asserts them, which would end the process
-    void check_drones(Environment::Impl& impl){
+    TI check_drones(Environment::Impl& impl){
         using SPEC = typename WORLD::SPEC;
         const auto& drones = impl.env.shared.drones;
         if(drones.empty() || drones.size() > SPEC::MAX_DRONES){
@@ -183,8 +214,8 @@ namespace HYPERDRONE_MODULE_NAME {
                 throw std::invalid_argument("hyperdrone: every drone must use the same integration timestep");
             }
         }
+        TI parts = 0;
         if constexpr (SPEC::SELF_VISIBLE){
-            TI parts = 0;
             for(size_t drone_i = 0; drone_i < drones.size(); drone_i++){
                 const auto& drone = drones[drone_i];
                 const std::string name = "hyperdrone: drone " + std::to_string(drone_i) + " (" + drone.asset + ")";
@@ -204,6 +235,10 @@ namespace HYPERDRONE_MODULE_NAME {
                 parts = body.rig.num_parts;
             }
         }
+        if(parts > SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE / WORLD::N_AGENTS){
+            throw std::invalid_argument("hyperdrone: drone parts exceed MAX_ENTITY_SLOTS_PER_INSTANCE");
+        }
+        return parts * WORLD::N_AGENTS;
     }
 
     // a target-frame World adopted its setups' target frames at reset; replayed spawns move the
@@ -245,11 +280,9 @@ namespace HYPERDRONE_MODULE_NAME {
         rlt::malloc(impl->device, impl->rewards);
         rlt::malloc(impl->device, impl->terminated_flags);
         rlt::malloc(impl->device, impl->all_instances);
-        rlt::malloc(impl->device, impl->no_instances);
         rlt::set_all(impl->device, impl->rewards, (T)0);
         rlt::set_all(impl->device, impl->terminated_flags, false);
         rlt::set_all(impl->device, impl->all_instances, true);
-        rlt::set_all(impl->device, impl->no_instances, false);
         rlt::malloc(impl->host(), impl->parameters_host);
         rlt::malloc(impl->host(), impl->states_host);
         // every instance holds defined values before its first reset
@@ -284,13 +317,17 @@ namespace HYPERDRONE_MODULE_NAME {
         rlt::free(impl->device, impl->rewards);
         rlt::free(impl->device, impl->terminated_flags);
         rlt::free(impl->device, impl->all_instances);
-        rlt::free(impl->device, impl->no_instances);
         rlt::free(impl->device, impl->rng);
         rlt::free(impl->device, impl->env);
         rlt::free(impl->device);
         delete impl;
     }
-    void Environment::init(const std::vector<std::string>& references, const std::vector<std::optional<std::string>>& drone_assets, const std::vector<std::string>& drone_parameters, const std::optional<std::string>& gate_asset_path, unsigned long long seed){
+    void Environment::init(const std::vector<std::string>& references, const std::vector<std::optional<std::string>>& drone_assets, const std::vector<std::string>& drone_parameters, const std::map<std::string, std::string>& assets, unsigned long long seed){
+        if constexpr (HasGateAssetPath<WORLD>::VALUE){
+            if(assets.count("gate") == 0){
+                throw std::invalid_argument("hyperdrone: this world needs assets={'gate': ...} (the gate GLB)");
+            }
+        }
         const CurrentDevice current(impl->device_id);
         rlt::init(impl->device, impl->rng, seed);
         if(drone_assets.size() != drone_parameters.size()){
@@ -302,10 +339,21 @@ namespace HYPERDRONE_MODULE_NAME {
             parameters_from_json(*impl, nlohmann::json::parse(drone_parameters[drone_i]), drone.parameters.dynamics, drone.parameters.camera);
             impl->env.shared.drones.push_back(drone);
         }
-        check_drones(*impl);
-        if(gate_asset_path){
+        const TI drone_parts = check_drones(*impl);
+        if constexpr (HasGateAssetPath<WORLD>::VALUE){
+            rlt::rendering::raytracing::ObjectAssembly assembly;
+            if(!rlt::load<typename WORLD::SPEC::SHADING, WORLD::SPEC::OUTPUT_RGB>(impl->host(), assembly, assets.at("gate")) || assembly.parts.empty()){
+                throw std::invalid_argument("hyperdrone: failed to load the gate asset");
+            }
+            if(assembly.parts.size() > WORLD::SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE - drone_parts){
+                throw std::invalid_argument("hyperdrone: gate and drone parts exceed MAX_ENTITY_SLOTS_PER_INSTANCE");
+            }
+        }
+        for(const auto& asset : assets){
             for(TI environment_i = 0; environment_i < NUM_ENVIRONMENTS; environment_i++){
-                set_gate_asset_path(impl->env.environments[environment_i], *gate_asset_path);
+                if(!rlt::set_asset(impl->device, impl->env.environments[environment_i], asset.first, asset.second)){
+                    throw std::invalid_argument("hyperdrone: no task of this world consumes asset '" + asset.first + "'");
+                }
             }
         }
         DATASET dataset{};
@@ -339,6 +387,7 @@ namespace HYPERDRONE_MODULE_NAME {
         return value + "]";
     }
     std::string Environment::instance_parameters_json(){
+        impl->require_sampled("instance_parameters");
         const CurrentDevice current(impl->device_id);
         auto& parameters = impl->parameters_on_host();
         std::string value = "[";
@@ -360,6 +409,7 @@ namespace HYPERDRONE_MODULE_NAME {
         return value;
     }
     void Environment::set_instance_parameters(const bool* mask, const std::string& parameters_json_array){
+        impl->require_sampled("set_instance_parameters");
         const CurrentDevice current(impl->device_id);
         auto& parameters = impl->parameters_on_host();
         const nlohmann::json entries = nlohmann::json::parse(parameters_json_array);
@@ -400,6 +450,9 @@ namespace HYPERDRONE_MODULE_NAME {
             }
         }
         impl->publish_parameters_from_host();
+        for(TI environment_i = 0; environment_i < NUM_ENVIRONMENTS; environment_i++){
+            request_render(impl->device, impl->env.environments[environment_i]);
+        }
     }
     std::optional<std::string> Environment::model(const std::string& name){
         DYNAMICS dynamics;
@@ -411,9 +464,12 @@ namespace HYPERDRONE_MODULE_NAME {
     void Environment::rotate_scene(){
         const CurrentDevice current(impl->device_id);
         rlt::rotate_scene(impl->device, impl->env);
+        impl->sampled.fill(false);
+        impl->all_sampled = false;
     }
 
     std::string Environment::spawn_points_json(){
+        impl->require_sampled("spawn_points");
         const CurrentDevice current(impl->device_id);
         const auto& parameters = impl->parameters_on_host();
         const auto& states = impl->on_host(impl->states, impl->states_host);
@@ -429,14 +485,9 @@ namespace HYPERDRONE_MODULE_NAME {
             nlohmann::json entry = {{"scene", world.slots[world.active_slot].metadata.content_hash},
                                    {"scene_translation", instance.scene_translation}, {"scene_yaw", {instance.scene_yaw_cos, instance.scene_yaw_sin}},
                                    {"poses", poses}, {"shutter_fraction", instance.shutter_fraction}};
-            if constexpr (WORLD::N_AGENTS == 1){
-                entry["drone"] = instance.agents[0].drone;
-            }
-            else{
-                entry["drones"] = nlohmann::json::array();
-                for(const auto& agent : instance.agents){
-                    entry["drones"].push_back(agent.drone);
-                }
+            entry["drone"] = nlohmann::json::array();
+            for(const auto& agent : instance.agents){
+                entry["drone"].push_back(agent.drone);
             }
             entries.push_back(entry);
         }
@@ -445,6 +496,10 @@ namespace HYPERDRONE_MODULE_NAME {
 
     void Environment::reset(const bool* mask, bool resident, const std::string& spawn_points){
         const CurrentDevice current(impl->device_id);
+        std::array<bool, TOTAL> selected{};
+        if(!impl->all_sampled || SynchronizedResets<WORLD>::VALUE){
+            selected = impl->reset_selection(mask, resident);
+        }
         struct Spawn {
             TI instance;
             std::array<TI, WORLD::N_AGENTS> drones;
@@ -463,14 +518,16 @@ namespace HYPERDRONE_MODULE_NAME {
                 if(mask == nullptr || mask[instance_i]){
                     const auto& entry = entries.at(spawns.size());
                     const auto& world = impl->env.environments[instance_i / WORLD::INSTANCES];
-                    if constexpr (WORLD::N_AGENTS > 1){
-                        if(!entry.at("drones").is_array() || entry.at("drones").size() != WORLD::N_AGENTS){
-                            throw std::invalid_argument("hyperdrone: spawn needs one drone index per agent");
-                        }
+                    const auto& drone_entries = entry.at("drone");
+                    if(!drone_entries.is_array() || drone_entries.size() != WORLD::N_AGENTS || !entry.at("poses").is_array() || entry.at("poses").size() != WORLD::N_AGENTS){
+                        throw std::invalid_argument("hyperdrone: spawn drone and poses need one entry per agent");
                     }
                     std::array<TI, WORLD::N_AGENTS> drones;
                     for(TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++){
-                        const auto& value = WORLD::N_AGENTS == 1 ? entry.at("drone") : entry.at("drones").at(agent_i);
+                        const auto& value = drone_entries.at(agent_i);
+                        if(!value.is_number_integer()){
+                            throw std::invalid_argument("hyperdrone: spawn needs one integer drone index per agent");
+                        }
                         const auto drone = value.get<long long>();
                         if(drone < 0 || drone >= (long long)impl->env.shared.drones.size()){
                             throw std::invalid_argument("hyperdrone: spawn drone is outside the drones table");
@@ -479,6 +536,11 @@ namespace HYPERDRONE_MODULE_NAME {
                     }
                     if(entry.at("scene") != world.slots[world.active_slot].metadata.content_hash){
                         throw std::invalid_argument("hyperdrone: spawn scene does not match the active scene");
+                    }
+                    for(const auto& pose : entry.at("poses")){
+                        if(!pose.is_array() || pose.size() != 7){
+                            throw std::invalid_argument("hyperdrone: each spawn pose needs seven values");
+                        }
                     }
                     spawns.push_back({instance_i, drones, entry.at("scene_translation").get<std::array<T, 3>>(),
                                       entry.at("scene_yaw").get<std::array<T, 2>>(),
@@ -528,13 +590,15 @@ namespace HYPERDRONE_MODULE_NAME {
             impl->publish(impl->states_host, impl->states);
             render_spawned_target_frames<WORLD>(impl->device, impl->env, impl->parameters, reset_mask);
         }
-    }
-    void Environment::render(const bool* mask, bool resident){
-        const CurrentDevice current(impl->device_id);
-        const auto reset_mask = mask == nullptr ? impl->no_instances : impl->input(mask, resident, impl->mask_staging);
-        rlt::render(impl->device, impl->env, impl->parameters, impl->states, reset_mask);
+        if(!impl->all_sampled){
+            for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
+                impl->sampled[instance_i] = impl->sampled[instance_i] || selected[instance_i];
+            }
+            impl->all_sampled = std::all_of(impl->sampled.begin(), impl->sampled.end(), [](bool value){ return value; });
+        }
     }
     void Environment::step(const float* actions, bool resident){
+        impl->require_sampled("step");
         const CurrentDevice current(impl->device_id);
         const auto action_tensor = impl->input(actions, resident, impl->actions_staging);
         rlt::step(impl->device, impl->env, impl->parameters, impl->states, action_tensor, impl->next_states, impl->rng);
@@ -544,6 +608,7 @@ namespace HYPERDRONE_MODULE_NAME {
     }
     template <bool ENABLED, typename VALUE, typename GET>
     void read_image_output(Environment::Impl& impl, VALUE* destination, bool resident, const char* name, GET get_buffer){
+        impl.require_sampled(name);
         if constexpr (ENABLED){
             const CurrentDevice current(impl.device_id);
             for(TI environment_i = 0; environment_i < NUM_ENVIRONMENTS; environment_i++){
@@ -595,18 +660,21 @@ namespace HYPERDRONE_MODULE_NAME {
             [](auto& device, auto& renderer) -> auto& { return flow_status_buffer(device, renderer); });
     }
     void Environment::observe(float* out, bool resident){
+        impl->require_sampled("observe");
         const CurrentDevice current(impl->device_id);
         impl->output(out, resident, impl->observations_staging, [&](auto& observations){
             rlt::observe(impl->device, impl->env, impl->parameters, impl->states, typename WORLD::Observation{}, observations, impl->rng);
         });
     }
     void Environment::observe_privileged(float* out, bool resident){
+        impl->require_sampled("observe_privileged");
         const CurrentDevice current(impl->device_id);
         impl->output(out, resident, impl->observations_privileged_staging, [&](auto& observations){
             rlt::observe(impl->device, impl->env, impl->parameters, impl->states, typename WORLD::ObservationPrivileged{}, observations, impl->rng);
         });
     }
     void Environment::observe_imu(float* out, bool resident){
+        impl->require_sampled("observe_imu");
         const CurrentDevice current(impl->device_id);
         observe_imu_into<WORLD>(*impl, out, resident);
     }

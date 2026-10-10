@@ -133,6 +133,9 @@ namespace rl_tools{
 
     template <typename DEV_SPEC, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
     void render(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input){
+        if(!world.render_pending){
+            return;
+        }
         request_render(device, world, reset_mask_input);
         auto& reset_mask = world.render_reset;
         using DEVICE = devices::CUDA<DEV_SPEC>;
@@ -161,6 +164,11 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         constexpr TI INSTANCES = rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>::INSTANCES;
+        if constexpr (NEXT_WORLD::SPEC::HISTORY_LENGTH > 1 || NEXT_WORLD::SPEC::OUTPUT_FLOW){
+            if(world.render_pending){
+                render(device, world, parameters, states, world.render_reset);
+            }
+        }
         step(device, static_cast<NEXT_WORLD&>(world), parameters, states, actions, next_states, rng);
         constexpr TI BLOCKSIZE = 32;
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
