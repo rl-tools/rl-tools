@@ -124,12 +124,12 @@ test("touch holds yaw and translation across polls, ignores desktop inputs, and 
     touch_flight(f);
     send(f.document, "keydown", {code: "KeyS"});
     send(f.document, "mousemove", {movementX: 100});
-    assert.deepEqual(f.axes(), [1, 0, 0, 0, -1]);
-    assert.deepEqual(f.axes(), [1, 0, 0, 0, -1]);
+    assert.deepEqual(f.axes(), [1, 0, 0, 0, -0.5]);
+    assert.deepEqual(f.axes(), [1, 0, 0, 0, -0.5]);
     send(f.element("left-stick"), "pointermove", {pointerId: 1, clientY: 10});
-    assert.deepEqual(f.axes(), [1, 0, 1, 0, 0]);
+    assert.deepEqual(f.axes(), [1, 0, 0.7, 0, 0]);
     send(f.element("right-stick"), "pointercancel", {pointerId: 2});
-    assert.deepEqual(f.axes(), [0, 0, 1, 0, 0]);
+    assert.deepEqual(f.axes(), [0, 0, 0.7, 0, 0]);
     send(f.element("left-stick"), "pointerup", {pointerId: 1});
     assert.deepEqual(f.axes(), [0, 0, 0, 0, 0]);
     assert.equal(f.element("flight-state").textContent, "User control");
@@ -184,7 +184,7 @@ test("a delayed mouse grant cannot override newer touch activation", async () =>
     assert.equal(f.classes.has("touch-ui"), true);
     assert.equal(f.element("release-control").hidden, false);
     send(f.element("left-stick"), "pointerdown", {clientX: 110});
-    assert.deepEqual(f.axes(), [0, 0, 0, 0, -1]);
+    assert.deepEqual(f.axes(), [0, 0, 0, 0, -0.5]);
     f.click("camera0", "mouse");
     f.grant_mouse_lock();
     await Promise.resolve();
