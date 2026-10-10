@@ -284,12 +284,26 @@ static void read_input(float input[10]) {
         }
     }, input);
 }
-static void present(const web::Buffer& buffer) {
+static void present(web::DEVICE& device, const web::State& state, const web::Buffer& buffer) {
+    using namespace rl_tools;
+    using rl::environments::hyperdrone::rotate_scene_yaw;
+    using rl::environments::l2f::quaternion_multiplication;
+    const auto& physical = get_ref(device, state.states, (web::TI)0);
+    const auto& parameters = get_ref(device, state.parameters, (web::TI)0);
+    web::T position[3], orientation[4];
+    rotate_scene_yaw(physical.position, position, parameters.scene_yaw_cos, parameters.scene_yaw_sin);
+    for(web::TI dim = 0; dim < 3; dim++) {
+        position[dim] += parameters.scene_translation[dim];
+    }
+    const web::T half_yaw = math::atan2(device.math, parameters.scene_yaw_sin, parameters.scene_yaw_cos) / 2;
+    const web::T scene_orientation[4] = {math::cos(device.math, half_yaw), 0, 0, math::sin(device.math, half_yaw)};
+    quaternion_multiplication<web::DEVICE, web::T>(scene_orientation, physical.orientation, orientation);
     EM_ASM({
         if(Module.rlt_present) {
-            Module.rlt_present($0, $1, $2, $3);
+            Module.rlt_present($0, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
         }
-    }, buffer.rgba.data(), (int)web::Config::CAM_WIDTH, (int)web::Config::CAM_HEIGHT, (int)web::VIEWS);
+    }, buffer.rgba.data(), (int)web::Config::CAM_WIDTH, (int)web::Config::CAM_HEIGHT, (int)web::VIEWS,
+        position[0], position[1], position[2], orientation[0], orientation[1], orientation[2], orientation[3]);
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE const char* demo_scenes() {
@@ -366,7 +380,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
         }
         if(frame == 0 || active || input[4] != 0) {
             render(device, state, buffer);
-            present(buffer);
+            present(device, state, buffer);
             frame++;
         }
         const double elapsed_ms = emscripten_get_now() - now_ms;

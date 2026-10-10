@@ -69,8 +69,12 @@ body.ready:not(.controlling) .control-hint { display: flex; }
 .hint-action > span { font-size: 18px; line-height: 1; }
 .hint-keys { color: var(--muted); font: 10px var(--mono); }
 .camera-frame:hover .control-hint { border-color: var(--accent); background: #f0f4ff; }
-.instructions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--ink); color: var(--muted); font-size: 11px; }
+.flight-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 7px 16px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--ink); }
+.instructions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 12px; color: var(--muted); font-size: 10px; }
 .instructions > span { display: inline-flex; align-items: center; gap: 4px; }
+.pose-readout { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); font: 10px/1.5 var(--mono); }
+.pose-readout > span { display: inline-flex; align-items: baseline; gap: 6px; }
+.pose-values { color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 kbd { display: inline-block; min-width: 18px; padding: 1px 4px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 10px/1.5 var(--mono); text-align: center; }
 .instructions kbd:last-of-type { margin-right: 3px; }
 #flight-tuning { width: min(400px, calc(100% - 24px)); max-height: calc(100% - 24px); padding: 18px; border: 1px solid var(--ink); color: inherit; background: #fff; }
@@ -87,7 +91,7 @@ kbd { display: inline-block; min-width: 18px; padding: 1px 4px; border: 1px soli
 .tuning-actions { flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--line); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (min-width: 800px) {
-    main { max-width: clamp(680px, calc((100dvh - 245px) * 64 / 27), 1200px); }
+    main { max-width: clamp(680px, calc((100dvh - 269px) * 64 / 27), 1200px); }
 }
 @media (max-width: 799px) {
     .sensor-views { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -103,5 +107,4 @@ kbd { display: inline-block; min-width: 18px; padding: 1px 4px; border: 1px soli
     .selector { align-items: flex-start; flex-direction: column; gap: 4px; }
     .session-controls { justify-content: space-between; width: 100%; margin-left: 0; }
     .rgb-views { grid-template-columns: minmax(0, 1fr); }
-    .instructions { gap: 7px 12px; }
 }
