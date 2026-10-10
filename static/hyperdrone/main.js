@@ -328,7 +328,7 @@ async function fetch_asset(asset){
 }
 
 async function read_json(path){
-    const response = await fetch(path);
+    const response = await fetch(path, {cache: "no-cache"});
     if(!response.ok){
         throw new Error(`Could not load ${path}: HTTP ${response.status}`);
     }
@@ -394,6 +394,9 @@ async function main(){
             }
         },
     });
+    if(module._demo_api_version?.() !== 1){
+        throw new Error("The page and simulation bundle are incompatible. Deploy the matching blob/build files and update the pinned revision in download_blob.sh.");
+    }
     const [registry, pose] = await Promise.all([read_json("registry.json"), read_json("pose.json")]);
     const scenes = JSON.parse(module.ccall("demo_scenes", "string", [], []));
     const scene = scenes.find(scene => scene.name === (params.get("scene") || pose.scene));

@@ -70,7 +70,7 @@ em++ --std=c++17 -O3 -fexceptions \
     -sEXPORT_ES6=1 \
     -sENVIRONMENT=web \
     -sEXPORTED_RUNTIME_METHODS=ccall,FS,HEAPU8 \
-    -sEXPORTED_FUNCTIONS=_demo_run,_demo_scenes,_main \
+    -sEXPORTED_FUNCTIONS=_demo_run,_demo_scenes,_demo_api_version,_main \
     "$SCRIPT_DIR/hyperdrone_web.cpp" \
     "$DEPS_DIR/device_wgsl.cpp" \
     "$ASSIMP_INSTALL/lib/libassimp.a" \

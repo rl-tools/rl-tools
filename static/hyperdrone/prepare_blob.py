@@ -1,4 +1,4 @@
-"""Pack the default scene, Crazyflie and RAPTOR checkpoint into the local conta overlay."""
+"""Pack the default scene, drone and RAPTOR checkpoint into the local conta overlay."""
 import argparse
 import gzip
 import hashlib
