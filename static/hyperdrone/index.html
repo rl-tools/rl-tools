@@ -4,36 +4,25 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="HyperDrone: visual drone simulation with RLtools. Fly a drone and explore its camera, depth, segmentation, surface normals, and optical flow in your browser.">
-    <meta name="theme-color" content="#111514">
+    <meta name="theme-color" content="#ffffff">
     <title>HyperDrone · RLtools</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <main>
-        <nav aria-label="Project links">
-            <a class="wordmark" href="https://rl.tools">RLtools <span>/ HyperDrone</span></a>
-            <div class="links">
-                <a href="https://github.com/rl-tools/rl-tools">Source <span aria-hidden="true">↗</span></a>
-                <a href="https://docs.rl.tools">Documentation <span aria-hidden="true">↗</span></a>
-            </div>
-        </nav>
-
         <header>
-            <p class="eyebrow"><span class="dot"></span> Visual drone simulation · WebGPU</p>
-            <h1>HyperDrone<span class="accent">.</span></h1>
-            <p class="intro">Fly the drone. See what it sees.</p>
-            <p class="description">Explore a shared 3D world through two mounted cameras and four visual sensing outputs, rendered live in your browser with RLtools.</p>
+            <h1><img src="logo.svg" alt="HyperDrone" width="200" height="39"></h1>
         </header>
 
         <section class="simulation" aria-label="Interactive drone flight">
             <div class="toolbar">
                 <div class="drone-control">
-                    <label for="drone">AIRFRAME</label>
+                    <label for="drone">Airframe</label>
                     <select id="drone" aria-label="Drone airframe"></select>
                 </div>
                 <div class="session-controls">
-                    <span id="flight-state"><span class="dot"></span> Loading</span>
-                    <button id="reset" type="button" disabled>Reset flight <span aria-hidden="true">↺</span></button>
+                    <span id="flight-state">Loading</span>
+                    <button id="reset" type="button" disabled>Reset flight</button>
                 </div>
             </div>
 
@@ -51,53 +40,40 @@
 
             <div class="views rgb-views">
                 <figure class="view">
-                    <figcaption><span><b>01</b> Onboard camera</span><span class="view-type">RGB</span></figcaption>
+                    <figcaption>Onboard camera</figcaption>
                     <div class="camera-frame">
                         <canvas id="camera0" width="480" height="270" tabindex="0" aria-label="Onboard view. Click or press Enter to capture the mouse and fly; click again or press Escape to release."></canvas>
-                        <span class="camera-hint">Click to fly</span>
                     </div>
                 </figure>
                 <figure class="view">
-                    <figcaption><span><b>02</b> External camera</span><span class="view-type">RGB</span></figcaption>
+                    <figcaption>External camera</figcaption>
                     <div class="camera-frame">
                         <canvas id="camera1" width="480" height="270" tabindex="0" aria-label="External view fixed to the drone. Click or press Enter to capture the mouse and fly; click again or press Escape to release."></canvas>
-                        <span class="camera-hint">Click to fly</span>
                     </div>
                 </figure>
             </div>
 
-            <div class="instructions">
-                <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move <span class="divider">/</span> mouse turns the drone</p>
-                <p>Click either view to capture or release the mouse. <kbd>Esc</kbd> also releases it.</p>
-            </div>
-
-            <div class="section-caption"><h2>Onboard sensing</h2><span>The same camera, four ways of seeing.</span></div>
-            <div class="views sensor-views">
+            <div class="views sensor-views" role="group" aria-label="Onboard sensing">
                 <figure class="view">
-                    <figcaption><span>Depth</span><span class="view-type">DISTANCE</span></figcaption>
+                    <figcaption title="0–10 m: dark near, white far or no surface">Depth</figcaption>
                     <canvas id="depth" width="480" height="270" aria-label="Onboard depth visualization"></canvas>
-                    <p class="legend">0–10 m · dark near, white far or no surface</p>
                 </figure>
                 <figure class="view">
-                    <figcaption><span>Semantic segmentation</span><span class="view-type">CLASSES</span></figcaption>
+                    <figcaption title="A color for each object class">Semantic segmentation</figcaption>
                     <canvas id="segmentation" width="480" height="270" aria-label="Onboard semantic segmentation"></canvas>
-                    <p class="legend">A color for each object class</p>
                 </figure>
                 <figure class="view">
-                    <figcaption><span>Surface normals</span><span class="view-type">DIRECTION</span></figcaption>
+                    <figcaption title="Surface orientation in world coordinates">Surface normals</figcaption>
                     <canvas id="normals" width="480" height="270" aria-label="Onboard surface normals in world coordinates"></canvas>
-                    <p class="legend">Surface orientation in world coordinates</p>
                 </figure>
                 <figure class="view">
-                    <figcaption><span>Optical flow</span><span class="view-type">MOTION</span></figcaption>
+                    <figcaption title="Current-to-previous motion: hue is direction, full color is 20 px. Invalid correspondences: miss black, behind magenta, outside the image blue, occluded orange.">Optical flow</figcaption>
                     <canvas id="flow" width="480" height="270" aria-label="Onboard backward optical flow from the current image to the previous image"></canvas>
-                    <p class="legend" title="Current-to-previous motion. Invalid correspondences: miss black, behind magenta, outside the image blue, occluded orange.">Current → previous · hue is direction, full color is 20 px</p>
                 </figure>
             </div>
 
+            <p class="instructions"><kbd>WASD</kbd> move · Mouse turns · Click either camera to capture or release the mouse · <kbd>Esc</kbd> releases</p>
         </section>
-
-        <footer><span>Built with <a href="https://rl.tools">RLtools</a> · ProcTHOR indoor scene</span><span>A keyboard, mouse, and WebGPU-capable browser are required.</span></footer>
     </main>
     <dialog id="flight-tuning" aria-labelledby="tuning-title" aria-keyshortcuts="Shift+T">
         <form method="dialog">
