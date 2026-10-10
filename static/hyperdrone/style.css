@@ -1,111 +1,67 @@
 :root {
-    color-scheme: dark;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    color: #e9eee9;
-    background: #111514;
-    font-synthesis: none;
-    --muted: #929e96;
-    --line: #303a33;
-    --accent: #c4efad;
+    color-scheme: light;
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #222;
+    background: #fff;
+    --muted: #666;
+    --line: #ccc;
 }
 * { box-sizing: border-box; }
 body { margin: 0; }
-main { width: min(1400px, 100%); margin: auto; padding: 0 44px; }
-a { color: inherit; text-decoration: none; }
-a:hover { color: var(--accent); }
-nav { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 27px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
-.wordmark { font-weight: 700; letter-spacing: -.3px; }
-.wordmark span { font-weight: 400; color: var(--muted); margin-left: 12px; }
-.links { display: flex; gap: 28px; color: #bdc9bf; }
-.links span { color: var(--muted); margin-left: 5px; }
-header { padding: 47px 0 38px; max-width: 730px; }
-.eyebrow, .view-type, .drone-control label { font-size: 10px; font-weight: 600; letter-spacing: 1.7px; text-transform: uppercase; }
-.eyebrow { display: flex; align-items: center; gap: 10px; color: var(--accent); margin: 0 0 17px; }
-.dot { width: 6px; height: 6px; display: inline-block; border-radius: 50%; background: currentColor; flex-shrink: 0; }
-h1 { font-size: clamp(48px, 7vw, 76px); font-weight: 560; line-height: 1.05; letter-spacing: -4px; margin: 0; }
-.accent { color: var(--accent); }
-.intro { margin: 21px 0 9px; font-size: 22px; letter-spacing: -.5px; }
-.description { color: var(--muted); font-size: 15px; line-height: 1.7; max-width: 650px; margin: 0; }
-.simulation { border-top: 1px solid var(--line); padding-bottom: 24px; }
-.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 19px 0; }
-.drone-control, .session-controls { display: flex; align-items: center; gap: 15px; }
-.drone-control label { color: var(--muted); }
-select, button { color: #e2ece0; background: #1b241e; font: inherit; font-size: 12px; border: 1px solid #414e42; border-radius: 5px; padding: 8px 11px; }
-select { min-width: 185px; cursor: pointer; }
-button { cursor: pointer; }
-button:hover:enabled { background: #2d3c2e; border-color: var(--accent); }
-button:disabled { opacity: .4; cursor: default; }
-button span { margin-left: 12px; font-size: 16px; line-height: .5; }
-#flight-state { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
-body.flying #flight-state { color: var(--accent); }
-.views { display: grid; gap: 14px; }
-.rgb-views { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.sensor-views { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.view { margin: 0; min-width: 0; }
-figcaption { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: #1a211c; padding: 12px 14px; border: 1px solid var(--line); border-bottom: 0; border-radius: 6px 6px 0 0; font-size: 12px; }
-figcaption b { font-weight: 400; font-size: 10px; color: #859b85; padding-right: 10px; }
-.view-type { color: #95a38f; font-size: 8px; letter-spacing: 1.1px; }
-canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; background: #0b0f0c; border: 1px solid var(--line); }
-.camera-frame { position: relative; }
-.camera-frame canvas { cursor: pointer; outline: none; }
-.camera-hint { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); border: 1px solid #5b6d59; border-radius: 20px; background: #111a13d9; color: #e3f5d9; padding: 7px 15px; font-size: 11px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .15s; }
-body.ready:not(.flying) .camera-hint { opacity: 1; }
-body.flying .camera-frame canvas { cursor: none; }
-.instructions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 20px; padding: 12px 0 24px; color: var(--muted); font-size: 11px; line-height: 1.6; }
-.instructions p { margin: 0; }
-kbd { display: inline-block; font: inherit; font-size: 10px; min-width: 20px; padding: 1px 5px; border: 1px solid #3b483d; border-radius: 3px; text-align: center; margin-right: 3px; color: #d2ded0; }
-.divider { margin: 0 10px; color: #526354; }
-.section-caption { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 3px 0 13px; }
-h2 { font-size: 13px; font-weight: 500; margin: 0; }
-.section-caption > span { font-size: 11px; color: var(--muted); }
-.sensor-views figcaption { padding: 11px 12px; font-size: 11px; }
-.legend { margin: 9px 1px 0; font-size: 10px; line-height: 1.6; color: var(--muted); }
-.status-bar { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 0 0 18px; color: var(--muted); font-size: 12px; }
-.loading-status { min-width: 0; flex: 1; }
-.status-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+main { width: 100%; max-width: 1200px; margin: auto; padding: 12px 16px; }
+header { margin-bottom: 10px; text-align: center; }
+h1 { margin: 0; line-height: 1; }
+h1 img { display: block; width: 200px; height: auto; margin: auto; }
+.toolbar, .drone-control, .session-controls { display: flex; align-items: center; gap: 10px; }
+.toolbar { justify-content: space-between; margin-bottom: 6px; }
+select, button { font: inherit; color: inherit; background: #fff; border: 1px solid #aaa; border-radius: 2px; padding: 3px 7px; }
+select, button:enabled { cursor: pointer; }
+button:hover:enabled { background: #f3f3f3; }
+button:disabled { opacity: .5; }
+#flight-state { color: var(--muted); }
+.status-bar, .status-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.status-bar { margin-bottom: 6px; color: var(--muted); font-size: 12px; }
+.loading-status { flex: 1; min-width: 0; }
 #status { overflow-wrap: anywhere; }
-#fps, #progress-percent { white-space: nowrap; color: var(--accent); font-variant-numeric: tabular-nums; }
+#fps, #progress-percent { white-space: nowrap; font-variant-numeric: tabular-nums; }
 #fps:empty { display: none; }
-progress { appearance: none; display: block; width: 100%; height: 8px; margin-top: 10px; border: 0; border-radius: 4px; overflow: hidden; background: #29352c; accent-color: var(--accent); }
-progress::-webkit-progress-bar { background: #29352c; }
-progress::-webkit-progress-value { background: var(--accent); }
-progress::-moz-progress-bar { background: var(--accent); }
+progress { display: block; width: 100%; height: 6px; margin-top: 4px; accent-color: #555; }
 [hidden] { display: none !important; }
-#error { background: #351e1c; color: #f6b7a5; border: 1px solid #6d3730; padding: 14px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; border-radius: 5px; }
-footer { display: flex; justify-content: space-between; gap: 12px 30px; padding: 19px 0 28px; border-top: 1px solid var(--line); font-size: 10px; line-height: 1.6; color: var(--muted); }
-footer a { color: #d8e5d1; }
-#flight-tuning { width: min(420px, calc(100% - 32px)); max-height: calc(100% - 32px); padding: 24px; border: 1px solid #53634f; border-radius: 10px; color: inherit; background: #1a211c; box-shadow: 0 20px 80px #0008; }
-#flight-tuning::backdrop { background: #080c09b3; }
-.tuning-heading, .tuning-actions, .tuning-control label { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.tuning-heading h2 { font-size: 19px; }
-.tuning-description, .tuning-control p, .tuning-actions span { font-size: 12px; color: var(--muted); line-height: 1.6; }
-.tuning-description { margin: 16px 0 0; }
-.tuning-control { margin: 24px 0; }
-.tuning-control label { font-size: 13px; }
-.tuning-control output { color: var(--accent); font-variant-numeric: tabular-nums; }
-.tuning-control input { width: 100%; margin: 12px 0 0; accent-color: var(--accent); cursor: pointer; }
-.tuning-control p { margin: 5px 0 0; }
+#error { padding: 8px; border: 1px solid #c99; color: #900; white-space: pre-wrap; overflow-wrap: anywhere; }
+.views { display: grid; gap: 10px; }
+.rgb-views { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sensor-views { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 10px; }
+.view { margin: 0; min-width: 0; }
+figcaption { margin-bottom: 3px; }
+canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; background: #f5f5f5; border: 1px solid var(--line); }
+.camera-frame canvas { cursor: pointer; outline: none; }
+body.flying .camera-frame canvas { cursor: none; }
+.instructions { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+kbd { font: inherit; font-family: monospace; }
+#flight-tuning { width: min(400px, calc(100% - 24px)); max-height: calc(100% - 24px); padding: 16px; border: 1px solid #aaa; color: inherit; background: #fff; }
+#flight-tuning::backdrop { background: #0003; }
+.tuning-heading, .tuning-actions, .tuning-control label { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.tuning-heading h2 { margin: 0; font-size: 16px; }
+.tuning-description, .tuning-control p, .tuning-actions span { font-size: 12px; color: var(--muted); }
+.tuning-description { margin: 12px 0 0; }
+.tuning-control { margin: 16px 0; }
+.tuning-control output { font-variant-numeric: tabular-nums; }
+.tuning-control input { width: 100%; margin: 6px 0 0; accent-color: #555; cursor: pointer; }
+.tuning-control p { margin: 3px 0 0; }
 .tuning-actions { flex-wrap: wrap; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
-@media (max-width: 1000px) {
-    main { padding: 0 25px; }
-    .sensor-views { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 20px; }
+:focus-visible { outline: 2px solid #555; outline-offset: 2px; }
+@media (min-width: 800px) {
+    main { max-width: clamp(680px, calc((100dvh - 210px) * 64 / 27), 1200px); }
 }
-@media (max-width: 640px) {
-    main { padding: 0 16px; }
-    nav { padding: 21px 0; font-size: 11px; }
-    .wordmark span { display: none; }
-    .links { gap: 17px; }
-    header { padding: 32px 0; }
-    h1 { letter-spacing: -2.5px; }
-    .intro { font-size: 20px; }
-    .description { font-size: 13px; }
+@media (max-width: 799px) {
+    .sensor-views { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 540px) {
+    main { padding: 10px; }
     .toolbar { flex-wrap: wrap; }
-    .drone-control { gap: 12px; }
     .session-controls { margin-left: auto; }
     .rgb-views { grid-template-columns: minmax(0, 1fr); }
-    .sensor-views { gap: 18px 10px; }
-    .sensor-views .view-type { display: none; }
-    .section-caption > span { display: none; }
-    footer { flex-direction: column; }
+    figcaption { font-size: 12px; }
 }

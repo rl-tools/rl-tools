@@ -68,10 +68,7 @@ function clear_input(){
 function update_flight_state(){
     const flying = active();
     document.body.classList.toggle("flying", flying);
-    flight_state.replaceChildren();
-    const dot = document.createElement("span");
-    dot.className = "dot";
-    flight_state.append(dot, !ready ? "Loading" : flying ? "Flying" : "Paused");
+    flight_state.textContent = !ready ? "Loading" : flying ? "Flying" : "Paused";
     if(ready && max_frames === 0){
         set_status(flying ? "WASD to move · Mouse to turn · Click or Esc to pause" : "Ready · Click either camera to fly");
     }
@@ -192,7 +189,6 @@ update_tuning_values();
 function show_error(error){
     pause();
     ready = false;
-    document.body.classList.remove("ready");
     reset_button.disabled = true;
     flight_state.textContent = "Unavailable";
     progress_element.hidden = true;
@@ -290,7 +286,6 @@ async function main(){
             }
             if(!ready){
                 ready = true;
-                document.body.classList.add("ready");
                 reset_button.disabled = false;
                 update_flight_state();
                 fps_window_start = performance.now();

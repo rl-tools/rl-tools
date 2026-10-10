@@ -1,3 +1,7 @@
 add_executable(conta cli.cpp)
 target_include_directories(conta PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_compile_features(conta PRIVATE cxx_std_17)
+if(RL_TOOLS_ENABLE_ZLIB)
+    target_compile_definitions(conta PRIVATE CONTA_ENABLE_ZLIB)
+    target_link_libraries(conta PRIVATE ${RL_TOOLS_ZLIB_TARGET})
+endif()
