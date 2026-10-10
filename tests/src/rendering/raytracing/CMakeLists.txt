@@ -48,6 +48,7 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
                 RLtools::RLtools
                 rendering_raytracing_backend
                 rendering_raytracing_backend_depth
+                rendering_raytracing_backend_segmentation
                 rendering_raytracing_backend_normals
                 rendering_raytracing_stb
         )
@@ -82,6 +83,7 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
                 RLtools::RLtools
                 rendering_raytracing_backend
                 rendering_raytracing_backend_depth
+                rendering_raytracing_backend_segmentation
                 rendering_raytracing_backend_normals
                 rendering_raytracing_stb
                 GTest::gtest_main
