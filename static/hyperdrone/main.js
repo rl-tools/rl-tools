@@ -24,6 +24,8 @@ const drone_select = document.getElementById("drone");
 const reset_button = document.getElementById("reset");
 const flight_state = document.getElementById("flight-state");
 const tuning_panel = document.getElementById("flight-tuning");
+const position_offset = document.getElementById("position-offset");
+const velocity_target = document.getElementById("velocity-target");
 const yaw_rate_limit = document.getElementById("yaw-rate-limit");
 const yaw_error_limit = document.getElementById("yaw-error-limit");
 const mouse_sensitivity = document.getElementById("mouse-sensitivity");
@@ -85,6 +87,8 @@ function poll_input(){
         Number(flying),
         Number(yaw_rate_limit.value) * Math.PI / 180,
         Number(yaw_error_limit.value) * Math.PI / 180,
+        Number(position_offset.value),
+        Number(velocity_target.value),
     ];
     yaw_delta = 0;
     reset_requested = false;
@@ -170,13 +174,15 @@ reset_button.addEventListener("click", () => {
 });
 
 function update_tuning_values(){
+    document.getElementById("position-offset-value").textContent = `${Number(position_offset.value).toFixed(2)} m`;
+    document.getElementById("velocity-target-value").textContent = `${Number(velocity_target.value).toFixed(2)} m/s`;
     document.getElementById("yaw-rate-value").textContent = `${yaw_rate_limit.value}°/s`;
     document.getElementById("yaw-error-value").textContent = `${yaw_error_limit.value}°`;
     document.getElementById("mouse-sensitivity-value").textContent = `${Number(mouse_sensitivity.value).toFixed(2)}×`;
 }
 tuning_panel.addEventListener("input", update_tuning_values);
 document.getElementById("tuning-defaults").addEventListener("click", () => {
-    for(const control of [yaw_rate_limit, yaw_error_limit, mouse_sensitivity]){
+    for(const control of [position_offset, velocity_target, yaw_rate_limit, yaw_error_limit, mouse_sensitivity]){
         control.value = control.defaultValue;
     }
     update_tuning_values();
