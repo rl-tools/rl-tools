@@ -33,7 +33,7 @@ the golden-rollout generator.
 From an rl-tools checkout (development):
 
 ```bash
-.venv/bin/pip install -e interface/python/conta -e interface/python/hyperdrone
+.venv/bin/pip install -e interface/python/hyperdrone
 ```
 
 From an sdist (self-contained — bundles the rl-tools headers and raytracing sources, no
@@ -353,7 +353,7 @@ included in an upload. Native components remain JIT-compiled on first use.
 
 ## Tests
 
-Use the repository `.venv` with editable `interface/python/conta` and `interface/python/hyperdrone[gym]` installed; point `CONTA_ROOT` at the local test assets.
+Use the repository `.venv` with editable `interface/python/hyperdrone[gym]` installed; point `CONTA_ROOT` at the local test assets.
 
 ```bash
 HYPERDRONE_RENDER_BACKEND=GENERIC .venv/bin/python -m pytest interface/python/hyperdrone/tests -v
