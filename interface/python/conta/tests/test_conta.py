@@ -2,7 +2,10 @@
 client must implement the exact cache layout and download protocol of include/conta/conta.h
 so both languages interoperate on one cache. All network cases run offline via file:// URLs.
 """
+import gzip
 import hashlib
+import json
+from concurrent.futures import ThreadPoolExecutor
 import http.server
 import os
 import subprocess
@@ -27,8 +30,7 @@ def config(tmp_path, store=None, root=None, url_base=None):
     result = conta.Config()
     if root is not None:
         result.root = str(root)
-    else:
-        result.cache = str(tmp_path / "cache")
+    result.cache = str(tmp_path / "cache")
     if url_base is not None:
         result.url_base = url_base
     elif store is not None:
@@ -154,6 +156,8 @@ def test_default_cache_path_parity(monkeypatch, tmp_path):
 
 
 def conta_cli():
+    if os.environ.get("CONTA_TEST_CLI"):
+        return Path(os.environ["CONTA_TEST_CLI"])
     candidates = sorted(REPOSITORY.glob("build*/src/conta/conta"))
     if not candidates:
         pytest.skip("conta CLI not built (cmake --build build --target conta)")
@@ -220,7 +224,7 @@ def file_url(path):
     return path.as_uri()
 
 
-def entry(sha1, sha256, shards='"local"'):
+def entry(sha1, sha256, shards='{"id": "local"}'):
     return f'{{"sha1": "{sha1}", "sha256": "{sha256}", "shards": [{shards}], "description": "test blob"}}'
 
 
@@ -263,9 +267,9 @@ def test_index_json_tolerance():
     text = ('{"future": {"nested": [1, 2.5e3, -0.5, true, false, null, {"deep": []}]},\n'
             '"shards": {"a": {"type": "future-type", "url": "https://a.example/{sha1}", "license": {"spdx": "CC0-1.0"}}, "no-url": {"type": "torrent"}},\n'
             '"entries": [\n'
-            f'{{"\\u0073ha1": "{ABC_SHA1}", "sha256": "{ABC_SHA256}", "shards": ["unknown", 7, "a"], "description": "caf\\u00e9 \\ud83d\\ude00", "size": 3, "license": ["x"]}},\n'
-            f'{{"sha1": "{ABC_SHA1}", "sha256": "{EMPTY_SHA256}", "shards": ["a"], "description": "duplicate"}},\n'
-            f'{{"sha1": "{EMPTY_SHA1}", "sha256": "not-hex", "shards": ["a"]}},\n'
+            f'{{"\\u0073ha1": "{ABC_SHA1}", "sha256": "{ABC_SHA256}", "shards": [{{"id": "unknown"}}, 7, "legacy", {{"id": "a", "compressed": ["gz", "future", 7]}}], "description": "caf\\u00e9 \\ud83d\\ude00", "size": 3, "license": ["x"]}},\n'
+            f'{{"sha1": "{ABC_SHA1}", "sha256": "{EMPTY_SHA256}", "shards": [{{"id": "a"}}], "description": "duplicate"}},\n'
+            f'{{"sha1": "{EMPTY_SHA1}", "sha256": "not-hex", "shards": [{{"id": "a"}}]}},\n'
             '"not an object",\n'
             f'{{"sha1": "{EMPTY_SHA1}", "sha256": "{EMPTY_SHA256}", "shards": "wrong type", "description": 5}}\n'
             ']}')
@@ -273,7 +277,7 @@ def test_index_json_tolerance():
     assert index.entry_count == 3
     assert index.shard_urls == {"a": "https://a.example/{sha1}"}
     assert index.entries[ABC_SHA1].sha256 == ABC_SHA256
-    assert index.entries[ABC_SHA1].shards == ["unknown", "a"]
+    assert index.entries[ABC_SHA1].shards == [conta._Shard("unknown", []), conta._Shard("a", ["gz", "future"])]
     assert index.entries[ABC_SHA1].description == "café \U0001F600"
     assert index.entries[EMPTY_SHA1].shards == []
     assert index.entries[EMPTY_SHA1].description == ""
@@ -352,7 +356,7 @@ def test_unsafe_locations_are_skipped(tmp_path):
               '"percent": {"url": "https://example.invalid/%HOME%/{sha1}"},\n'
               '"placeholder": {"url": "https://example.invalid/{sha1}/{size}"},\n'
               '"quote": {"url": "https://example.invalid/\'{sha1}"}')
-    index = index_text(shards, entry(ABC_SHA1, ABC_SHA256, '"unc", "percent", "placeholder", "quote"'))
+    index = index_text(shards, entry(ABC_SHA1, ABC_SHA256, '{"id": "unc"}, {"id": "percent"}, {"id": "placeholder"}, {"id": "quote"}'))
     with pytest.raises(conta.ContaError) as error:
         conta.resolve(ABC_SHA1, index_config(tmp_path, [publish(tmp_path / "site", index)]))
     for shard in ("unc", "percent", "placeholder", "quote"):
@@ -420,3 +424,331 @@ def test_network_index(tmp_path):
     path = conta.resolve(blob, conta.Config(cache=str(tmp_path / "cache")))
     assert conta.sha1_file(path) == blob
     assert (tmp_path / "cache" / conta.CACHED_INDEX_NAME).exists()
+
+
+def gzip_store(tmp_path, content=b"abc", compressed=("gz",), sha256=ABC_SHA256):
+    store = tmp_path / "store"
+    store.mkdir()
+    (store / f"{ABC_SHA1}.gz").write_bytes(gzip.compress(content, compresslevel=9, mtime=0))
+    shards = json.dumps({"id": "local", "compressed": list(compressed)})
+    index = index_text(local_shard(store), entry(ABC_SHA1, sha256, shards))
+    return index_config(tmp_path, [publish(tmp_path / "site", index)])
+
+
+@pytest.mark.parametrize("api", [conta.load, conta.resolve])
+def test_plain_cache_precedes_gzip(tmp_path, monkeypatch, api):
+    settings = config(tmp_path)
+    write_store_blob(tmp_path / "cache", ABC_SHA1, b"abc")
+    (tmp_path / "cache" / f"{ABC_SHA1}.gz").write_bytes(b"corrupt")
+    monkeypatch.setattr(conta, "_stream", lambda *args, **kwargs: pytest.fail("cache hit used network"))
+    result = api(ABC_SHA1, settings)
+    assert result == (b"abc" if api is conta.load else tmp_path / "cache" / ABC_SHA1)
+
+
+def test_gzip_cache_load_and_resolve(tmp_path, monkeypatch):
+    settings = config(tmp_path)
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    compressed = cache / f"{ABC_SHA1}.gz"
+    compressed.write_bytes(gzip.compress(b"abc", mtime=0))
+    monkeypatch.setattr(conta, "_stream", lambda *args, **kwargs: pytest.fail("cache hit used network"))
+    assert conta.load(ABC_SHA1, settings) == b"abc"
+    assert not (cache / ABC_SHA1).exists()
+    path = conta.resolve(ABC_SHA1, settings)
+    assert path.read_bytes() == b"abc"
+    assert compressed.exists()
+    monkeypatch.setattr(conta, "_decode_gzip", lambda *args, **kwargs: pytest.fail("plain cache was decoded again"))
+    assert conta.load(ABC_SHA1, settings) == b"abc"
+    assert conta.resolve(ABC_SHA1, settings) == path
+    assert not list(cache.glob("*.partial.*"))
+
+
+def test_gzip_load_plain_policy_materializes_once(tmp_path, monkeypatch):
+    settings = config(tmp_path)
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    (cache / f"{ABC_SHA1}.gz").write_bytes(gzip.compress(b"abc", mtime=0))
+    assert conta.load(ABC_SHA1, settings, compressed_cache=False) == b"abc"
+    assert (cache / ABC_SHA1).read_bytes() == b"abc"
+    monkeypatch.setattr(conta, "_decode_gzip", lambda *args, **kwargs: pytest.fail("plain cache was decoded again"))
+    assert conta.load(ABC_SHA1, settings, compressed_cache=False) == b"abc"
+
+
+@pytest.mark.parametrize("api,keep_gzip", [(conta.load, True), (conta.resolve, False), (lambda reference, settings: conta.load(reference, settings, compressed_cache=False), False)])
+def test_gzip_download_storage(tmp_path, monkeypatch, api, keep_gzip):
+    settings = gzip_store(tmp_path)
+    decode = conta._decode_gzip
+    decodes = []
+
+    def record_decode(*args, **kwargs):
+        decodes.append(args[0])
+        return decode(*args, **kwargs)
+
+    monkeypatch.setattr(conta, "_decode_gzip", record_decode)
+    result = api({"hash": ABC_SHA1, "description": "abc"}, settings)
+    assert (result.read_bytes() if isinstance(result, Path) else result) == b"abc"
+    assert len(decodes) == 1
+    cache = tmp_path / "cache"
+    assert (cache / f"{ABC_SHA1}.gz").exists() == keep_gzip
+    assert (cache / ABC_SHA1).exists() != keep_gzip
+    assert not list(cache.glob("*.partial.*"))
+
+
+def test_load_raw_direct_and_index_fallback(tmp_path):
+    settings = gzip_store(tmp_path, compressed=("future", "gzip"))
+    write_store_blob(tmp_path / "store", ABC_SHA1, b"abc")
+    assert conta.load(ABC_SHA1, settings) == b"abc"
+    cache = tmp_path / "cache"
+    assert (cache / ABC_SHA1).read_bytes() == b"abc"
+    assert not (cache / f"{ABC_SHA1}.gz").exists()
+    (cache / ABC_SHA1).unlink()
+    assert conta.load(ABC_SHA1, config(tmp_path, store=tmp_path / "store")) == b"abc"
+    assert not (cache / f"{ABC_SHA1}.gz").exists()
+
+
+@pytest.mark.parametrize("payload", [b"invalid", b"", gzip.compress(b"abc", mtime=0)[:-4], gzip.compress(b"wrong", mtime=0)])
+def test_bad_gzip_download_falls_back_to_raw(tmp_path, payload):
+    settings = gzip_store(tmp_path)
+    (tmp_path / "store" / f"{ABC_SHA1}.gz").write_bytes(payload)
+    write_store_blob(tmp_path / "store", ABC_SHA1, b"abc")
+    assert conta.load(ABC_SHA1, settings) == b"abc"
+    cache = tmp_path / "cache"
+    assert (cache / ABC_SHA1).exists()
+    assert not (cache / f"{ABC_SHA1}.gz").exists()
+    assert not list(cache.glob("*.partial.*"))
+
+
+def test_gzip_sha256_mismatch_is_not_published(tmp_path):
+    settings = gzip_store(tmp_path, sha256=EMPTY_SHA256)
+    with pytest.raises(conta.ContaError, match="sha256 mismatch"):
+        conta.load(ABC_SHA1, settings)
+    cache = tmp_path / "cache"
+    assert not (cache / ABC_SHA1).exists()
+    assert not (cache / f"{ABC_SHA1}.gz").exists()
+    assert not list(cache.glob("*.partial.*"))
+
+
+@pytest.mark.parametrize("in_memory", [True, False])
+def test_corrupt_cached_gzip_recovers_without_deleting_it(tmp_path, in_memory):
+    cache = tmp_path / "cache"
+    write_store_blob(cache, ABC_SHA1 + ".gz", gzip.compress(b"wrong", mtime=0))
+    write_store_blob(tmp_path / "store", ABC_SHA1, b"abc")
+    settings = config(tmp_path, store=tmp_path / "store")
+    assert conta.load(ABC_SHA1, settings, compressed_cache=in_memory) == b"abc"
+    assert (cache / ABC_SHA1).read_bytes() == b"abc"
+    assert gzip.decompress((cache / f"{ABC_SHA1}.gz").read_bytes()) == b"wrong"
+
+
+def test_cached_gzip_checks_cached_index_sha256(tmp_path):
+    settings = gzip_store(tmp_path, sha256=EMPTY_SHA256)
+    cache = tmp_path / "cache"
+    write_store_blob(cache, ABC_SHA1 + ".gz", gzip.compress(b"abc", mtime=0))
+    cached_index = (tmp_path / "site" / "version" / "1" / "generated" / "index.json").read_bytes()
+    (cache / conta.CACHED_INDEX_NAME).write_bytes(cached_index)
+    settings.entry_points = []
+    with pytest.raises(conta.ContaError, match="sha256 mismatch"):
+        conta.load(ABC_SHA1, settings)
+    assert not (cache / ABC_SHA1).exists()
+
+
+def test_compressed_policy_precedence(tmp_path, monkeypatch):
+    settings = config(tmp_path)
+    cache = tmp_path / "cache"
+    write_store_blob(cache, ABC_SHA1 + ".gz", gzip.compress(b"abc", mtime=0))
+    monkeypatch.delenv("CONTA_ROOT", raising=False)
+    monkeypatch.setenv("CONTA_CACHE", str(cache))
+    monkeypatch.setenv("CONTA_URL", "file:///missing/")
+    monkeypatch.setenv("CONTA_COMPRESSED_CACHE", "0")
+    assert not conta.config_from_environment().compressed_cache
+    assert conta.load(ABC_SHA1, settings) == b"abc"
+    assert not (cache / ABC_SHA1).exists()
+    assert conta.load(ABC_SHA1, compressed_cache=True) == b"abc"
+    assert not (cache / ABC_SHA1).exists()
+    assert conta.load(ABC_SHA1) == b"abc"
+    assert (cache / ABC_SHA1).exists()
+    (cache / ABC_SHA1).unlink()
+    settings.compressed_cache = False
+    assert conta.load(ABC_SHA1, settings, compressed_cache=True) == b"abc"
+    assert not (cache / ABC_SHA1).exists()
+    assert not settings.compressed_cache
+    assert conta.load(ABC_SHA1, settings) == b"abc"
+    assert (cache / ABC_SHA1).exists()
+    monkeypatch.setenv("CONTA_COMPRESSED_CACHE", "1")
+    assert conta.config_from_environment().compressed_cache
+    monkeypatch.delenv("CONTA_COMPRESSED_CACHE")
+    assert conta.config_from_environment().compressed_cache
+
+
+def test_root_gzip_is_read_only_offline_and_reuses_materialization(tmp_path, monkeypatch):
+    root = tmp_path / "root"
+    compressed = root / "data" / f"{ABC_SHA1}.gz"
+    write_store_blob(root / "data", ABC_SHA1 + ".gz", gzip.compress(b"abc", mtime=0))
+    settings = config(tmp_path, root=root)
+    monkeypatch.setattr(conta, "_stream", lambda *args, **kwargs: pytest.fail("root used network"))
+    assert conta.load(ABC_SHA1, settings) == b"abc"
+    assert not (tmp_path / "cache").exists()
+    assert conta.resolve(ABC_SHA1, settings) == tmp_path / "cache" / ABC_SHA1
+    assert set((root / "data").iterdir()) == {compressed}
+    monkeypatch.setattr(conta, "_decode_gzip", lambda *args, **kwargs: pytest.fail("materialized root was decoded again"))
+    assert conta.load(ABC_SHA1, settings, compressed_cache=False) == b"abc"
+    compressed.unlink()
+    with pytest.raises(conta.ContaError, match="CONTA_ROOT"):
+        conta.load(ABC_SHA1, settings)
+
+
+def test_root_gzip_memory_needs_no_cache(tmp_path):
+    root = tmp_path / "root"
+    write_store_blob(root / "data", ABC_SHA1 + ".gz", gzip.compress(b"abc", mtime=0))
+    settings = conta.Config(root=str(root))
+    assert conta.load(ABC_SHA1, settings) == b"abc"
+    with pytest.raises(conta.ContaError, match="cannot determine cache directory"):
+        conta.resolve(ABC_SHA1, settings)
+
+
+def test_empty_gzip_blob(tmp_path):
+    cache = tmp_path / "cache"
+    write_store_blob(cache, EMPTY_SHA1 + ".gz", gzip.compress(b"", mtime=0))
+    assert conta.load(EMPTY_SHA1, config(tmp_path)) == b""
+    assert not (cache / EMPTY_SHA1).exists()
+    assert conta.resolve(EMPTY_SHA1, config(tmp_path)).read_bytes() == b""
+
+
+def test_interrupted_gzip_download_leaves_no_partial(tmp_path, monkeypatch):
+    settings = gzip_store(tmp_path)
+    stream = conta._stream
+
+    def interrupted(url, output, digests=()):
+        if url.endswith(".gz"):
+            output.write(b"partial")
+            raise OSError("interrupted")
+        return stream(url, output, digests)
+
+    monkeypatch.setattr(conta, "_stream", interrupted)
+    with pytest.raises(conta.ContaError, match="interrupted"):
+        conta.load(ABC_SHA1, settings)
+    cache = tmp_path / "cache"
+    assert not (cache / ABC_SHA1).exists()
+    assert not (cache / f"{ABC_SHA1}.gz").exists()
+    assert not list(cache.glob("*.partial.*"))
+
+
+def test_concurrent_memory_and_path_publication(tmp_path):
+    settings = gzip_store(tmp_path)
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        results = list(executor.map(lambda api: api(ABC_SHA1, settings), [conta.load, conta.resolve, conta.load, conta.resolve]))
+    assert results[0] == results[2] == b"abc"
+    assert results[1].read_bytes() == results[3].read_bytes() == b"abc"
+    cache = tmp_path / "cache"
+    if (cache / f"{ABC_SHA1}.gz").exists():
+        assert gzip.decompress((cache / f"{ABC_SHA1}.gz").read_bytes()) == b"abc"
+    assert not list(cache.glob("*.partial.*"))
+
+
+@pytest.mark.parametrize("suffix", ["?token=value", "?token=value#part", "#part"])
+def test_gzip_url_suffix_precedes_query_and_raw_fallback_stays_in_shard(tmp_path, monkeypatch, suffix):
+    shards = '"first": {"url": "https://first.example/{sha1}' + suffix + '"}, "second": {"url": "https://second.example/{sha1}"}'
+    locations = '{"id": "first", "compressed": ["unknown", "gz"]}, {"id": "second", "compressed": ["gz"]}'
+    index = index_text(shards, entry(ABC_SHA1, ABC_SHA256, locations))
+    settings = index_config(tmp_path, [publish(tmp_path / "site", index)])
+    stream = conta._stream
+    attempts = []
+
+    def local_stream(url, output, digests=()):
+        if not url.startswith("https:"):
+            return stream(url, output, digests)
+        attempts.append(url)
+        if "first.example" in url:
+            raise OSError("unavailable")
+        output.write(gzip.compress(b"abc", mtime=0))
+
+    monkeypatch.setattr(conta, "_stream", local_stream)
+    assert conta.load(ABC_SHA1, settings) == b"abc"
+    assert attempts == [f"https://first.example/{ABC_SHA1}.gz{suffix}", f"https://first.example/{ABC_SHA1}{suffix}", f"https://second.example/{ABC_SHA1}.gz"]
+
+
+@pytest.mark.parametrize("api", [conta.load, conta.resolve])
+def test_failed_cache_publication_removes_own_temporary_files(tmp_path, monkeypatch, api):
+    settings = gzip_store(tmp_path)
+    replace = os.replace
+
+    def fail_blob_publication(source, target):
+        if Path(target).name in (ABC_SHA1, ABC_SHA1 + ".gz"):
+            raise OSError("publication failed")
+        return replace(source, target)
+
+    monkeypatch.setattr(os, "replace", fail_blob_publication)
+    with pytest.raises(conta.ContaError, match="publication failed"):
+        api(ABC_SHA1, settings)
+    cache = tmp_path / "cache"
+    assert not (cache / ABC_SHA1).exists()
+    assert not (cache / f"{ABC_SHA1}.gz").exists()
+    assert not list(cache.glob("*.partial.*"))
+
+
+@pytest.mark.parametrize("representation,api", [("raw", conta.load), ("gz", conta.load), ("gz", conta.resolve)])
+def test_cache_publication_tolerates_concurrent_winner(tmp_path, monkeypatch, representation, api):
+    settings = gzip_store(tmp_path, compressed=("gz",) if representation == "gz" else ())
+    write_store_blob(tmp_path / "store", ABC_SHA1, b"abc")
+    cache = tmp_path / "cache"
+    target = cache / (ABC_SHA1 + ".gz" if representation == "gz" and api is conta.load else ABC_SHA1)
+    winning_bytes = gzip.compress(b"abc", mtime=0) if target.suffix == ".gz" else b"abc"
+    replace = os.replace
+
+    def concurrent_publication(source, destination):
+        if Path(destination) == target:
+            target.write_bytes(winning_bytes)
+            raise PermissionError("a concurrent publisher has already created the file")
+        return replace(source, destination)
+
+    monkeypatch.setattr(os, "replace", concurrent_publication)
+    result = api(ABC_SHA1, settings)
+    assert (result.read_bytes() if isinstance(result, Path) else result) == b"abc"
+    assert target.read_bytes() == winning_bytes
+    assert not list(cache.glob("*.partial.*"))
+
+
+@pytest.mark.parametrize("representation,api", [("raw", conta.load), ("gz", conta.load), ("gz", conta.resolve)])
+def test_cache_publication_rejects_corrupt_concurrent_target(tmp_path, monkeypatch, representation, api):
+    settings = gzip_store(tmp_path, compressed=("gz",) if representation == "gz" else ())
+    if representation == "raw":
+        write_store_blob(tmp_path / "store", ABC_SHA1, b"abc")
+    cache = tmp_path / "cache"
+    target = cache / (ABC_SHA1 + ".gz" if representation == "gz" and api is conta.load else ABC_SHA1)
+    replace = os.replace
+
+    def conflicting_publication(source, destination):
+        if Path(destination) == target:
+            target.write_bytes(b"x" * Path(source).stat().st_size)
+            raise PermissionError("publication failed")
+        return replace(source, destination)
+
+    monkeypatch.setattr(os, "replace", conflicting_publication)
+    with pytest.raises(conta.ContaError, match="publication failed"):
+        api(ABC_SHA1, settings)
+    assert target.read_bytes() == b"x" * target.stat().st_size
+    assert not list(cache.glob("*.partial.*"))
+
+
+def test_empty_gzip_download(tmp_path):
+    store = tmp_path / "store"
+    write_store_blob(store, EMPTY_SHA1 + ".gz", gzip.compress(b"", mtime=0))
+    index = index_text(local_shard(store), entry(EMPTY_SHA1, EMPTY_SHA256, '{"id": "local", "compressed": ["gz"]}'))
+    settings = index_config(tmp_path, [publish(tmp_path / "site", index)])
+    assert conta.load(EMPTY_SHA1, settings) == b""
+    assert (tmp_path / "cache" / f"{EMPTY_SHA1}.gz").exists()
+    assert not (tmp_path / "cache" / EMPTY_SHA1).exists()
+
+
+def test_gzip_cache_interop_python_to_cpp(tmp_path):
+    cli = conta_cli()
+    settings = gzip_store(tmp_path)
+    assert conta.load(ABC_SHA1, settings) == b"abc"
+    cache = tmp_path / "cache"
+    assert not (cache / ABC_SHA1).exists()
+    result = subprocess.run([str(cli), ABC_SHA1], capture_output=True, text=True, env=cli_environment(cache))
+    assert result.returncode == 0, result.stderr
+    assert Path(result.stdout.strip()) == cache / ABC_SHA1
+    assert (cache / ABC_SHA1).read_bytes() == b"abc"
+    assert gzip.decompress((cache / f"{ABC_SHA1}.gz").read_bytes()) == b"abc"
+    assert "downloading" not in result.stderr
+    assert not list(cache.glob("*.partial.*"))

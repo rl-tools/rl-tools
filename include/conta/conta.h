@@ -1,7 +1,7 @@
 #ifndef CONTA_CONTA_H
 #define CONTA_CONTA_H
 // conta: client for the sha1 content-addressed asset store; index contract: https://github.com/rl-tools/conta-index (format 1)
-// Freestanding, C++17, STL-only; downloads via the curl CLI.
+// C++17, optional zlib for gzip decoding; downloads via the curl CLI.
 // A sha1 resolves from <cache>/<sha1>, then the cached index, then the index entry points; downloads are verified against the sha1 and the sha256 the index lists.
 // CONTA_ROOT: read-only store (<root>/data/<sha1>), disables the network. CONTA_URL: fetch <url>/<sha1> directly, without the index. CONTA_CACHE: writable cache directory.
 
@@ -21,6 +21,9 @@
 #include <string>
 #include <system_error>
 #include <vector>
+#if defined(RL_TOOLS_ENABLE_ZLIB) || defined(CONTA_ENABLE_ZLIB)
+#include <zlib.h>
+#endif
 #if defined(_WIN32)
 #include <process.h>
 #else
@@ -42,6 +45,7 @@ namespace conta{
         std::string cache;
         std::string url_base;
         std::vector<std::string> entry_points = default_entry_points();
+        bool compressed_cache = true;
     };
     namespace detail{
         template <std::size_t T_WORDS>
@@ -558,9 +562,13 @@ namespace conta{
             std::string location;
             std::string sha256;
         };
+        struct ShardLocation{
+            std::string id;
+            std::vector<std::string> compressed;
+        };
         struct Entry{
             std::string sha256;
-            std::vector<std::string> shards;
+            std::vector<ShardLocation> shards;
             std::string description;
             std::string notice;
         };
@@ -645,12 +653,33 @@ namespace conta{
                             if(entry_key == "shards" && reader.next_is('[')){
                                 entry.shards.clear();
                                 return reader.parse_array(3, [&](){
-                                    std::string shard;
-                                    if(!reader.parse_string_or_skip(shard, 4)){
+                                    if(!reader.next_is('{')){
+                                        return reader.skip_value(4);
+                                    }
+                                    ShardLocation shard;
+                                    bool shard_parsed = reader.parse_object(4, [&](const std::string& shard_key){
+                                        if(shard_key == "id"){
+                                            return reader.parse_string_or_skip(shard.id, 5);
+                                        }
+                                        if(shard_key == "compressed" && reader.next_is('[')){
+                                            return reader.parse_array(5, [&](){
+                                                std::string compression;
+                                                if(!reader.parse_string_or_skip(compression, 6)){
+                                                    return false;
+                                                }
+                                                if(!compression.empty()){
+                                                    shard.compressed.push_back(compression);
+                                                }
+                                                return true;
+                                            });
+                                        }
+                                        return reader.skip_value(5);
+                                    });
+                                    if(!shard_parsed){
                                         return false;
                                     }
-                                    if(!shard.empty()){
-                                        entry.shards.push_back(shard);
+                                    if(!shard.id.empty()){
+                                        entry.shards.push_back(std::move(shard));
                                     }
                                     return true;
                                 });
@@ -695,7 +724,7 @@ namespace conta{
             }
             for(std::size_t character_i = start; character_i < url.size(); character_i++){
                 char character = url[character_i];
-                if(!is_alphanumeric(character) && (character == '\0' || std::strchr("._~:/?&=+,;@-", character) == nullptr)){
+                if(!is_alphanumeric(character) && (character == '\0' || std::strchr("._~:/?&#=+,;@-", character) == nullptr)){
                     return false;
                 }
             }
@@ -828,6 +857,211 @@ namespace conta{
             }
             return true;
         }
+        constexpr bool gzip_supported(){
+#if defined(RL_TOOLS_ENABLE_ZLIB) || defined(CONTA_ENABLE_ZLIB)
+            return true;
+#else
+            return false;
+#endif
+        }
+        inline bool verify_digests(const std::string& actual_sha1, const std::string& actual_sha256, const std::string& sha1, const std::string& sha256, std::string& failure_output){
+            if(actual_sha1 != sha1){
+                failure_output = "hash mismatch: the content hashes to " + actual_sha1 + ", not caching";
+                return false;
+            }
+            if(!sha256.empty() && actual_sha256 != sha256){
+                failure_output = "sha256 mismatch: the index lists " + sha256 + " but the content hashes to " + actual_sha256 + ", not caching";
+                return false;
+            }
+            return true;
+        }
+        inline bool same_file_contents(const std::filesystem::path& left, const std::filesystem::path& right){
+            std::error_code error_code;
+            if(!std::filesystem::is_regular_file(right, error_code)){
+                return false;
+            }
+            std::uintmax_t left_size = std::filesystem::file_size(left, error_code);
+            if(error_code){
+                return false;
+            }
+            std::uintmax_t right_size = std::filesystem::file_size(right, error_code);
+            if(error_code || left_size != right_size){
+                return false;
+            }
+            std::ifstream left_file(left, std::ios::binary), right_file(right, std::ios::binary);
+            if(!left_file.is_open() || !right_file.is_open()){
+                return false;
+            }
+            std::vector<char> left_chunk(64 * 1024), right_chunk(64 * 1024);
+            while(left_file && right_file){
+                left_file.read(left_chunk.data(), std::streamsize(left_chunk.size()));
+                right_file.read(right_chunk.data(), std::streamsize(right_chunk.size()));
+                if(left_file.gcount() != right_file.gcount() || !std::equal(left_chunk.begin(), left_chunk.begin() + left_file.gcount(), right_chunk.begin())){
+                    return false;
+                }
+            }
+            return left_file.eof() && right_file.eof() && !left_file.bad() && !right_file.bad();
+        }
+        inline bool publish_file(const std::filesystem::path& temporary, const std::filesystem::path& target, std::string& failure_output){
+            std::error_code error_code;
+            std::filesystem::rename(temporary, target, error_code);
+            if(error_code){
+                if(same_file_contents(temporary, target)){
+                    std::filesystem::remove(temporary, error_code);
+                    return true;
+                }
+                failure_output = "failed to move " + temporary.string() + " to " + target.string() + ": " + error_code.message();
+                std::filesystem::remove(temporary, error_code);
+                return false;
+            }
+            return true;
+        }
+        template <typename T_CONSUMER>
+        bool read_gzip_chunks(const std::filesystem::path& path, T_CONSUMER&& consumer, std::string& failure_output){
+#if defined(RL_TOOLS_ENABLE_ZLIB) || defined(CONTA_ENABLE_ZLIB)
+            std::ifstream file(path, std::ios::binary);
+            if(!file.is_open()){
+                failure_output = "the gzip file is unreadable";
+                return false;
+            }
+            struct Inflater{
+                z_stream stream{};
+                bool initialized = false;
+                ~Inflater(){
+                    if(initialized){
+                        inflateEnd(&stream);
+                    }
+                }
+            } inflater;
+            z_stream& stream = inflater.stream;
+            if(inflateInit2(&stream, 16 + MAX_WBITS) != Z_OK){
+                failure_output = "failed to initialize gzip decoding";
+                return false;
+            }
+            inflater.initialized = true;
+            std::vector<unsigned char> input(64 * 1024), output(64 * 1024);
+            bool member_end = false;
+            while(true){
+                if(stream.avail_in == 0 && !file.eof()){
+                    file.read(reinterpret_cast<char*>(input.data()), std::streamsize(input.size()));
+                    if(file.bad()){
+                        failure_output = "failed to read the gzip file";
+                        return false;
+                    }
+                    stream.next_in = input.data();
+                    stream.avail_in = uInt(file.gcount());
+                }
+                if(member_end){
+                    while(stream.avail_in > 0 && *stream.next_in == 0){
+                        stream.next_in++;
+                        stream.avail_in--;
+                    }
+                    if(stream.avail_in == 0){
+                        if(file.eof()){
+                            return true;
+                        }
+                        continue;
+                    }
+                    Bytef* next_in = stream.next_in;
+                    uInt available = stream.avail_in;
+                    if(inflateReset2(&stream, 16 + MAX_WBITS) != Z_OK){
+                        failure_output = "failed to reset gzip decoding";
+                        return false;
+                    }
+                    stream.next_in = next_in;
+                    stream.avail_in = available;
+                    member_end = false;
+                }
+                stream.next_out = output.data();
+                stream.avail_out = uInt(output.size());
+                int status = inflate(&stream, Z_NO_FLUSH);
+                if(status != Z_OK && status != Z_STREAM_END){
+                    failure_output = status == Z_BUF_ERROR ? "truncated gzip file" : "invalid gzip file";
+                    if(stream.msg != nullptr){
+                        failure_output += ": " + std::string(stream.msg);
+                    }
+                    return false;
+                }
+                std::size_t count = output.size() - stream.avail_out;
+                if(count > 0 && !consumer(output.data(), count)){
+                    failure_output = "failed to write the decompressed content";
+                    return false;
+                }
+                member_end = status == Z_STREAM_END;
+            }
+#else
+            (void)path;
+            (void)consumer;
+            failure_output = "gzip decoding is unavailable; build with CONTA_ENABLE_ZLIB and link zlib, or provide the plain blob";
+            return false;
+#endif
+        }
+        inline bool decode_gzip(const std::filesystem::path& source, const std::string& sha1, const std::string& sha256, const std::filesystem::path& target, std::vector<std::uint8_t>* bytes_output, std::string& failure_output){
+            std::filesystem::path temporary;
+            std::ofstream file;
+            std::vector<std::uint8_t> bytes;
+            if(bytes_output == nullptr){
+                temporary = target;
+                temporary += ".partial." + unique_suffix();
+                file.open(temporary, std::ios::binary);
+                if(!file.is_open()){
+                    failure_output = "failed to create " + temporary.string();
+                    return false;
+                }
+            }
+            Sha1 actual_sha1;
+            Sha256 actual_sha256;
+            bool decoded = read_gzip_chunks(source, [&](const unsigned char* data, std::size_t size){
+                actual_sha1.update(data, size);
+                actual_sha256.update(data, size);
+                if(bytes_output != nullptr){
+                    bytes.insert(bytes.end(), data, data + size);
+                    return true;
+                }
+                file.write(reinterpret_cast<const char*>(data), std::streamsize(size));
+                return bool(file);
+            }, failure_output);
+            if(decoded){
+                decoded = verify_digests(actual_sha1.finalize(), actual_sha256.finalize(), sha1, sha256, failure_output);
+            }
+            if(bytes_output == nullptr){
+                file.close();
+                if(decoded && !file){
+                    failure_output = "failed to close " + temporary.string();
+                    decoded = false;
+                }
+                if(decoded){
+                    return publish_file(temporary, target, failure_output);
+                }
+                std::error_code error_code;
+                std::filesystem::remove(temporary, error_code);
+            }
+            else if(decoded){
+                bytes_output->swap(bytes);
+            }
+            return decoded;
+        }
+        inline std::string compressed_location(const std::string& url){
+            std::size_t query = url.find_first_of("?#");
+            return url.substr(0, query) + ".gz" + (query == std::string::npos ? std::string() : url.substr(query));
+        }
+        inline bool fetch_gzip(const std::string& url, const std::string& sha1, const std::string& sha256, const std::string& description, const std::filesystem::path& target, std::vector<std::uint8_t>* bytes_output, std::string& failure_output){
+            std::filesystem::path gzip_target = target;
+            gzip_target += ".gz";
+            std::filesystem::path temporary = gzip_target;
+            temporary += ".partial." + unique_suffix();
+            std::cerr << "conta: downloading " << sha1 << (description.empty() ? std::string() : " (" + printable(description) + ")") << " from " << url << std::endl;
+            bool fetched = run_curl(url, temporary, false, failure_output) && decode_gzip(temporary, sha1, sha256, target, bytes_output, failure_output);
+            if(fetched && bytes_output != nullptr){
+                fetched = publish_file(temporary, gzip_target, failure_output);
+                if(!fetched){
+                    bytes_output->clear();
+                }
+            }
+            std::error_code error_code;
+            std::filesystem::remove(temporary, error_code);
+            return fetched;
+        }
         inline bool fetch_blob(const std::string& url, const std::string& sha1, const std::string& sha256, const std::string& description, const std::filesystem::path& target, std::string& failure_output){
             std::filesystem::path temporary = target;
             temporary += ".partial." + unique_suffix();
@@ -843,26 +1077,22 @@ namespace conta{
                 failure_output = "the downloaded file is unreadable";
                 return false;
             }
-            if(actual_sha1 != sha1){
-                std::filesystem::remove(temporary, error_code);
-                failure_output = "hash mismatch: the content hashes to " + actual_sha1 + ", not caching";
-                return false;
-            }
-            if(!sha256.empty() && actual_sha256 != sha256){
-                std::filesystem::remove(temporary, error_code);
-                failure_output = "sha256 mismatch: the index lists " + sha256 + " but the content hashes to " + actual_sha256 + ", not caching";
-                return false;
-            }
-            std::filesystem::rename(temporary, target, error_code);
-            if(error_code){
-                if(std::filesystem::exists(target)){ // a concurrent download of the same content won the race
-                    std::filesystem::remove(temporary, error_code);
-                    return true;
-                }
-                failure_output = "failed to move " + temporary.string() + " to " + target.string() + ": " + error_code.message();
+            if(!verify_digests(actual_sha1, actual_sha256, sha1, sha256, failure_output)){
                 std::filesystem::remove(temporary, error_code);
                 return false;
             }
+            return publish_file(temporary, target, failure_output);
+        }
+        inline bool read_blob(const std::filesystem::path& path, std::vector<std::uint8_t>* bytes_output, std::string& failure_output){
+            if(bytes_output == nullptr){
+                return true;
+            }
+            std::vector<std::uint8_t> bytes;
+            if(!read_file_chunks(path, [&](const unsigned char* data, std::size_t size){ bytes.insert(bytes.end(), data, data + size); })){
+                failure_output = "conta: cannot read " + path.string();
+                return false;
+            }
+            bytes_output->swap(bytes);
             return true;
         }
         struct Session{
@@ -883,7 +1113,7 @@ namespace conta{
             }
             return nullptr;
         }
-        inline bool try_index(Session& session, const Index& index, const std::string& sha1, const std::filesystem::path& target, std::vector<std::string>& report){
+        inline bool try_index(Session& session, const Index& index, const std::string& sha1, const std::filesystem::path& target, std::vector<std::uint8_t>* bytes_output, std::vector<std::string>& report){
             auto found = index.entries.find(sha1);
             if(found == index.entries.end()){
                 report.push_back(index.source + ": does not list it");
@@ -893,22 +1123,31 @@ namespace conta{
             if(entry.shards.empty()){
                 report.push_back(index.source + ": lists no location");
             }
-            for(const std::string& shard: entry.shards){
-                auto url_template = index.shard_urls.find(shard);
+            for(const ShardLocation& shard: entry.shards){
+                auto url_template = index.shard_urls.find(shard.id);
                 if(url_template == index.shard_urls.end()){
-                    report.push_back(index.source + ": shard " + shard + " is not in its shard table");
+                    report.push_back(index.source + ": shard " + shard.id + " is not in its shard table");
                     continue;
                 }
                 std::string url;
                 if(!shard_location(url_template->second, sha1, entry.sha256, url)){
-                    report.push_back(index.source + ": skipped shard " + shard + ", unsupported url " + url_template->second);
+                    report.push_back(index.source + ": skipped shard " + shard.id + ", unsupported url " + url_template->second);
                     continue;
+                }
+                std::string failure;
+                if(gzip_supported() && std::find(shard.compressed.begin(), shard.compressed.end(), "gz") != shard.compressed.end()){
+                    std::string gzip_url = compressed_location(url);
+                    if(session.attempted_urls.insert(gzip_url).second){
+                        if(fetch_gzip(gzip_url, sha1, entry.sha256, entry.description, target, bytes_output, failure)){
+                            return true;
+                        }
+                        report.push_back(gzip_url + ": " + failure);
+                    }
                 }
                 if(!session.attempted_urls.insert(url).second){
                     continue;
                 }
-                std::string failure;
-                if(fetch_blob(url, sha1, entry.sha256, entry.description, target, failure)){
+                if(fetch_blob(url, sha1, entry.sha256, entry.description, target, failure) && read_blob(target, bytes_output, failure)){
                     return true;
                 }
                 report.push_back(url + ": " + failure);
@@ -943,7 +1182,7 @@ namespace conta{
             std::filesystem::remove(temporary, error_code);
             return fetched;
         }
-        inline bool visit_entry_point(const Config& config, Session& session, const std::string& sha1, const std::filesystem::path& target, std::vector<std::string>& report){
+        inline bool visit_entry_point(const Config& config, Session& session, const std::string& sha1, const std::filesystem::path& target, std::vector<std::uint8_t>* bytes_output, std::vector<std::string>& report){
             const std::string& entry_point = config.entry_points[session.next_entry_point++];
             std::cerr << "conta: refreshing the index from " << entry_point << std::endl;
             std::string meta_text, failure;
@@ -999,7 +1238,7 @@ namespace conta{
                 }
             }
             session.indexes.push_back(std::move(index));
-            return try_index(session, session.indexes.back(), sha1, target, report);
+            return try_index(session, session.indexes.back(), sha1, target, bytes_output, report);
         }
         inline std::string failure_message(const Session& session, const std::string& sha1, const std::vector<std::string>& report){
             std::string message = "conta: cannot resolve " + sha1;
@@ -1024,22 +1263,62 @@ namespace conta{
 #else
         constexpr const char* CACHE_DIRECTORY_VARIABLES = "CONTA_CACHE, XDG_CACHE_HOME, or HOME";
 #endif
-        inline bool resolve_one(const Config& config, Session& session, const std::string& reference, std::string& path_output, std::string& error_output){
+        inline bool prepare_cache(const Config& config, std::string& error_output){
+            if(config.cache.empty()){
+                error_output = std::string("conta: cannot determine cache directory: set ") + CACHE_DIRECTORY_VARIABLES;
+                return false;
+            }
+            std::error_code error_code;
+            std::filesystem::create_directories(config.cache, error_code);
+            if(error_code){
+                error_output = "conta: failed to create cache directory " + config.cache + ": " + error_code.message();
+                return false;
+            }
+            return true;
+        }
+        inline bool resolve_one(const Config& config, Session& session, const std::string& reference, std::string& path_output, std::string& error_output, std::vector<std::uint8_t>* bytes_output = nullptr){
             std::string sha1;
             if(!normalize_reference(reference, sha1, error_output)){
                 return false;
             }
             if(!config.root.empty()){
                 std::filesystem::path path = std::filesystem::path(config.root) / "data" / sha1;
-                if(!std::filesystem::exists(path)){
-                    error_output = "conta: " + sha1 + " not found at " + path.string() + ". CONTA_ROOT points to a read-only store, so downloading is disabled; populate the store or unset CONTA_ROOT to enable the download cache.";
+                if(std::filesystem::exists(path)){
+                    if(is_lfs_pointer(path)){
+                        error_output = "conta: " + path.string() + " is a git-lfs pointer file, not the blob. Run \"git lfs pull\" in " + config.root + ".";
+                        return false;
+                    }
+                    path_output = path.string();
+                    return read_blob(path, bytes_output, error_output);
+                }
+                std::filesystem::path gzip_path = path;
+                gzip_path += ".gz";
+                if(!std::filesystem::exists(gzip_path)){
+                    error_output = "conta: " + sha1 + " not found at " + path.string() + " or " + gzip_path.string() + ". CONTA_ROOT points to a read-only store, so downloading is disabled; populate the store or unset CONTA_ROOT to enable the download cache.";
                     return false;
                 }
-                if(is_lfs_pointer(path)){
-                    error_output = "conta: " + path.string() + " is a git-lfs pointer file, not the blob. Run \"git lfs pull\" in " + config.root + ".";
+                if(is_lfs_pointer(gzip_path)){
+                    error_output = "conta: " + gzip_path.string() + " is a git-lfs pointer file, not the blob. Run \"git lfs pull\" in " + config.root + ".";
                     return false;
                 }
-                path_output = path.string();
+                std::filesystem::path target = std::filesystem::path(config.cache) / sha1;
+                if(!config.cache.empty() && std::filesystem::exists(target)){
+                    path_output = target.string();
+                    return read_blob(target, bytes_output, error_output);
+                }
+                if(!gzip_supported()){
+                    error_output = "conta: " + gzip_path.string() + " requires gzip decoding; build with CONTA_ENABLE_ZLIB and link zlib, or provide the plain blob in CONTA_ROOT";
+                    return false;
+                }
+                if(bytes_output == nullptr && !prepare_cache(config, error_output)){
+                    return false;
+                }
+                std::string failure;
+                if(!decode_gzip(gzip_path, sha1, "", target, bytes_output, failure)){
+                    error_output = "conta: cannot decode " + gzip_path.string() + ": " + failure;
+                    return false;
+                }
+                path_output = target.string();
                 return true;
             }
             if(config.cache.empty()){
@@ -1049,36 +1328,50 @@ namespace conta{
             std::filesystem::path target = std::filesystem::path(config.cache) / sha1;
             if(std::filesystem::exists(target)){
                 path_output = target.string();
-                return true;
+                return read_blob(target, bytes_output, error_output);
             }
-            std::error_code error_code;
-            std::filesystem::create_directories(config.cache, error_code);
-            if(error_code){
-                error_output = "conta: failed to create cache directory " + config.cache + ": " + error_code.message();
+            if(!prepare_cache(config, error_output)){
                 return false;
+            }
+            std::vector<std::string> report;
+            std::filesystem::path gzip_path = target;
+            gzip_path += ".gz";
+            if(std::filesystem::exists(gzip_path)){
+                if(config.url_base.empty() && !session.cached_index_loaded){
+                    load_cached_index(config, session);
+                }
+                const Entry* entry = find_entry(session, sha1);
+                std::string failure;
+                if(decode_gzip(gzip_path, sha1, entry == nullptr ? "" : entry->sha256, target, bytes_output, failure)){
+                    path_output = target.string();
+                    return true;
+                }
+                report.push_back(gzip_path.string() + ": " + failure);
             }
             if(!config.url_base.empty()){
                 std::string url = config.url_base + sha1;
                 std::string failure;
-                if(!fetch_blob(url, sha1, "", "", target, failure)){
+                if(!fetch_blob(url, sha1, "", "", target, failure) || !read_blob(target, bytes_output, failure)){
                     error_output = "conta: download of " + sha1 + " from " + url + " failed: " + failure;
+                    for(const std::string& line: report){
+                        error_output += "\n  " + line;
+                    }
                     return false;
                 }
                 path_output = target.string();
                 return true;
             }
-            std::vector<std::string> report;
             if(!session.cached_index_loaded){
                 load_cached_index(config, session);
             }
             for(const Index& index: session.indexes){
-                if(try_index(session, index, sha1, target, report)){
+                if(try_index(session, index, sha1, target, bytes_output, report)){
                     path_output = target.string();
                     return true;
                 }
             }
             while(session.next_entry_point < config.entry_points.size()){
-                if(visit_entry_point(config, session, sha1, target, report)){
+                if(visit_entry_point(config, session, sha1, target, bytes_output, report)){
                     path_output = target.string();
                     return true;
                 }
@@ -1094,6 +1387,19 @@ namespace conta{
             session.wanted.insert(sha1);
         }
         return detail::resolve_one(config, session, hash, path_output, error_output);
+    }
+    inline bool load(const Config& config, const std::string& hash, std::vector<std::uint8_t>& bytes_output, std::string& error_output){
+        bytes_output.clear();
+        std::string path;
+        if(!config.compressed_cache){
+            return resolve(config, hash, path, error_output) && detail::read_blob(path, &bytes_output, error_output);
+        }
+        detail::Session session;
+        std::string sha1, ignored;
+        if(detail::normalize_reference(hash, sha1, ignored)){
+            session.wanted.insert(sha1);
+        }
+        return detail::resolve_one(config, session, hash, path, error_output, &bytes_output);
     }
     inline bool resolve(const Config& config, const std::vector<std::string>& hashes, std::vector<std::string>& paths_output, std::string& error_output){
         paths_output.clear();
@@ -1116,6 +1422,8 @@ namespace conta{
     }
     inline Config config_from_environment(){
         Config config;
+        const char* compressed_cache = std::getenv("CONTA_COMPRESSED_CACHE");
+        config.compressed_cache = compressed_cache == nullptr || std::string(compressed_cache) != "0";
         const char* root = std::getenv("CONTA_ROOT");
         if(root != nullptr && root[0] != '\0'){
             config.root = root;
@@ -1152,6 +1460,9 @@ namespace conta{
     }
     inline bool resolve(const std::string& hash, std::string& path_output, std::string& error_output){
         return resolve(config_from_environment(), hash, path_output, error_output);
+    }
+    inline bool load(const std::string& hash, std::vector<std::uint8_t>& bytes_output, std::string& error_output){
+        return load(config_from_environment(), hash, bytes_output, error_output);
     }
     inline bool resolve(const std::vector<std::string>& hashes, std::vector<std::string>& paths_output, std::string& error_output){
         return resolve(config_from_environment(), hashes, paths_output, error_output);
