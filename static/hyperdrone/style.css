@@ -47,10 +47,10 @@ figcaption b { font-weight: 400; font-size: 10px; color: #859b85; padding-right:
 .view-type { color: #95a38f; font-size: 8px; letter-spacing: 1.1px; }
 canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; background: #0b0f0c; border: 1px solid var(--line); }
 .camera-frame { position: relative; }
-.camera-frame canvas { cursor: pointer; }
+.camera-frame canvas { cursor: pointer; outline: none; }
 .camera-hint { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); border: 1px solid #5b6d59; border-radius: 20px; background: #111a13d9; color: #e3f5d9; padding: 7px 15px; font-size: 11px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .15s; }
 body.ready:not(.flying) .camera-hint { opacity: 1; }
-body.flying .camera-frame canvas { cursor: none; outline: none; }
+body.flying .camera-frame canvas { cursor: none; }
 .instructions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 20px; padding: 12px 0 24px; color: var(--muted); font-size: 11px; line-height: 1.6; }
 .instructions p { margin: 0; }
 kbd { display: inline-block; font: inherit; font-size: 10px; min-width: 20px; padding: 1px 5px; border: 1px solid #3b483d; border-radius: 3px; text-align: center; margin-right: 3px; color: #d2ded0; }
