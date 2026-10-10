@@ -107,6 +107,16 @@
             </div>
             <p class="tuning-description">Higher yaw limits allow sharper turns but can destabilize the drone.</p>
             <div class="tuning-control">
+                <label for="position-offset">Position offset <output id="position-offset-value" for="position-offset"></output></label>
+                <input id="position-offset" type="range" min="0" max="1" step="0.05" value="0.3" aria-describedby="position-offset-help">
+                <p id="position-offset-help">WASD target distance from the current position.</p>
+            </div>
+            <div class="tuning-control">
+                <label for="velocity-target">Linear velocity target <output id="velocity-target-value" for="velocity-target"></output></label>
+                <input id="velocity-target" type="range" min="0" max="2" step="0.05" value="0.7" aria-describedby="velocity-target-help">
+                <p id="velocity-target-help">Requested horizontal speed while holding WASD.</p>
+            </div>
+            <div class="tuning-control">
                 <label for="yaw-rate-limit">Yaw target rate <output id="yaw-rate-value" for="yaw-rate-limit"></output></label>
                 <input id="yaw-rate-limit" type="range" min="5" max="360" step="1" value="180" aria-describedby="yaw-rate-help">
                 <p id="yaw-rate-help">Maximum speed of the requested heading.</p>

@@ -37,8 +37,6 @@ namespace rl_tools::rl::environments::hyperdrone::web {
     using PILOT = Raptor<raptor::Specification<TYPE_POLICY, TI, 1>>;
     constexpr TI PIXELS = Config::CAM_WIDTH * Config::CAM_HEIGHT;
     constexpr TI VIEWS = 6;
-    constexpr T POSITION_OFFSET = 0.5;
-    constexpr T VELOCITY_OFFSET = 0.6;
     constexpr T DEPTH_DISPLAY_METERS = 10;
     constexpr T FLOW_DISPLAY_PIXELS = 20;
     constexpr double FRAME_PERIOD = 0.04;
@@ -52,6 +50,8 @@ namespace rl_tools::rl::environments::hyperdrone::web {
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1, 4>>> actions;
         Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, 1>>> reset_mask;
         raptor::Target<T> target;
+        T position_offset = 0.3;
+        T velocity_target = 0.7;
         T yaw_rate_limit = PILOT::SPEC::YAW_RATE_LIMIT;
         T yaw_error_limit = PILOT::SPEC::YAW_ERROR_LIMIT;
         T previous_actions[4] = {};
@@ -183,8 +183,8 @@ namespace rl_tools {
             const T c = math::cos(device.math, heading), s = math::sin(device.math, heading);
             const T direction[2] = {(c * forward - s * left) * scale, (s * forward + c * left) * scale};
             for(TI dim = 0; dim < 2; dim++) {
-                state.target.position[dim] = physical.position[dim] + POSITION_OFFSET * direction[dim];
-                state.target.linear_velocity[dim] = VELOCITY_OFFSET * direction[dim];
+                state.target.position[dim] = physical.position[dim] + state.position_offset * direction[dim];
+                state.target.linear_velocity[dim] = state.velocity_target * direction[dim];
             }
         } else {
             for(TI dim = 0; dim < 2; dim++) {
@@ -260,10 +260,10 @@ static void status(const char* message) {
         }
     }, message);
 }
-static void read_input(float input[7]) {
+static void read_input(float input[9]) {
     EM_ASM({
         const input = Module.rlt_input();
-        for(let i = 0; i < 7; i++) {
+        for(let i = 0; i < 9; i++) {
             HEAPF32[($0 >> 2) + i] = input[i];
         }
     }, input);
@@ -298,10 +298,12 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
     double accumulator = 0;
     bool was_active = false;
     for(int frame = 0; max_frames <= 0 || frame < max_frames;) {
-        float input[7] = {};
+        float input[9] = {};
         read_input(input);
         state.yaw_rate_limit = input[5];
         state.yaw_error_limit = input[6];
+        state.position_offset = input[7];
+        state.velocity_target = input[8];
         const bool active = max_frames > 0 || input[4] != 0;
         if(input[3] != 0) {
             reset(device, state);
