@@ -179,6 +179,31 @@ TEST(RL_ENVIRONMENTS_HYPERDRONE_RAPTOR, YawInputLimitsAndRelease) {
     }
 }
 
+TEST(RL_ENVIRONMENTS_HYPERDRONE_RAPTOR, RuntimeYawLimits) {
+    DEVICE device;
+    PILOT policy;
+    constexpr T dt = T(0.01);
+    for (T direction : {T(-1), T(1)}) {
+        const T yaw = direction * (rlt::math::PI<T> - T(0.005));
+        RaptorObservationState state;
+        state.orientation[0] = std::cos(yaw / 2);
+        state.orientation[3] = std::sin(yaw / 2);
+        hd::raptor::Target<T> target;
+        target.yaw = yaw;
+        update_yaw_target(device, policy, state, target, direction * T(100), dt, T(3), T(0.6));
+        EXPECT_NEAR(std::atan2(std::sin(target.yaw - yaw), std::cos(target.yaw - yaw)), direction * T(0.03), 1e-6);
+        for (TI step_i = 0; step_i < 100; step_i++) {
+            update_yaw_target(device, policy, state, target, direction * T(100), dt, T(3), T(0.6));
+        }
+        EXPECT_NEAR(std::atan2(std::sin(target.yaw - yaw), std::cos(target.yaw - yaw)), direction * T(0.6), 1e-6);
+        update_yaw_target(device, policy, state, target, T(0), dt, T(0.2), T(0.1));
+        EXPECT_NEAR(std::atan2(std::sin(target.yaw - yaw), std::cos(target.yaw - yaw)), direction * T(0.1), 1e-6);
+        const T before = target.yaw;
+        update_yaw_target(device, policy, state, target, -direction * T(100), dt, T(0.2), T(0.1));
+        EXPECT_NEAR(std::atan2(std::sin(target.yaw - before), std::cos(target.yaw - before)), -direction * T(0.002), 1e-6);
+    }
+}
+
 namespace {
     namespace l2f = rlt::rl::environments::l2f;
     using FLIGHT_CONFIG = hd::presets::x500_fpv::DynamicsStaticParameters<T, TI>;
