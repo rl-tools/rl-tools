@@ -262,18 +262,18 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, TARGET_FRAME_BANK_CARRIES_THE_D
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             const auto& setup = rlt::get_ref(device, world.setups, instance_i);
             ASSERT_LT(setup.agents[0].drone, table.drones.size());
-            EXPECT_EQ(setup.agents[0].camera.fov, table.drones[setup.agents[0].drone].parameters.camera.fov);
+            EXPECT_EQ(setup.agents[0].cameras[0].fov, table.drones[setup.agents[0].drone].parameters.cameras[0].fov);
             EXPECT_EQ(rendered_mesh(world, 0, instance_i), shared.drone_bodies[setup.agents[0].drone].mesh) << "the bank renders setup " << instance_i << "'s drone";
             const auto& actual = rlt::get_ref(device, parameters, instance_i);
             if(instance_i % 2 == 0){
                 EXPECT_EQ(actual.agents[0].drone, before[instance_i].agents[0].drone);
                 EXPECT_EQ(actual.agents[0].dynamics.dynamics.mass, before[instance_i].agents[0].dynamics.dynamics.mass);
-                EXPECT_EQ(actual.agents[0].camera.fov, before[instance_i].agents[0].camera.fov);
+                EXPECT_EQ(actual.agents[0].cameras[0].fov, before[instance_i].agents[0].cameras[0].fov);
             }
             else{
                 const auto& adopted = rlt::get_ref(device, world.setups, rlt::get(device, world.setup_index, instance_i));
                 EXPECT_EQ(actual.agents[0].drone, adopted.agents[0].drone);
-                EXPECT_EQ(actual.agents[0].camera.fov, adopted.agents[0].camera.fov);
+                EXPECT_EQ(actual.agents[0].cameras[0].fov, adopted.agents[0].cameras[0].fov);
                 EXPECT_EQ(actual.agents[0].dynamics.dynamics.mass, table.drones[actual.agents[0].drone].parameters.dynamics.dynamics.mass);
                 counts[actual.agents[0].drone]++;
             }
@@ -360,7 +360,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, DEDUPLICATES_ASSEMBLY_CONTENT){
     EXPECT_EQ(shared.drone_bodies[1].mesh, 0);
     EXPECT_EQ(shared.drone_meshes.size(), 1);
     EXPECT_EQ(shared.library.pool.assemblies.size(), 1);
-    EXPECT_NE(shared.drones[0].parameters.camera.fov, shared.drones[1].parameters.camera.fov);
+    EXPECT_NE(shared.drones[0].parameters.cameras[0].fov, shared.drones[1].parameters.cameras[0].fov);
     rlt::free(device, shared.library);
 }
 
@@ -382,7 +382,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, SAMPLING_COVERS_TABLE_AND_APPLI
                 const auto& nominal = table.drones[instance_parameters.agents[0].drone].parameters;
                 EXPECT_EQ(instance_parameters.agents[0].dynamics.dynamics.mass, nominal.dynamics.dynamics.mass);
                 EXPECT_EQ(instance_parameters.agents[0].dynamics.dynamics.rotor_positions[1][1], nominal.dynamics.dynamics.rotor_positions[1][1]);
-                EXPECT_EQ(instance_parameters.agents[0].camera.fov, nominal.camera.fov);
+                EXPECT_EQ(instance_parameters.agents[0].cameras[0].fov, nominal.cameras[0].fov);
             }
         }
         for(TI drone_i = 0; drone_i < table.drones.size(); drone_i++){
@@ -398,7 +398,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, SAMPLING_COVERS_TABLE_AND_APPLI
             for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
                 const auto instance_parameters = rlt::get(harness.device, harness.parameters, instance_i);
                 EXPECT_EQ(instance_parameters.agents[0].drone, 0);
-                EXPECT_EQ(instance_parameters.agents[0].camera.fov, 70);
+                EXPECT_EQ(instance_parameters.agents[0].cameras[0].fov, 70);
                 EXPECT_EQ(instance_parameters.agents[0].dynamics.dynamics.mass, (l2f::parameters::dynamics::registry<REGISTRY::arpl, PARAMETERS_SPEC>).mass);
             }
         }
@@ -415,7 +415,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, RENDER_SWAPS_BODIES_PER_INSTANC
     harness.init(table.drones);
     EXPECT_EQ(harness.world.num_drones, table.drones.size());
     EXPECT_EQ(harness.world.dynamics.parameters.dynamics.mass, table.drones[0].parameters.dynamics.dynamics.mass);
-    EXPECT_EQ(harness.world.parameters.agents[0].camera.fov, table.drones[0].parameters.camera.fov);
+    EXPECT_EQ(harness.world.parameters.agents[0].cameras[0].fov, table.drones[0].parameters.cameras[0].fov);
     EXPECT_TRUE(harness.world.entity_kinds.empty());
     harness.check_placements({0, 0, 0, 0});
     harness.reset();

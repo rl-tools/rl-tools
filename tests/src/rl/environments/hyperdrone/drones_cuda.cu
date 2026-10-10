@@ -101,17 +101,17 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES_CUDA, TARGET_FRAME_BANK_CARRIES_
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             const auto& setup = rlt::get_ref(device, setups, instance_i);
             ASSERT_LT(setup.agents[0].drone, table.drones.size());
-            EXPECT_EQ(setup.agents[0].camera.fov, table.drones[setup.agents[0].drone].parameters.camera.fov);
+            EXPECT_EQ(setup.agents[0].cameras[0].fov, table.drones[setup.agents[0].drone].parameters.cameras[0].fov);
             const auto& actual = rlt::get_ref(device, parameters, instance_i);
             if(instance_i % 2 == 0){
                 EXPECT_EQ(actual.agents[0].drone, before[instance_i].agents[0].drone);
                 EXPECT_EQ(actual.agents[0].dynamics.dynamics.mass, before[instance_i].agents[0].dynamics.dynamics.mass);
-                EXPECT_EQ(actual.agents[0].camera.fov, before[instance_i].agents[0].camera.fov);
+                EXPECT_EQ(actual.agents[0].cameras[0].fov, before[instance_i].agents[0].cameras[0].fov);
             }
             else{
                 const auto& adopted = rlt::get_ref(device, setups, rlt::get(device, setup_index, instance_i));
                 EXPECT_EQ(actual.agents[0].drone, adopted.agents[0].drone);
-                EXPECT_EQ(actual.agents[0].camera.fov, adopted.agents[0].camera.fov);
+                EXPECT_EQ(actual.agents[0].cameras[0].fov, adopted.agents[0].cameras[0].fov);
                 EXPECT_EQ(actual.agents[0].dynamics.dynamics.mass, table.drones[actual.agents[0].drone].parameters.dynamics.dynamics.mass);
                 counts[actual.agents[0].drone]++;
             }
@@ -190,7 +190,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES_CUDA, SAMPLE_AND_RENDER_MATCH_CP
             counts[instance_parameters.agents[0].drone]++;
             const auto& nominal = shared.drones[instance_parameters.agents[0].drone].parameters;
             EXPECT_EQ(instance_parameters.agents[0].dynamics.dynamics.mass, nominal.dynamics.dynamics.mass);
-            EXPECT_EQ(instance_parameters.agents[0].camera.fov, nominal.camera.fov);
+            EXPECT_EQ(instance_parameters.agents[0].cameras[0].fov, nominal.cameras[0].fov);
         }
     }
     for(TI drone_i = 0; drone_i < 4; drone_i++){

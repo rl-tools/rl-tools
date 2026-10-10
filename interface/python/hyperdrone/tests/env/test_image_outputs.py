@@ -15,6 +15,7 @@ CONFIG = EnvConfig(instances=2, cam_width=16, cam_height=16, shading="low", outp
 def test_environment_output_config():
     assert CONFIG.key() == replace(CONFIG, output=tuple(reversed(OUTPUTS))).key()
     assert CONFIG.key() != replace(CONFIG, output="rgb").key()
+    assert CONFIG.key() != replace(CONFIG, n_cameras_per_agent=2).key()
     with pytest.raises(ValueError, match="require rgb"):
         replace(CONFIG, output="depth")
     with pytest.raises(ValueError, match="segmentation"):
@@ -22,11 +23,12 @@ def test_environment_output_config():
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("task", [None, "target_frame"])
-def test_environment_capture_and_partial_reset(scene_directory, device, task):
+@pytest.mark.parametrize("task,cameras", [(None, 1), (None, 2), ("target_frame", 1)])
+def test_environment_capture_and_partial_reset(scene_directory, device, task, cameras):
     if device == "cuda" and render._backend() != "OPTIX":
         pytest.skip("CUDA Worlds require OptiX")
-    env = MultiEnvironment(scene_directory, config=replace(CONFIG, device=device, task=task), seed=9)
+    parameters = {"cameras": [{}] + [{"fov": 100, "mount": {"pose": {"position": [0.1, 0.1, 0.1]}}}] * (cameras - 1)}
+    env = MultiEnvironment(scene_directory, config=replace(CONFIG, device=device, task=task, n_cameras_per_agent=cameras), parameters=parameters, seed=9)
     try:
         env.reset()
         env.render()
@@ -42,7 +44,7 @@ def test_environment_capture_and_partial_reset(scene_directory, device, task):
                                       ("flow_status", 1, np.uint32)):
             accessor = getattr(env, name)
             value = accessor()
-            assert value.shape == (2, 1, 16, 16) + ((channels,) if channels > 1 else ())
+            assert value.shape == (2, cameras, 16, 16) + ((channels,) if channels > 1 else ())
             assert value.dtype == dtype
             out = np.empty_like(value)
             assert accessor(out=out) is out
@@ -51,6 +53,9 @@ def test_environment_capture_and_partial_reset(scene_directory, device, task):
                 accessor(out=out.reshape(-1))
             with pytest.raises(TypeError):
                 accessor(out=out.astype(np.float64))
+            if cameras > 1:
+                with pytest.raises(ValueError, match="buffer size"):
+                    accessor(out=out[:, :1].copy())
         actions = np.zeros((2, env.action_dim), dtype=np.float32)
         for _ in range(15):
             env.step(actions)
@@ -95,7 +100,7 @@ def test_environment_cuda_image_outputs(scene_directory):
     torch = pytest.importorskip("torch")
     if not torch.cuda.is_available():
         pytest.skip("PyTorch needs CUDA")
-    env = MultiEnvironment([scene_directory / "ProcTHOR-Train-1.glb"] * 2, config=replace(CONFIG, num_environments=2, device="cuda"), seed=3)
+    env = MultiEnvironment([scene_directory / "ProcTHOR-Train-1.glb"] * 2, config=replace(CONFIG, num_environments=2, n_cameras_per_agent=2, device="cuda"), seed=3)
     try:
         env.reset()
         env.render()
@@ -127,6 +132,7 @@ def test_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, semanti
     source = (Path(__file__).parent / "user_spec_header.h").read_text()
     source = source.replace("        static constexpr TI MAX_DRONES = 3;", f"""
         static constexpr TI N_AGENTS = 2;
+        static constexpr TI N_CAMERAS_PER_AGENT = 2;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 16;
         static constexpr bool ENABLE_MOTION_BLUR = true;
         static constexpr TI MOTION_BLUR_SAMPLES = 2;
@@ -143,9 +149,10 @@ def test_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, semanti
     try:
         assert env.outputs == OUTPUTS
         assert env.segmentation_mode == ("semantic" if semantic else "instance")
+        assert (env.n_agents, env.n_cameras_per_agent, env.n_views) == (2, 2, 4)
         env.reset()
         env.render()
-        assert env.flow().shape == (2, 2, 16, 16, 2)
+        assert env.flow().shape == (2, 4, 16, 16, 2)
         np.testing.assert_allclose(env.flow(), 0, atol=1e-3)
         for _ in range(5):
             env.step(np.ones((2, env.action_dim), dtype=np.float32))
@@ -159,13 +166,15 @@ def test_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, semanti
         env.close()
 
 
-def test_flow_between_intermittent_captures(scene_directory):
-    config = replace(CONFIG, preset="x500_fpv_imu", task="visual_inertial_localization", device="cpu")
+@pytest.mark.parametrize("cameras", [1, 2])
+def test_flow_between_intermittent_captures(scene_directory, cameras):
+    config = replace(CONFIG, preset="x500_fpv_imu", task="visual_inertial_localization", device="cpu", n_cameras_per_agent=cameras)
     env = MultiEnvironment(scene_directory, config=config, seed=5)
     try:
         env.reset()
         env.render()
         captured = env.flow()
+        assert captured.shape == (2, cameras, 16, 16, 2)
         for step in range(1, env.frame_stride * 3 + 1):
             env.step()
             env.render()
