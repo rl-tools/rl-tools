@@ -568,10 +568,29 @@ namespace rl_tools {
                 return entry;
             };
             using CONSTANTS = rendering::raytracing::backends::SpecializationConstants<SPEC>;
-            const WGPUConstantEntry constants[] = {
+            // Safari rejects overrides outside the entry point's statically accessed set.
+            const std::vector<WGPUConstantEntry> collision_constants = {
+                constant("fc_overlay_count", (double)CONSTANTS::OVERLAY_COUNT),
+                constant("fc_num_overlays", (double)CONSTANTS::NUM_OVERLAYS),
+                constant("fc_overlay_capacity", (double)CONSTANTS::OVERLAY_CAPACITY),
+            };
+            auto flow_constants = collision_constants;
+            flow_constants.insert(flow_constants.end(), {
+                constant("fc_motion_samples", (double)CONSTANTS::MOTION_SAMPLES),
+                constant("fc_dynamic_motion_blur", CONSTANTS::DYNAMIC_MOTION_BLUR ? 1.0 : 0.0),
+            });
+            auto auxiliary_constants = flow_constants;
+            auxiliary_constants.insert(auxiliary_constants.end(), {
+                constant("fc_semantic_segmentation", CONSTANTS::SEMANTIC_SEGMENTATION ? 1.0 : 0.0),
+                constant("fc_has_depth", SPEC::HAS_DEPTH ? 1.0 : 0.0),
+                constant("fc_has_segmentation", SPEC::HAS_SEGMENTATION ? 1.0 : 0.0),
+                constant("fc_has_normals", SPEC::HAS_NORMALS ? 1.0 : 0.0),
+                constant("fc_has_flow", SPEC::HAS_FLOW ? 1.0 : 0.0),
+            });
+            auto rgb_constants = auxiliary_constants;
+            rgb_constants.insert(rgb_constants.end(), {
                 constant("fc_srgb_output", CONSTANTS::SRGB_OUTPUT ? 1.0 : 0.0),
                 constant("fc_motion_blur", CONSTANTS::MOTION_BLUR ? 1.0 : 0.0),
-                constant("fc_motion_samples", (double)CONSTANTS::MOTION_SAMPLES),
                 constant("fc_aa_grid", (double)CONSTANTS::AA_GRID),
                 constant("fc_checker_background", CONSTANTS::CHECKER_BACKGROUND ? 1.0 : 0.0),
                 constant("fc_load_textures", CONSTANTS::LOAD_TEXTURES ? 1.0 : 0.0),
@@ -579,40 +598,31 @@ namespace rl_tools {
                 constant("fc_metallic_reflections", CONSTANTS::METALLIC_REFLECTIONS ? 1.0 : 0.0),
                 constant("fc_pbr_shading", CONSTANTS::PBR_SHADING ? 1.0 : 0.0),
                 constant("fc_punctual_light_shadows", CONSTANTS::PUNCTUAL_LIGHT_SHADOWS ? 1.0 : 0.0),
-                constant("fc_overlay_count", (double)CONSTANTS::OVERLAY_COUNT),
-                constant("fc_semantic_segmentation", CONSTANTS::SEMANTIC_SEGMENTATION ? 1.0 : 0.0),
                 constant("fc_has_observation", CONSTANTS::HAS_OBSERVATION ? 1.0 : 0.0),
-                constant("fc_has_depth", SPEC::HAS_DEPTH ? 1.0 : 0.0),
-                constant("fc_has_segmentation", SPEC::HAS_SEGMENTATION ? 1.0 : 0.0),
-                constant("fc_has_normals", SPEC::HAS_NORMALS ? 1.0 : 0.0),
-                constant("fc_has_flow", SPEC::HAS_FLOW ? 1.0 : 0.0),
                 constant("fc_fuse_auxiliary", wg::FUSE_AUXILIARY<SPEC> ? 1.0 : 0.0),
-                constant("fc_dynamic_motion_blur", CONSTANTS::DYNAMIC_MOTION_BLUR ? 1.0 : 0.0),
-                constant("fc_num_overlays", (double)CONSTANTS::NUM_OVERLAYS),
-                constant("fc_overlay_capacity", (double)CONSTANTS::OVERLAY_CAPACITY),
-            };
-            auto make_pipeline = [&](const char* entry_point) -> WGPUComputePipeline {
+            });
+            auto make_pipeline = [&](const char* entry_point, const std::vector<WGPUConstantEntry>& constants) -> WGPUComputePipeline {
                 WGPUComputePipelineDescriptor descriptor{};
                 descriptor.layout = ctx->pipeline_layout;
                 descriptor.compute.module = ctx->module;
                 descriptor.compute.entryPoint = wg::string_view(entry_point);
-                descriptor.compute.constantCount = sizeof(constants) / sizeof(constants[0]);
-                descriptor.compute.constants = constants;
+                descriptor.compute.constantCount = constants.size();
+                descriptor.compute.constants = constants.data();
                 WGPUComputePipeline pipeline = wgpuDeviceCreateComputePipeline(ctx->device, &descriptor);
                 utils::assert_exit(device, pipeline != nullptr, "WebGPU: compute pipeline creation failed");
                 return pipeline;
             };
             if constexpr (SPEC::HAS_RGB) {
-                ctx->rgb_pipeline = make_pipeline("main_rgb");
+                ctx->rgb_pipeline = make_pipeline("main_rgb", rgb_constants);
             }
             if constexpr ((SPEC::HAS_DEPTH || SPEC::HAS_SEGMENTATION || SPEC::HAS_NORMALS || SPEC::HAS_FLOW) && !wg::FUSE_AUXILIARY<SPEC>) {
-                ctx->auxiliary_pipeline = make_pipeline("main_auxiliary");
+                ctx->auxiliary_pipeline = make_pipeline("main_auxiliary", auxiliary_constants);
             }
             if constexpr (SPEC::HAS_FLOW_FORWARD) {
-                ctx->flow_forward_pipeline = make_pipeline("main_flow_forward");
+                ctx->flow_forward_pipeline = make_pipeline("main_flow_forward", flow_constants);
             }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-            ctx->collision_pipeline = make_pipeline("main_collision");
+            ctx->collision_pipeline = make_pipeline("main_collision", collision_constants);
 #endif
             ctx->pipelines_built = true;
         }

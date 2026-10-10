@@ -6,6 +6,14 @@
     },
     "drones": [
         {
+            "name": "arpl",
+            "label": "ARPL",
+            "description": "rigged/arpl.glb",
+            "reference": "conta:8398a239fd1cd80df8adab67497baf7be3d8cda4",
+            "sha256": "54e403e38a686cbe2c4fe960a9bb546de2832a25202296a3ce89a57695009880",
+            "dynamics_index": 3
+        },
+        {
             "name": "crazyflie",
             "label": "Crazyflie",
             "description": "rigged/crazyflie.glb",
@@ -28,14 +36,6 @@
             "reference": "conta:fd4eddc7c4a3f74e51823a2fa392bb96e095e53e",
             "sha256": "04f36a664390a8ceb576f4a2afd437a75f5a894d742c3f5f6d0171a3da97c99f",
             "dynamics_index": 0
-        },
-        {
-            "name": "arpl",
-            "label": "ARPL",
-            "description": "rigged/arpl.glb",
-            "reference": "conta:8398a239fd1cd80df8adab67497baf7be3d8cda4",
-            "sha256": "54e403e38a686cbe2c4fe960a9bb546de2832a25202296a3ce89a57695009880",
-            "dynamics_index": 3
         },
         {
             "name": "x500",

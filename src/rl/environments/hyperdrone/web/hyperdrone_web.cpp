@@ -306,6 +306,10 @@ static void present(web::DEVICE& device, const web::State& state, const web::Buf
         position[0], position[1], position[2], orientation[0], orientation[1], orientation[2], orientation[3]);
 }
 
+extern "C" EMSCRIPTEN_KEEPALIVE int demo_api_version() {
+    return 1;
+}
+
 extern "C" EMSCRIPTEN_KEEPALIVE const char* demo_scenes() {
     static const std::string catalog = [] {
         auto scenes = nlohmann::json::array();
