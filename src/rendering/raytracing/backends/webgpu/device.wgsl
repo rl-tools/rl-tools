@@ -1,6 +1,6 @@
 // WebGPU device programs for the RLtools raytracing renderer: one module, one entry point per
-// output (main_rgb / main_depth / main_resolve / main_collision / main_segmentation /
-// main_normals / main_flow / main_flow_forward). This file is a function-for-function mirror of
+// output group (main_rgb / main_auxiliary / main_resolve / main_collision / main_flow_forward).
+// The auxiliary outputs share their shutter-close pixel-center hit. Shading mirrors
 // backends/vulkan/device.comp (which mirrors backends/metal/device.metal and
 // backends/optix/device_impl.h) — keep the shading logic in sync; the golden-image parity suite
 // is the drift detector. Standard WebGPU has no ray query, so the hardware traversal is replaced
@@ -23,6 +23,10 @@ override fc_punctual_light_shadows: bool = false;
 override fc_overlay_count: i32 = 0;
 override fc_semantic_segmentation: bool = false;
 override fc_has_observation: bool = false;
+override fc_has_depth: bool = false;
+override fc_has_segmentation: bool = false;
+override fc_has_normals: bool = false;
+override fc_has_flow: bool = false;
 // dynamic motion blur: the motion loop runs at submit level (one dispatch per sample against a
 // per-sample overlay BVH region); each pass reads its shutter time and overlay region from the
 // dynamic-offset uniform and adds its linear mean into the accumulation buffers, resolved by
@@ -396,7 +400,7 @@ fn intersect_aabb_distance(node: BVHNode, origin: vec3<f32>, inv_direction: vec3
 // unnormalized direction, so hit.t stays parameterized in world units and is comparable
 // across instances. Ordered: both children are tested at the parent and the nearer subtree is
 // descended first, so the best.t cull prunes the far subtree early.
-fn intersect_blas_closest(instance_index: u32, origin_in: vec3<f32>, direction_in: vec3<f32>, t_min: f32, best: ptr<function, Hit>){
+fn intersect_blas_closest(instance_index: u32, origin_in: vec3<f32>, direction_in: vec3<f32>, inv_direction_in: vec3<f32>, t_min: f32, best: ptr<function, Hit>){
     // per-field loads: identity instances skip the 96-byte matrix load entirely
     let object = instance_data[instance_index].object;
     let record_base = params.object_records_offset + 4u * object;
@@ -406,12 +410,13 @@ fn intersect_blas_closest(instance_index: u32, origin_in: vec3<f32>, direction_i
     if(node_count == 0u){ return; }
     var origin = origin_in;
     var direction = direction_in;
+    var inv_direction = inv_direction_in;
     if(instance_data[instance_index].identity == 0u){
         let world_to_object = instance_data[instance_index].world_to_object;
         origin = transform_point(world_to_object, origin_in);
         direction = transform_vector(world_to_object, direction_in);
+        inv_direction = safe_inverse(direction);
     }
-    let inv_direction = safe_inverse(direction);
     if(intersect_aabb_distance(bvh_nodes[node_base], origin, inv_direction, t_min, (*best).t) >= (*best).t){ return; }
     var stack: array<u32, TRAVERSAL_STACK_SIZE>;
     var stack_pointer = 0u;
@@ -469,7 +474,7 @@ fn traverse_scene_tlas_closest(origin: vec3<f32>, direction: vec3<f32>, t_min: f
         if(count > 0u){
             for(var i = 0u; i < count; i++){
                 let instance_index = geometry_u32(params.tlas_primitive_offset + left_or_first + i);
-                intersect_blas_closest(instance_index, origin, direction, t_min, best);
+                intersect_blas_closest(instance_index, origin, direction, inv_direction, t_min, best);
             }
         }
         else{
@@ -518,7 +523,7 @@ fn traverse_overlay_tlas_closest(region: u32, overlay: u32, origin: vec3<f32>, d
         if(count > 0u){
             for(var i = 0u; i < count; i++){
                 let instance_index = frame_u32(primitive_base + left_or_first + i);
-                intersect_blas_closest(instance_index, origin, direction, t_min, best);
+                intersect_blas_closest(instance_index, origin, direction, inv_direction, t_min, best);
             }
         }
         else{
@@ -549,7 +554,7 @@ fn traverse_overlay_tlas_closest(region: u32, overlay: u32, origin: vec3<f32>, d
     }
 }
 
-fn intersect_blas_any(instance_index: u32, origin_in: vec3<f32>, direction_in: vec3<f32>, t_min: f32, t_max: f32) -> bool{
+fn intersect_blas_any(instance_index: u32, origin_in: vec3<f32>, direction_in: vec3<f32>, inv_direction_in: vec3<f32>, t_min: f32, t_max: f32) -> bool{
     let object = instance_data[instance_index].object;
     let record_base = params.object_records_offset + 4u * object;
     let node_base = geometry_u32(record_base);
@@ -558,12 +563,13 @@ fn intersect_blas_any(instance_index: u32, origin_in: vec3<f32>, direction_in: v
     if(node_count == 0u){ return false; }
     var origin = origin_in;
     var direction = direction_in;
+    var inv_direction = inv_direction_in;
     if(instance_data[instance_index].identity == 0u){
         let world_to_object = instance_data[instance_index].world_to_object;
         origin = transform_point(world_to_object, origin_in);
         direction = transform_vector(world_to_object, direction_in);
+        inv_direction = safe_inverse(direction);
     }
-    let inv_direction = safe_inverse(direction);
     var stack: array<u32, TRAVERSAL_STACK_SIZE>;
     var stack_pointer = 0u;
     stack[stack_pointer] = 0u;
@@ -609,7 +615,7 @@ fn traverse_scene_tlas_any(origin: vec3<f32>, direction: vec3<f32>, t_min: f32, 
         if(count > 0u){
             for(var i = 0u; i < count; i++){
                 let instance_index = geometry_u32(params.tlas_primitive_offset + left_or_first + i);
-                if(intersect_blas_any(instance_index, origin, direction, t_min, t_max)){ return true; }
+                if(intersect_blas_any(instance_index, origin, direction, inv_direction, t_min, t_max)){ return true; }
             }
         }
         else{
@@ -644,7 +650,7 @@ fn traverse_overlay_tlas_any(region: u32, overlay: u32, origin: vec3<f32>, direc
         if(count > 0u){
             for(var i = 0u; i < count; i++){
                 let instance_index = frame_u32(primitive_base + left_or_first + i);
-                if(intersect_blas_any(instance_index, origin, direction, t_min, t_max)){ return true; }
+                if(intersect_blas_any(instance_index, origin, direction, inv_direction, t_min, t_max)){ return true; }
             }
         }
         else{
@@ -1175,25 +1181,6 @@ fn main_rgb(@builtin(global_invocation_id) global_id: vec3<u32>){
     }
 }
 
-@compute @workgroup_size(8, 4, 1)
-fn main_depth(@builtin(global_invocation_id) global_id: vec3<u32>){
-    let ctx = pixel_launch_context(global_id.xy);
-    if(!ctx.valid){
-        return;
-    }
-    let cam = camera_close(ctx.cam_idx);
-    let screen = (vec2<f32>(f32(ctx.local_x), f32(ctx.local_y)) + vec2<f32>(0.5)) / vec2<f32>(f32(params.cam_width), f32(params.cam_height));
-    let direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
-    let normal = normalize(cross(camera_dir_du(cam), camera_dir_dv(cam)));
-    let hit = trace_closest_composed(ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30);
-    if(hit.valid){
-        out_set_f32(params.out_depth + u32(ctx.fb_offset), hit.t * abs(dot(direction, normal)));
-    }
-    else{
-        outputs[params.out_depth + u32(ctx.fb_offset)] = 0x7f800000u;
-    }
-}
-
 // divides the accumulated linear radiance by the sample count and writes the declared outputs
 // with the same transfer curve + quantization as the single-dispatch path
 @compute @workgroup_size(8, 4, 1)
@@ -1263,58 +1250,7 @@ fn main_collision(@builtin(global_invocation_id) global_id: vec3<u32>){
     }
 }
 
-// single-sample by design: instance labels cannot be averaged, so anti-aliasing and motion
-// blur do not apply (shutter-close camera, pixel-center ray)
-@compute @workgroup_size(8, 4, 1)
-fn main_segmentation(@builtin(global_invocation_id) global_id: vec3<u32>){
-    let pixel_id = global_id.xy;
-    let ctx = pixel_launch_context(pixel_id);
-    if(!ctx.valid){
-        return;
-    }
-    let cam = camera_close(ctx.cam_idx);
-    let screen = (vec2<f32>(f32(ctx.local_x), f32(ctx.local_y)) + vec2<f32>(0.5, 0.5)) / vec2<f32>(f32(params.cam_width), f32(params.cam_height));
-    let direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
-    let hit = trace_closest_composed(ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30);
-    var value = ABSENT;
-    if(hit.valid){
-        value = select(hit.instance, geometry_u32(params.instance_classes_offset + hit.instance), fc_semantic_segmentation);
-    }
-    outputs[params.out_segmentation + u32(ctx.fb_offset)] = value;
-}
 
-// single-sample by design: unit normals cannot be averaged, so anti-aliasing and motion blur
-// do not apply (shutter-close camera, pixel-center ray); world-frame geometric normal,
-// oriented against the ray, zero on miss
-@compute @workgroup_size(8, 4, 1)
-fn main_normals(@builtin(global_invocation_id) global_id: vec3<u32>){
-    let pixel_id = global_id.xy;
-    let ctx = pixel_launch_context(pixel_id);
-    if(!ctx.valid){
-        return;
-    }
-    let cam = camera_close(ctx.cam_idx);
-    let screen = (vec2<f32>(f32(ctx.local_x), f32(ctx.local_y)) + vec2<f32>(0.5, 0.5)) / vec2<f32>(f32(params.cam_width), f32(params.cam_height));
-    let direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
-    let hit = trace_closest_composed(ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30);
-    var normal = vec3<f32>(0.0);
-    if(hit.valid){
-        var vertices = triangle_vertices(hit.triangle);
-        if(instance_data[hit.instance].identity == 0u){
-            let object_to_world = instance_data[hit.instance].object_to_world;
-            vertices[0] = transform_point(object_to_world, vertices[0]);
-            vertices[1] = transform_point(object_to_world, vertices[1]);
-            vertices[2] = transform_point(object_to_world, vertices[2]);
-        }
-        normal = normalize(cross(vertices[1] - vertices[0], vertices[2] - vertices[0]));
-        if(dot(direction, normal) > 0.0){
-            normal = -normal;
-        }
-    }
-    out_set_f32(params.out_normals + u32(ctx.fb_offset * 3 + 0), normal.x);
-    out_set_f32(params.out_normals + u32(ctx.fb_offset * 3 + 1), normal.y);
-    out_set_f32(params.out_normals + u32(ctx.fb_offset * 3 + 2), normal.z);
-}
 
 fn apply_flow_delta(base_in: u32, p: vec3<f32>) -> vec3<f32>{
     let base = params.flow_deltas_offset + base_in;
@@ -1359,25 +1295,19 @@ const FLOW_VISIBILITY_EPSILON: f32 = 1e-4;
 // camera, and tested for visibility from the target camera against the target instant with the
 // relative margin FLOW_VISIBILITY_EPSILON. Status priority MISS, BEHIND, OUT_OF_FRAME, OCCLUDED,
 // VALID; the vector is zero for MISS and BEHIND and the geometric flow otherwise
-fn flow_pixel(source_previous: bool, out_flow: u32, out_status: u32, ctx: PixelLaunchContext){
+fn write_flow(source_previous: bool, out_flow: u32, out_status: u32, ctx: PixelLaunchContext, cam: Camera, direction: vec3<f32>, hit: Hit){
     let previous_region = 1u + select(0u, u32(fc_motion_samples), fc_dynamic_motion_blur);
     let source_region = select(0u, previous_region, source_previous);
     let target_region = select(previous_region, 0u, source_previous);
-    var cam: Camera;
     var cam_target: Camera;
     if(source_previous){
-        cam = camera_previous(ctx.cam_idx);
         cam_target = camera_close(ctx.cam_idx);
     }
     else{
-        cam = camera_close(ctx.cam_idx);
         cam_target = camera_previous(ctx.cam_idx);
     }
     let source_first_overlay_instance = params.first_overlay_instance + params.num_overlay_slots * source_region;
     let delta_slab = select(0u, params.num_overlay_slots * 12u, source_previous);
-    let screen = (vec2<f32>(f32(ctx.local_x), f32(ctx.local_y)) + vec2<f32>(0.5, 0.5)) / vec2<f32>(f32(params.cam_width), f32(params.cam_height));
-    let direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
-    let hit = trace_closest_composed_region(source_region, ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30);
     var flow = vec2<f32>(0.0);
     var status = FLOW_STATUS_MISS;
     if(hit.valid){
@@ -1410,12 +1340,53 @@ fn flow_pixel(source_previous: bool, out_flow: u32, out_status: u32, ctx: PixelL
 }
 
 @compute @workgroup_size(8, 4, 1)
-fn main_flow(@builtin(global_invocation_id) global_id: vec3<u32>){
+fn main_auxiliary(@builtin(global_invocation_id) global_id: vec3<u32>){
     let ctx = pixel_launch_context(global_id.xy);
     if(!ctx.valid){
         return;
     }
-    flow_pixel(false, params.out_flow, params.out_flow_status, ctx);
+    let cam = camera_close(ctx.cam_idx);
+    let screen = (vec2<f32>(f32(ctx.local_x), f32(ctx.local_y)) + vec2<f32>(0.5)) / vec2<f32>(f32(params.cam_width), f32(params.cam_height));
+    let direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
+    let hit = trace_closest_composed_region(0u, ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30);
+    if(fc_has_depth){
+        let normal = normalize(cross(camera_dir_du(cam), camera_dir_dv(cam)));
+        if(hit.valid){
+            out_set_f32(params.out_depth + u32(ctx.fb_offset), hit.t * abs(dot(direction, normal)));
+        }
+        else{
+            outputs[params.out_depth + u32(ctx.fb_offset)] = 0x7f800000u;
+        }
+    }
+    if(fc_has_segmentation){
+        var value = ABSENT;
+        if(hit.valid){
+            value = select(hit.instance, geometry_u32(params.instance_classes_offset + hit.instance), fc_semantic_segmentation);
+        }
+        outputs[params.out_segmentation + u32(ctx.fb_offset)] = value;
+    }
+    if(fc_has_normals){
+        var normal = vec3<f32>(0.0);
+        if(hit.valid){
+            var vertices = triangle_vertices(hit.triangle);
+            if(instance_data[hit.instance].identity == 0u){
+                let object_to_world = instance_data[hit.instance].object_to_world;
+                vertices[0] = transform_point(object_to_world, vertices[0]);
+                vertices[1] = transform_point(object_to_world, vertices[1]);
+                vertices[2] = transform_point(object_to_world, vertices[2]);
+            }
+            normal = normalize(cross(vertices[1] - vertices[0], vertices[2] - vertices[0]));
+            if(dot(direction, normal) > 0.0){
+                normal = -normal;
+            }
+        }
+        out_set_f32(params.out_normals + u32(ctx.fb_offset * 3 + 0), normal.x);
+        out_set_f32(params.out_normals + u32(ctx.fb_offset * 3 + 1), normal.y);
+        out_set_f32(params.out_normals + u32(ctx.fb_offset * 3 + 2), normal.z);
+    }
+    if(fc_has_flow){
+        write_flow(false, params.out_flow, params.out_flow_status, ctx, cam, direction, hit);
+    }
 }
 
 @compute @workgroup_size(8, 4, 1)
@@ -1424,5 +1395,10 @@ fn main_flow_forward(@builtin(global_invocation_id) global_id: vec3<u32>){
     if(!ctx.valid){
         return;
     }
-    flow_pixel(true, params.out_flow_forward, params.out_flow_forward_status, ctx);
+    let cam = camera_previous(ctx.cam_idx);
+    let screen = (vec2<f32>(f32(ctx.local_x), f32(ctx.local_y)) + vec2<f32>(0.5)) / vec2<f32>(f32(params.cam_width), f32(params.cam_height));
+    let direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
+    let previous_region = 1u + select(0u, u32(fc_motion_samples), fc_dynamic_motion_blur);
+    let hit = trace_closest_composed_region(previous_region, ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30);
+    write_flow(true, params.out_flow_forward, params.out_flow_forward_status, ctx, cam, direction, hit);
 }

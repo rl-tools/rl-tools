@@ -233,11 +233,8 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         WGPUBindGroupLayout bind_group_layout = nullptr;
         WGPUPipelineLayout pipeline_layout = nullptr;
         WGPUComputePipeline rgb_pipeline = nullptr;
-        WGPUComputePipeline depth_pipeline = nullptr;
+        WGPUComputePipeline auxiliary_pipeline = nullptr;
         WGPUComputePipeline collision_pipeline = nullptr;
-        WGPUComputePipeline segmentation_pipeline = nullptr;
-        WGPUComputePipeline normals_pipeline = nullptr;
-        WGPUComputePipeline flow_pipeline = nullptr;
         WGPUComputePipeline flow_forward_pipeline = nullptr;
         WGPUComputePipeline resolve_pipeline = nullptr;
         WGPUBindGroup bind_group = nullptr; // recreated per init (scene buffers change)

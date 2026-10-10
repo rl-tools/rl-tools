@@ -86,18 +86,6 @@ namespace rl_tools {
             std::fprintf(stderr, "\n");
         }
 
-        // the single blocking-wait primitive: wgpu-native's wgpuDevicePoll(wait). In the browser
-        // there is no blocking wait — the ASYNCIFY'd emscripten_sleep yields to the JS event loop
-        // so the AllowProcessEvents callbacks can fire; call sites spin on their request flags
-        inline void device_poll_blocking(Context& ctx){
-#ifdef __EMSCRIPTEN__
-            wgpuInstanceProcessEvents(ctx.instance);
-            emscripten_sleep(1);
-#else
-            wgpuDevicePoll(ctx.device, true, nullptr);
-#endif
-        }
-
         template <typename DEVICE>
         BufferResource create_buffer(DEVICE& device, Context& ctx, uint64_t size, WGPUBufferUsage usage){
             BufferResource resource;
@@ -133,21 +121,36 @@ namespace rl_tools {
         }
 
         template <typename DEVICE>
-        void read_back(DEVICE& device, Context& ctx, BufferResource& staging, void* destination, size_t bytes){
-            MapRequest request;
-            WGPUBufferMapCallbackInfo callback_info{};
-            callback_info.mode = WGPUCallbackMode_AllowProcessEvents;
-            callback_info.callback = map_callback;
-            callback_info.userdata1 = &request;
-            wgpuBufferMapAsync(staging.buffer, WGPUMapMode_Read, 0, (size_t)staging.size, callback_info);
-            while(!request.done){
-                device_poll_blocking(ctx);
+        void read_back(DEVICE& device, Context& ctx, const std::vector<ReadbackTarget>& targets){
+            std::vector<MapRequest> requests(targets.size());
+            for(size_t i = 0; i < targets.size(); i++){
+                const auto& staging = *targets[i].staging;
+                WGPUBufferMapCallbackInfo callback_info{};
+                callback_info.mode = WGPUCallbackMode_AllowProcessEvents;
+                callback_info.callback = map_callback;
+                callback_info.userdata1 = &requests[i];
+                wgpuBufferMapAsync(staging.buffer, WGPUMapMode_Read, 0, (size_t)staging.size, callback_info);
             }
-            utils::assert_exit(device, request.status == WGPUMapAsyncStatus_Success, "WebGPU: staging buffer map failed");
-            const void* mapped = wgpuBufferGetConstMappedRange(staging.buffer, 0, (size_t)staging.size);
-            utils::assert_exit(device, mapped != nullptr, "WebGPU: mapped range unavailable");
-            std::memcpy(destination, mapped, bytes);
-            wgpuBufferUnmap(staging.buffer);
+            for(size_t i = 0; i < targets.size(); i++){
+                const auto& request = requests[i];
+                const auto& target = targets[i];
+                const auto& staging = *target.staging;
+                while(!request.done){
+#ifdef __EMSCRIPTEN__
+                    wgpuInstanceProcessEvents(ctx.instance);
+                    if(!request.done){
+                        emscripten_sleep(1);
+                    }
+#else
+                    wgpuDevicePoll(ctx.device, true, nullptr);
+#endif
+                }
+                utils::assert_exit(device, request.status == WGPUMapAsyncStatus_Success, "WebGPU: staging buffer map failed");
+                const void* mapped = wgpuBufferGetConstMappedRange(staging.buffer, 0, (size_t)staging.size);
+                utils::assert_exit(device, mapped != nullptr, "WebGPU: mapped range unavailable");
+                std::memcpy(target.destination, mapped, target.bytes);
+                wgpuBufferUnmap(staging.buffer);
+            }
         }
 
         template <typename DEVICE>
@@ -155,9 +158,7 @@ namespace rl_tools {
             if(!ctx.render_in_flight){
                 return;
             }
-            for(auto& target : ctx.render_readbacks){
-                read_back(device, ctx, *target.staging, target.destination, target.bytes);
-            }
+            read_back(device, ctx, ctx.render_readbacks);
             ctx.render_in_flight = false;
         }
 
@@ -166,9 +167,7 @@ namespace rl_tools {
             if(!ctx.collision_in_flight){
                 return;
             }
-            for(auto& target : ctx.probe_readbacks){
-                read_back(device, ctx, *target.staging, target.destination, target.bytes);
-            }
+            read_back(device, ctx, ctx.probe_readbacks);
             ctx.collision_in_flight = false;
         }
 
@@ -573,6 +572,10 @@ namespace rl_tools {
                 constant("fc_overlay_count", (double)CONSTANTS::OVERLAY_COUNT),
                 constant("fc_semantic_segmentation", CONSTANTS::SEMANTIC_SEGMENTATION ? 1.0 : 0.0),
                 constant("fc_has_observation", CONSTANTS::HAS_OBSERVATION ? 1.0 : 0.0),
+                constant("fc_has_depth", SPEC::HAS_DEPTH ? 1.0 : 0.0),
+                constant("fc_has_segmentation", SPEC::HAS_SEGMENTATION ? 1.0 : 0.0),
+                constant("fc_has_normals", SPEC::HAS_NORMALS ? 1.0 : 0.0),
+                constant("fc_has_flow", SPEC::HAS_FLOW ? 1.0 : 0.0),
                 constant("fc_dynamic_motion_blur", CONSTANTS::DYNAMIC_MOTION_BLUR ? 1.0 : 0.0),
                 constant("fc_resolve_rgb", CONSTANTS::RESOLVE_RGB ? 1.0 : 0.0),
                 constant("fc_num_overlays", (double)CONSTANTS::NUM_OVERLAYS),
@@ -592,17 +595,8 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_RGB) {
                 ctx->rgb_pipeline = make_pipeline("main_rgb");
             }
-            if constexpr (SPEC::HAS_DEPTH) {
-                ctx->depth_pipeline = make_pipeline("main_depth");
-            }
-            if constexpr (SPEC::HAS_SEGMENTATION) {
-                ctx->segmentation_pipeline = make_pipeline("main_segmentation");
-            }
-            if constexpr (SPEC::HAS_NORMALS) {
-                ctx->normals_pipeline = make_pipeline("main_normals");
-            }
-            if constexpr (SPEC::HAS_FLOW) {
-                ctx->flow_pipeline = make_pipeline("main_flow");
+            if constexpr (SPEC::HAS_DEPTH || SPEC::HAS_SEGMENTATION || SPEC::HAS_NORMALS || SPEC::HAS_FLOW) {
+                ctx->auxiliary_pipeline = make_pipeline("main_auxiliary");
             }
             if constexpr (SPEC::HAS_FLOW_FORWARD) {
                 ctx->flow_forward_pipeline = make_pipeline("main_flow_forward");
@@ -1224,50 +1218,23 @@ namespace rl_tools {
                 wgpuComputePassEncoderDispatchWorkgroups(pass, groups_x, groups_y, 1);
             };
             if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
-                // the launch-level motion loop: each sample's dispatches read that sample's
-                // pre-built overlay BVH region and shutter time from its dispatch-params slot;
-                // WebGPU orders the storage accesses between dispatches, no explicit barriers
                 for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
                     if constexpr (SPEC::HAS_RGB){
                         dispatch(ctx.rgb_pipeline, 1 + (uint32_t)sample, fb_groups_x, fb_groups_y);
                     }
                 }
-                if constexpr (SPEC::HAS_DEPTH){
-                    dispatch(ctx.depth_pipeline, 0, fb_groups_x, fb_groups_y);
-                }
-                if constexpr (SPEC::HAS_SEGMENTATION){
-                    dispatch(ctx.segmentation_pipeline, 0, fb_groups_x, fb_groups_y);
-                }
-                if constexpr (SPEC::HAS_NORMALS){
-                    dispatch(ctx.normals_pipeline, 0, fb_groups_x, fb_groups_y);
-                }
-                if constexpr (SPEC::HAS_FLOW){
-                    dispatch(ctx.flow_pipeline, 0, fb_groups_x, fb_groups_y);
-                }
-                if constexpr (SPEC::HAS_FLOW_FORWARD){
-                    dispatch(ctx.flow_forward_pipeline, 0, fb_groups_x, fb_groups_y);
-                }
-                dispatch(ctx.resolve_pipeline, 0, fb_groups_x, fb_groups_y);
             }
-            else{
-                if constexpr (SPEC::HAS_RGB){
-                    dispatch(ctx.rgb_pipeline, 0, fb_groups_x, fb_groups_y);
-                }
-                if constexpr (SPEC::HAS_DEPTH){
-                    dispatch(ctx.depth_pipeline, 0, fb_groups_x, fb_groups_y);
-                }
-                if constexpr (SPEC::HAS_SEGMENTATION){
-                    dispatch(ctx.segmentation_pipeline, 0, fb_groups_x, fb_groups_y);
-                }
-                if constexpr (SPEC::HAS_NORMALS){
-                    dispatch(ctx.normals_pipeline, 0, fb_groups_x, fb_groups_y);
-                }
-                if constexpr (SPEC::HAS_FLOW){
-                    dispatch(ctx.flow_pipeline, 0, fb_groups_x, fb_groups_y);
-                }
-                if constexpr (SPEC::HAS_FLOW_FORWARD){
-                    dispatch(ctx.flow_forward_pipeline, 0, fb_groups_x, fb_groups_y);
-                }
+            else if constexpr (SPEC::HAS_RGB){
+                dispatch(ctx.rgb_pipeline, 0, fb_groups_x, fb_groups_y);
+            }
+            if constexpr (SPEC::HAS_DEPTH || SPEC::HAS_SEGMENTATION || SPEC::HAS_NORMALS || SPEC::HAS_FLOW){
+                dispatch(ctx.auxiliary_pipeline, 0, fb_groups_x, fb_groups_y);
+            }
+            if constexpr (SPEC::HAS_FLOW_FORWARD){
+                dispatch(ctx.flow_forward_pipeline, 0, fb_groups_x, fb_groups_y);
+            }
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+                dispatch(ctx.resolve_pipeline, 0, fb_groups_x, fb_groups_y);
             }
             wgpuComputePassEncoderEnd(pass);
             wgpuComputePassEncoderRelease(pass);
@@ -1371,11 +1338,10 @@ namespace rl_tools {
             wg::destroy_buffer(ctx.staging_observation);
             wg::destroy_buffer(ctx.staging_collision);
             if(ctx.rgb_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.rgb_pipeline); }
-            if(ctx.depth_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.depth_pipeline); }
+            if(ctx.auxiliary_pipeline != nullptr){
+                wgpuComputePipelineRelease(ctx.auxiliary_pipeline);
+            }
             if(ctx.collision_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.collision_pipeline); }
-            if(ctx.segmentation_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.segmentation_pipeline); }
-            if(ctx.normals_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.normals_pipeline); }
-            if(ctx.flow_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.flow_pipeline); }
             if(ctx.flow_forward_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.flow_forward_pipeline); }
             if(ctx.resolve_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.resolve_pipeline); }
             if(ctx.pipeline_layout != nullptr){ wgpuPipelineLayoutRelease(ctx.pipeline_layout); }
