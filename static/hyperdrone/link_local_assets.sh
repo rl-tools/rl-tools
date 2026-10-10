@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Populates static/hyperdrone/assets/ for ?assets=local: drone GLB directory as $1,
-# optional flight-controller TAR path as $2; the scene comes from tests/data.
+# optional flight-controller TAR path as $2 and semantic scene GLB path as $3.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ASSETS_DIR="$SCRIPT_DIR/assets"
 DRONE_SOURCE_DIR="${1:-}"
 POLICY_SOURCE_PATH="${2:-}"
+SCENE_SOURCE_PATH="${3:-}"
 mkdir -p "$ASSETS_DIR"
 
 link_asset() {
@@ -28,7 +28,9 @@ link_asset() {
     echo "linked $label -> assets/$sha1"
 }
 
-link_asset "$REPO_ROOT/tests/data/ProcTHOR-Train-1.glb" 7f1c9129532798e0b63bc41edb6b4c09251cf8a0 "ProcTHOR-Train-1.glb"
+if [ -n "$SCENE_SOURCE_PATH" ]; then
+    link_asset "$SCENE_SOURCE_PATH" 75d1d67a17ecd16bc3a214baa895240da8060df7 "ProcTHOR-Train-1.glb"
+fi
 if [ -n "$DRONE_SOURCE_DIR" ]; then
     link_asset "$DRONE_SOURCE_DIR/crazyflie.glb"           87d2b8b1d518445872d34906320a76656731902f "crazyflie.glb"
     link_asset "$DRONE_SOURCE_DIR/crazyflie_brushless.glb" eedb897237c1d77ed8ef0681554d92d06a7c27ca "crazyflie_brushless.glb"

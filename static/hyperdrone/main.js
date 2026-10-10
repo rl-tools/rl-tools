@@ -1,4 +1,4 @@
-const SCENE = {description: "ProcTHOR-Train-1.glb", sha1: "7f1c9129532798e0b63bc41edb6b4c09251cf8a0", size_mb: 32};
+const SCENE = {description: "ProcTHOR-Train-1.glb", sha1: "75d1d67a17ecd16bc3a214baa895240da8060df7", size_mb: 32};
 const POLICY = {description: "Flight controller", sha1: "b6bd082c60fcb27f42a2b5f2f635587d2b60d170", size_mb: 1};
 const DRONES = [
     {name: "crazyflie", label: "Crazyflie", sha1: "87d2b8b1d518445872d34906320a76656731902f", size_mb: 5},
@@ -19,6 +19,7 @@ const status_element = document.getElementById("status");
 const error_element = document.getElementById("error");
 const fps_element = document.getElementById("fps");
 const progress_element = document.getElementById("progress");
+const progress_percent = document.getElementById("progress-percent");
 const drone_select = document.getElementById("drone");
 const reset_button = document.getElementById("reset");
 const flight_state = document.getElementById("flight-state");
@@ -156,6 +157,7 @@ function show_error(error){
     reset_button.disabled = true;
     flight_state.textContent = "Unavailable";
     progress_element.hidden = true;
+    progress_percent.hidden = true;
     error_element.textContent = error instanceof Error ? error.message : String(error);
     error_element.hidden = false;
     set_status("The simulation could not start.");
@@ -167,7 +169,9 @@ async function fetch_asset(asset){
     const url = `${asset_base.replace(/\/$/, "")}/${asset.sha1}`;
     set_status(`Downloading ${asset.description}…`);
     progress_element.hidden = false;
-    progress_element.removeAttribute("value");
+    progress_element.value = 0;
+    progress_percent.hidden = false;
+    progress_percent.textContent = "0%";
     const response = await fetch(url);
     if(!response.ok){
         throw new Error(`Could not download ${asset.description}: HTTP ${response.status}.\nFor offline development, run static/hyperdrone/link_local_assets.sh and open this page with ?assets=local.`);
@@ -186,11 +190,12 @@ async function fetch_asset(asset){
         received += value.length;
         const downloaded = (received / 1024 / 1024).toFixed(1);
         set_status(`Downloading ${asset.description}: ${downloaded} / ${content_length ? "" : "~"}${(total / 1024 / 1024).toFixed(1)} MB`);
-        if(content_length){
-            progress_element.max = total;
-            progress_element.value = received;
-        }
+        const percent = Math.min(99, Math.floor(received / total * 100));
+        progress_element.value = percent;
+        progress_percent.textContent = `${content_length ? "" : "~"}${percent}%`;
     }
+    progress_element.value = 100;
+    progress_percent.textContent = "100%";
     const bytes = new Uint8Array(received);
     let offset = 0;
     for(const chunk of chunks){
@@ -204,6 +209,7 @@ async function fetch_asset(asset){
         throw new Error(`Integrity check failed for ${asset.description}: expected ${asset.sha1}, received ${hex}.`);
     }
     progress_element.hidden = true;
+    progress_percent.hidden = true;
     return bytes;
 }
 

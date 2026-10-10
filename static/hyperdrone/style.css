@@ -26,7 +26,7 @@ h1 { font-size: clamp(48px, 7vw, 76px); font-weight: 560; line-height: 1.05; let
 .accent { color: var(--accent); }
 .intro { margin: 21px 0 9px; font-size: 22px; letter-spacing: -.5px; }
 .description { color: var(--muted); font-size: 15px; line-height: 1.7; max-width: 650px; margin: 0; }
-.simulation { border-top: 1px solid var(--line); }
+.simulation { border-top: 1px solid var(--line); padding-bottom: 24px; }
 .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 19px 0; }
 .drone-control, .session-controls { display: flex; align-items: center; gap: 15px; }
 .drone-control label { color: var(--muted); }
@@ -60,11 +60,16 @@ h2 { font-size: 13px; font-weight: 500; margin: 0; }
 .section-caption > span { font-size: 11px; color: var(--muted); }
 .sensor-views figcaption { padding: 11px 12px; font-size: 11px; }
 .legend { margin: 9px 1px 0; font-size: 10px; line-height: 1.6; color: var(--muted); }
-.status-bar { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 65px; padding: 14px 0; color: var(--muted); font-size: 11px; }
-.loading-status { min-width: 0; }
+.status-bar { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 0 0 18px; color: var(--muted); font-size: 12px; }
+.loading-status { min-width: 0; flex: 1; }
+.status-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
 #status { overflow-wrap: anywhere; }
-#fps { white-space: nowrap; color: var(--accent); font-variant-numeric: tabular-nums; }
-progress { display: block; width: 210px; max-width: 100%; height: 3px; margin-top: 9px; accent-color: var(--accent); }
+#fps, #progress-percent { white-space: nowrap; color: var(--accent); font-variant-numeric: tabular-nums; }
+#fps:empty { display: none; }
+progress { appearance: none; display: block; width: 100%; height: 8px; margin-top: 10px; border: 0; border-radius: 4px; overflow: hidden; background: #29352c; accent-color: var(--accent); }
+progress::-webkit-progress-bar { background: #29352c; }
+progress::-webkit-progress-value { background: var(--accent); }
+progress::-moz-progress-bar { background: var(--accent); }
 [hidden] { display: none !important; }
 #error { background: #351e1c; color: #f6b7a5; border: 1px solid #6d3730; padding: 14px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; border-radius: 5px; }
 footer { display: flex; justify-content: space-between; gap: 12px 30px; padding: 19px 0 28px; border-top: 1px solid var(--line); font-size: 10px; line-height: 1.6; color: var(--muted); }

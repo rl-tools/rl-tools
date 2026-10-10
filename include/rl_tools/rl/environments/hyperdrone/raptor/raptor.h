@@ -26,6 +26,8 @@ namespace rl_tools::rl::environments::hyperdrone {
             static constexpr TI OUTPUT_DIM = 4;
             static constexpr T POSITION_CLIP = 1;
             static constexpr T VELOCITY_CLIP = 2;
+            static constexpr T YAW_ERROR_LIMIT = 0.25;
+            static constexpr T YAW_RATE_LIMIT = 1;
             using INPUT_LAYER = nn::layers::dense::BindConfiguration<nn::layers::dense::Configuration<TYPE_POLICY, TI, HIDDEN_DIM, nn::activation_functions::ActivationFunction::RELU, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Input>>;
             using RECURRENT_LAYER = nn::layers::gru::BindConfiguration<nn::layers::gru::Configuration<TYPE_POLICY, TI, HIDDEN_DIM, nn::parameters::groups::Normal, false>>;
             using OUTPUT_LAYER = nn::layers::dense::BindConfiguration<nn::layers::dense::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, nn::activation_functions::ActivationFunction::IDENTITY, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Output>>;
