@@ -95,6 +95,39 @@ namespace {
         }
     };
 
+    TEST_F(GlbEnvironment, shared_textures_survive_asset_copies){
+        const auto path = write_glb(std::nullopt, Json(), false, Json{
+            {{"op", "add"}, {"path", "/images"}, {"value", {{{"uri", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAAD0lEQVR4nGP4z8DwHwgbABB5A359Y87XAAAAAElFTkSuQmCC"}}}}},
+            {{"op", "add"}, {"path", "/textures"}, {"value", {{{"source", 0}}}}},
+            {{"op", "add"}, {"path", "/materials"}, {"value", {{
+                {"pbrMetallicRoughness", {{"baseColorTexture", {{"index", 0}}}}},
+                {"normalTexture", {{"index", 0}}},
+                {"emissiveTexture", {{"index", 0}}},
+                {"occlusionTexture", {{"index", 0}}}
+            }}}},
+            {{"op", "add"}, {"path", "/meshes/0/primitives/0/material"}, {"value", 0}}
+        });
+        rlt::rendering::ObjectAssembly assembly;
+        ASSERT_TRUE(load(device, assembly, path));
+        ASSERT_EQ(assembly.objects.size(), 2u);
+        const auto& first = assembly.objects[0].meshes[0];
+        const auto& second = assembly.objects[1].meshes[0];
+        ASSERT_TRUE(first.texture.present());
+        EXPECT_EQ(first.texture.width, 2);
+        EXPECT_EQ(first.texture.height, 1);
+        EXPECT_EQ(first.texture.pixels, second.texture.pixels);
+        EXPECT_EQ(first.texture.pixels, first.normal_map.pixels);
+        EXPECT_EQ(first.texture.pixels, first.emissive_map.pixels);
+        EXPECT_EQ(first.texture.pixels, first.occlusion_map.pixels);
+        rlt::rendering::AssetPool pool;
+        pool.assemblies.push_back(assembly);
+        EXPECT_EQ(first.texture.pixels, pool.assemblies[0].objects[0].meshes[0].texture.pixels);
+        assembly = {};
+        const auto& retained = pool.assemblies[0].objects[0].meshes[0].texture;
+        ASSERT_TRUE(retained.present());
+        EXPECT_EQ(*retained.pixels, (std::vector<uint8_t>{255, 0, 0, 255, 0, 255, 0, 128}));
+    }
+
     TEST_F(GlbEnvironment, semantic_roots_and_welded_rejection){
         const auto path = write_glb(authored, Json{21, 162});
         rlt::rendering::Bundle<float> roots, welded;

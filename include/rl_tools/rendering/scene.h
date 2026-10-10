@@ -15,11 +15,11 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace rendering{
         struct Texture{
-            std::vector<uint8_t> pixels; // RGBA8
+            std::shared_ptr<const std::vector<uint8_t>> pixels; // RGBA8, shared by meshes and asset copies
             int width = 0;
             int height = 0;
             bool present() const {
-                return !pixels.empty() && width > 0 && height > 0;
+                return pixels && !pixels->empty() && width > 0 && height > 0;
             }
         };
 

@@ -857,7 +857,8 @@ namespace rl_tools {
             return offset;
         };
         std::vector<wg::MeshRecord> mesh_records(num_meshes > 0 ? num_meshes : 1, wg::MeshRecord{});
-        std::vector<uint32_t> texture_texels;
+        std::vector<const rendering::raytracing::Texture*> texture_uploads;
+        size_t texture_texel_count = 0;
         // content-deduplicated: meshes share maps, and the packed buffer must stay inside
         // maxStorageBufferBindingSize (128MiB on lavapipe)
         std::unordered_map<uint64_t, std::pair<wg::TextureRef, const rendering::raytracing::Texture*>> texture_cache;
@@ -876,17 +877,16 @@ namespace rl_tools {
             };
             mix(&texture.width, sizeof(texture.width));
             mix(&texture.height, sizeof(texture.height));
-            mix(texture.pixels.data(), texture.pixels.size());
+            mix(texture.pixels->data(), texture.pixels->size());
             const auto hit = texture_cache.find(hash);
-            if(hit != texture_cache.end() && hit->second.second->pixels == texture.pixels){
+            if(hit != texture_cache.end() && *hit->second.second->pixels == *texture.pixels){
                 return hit->second.first;
             }
-            reference.offset = (uint32_t)texture_texels.size();
+            reference.offset = (uint32_t)texture_texel_count;
             reference.width = (uint32_t)texture.width;
             reference.height = (uint32_t)texture.height;
-            const size_t texel_count = texture.pixels.size() / 4;
-            texture_texels.resize(texture_texels.size() + texel_count);
-            std::memcpy(texture_texels.data() + reference.offset, texture.pixels.data(), texel_count * 4);
+            texture_texel_count += texture.pixels->size() / 4;
+            texture_uploads.push_back(&texture);
             texture_cache.emplace(hash, std::make_pair(reference, &texture));
             return reference;
         };
@@ -965,7 +965,13 @@ namespace rl_tools {
             }
         };
         upload(ctx.scene_geometry, geometry.data(), geometry.size() * sizeof(uint32_t));
-        upload(ctx.texture_data, texture_texels.data(), texture_texels.size() * sizeof(uint32_t));
+        ctx.texture_data = wg::create_buffer(device, ctx, texture_texel_count * sizeof(uint32_t), STORAGE_UPLOAD);
+        size_t texture_byte_offset = 0;
+        for(const auto* texture : texture_uploads){
+            const size_t bytes = texture->pixels->size() / 4 * sizeof(uint32_t);
+            wgpuQueueWriteBuffer(ctx.queue, ctx.texture_data.buffer, texture_byte_offset, texture->pixels->data(), bytes);
+            texture_byte_offset += bytes;
+        }
         upload(ctx.triangles, packed_triangles.data(), packed_triangles.size() * sizeof(float));
 
         constexpr size_t regions = SPEC::ENABLE_OVERLAYS ? overlay_id_ranges : 1;
@@ -980,14 +986,15 @@ namespace rl_tools {
 
         {
             using LAYOUT = wg::BufferLayout<SPEC>;
-            std::vector<wg::BVHNode> all_nodes = blas_nodes;
-            const uint32_t tlas_node_offset = (uint32_t)all_nodes.size();
-            all_nodes.insert(all_nodes.end(), tlas_nodes.begin(), tlas_nodes.end());
-            ctx.overlay_node_offset = (uint32_t)all_nodes.size();
+            const uint32_t tlas_node_offset = (uint32_t)blas_nodes.size();
+            ctx.overlay_node_offset = tlas_node_offset + (uint32_t)tlas_nodes.size();
+            const size_t node_count = ctx.overlay_node_offset + (SPEC::ENABLE_OVERLAYS ? ctx.overlay_nodes_host.size() : 0);
+            ctx.bvh_nodes = wg::create_buffer(device, ctx, node_count * sizeof(wg::BVHNode), STORAGE_UPLOAD);
+            wgpuQueueWriteBuffer(ctx.queue, ctx.bvh_nodes.buffer, 0, blas_nodes.data(), blas_nodes.size() * sizeof(wg::BVHNode));
+            wgpuQueueWriteBuffer(ctx.queue, ctx.bvh_nodes.buffer, (uint64_t)tlas_node_offset * sizeof(wg::BVHNode), tlas_nodes.data(), tlas_nodes.size() * sizeof(wg::BVHNode));
             if constexpr (SPEC::ENABLE_OVERLAYS){
-                all_nodes.insert(all_nodes.end(), ctx.overlay_nodes_host.begin(), ctx.overlay_nodes_host.end());
+                wgpuQueueWriteBuffer(ctx.queue, ctx.bvh_nodes.buffer, (uint64_t)ctx.overlay_node_offset * sizeof(wg::BVHNode), ctx.overlay_nodes_host.data(), ctx.overlay_nodes_host.size() * sizeof(wg::BVHNode));
             }
-            upload(ctx.bvh_nodes, all_nodes.data(), all_nodes.size() * sizeof(wg::BVHNode));
 
             wg::LaunchParams params{};
             params.fb_width = SPEC::FB_WIDTH;

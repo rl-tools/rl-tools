@@ -806,8 +806,8 @@ namespace rl_tools {
         auto add_texture = [&](const rendering::raytracing::Texture& texture, bool srgb) -> uint32_t {
             uint32_t texture_index = (uint32_t)ctx.mesh_textures.size();
             ctx.mesh_textures.push_back(vk::create_texture_image(device, ctx, texture.width, texture.height, srgb));
-            vk::BufferResource staging = vk::create_buffer(device, ctx, texture.pixels.size(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, STAGING_MEMORY, true);
-            std::memcpy(staging.mapped, texture.pixels.data(), texture.pixels.size());
+            vk::BufferResource staging = vk::create_buffer(device, ctx, texture.pixels->size(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, STAGING_MEMORY, true);
+            std::memcpy(staging.mapped, texture.pixels->data(), texture.pixels->size());
             texture_stagings.push_back(staging);
             texture_widths.push_back(texture.width);
             texture_heights.push_back(texture.height);
