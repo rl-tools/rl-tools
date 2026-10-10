@@ -4,10 +4,20 @@
 
 namespace rl_tools::rendering::raytracing::benchmark {
     enum class Mode { benchmark, sweep, frame };
+    struct PaperLow: Low {
+        static constexpr bool SRGB_OUTPUT = false;
+    };
+    struct PaperHigh: High {
+        static constexpr bool CHECKER_BACKGROUND = true;
+    };
     struct Config {
         using SHADING = @SIM_SHADING@;
         static constexpr Mode MODE = Mode::@SIM_MODE@;
         static constexpr int NUM_CAMERAS = @SIM_NUM_CAMERAS@;
         static constexpr int RESOLUTION = @SIM_RESOLUTION@;
+        static constexpr bool PAPER = @SIM_PAPER@;
+        static constexpr bool PHYSICS_AVAILABLE = @SIM_PHYSICS_AVAILABLE@;
+        static constexpr const char* WORKLOAD_SOURCE_SHA256 = "@SIM_SOURCE_HASH@";
+        static constexpr const char* PAPER_SCENE = "@PROJECT_BINARY_DIR@/paper-benchmark/ProcTHOR-Train-1.glb";
     };
 }
