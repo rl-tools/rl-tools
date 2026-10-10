@@ -42,14 +42,14 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC, typename STATE>
-    RL_TOOLS_FUNCTION_PLACEMENT void update_yaw_target(DEVICE& device, const rl::environments::hyperdrone::Raptor<SPEC>&, const STATE& state, rl::environments::hyperdrone::raptor::Target<typename SPEC::T>& target, typename SPEC::T yaw_delta, typename SPEC::T dt) {
+    RL_TOOLS_FUNCTION_PLACEMENT void update_yaw_target(DEVICE& device, const rl::environments::hyperdrone::Raptor<SPEC>&, const STATE& state, rl::environments::hyperdrone::raptor::Target<typename SPEC::T>& target, typename SPEC::T yaw_delta, typename SPEC::T dt, typename SPEC::T yaw_rate_limit = SPEC::YAW_RATE_LIMIT, typename SPEC::T yaw_error_limit = SPEC::YAW_ERROR_LIMIT) {
         using T = typename SPEC::T;
         const auto& q = state.orientation;
         const T yaw = math::atan2(device.math, (T)2 * (q[0] * q[3] + q[1] * q[2]), (T)1 - (T)2 * (q[2] * q[2] + q[3] * q[3]));
-        const T max_delta = SPEC::YAW_RATE_LIMIT * dt;
+        const T max_delta = yaw_rate_limit * dt;
         const T requested_error = target.yaw + math::clamp(device.math, yaw_delta, -max_delta, max_delta) - yaw;
         const T error = math::atan2(device.math, math::sin(device.math, requested_error), math::cos(device.math, requested_error));
-        const T limited_yaw = yaw + math::clamp(device.math, error, -SPEC::YAW_ERROR_LIMIT, SPEC::YAW_ERROR_LIMIT);
+        const T limited_yaw = yaw + math::clamp(device.math, error, -yaw_error_limit, yaw_error_limit);
         target.yaw = math::atan2(device.math, math::sin(device.math, limited_yaw), math::cos(device.math, limited_yaw));
     }
 

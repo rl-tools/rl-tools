@@ -23,6 +23,10 @@ const progress_percent = document.getElementById("progress-percent");
 const drone_select = document.getElementById("drone");
 const reset_button = document.getElementById("reset");
 const flight_state = document.getElementById("flight-state");
+const tuning_panel = document.getElementById("flight-tuning");
+const yaw_rate_limit = document.getElementById("yaw-rate-limit");
+const yaw_error_limit = document.getElementById("yaw-error-limit");
+const mouse_sensitivity = document.getElementById("mouse-sensitivity");
 const canvases = ["camera0", "camera1", "depth", "segmentation", "normals", "flow"].map(id => document.getElementById(id));
 const contexts = canvases.map(canvas => canvas.getContext("2d"));
 const keys = new Set();
@@ -51,7 +55,7 @@ function set_status(text){
 }
 
 function active(){
-    return !document.hidden && canvases.slice(0, 2).includes(document.pointerLockElement);
+    return !document.hidden && !tuning_panel.open && canvases.slice(0, 2).includes(document.pointerLockElement);
 }
 
 function clear_input(){
@@ -79,6 +83,8 @@ function poll_input(){
         flying ? yaw_delta : 0,
         Number(reset_requested),
         Number(flying),
+        Number(yaw_rate_limit.value) * Math.PI / 180,
+        Number(yaw_error_limit.value) * Math.PI / 180,
     ];
     yaw_delta = 0;
     reset_requested = false;
@@ -121,6 +127,19 @@ document.addEventListener("pointerlockchange", () => {
 });
 document.addEventListener("pointerlockerror", () => set_status("Mouse capture was unavailable. Click a camera to try again."));
 document.addEventListener("keydown", event => {
+    if(event.code === "KeyT" && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey){
+        event.preventDefault();
+        if(!event.repeat){
+            if(tuning_panel.open){
+                tuning_panel.close();
+            }
+            else{
+                tuning_panel.showModal();
+                pause();
+            }
+        }
+        return;
+    }
     if(active() && ["KeyW", "KeyA", "KeyS", "KeyD"].includes(event.code)){
         event.preventDefault();
         keys.add(event.code);
@@ -129,7 +148,7 @@ document.addEventListener("keydown", event => {
 document.addEventListener("keyup", event => keys.delete(event.code));
 document.addEventListener("mousemove", event => {
     if(active()){
-        yaw_delta -= event.movementX * 0.002;
+        yaw_delta -= event.movementX * 0.002 * Number(mouse_sensitivity.value);
     }
 });
 function pause(){
@@ -149,6 +168,20 @@ reset_button.addEventListener("click", () => {
     reset_requested = true;
     clear_input();
 });
+
+function update_tuning_values(){
+    document.getElementById("yaw-rate-value").textContent = `${yaw_rate_limit.value}°/s`;
+    document.getElementById("yaw-error-value").textContent = `${yaw_error_limit.value}°`;
+    document.getElementById("mouse-sensitivity-value").textContent = `${Number(mouse_sensitivity.value).toFixed(2)}×`;
+}
+tuning_panel.addEventListener("input", update_tuning_values);
+document.getElementById("tuning-defaults").addEventListener("click", () => {
+    for(const control of [yaw_rate_limit, yaw_error_limit, mouse_sensitivity]){
+        control.value = control.defaultValue;
+    }
+    update_tuning_values();
+});
+update_tuning_values();
 
 function show_error(error){
     pause();

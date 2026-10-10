@@ -52,6 +52,8 @@ namespace rl_tools::rl::environments::hyperdrone::web {
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1, 4>>> actions;
         Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, 1>>> reset_mask;
         raptor::Target<T> target;
+        T yaw_rate_limit = PILOT::SPEC::YAW_RATE_LIMIT;
+        T yaw_error_limit = PILOT::SPEC::YAW_ERROR_LIMIT;
         T previous_actions[4] = {};
         TI motor_order[4] = {};
         bool moving = false;
@@ -171,7 +173,7 @@ namespace rl_tools {
         using namespace web;
         auto& physical = get_ref(device, state.states, (TI)0);
         const T dt = get_ref(device, state.parameters, (TI)0).agents[0].dynamics.integration.dt;
-        update_yaw_target(device, state.pilot, physical, state.target, yaw_delta, dt);
+        update_yaw_target(device, state.pilot, physical, state.target, yaw_delta, dt, state.yaw_rate_limit, state.yaw_error_limit);
         const T norm = math::sqrt(device.math, forward * forward + left * left);
         const bool moving = norm > 0;
         if(moving) {
@@ -258,10 +260,10 @@ static void status(const char* message) {
         }
     }, message);
 }
-static void read_input(float input[5]) {
+static void read_input(float input[7]) {
     EM_ASM({
         const input = Module.rlt_input();
-        for(let i = 0; i < 5; i++) {
+        for(let i = 0; i < 7; i++) {
             HEAPF32[($0 >> 2) + i] = input[i];
         }
     }, input);
@@ -296,8 +298,10 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
     double accumulator = 0;
     bool was_active = false;
     for(int frame = 0; max_frames <= 0 || frame < max_frames;) {
-        float input[5] = {};
+        float input[7] = {};
         read_input(input);
+        state.yaw_rate_limit = input[5];
+        state.yaw_error_limit = input[6];
         const bool active = max_frames > 0 || input[4] != 0;
         if(input[3] != 0) {
             reset(device, state);

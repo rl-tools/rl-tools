@@ -99,6 +99,35 @@
 
         <footer><span>Built with <a href="https://rl.tools">RLtools</a> · ProcTHOR indoor scene</span><span>A keyboard, mouse, and WebGPU-capable browser are required.</span></footer>
     </main>
+    <dialog id="flight-tuning" aria-labelledby="tuning-title" aria-keyshortcuts="Shift+T">
+        <form method="dialog">
+            <div class="tuning-heading">
+                <h2 id="tuning-title">Flight tuning</h2>
+                <button autofocus>Close</button>
+            </div>
+            <p class="tuning-description">Higher yaw limits allow sharper turns but can destabilize the drone.</p>
+            <div class="tuning-control">
+                <label for="yaw-rate-limit">Yaw target rate <output id="yaw-rate-value" for="yaw-rate-limit"></output></label>
+                <input id="yaw-rate-limit" type="range" min="5" max="360" step="1" value="180" aria-describedby="yaw-rate-help">
+                <p id="yaw-rate-help">Maximum speed of the requested heading.</p>
+            </div>
+            <div class="tuning-control">
+                <label for="yaw-error-limit">Yaw error limit <output id="yaw-error-value" for="yaw-error-limit"></output></label>
+                <input id="yaw-error-limit" type="range" min="1" max="90" step="1" value="70" aria-describedby="yaw-error-help">
+                <p id="yaw-error-help">How far the requested heading can lead the drone.</p>
+            </div>
+            <div class="tuning-control">
+                <label for="mouse-sensitivity">Mouse sensitivity <output id="mouse-sensitivity-value" for="mouse-sensitivity"></output></label>
+                <input id="mouse-sensitivity" type="range" min="0.25" max="4" step="0.05" value="1" aria-describedby="mouse-sensitivity-help">
+                <p id="mouse-sensitivity-help">Scales mouse movement before the yaw limits apply.</p>
+            </div>
+            <div class="tuning-actions">
+                <button id="tuning-defaults" type="button">Restore defaults</button>
+                <span><kbd>Shift</kbd> + <kbd>T</kbd> to toggle</span>
+            </div>
+            <p class="tuning-description">Close and click a camera to try your settings. Reloading restores defaults.</p>
+        </form>
+    </dialog>
     <script type="module" src="main.js"></script>
 </body>
 </html>

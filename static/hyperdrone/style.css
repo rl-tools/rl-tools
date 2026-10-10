@@ -74,6 +74,18 @@ progress::-moz-progress-bar { background: var(--accent); }
 #error { background: #351e1c; color: #f6b7a5; border: 1px solid #6d3730; padding: 14px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; border-radius: 5px; }
 footer { display: flex; justify-content: space-between; gap: 12px 30px; padding: 19px 0 28px; border-top: 1px solid var(--line); font-size: 10px; line-height: 1.6; color: var(--muted); }
 footer a { color: #d8e5d1; }
+#flight-tuning { width: min(420px, calc(100% - 32px)); max-height: calc(100% - 32px); padding: 24px; border: 1px solid #53634f; border-radius: 10px; color: inherit; background: #1a211c; box-shadow: 0 20px 80px #0008; }
+#flight-tuning::backdrop { background: #080c09b3; }
+.tuning-heading, .tuning-actions, .tuning-control label { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.tuning-heading h2 { font-size: 19px; }
+.tuning-description, .tuning-control p, .tuning-actions span { font-size: 12px; color: var(--muted); line-height: 1.6; }
+.tuning-description { margin: 16px 0 0; }
+.tuning-control { margin: 24px 0; }
+.tuning-control label { font-size: 13px; }
+.tuning-control output { color: var(--accent); font-variant-numeric: tabular-nums; }
+.tuning-control input { width: 100%; margin: 12px 0 0; accent-color: var(--accent); cursor: pointer; }
+.tuning-control p { margin: 5px 0 0; }
+.tuning-actions { flex-wrap: wrap; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 @media (max-width: 1000px) {
     main { padding: 0 25px; }
