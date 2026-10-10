@@ -29,6 +29,7 @@
 #include <cmath>
 #include <cstring>
 #include <filesystem>
+#include <limits>
 #include <string>
 
 namespace rlt = rl_tools;
@@ -549,6 +550,32 @@ TEST(RL_TOOLS_SCENE_SUITE, SEGMENTATION_ANALYTIC){
     rlt::free(device, renderer);
 }
 
+TEST(RL_TOOLS_SCENE_SUITE, COLOR_ENCODINGS){
+    struct SegmentationCase { uint32_t id; uint32_t rgba; };
+    const SegmentationCase segmentation_cases[] = {{0u, 0xFF0000FFu}, {1u, 0xFFFF4A00u}, {2u, 0xFF00FF94u}, {3u, 0xFFDF00FFu}, {16u, 0xFFAA00FFu}, {257u, 0xFFFC00FFu}, {0xFFFFFFFEu, 0xFF0000FFu}, {0xFFFFFFFFu, 0xFF000000u}};
+    for(const auto& test : segmentation_cases){
+        EXPECT_EQ(rlt::rendering::raytracing::detail::segmentation_id_to_rgba(test.id), test.rgba) << test.id;
+    }
+    struct NormalCase { float normal[3]; uint32_t rgba; };
+    const NormalCase normal_cases[] = {
+        {{-1, 0, 1}, 0xFFFF8000u},
+#if !defined(__FAST_MATH__)
+        {{-std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()}, 0xFF00FF00u},
+#endif
+        {{-0.99607843f, -0.99215686f, -0.0039215689f}, 0xFF7F0100u},
+        {{-0.99607849f, -0.0039215694f, 0.0039215689f}, 0xFF807F00u},
+        {{0.5f, -0.5f, 0.25f}, 0xFF9F40BFu}
+    };
+    for(const auto& test : normal_cases){
+        EXPECT_EQ(rlt::rendering::raytracing::detail::normal_to_rgba(test.normal), test.rgba);
+    }
+    struct FlowCase { float u, v, scale; uint32_t rgba; };
+    const FlowCase flow_cases[] = {{1, 0, 20, 0xFFFFFFF2u}, {0, 1, 20, 0xFFFFF2F8u}, {-1, 0, 20, 0xFFF2F2FFu}, {0, -1, 20, 0xFFF2FFF8u}, {0, 0, 20, 0xFFFFFFFFu}, {20, 0, 20, 0xFFFFFF00u}, {-20, -0.f, 20, 0xFF0000FFu}, {1, 2, 0, 0xFFFFFFFFu}};
+    for(const auto& test : flow_cases){
+        EXPECT_EQ(rlt::rendering::raytracing::detail::flow_to_rgba(test.u, test.v, test.scale), test.rgba);
+    }
+}
+
 struct NORMALS_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_WIDTH = 32, CAM_HEIGHT = 32, NUM_CAMERAS = 1, NUM_PROBES = 4;
     using SHADING = rlt::rendering::raytracing::Low;
@@ -605,11 +632,11 @@ TEST(RL_TOOLS_SCENE_SUITE, NORMALS_ANALYTIC){
 namespace {
     enum class AuxiliaryOutput { ALL, DEPTH, SEGMENTATION, NORMALS, FLOW };
 
-    template <AuxiliaryOutput OUTPUT>
+    template <AuxiliaryOutput OUTPUT, bool RGB = false>
     struct AuxiliaryConfig: rlt::rendering::raytracing::config::Default<T, TI>{
         static constexpr TI CAM_WIDTH = 17, CAM_HEIGHT = 13, NUM_CAMERAS = 1, NUM_PROBES = 1;
         using SHADING = rlt::rendering::raytracing::Low;
-        static constexpr bool OUTPUT_RGB = false;
+        static constexpr bool OUTPUT_RGB = RGB;
         static constexpr bool OUTPUT_DEPTH = OUTPUT == AuxiliaryOutput::ALL || OUTPUT == AuxiliaryOutput::DEPTH;
         static constexpr bool OUTPUT_SEGMENTATION = OUTPUT == AuxiliaryOutput::ALL || OUTPUT == AuxiliaryOutput::SEGMENTATION;
         static constexpr bool OUTPUT_NORMALS = OUTPUT == AuxiliaryOutput::ALL || OUTPUT == AuxiliaryOutput::NORMALS;
@@ -622,10 +649,10 @@ namespace {
         std::vector<uint32_t> segmentation, flow_status, flow_forward_status;
     };
 
-    template <AuxiliaryOutput OUTPUT>
+    template <AuxiliaryOutput OUTPUT, bool RGB = false>
     AuxiliaryFrame capture_auxiliary_outputs(DEVICE& device, rlt::rendering::Bundle<T>& bundle){
         using namespace rl_tools;
-        using SPEC = rlt::rendering::raytracing::Specification<AuxiliaryConfig<OUTPUT>>;
+        using SPEC = rlt::rendering::raytracing::Specification<AuxiliaryConfig<OUTPUT, RGB>>;
         rlt::rendering::raytracing::Renderer<SPEC, BACKEND> renderer;
         malloc(device, renderer);
         init(device, renderer, bundle);
@@ -687,6 +714,14 @@ TEST(RL_TOOLS_SCENE_SUITE, AUXILIARY_OUTPUT_COMPOSITION){
     expect_identical(combined.flow_status, flow.flow_status);
     expect_identical(combined.flow_forward, flow.flow_forward);
     expect_identical(combined.flow_forward_status, flow.flow_forward_status);
+    const auto with_rgb = capture_auxiliary_outputs<AuxiliaryOutput::ALL, true>(device, bundle);
+    expect_identical(combined.depth, with_rgb.depth);
+    expect_identical(combined.segmentation, with_rgb.segmentation);
+    expect_identical(combined.normals, with_rgb.normals);
+    expect_identical(combined.flow, with_rgb.flow);
+    expect_identical(combined.flow_status, with_rgb.flow_status);
+    expect_identical(combined.flow_forward, with_rgb.flow_forward);
+    expect_identical(combined.flow_forward_status, with_rgb.flow_forward_status);
 }
 
 struct FLOW_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{

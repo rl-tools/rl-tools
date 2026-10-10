@@ -880,8 +880,9 @@ namespace rl_tools {
             if(id == 0xFFFFFFFFu){
                 return 0xFF000000u;
             }
-            const float hue = std::fmod((float)id * 0.61803398875f, 1.0f) * 6.0f;
-            const float descending = 1.0f - std::fabs(std::fmod(hue, 2.0f) - 1.0f);
+            const float scaled = (float)id * 0.61803398875f;
+            const float hue = (scaled - std::floor(scaled)) * 6.0f;
+            const float descending = 1.0f - std::fabs((hue - 2.0f * std::floor(hue * 0.5f)) - 1.0f);
             float r = 0, g = 0, b = 0;
             switch((int)hue){
                 case 0: r = 1; g = descending; break;
@@ -896,12 +897,12 @@ namespace rl_tools {
         // pinned normals encoding, the single owner shared by save verbs and the golden corpus:
         // each component maps through round((clamp(n, -1, 1) * 0.5 + 0.5) * 255). The miss value
         // (0,0,0) encodes to (128,128,128), which no unit normal can reach (a unit vector has a
-        // component of magnitude >= 1/sqrt(3)).
+        // component of magnitude >= 1/sqrt(3)). The double bias preserves float values immediately below a half-integer.
         inline uint32_t normal_to_rgba(const float normal[3]){
             uint32_t rgba = 0xFF000000u;
             for(int component = 0; component < 3; component++){
                 const float clamped = fminf(fmaxf(normal[component], -1.f), 1.f);
-                const uint32_t value = (uint32_t)lroundf((clamped * 0.5f + 0.5f) * 255.f);
+                const uint32_t value = (uint32_t)((double)((clamped * 0.5f + 0.5f) * 255.f) + 0.5);
                 rgba |= value << (8 * component);
             }
             return rgba;
@@ -916,7 +917,7 @@ namespace rl_tools {
             const float magnitude = std::sqrt(u * u + v * v);
             const float saturation = magnitude_scale > 0 ? std::fmin(magnitude / magnitude_scale, 1.f) : 0.f;
             const float hue = (std::atan2(v, u) / TWO_PI + 0.5f) * 6.f;
-            const float descending = 1.f - std::fabs(std::fmod(hue, 2.f) - 1.f);
+            const float descending = 1.f - std::fabs((hue - 2.f * std::floor(hue * 0.5f)) - 1.f);
             float red = 0, green = 0, blue = 0;
             switch((int)hue % 6){
                 case 0: red = 1; green = descending; break;

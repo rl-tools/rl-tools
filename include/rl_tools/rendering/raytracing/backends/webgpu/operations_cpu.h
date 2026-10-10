@@ -25,6 +25,7 @@
 #include <webgpu/webgpu.h>
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#include <emscripten/promise.h>
 #else
 #include <webgpu/wgpu.h>
 #endif
@@ -52,6 +53,9 @@ namespace rl_tools {
     }
 
     namespace rendering::raytracing::backends::webgpu{
+        template <typename SPEC>
+        constexpr bool FUSE_AUXILIARY = SPEC::HAS_RGB && !SPEC::ENABLE_ANTI_ALIASING && !SPEC::ENABLE_MOTION_BLUR && (SPEC::HAS_DEPTH || SPEC::HAS_SEGMENTATION || SPEC::HAS_NORMALS || SPEC::HAS_FLOW);
+
         template <typename SPEC>
         Context& context(rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
             return *renderer.backend;
@@ -110,6 +114,9 @@ namespace rl_tools {
         }
 
         struct MapRequest{
+#ifdef __EMSCRIPTEN__
+            em_promise_t promise;
+#endif
             bool done = false;
             WGPUMapAsyncStatus status = WGPUMapAsyncStatus_Error;
         };
@@ -118,6 +125,9 @@ namespace rl_tools {
             auto* request = (MapRequest*)userdata1;
             request->status = status;
             request->done = true;
+#ifdef __EMSCRIPTEN__
+            emscripten_promise_resolve(request->promise, EM_PROMISE_FULFILL, nullptr);
+#endif
         }
 
         template <typename DEVICE>
@@ -126,7 +136,12 @@ namespace rl_tools {
             for(size_t i = 0; i < targets.size(); i++){
                 const auto& staging = *targets[i].staging;
                 WGPUBufferMapCallbackInfo callback_info{};
+#ifdef __EMSCRIPTEN__
+                requests[i].promise = emscripten_promise_create();
+                callback_info.mode = WGPUCallbackMode_AllowSpontaneous;
+#else
                 callback_info.mode = WGPUCallbackMode_AllowProcessEvents;
+#endif
                 callback_info.callback = map_callback;
                 callback_info.userdata1 = &requests[i];
                 wgpuBufferMapAsync(staging.buffer, WGPUMapMode_Read, 0, (size_t)staging.size, callback_info);
@@ -137,10 +152,8 @@ namespace rl_tools {
                 const auto& staging = *target.staging;
                 while(!request.done){
 #ifdef __EMSCRIPTEN__
-                    wgpuInstanceProcessEvents(ctx.instance);
-                    if(!request.done){
-                        emscripten_sleep(1);
-                    }
+                    const auto settled = emscripten_promise_await(request.promise);
+                    utils::assert_exit(device, settled.result == EM_PROMISE_FULFILL, "WebGPU: map promise rejected");
 #else
                     wgpuDevicePoll(ctx.device, true, nullptr);
 #endif
@@ -150,6 +163,9 @@ namespace rl_tools {
                 utils::assert_exit(device, mapped != nullptr, "WebGPU: mapped range unavailable");
                 std::memcpy(target.destination, mapped, target.bytes);
                 wgpuBufferUnmap(staging.buffer);
+#ifdef __EMSCRIPTEN__
+                emscripten_promise_destroy(request.promise);
+#endif
             }
         }
 
@@ -366,9 +382,6 @@ namespace rl_tools {
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
             malloc(device, renderer.transforms_motion);
             std::memset(data(renderer.transforms_motion), 0, decltype(renderer.transforms_motion)::SPEC::SIZE_BYTES);
-            if constexpr (SPEC::HAS_RGB) {
-                malloc(device, renderer.rgb_accumulator);
-            }
         }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         malloc(device, renderer.collision_results);
@@ -535,9 +548,6 @@ namespace rl_tools {
                 set_entry(binding_i, WGPUBufferBindingType_ReadOnlyStorage);
             }
             set_entry(wg::bindings::OUTPUTS, WGPUBufferBindingType_Storage);
-            set_entry(wg::bindings::DISPATCH_PARAMS, WGPUBufferBindingType_Uniform);
-            layout_entries[wg::bindings::DISPATCH_PARAMS].buffer.hasDynamicOffset = true;
-            layout_entries[wg::bindings::DISPATCH_PARAMS].buffer.minBindingSize = sizeof(wg::DispatchParams);
             WGPUBindGroupLayoutDescriptor layout_descriptor{};
             layout_descriptor.entryCount = wg::bindings::COUNT;
             layout_descriptor.entries = layout_entries;
@@ -576,8 +586,8 @@ namespace rl_tools {
                 constant("fc_has_segmentation", SPEC::HAS_SEGMENTATION ? 1.0 : 0.0),
                 constant("fc_has_normals", SPEC::HAS_NORMALS ? 1.0 : 0.0),
                 constant("fc_has_flow", SPEC::HAS_FLOW ? 1.0 : 0.0),
+                constant("fc_fuse_auxiliary", wg::FUSE_AUXILIARY<SPEC> ? 1.0 : 0.0),
                 constant("fc_dynamic_motion_blur", CONSTANTS::DYNAMIC_MOTION_BLUR ? 1.0 : 0.0),
-                constant("fc_resolve_rgb", CONSTANTS::RESOLVE_RGB ? 1.0 : 0.0),
                 constant("fc_num_overlays", (double)CONSTANTS::NUM_OVERLAYS),
                 constant("fc_overlay_capacity", (double)CONSTANTS::OVERLAY_CAPACITY),
             };
@@ -595,14 +605,11 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_RGB) {
                 ctx->rgb_pipeline = make_pipeline("main_rgb");
             }
-            if constexpr (SPEC::HAS_DEPTH || SPEC::HAS_SEGMENTATION || SPEC::HAS_NORMALS || SPEC::HAS_FLOW) {
+            if constexpr ((SPEC::HAS_DEPTH || SPEC::HAS_SEGMENTATION || SPEC::HAS_NORMALS || SPEC::HAS_FLOW) && !wg::FUSE_AUXILIARY<SPEC>) {
                 ctx->auxiliary_pipeline = make_pipeline("main_auxiliary");
             }
             if constexpr (SPEC::HAS_FLOW_FORWARD) {
                 ctx->flow_forward_pipeline = make_pipeline("main_flow_forward");
-            }
-            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
-                ctx->resolve_pipeline = make_pipeline("main_resolve");
             }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
             ctx->collision_pipeline = make_pipeline("main_collision");
@@ -669,19 +676,6 @@ namespace rl_tools {
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         ctx->probe_readbacks.push_back({&ctx->staging_collision, data(renderer.collision_results), decltype(renderer.collision_results)::SPEC::SIZE_BYTES});
 #endif
-        {
-            // one 256-byte slot per dynamic-motion-blur sample plus slot 0 for the shutter-close
-            // state; slot s + 1 carries that sample's shutter time and overlay BVH region
-            constexpr uint32_t num_slots = 1 + (SPEC::ENABLE_DYNAMIC_MOTION_BLUR ? (uint32_t)SPEC::MOTION_BLUR_SAMPLES : 0);
-            ctx->dispatch_params = wg::create_buffer(device, *ctx, (size_t)num_slots * wg::DISPATCH_PARAMS_STRIDE, WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst);
-            std::vector<uint8_t> slots((size_t)num_slots * wg::DISPATCH_PARAMS_STRIDE, 0);
-            for(uint32_t slot = 1; slot < num_slots; slot++){
-                auto* entry = (wg::DispatchParams*)(slots.data() + (size_t)slot * wg::DISPATCH_PARAMS_STRIDE);
-                entry->shutter_t = ((float)(slot - 1) + 0.5f) / (float)SPEC::MOTION_BLUR_SAMPLES;
-                entry->overlay_region = slot;
-            }
-            wgpuQueueWriteBuffer(ctx->queue, ctx->dispatch_params.buffer, 0, slots.data(), slots.size());
-        }
         rendering::raytracing::detail::announce_backend(device, renderer);
     }
 
@@ -1029,7 +1023,6 @@ namespace rl_tools {
             params.out_flow_forward = LAYOUT::FLOW_FORWARD_OFFSET;
             params.out_flow_forward_status = LAYOUT::FLOW_FORWARD_STATUS_OFFSET;
             params.out_observation = LAYOUT::OBSERVATION_OFFSET;
-            params.out_rgb_accumulator = LAYOUT::RGB_ACCUMULATOR_OFFSET;
             params.out_collision = LAYOUT::COLLISION_OFFSET;
             wgpuQueueWriteBuffer(ctx.queue, ctx.launch_params.buffer, 0, &params, sizeof(params));
         }
@@ -1053,7 +1046,6 @@ namespace rl_tools {
                 entries[binding].size = WGPU_WHOLE_SIZE;
             };
             set_entry(wg::bindings::LAUNCH_PARAMS, ctx.launch_params);
-            set_entry(wg::bindings::DISPATCH_PARAMS, ctx.dispatch_params);
             set_entry(wg::bindings::SCENE_GEOMETRY, ctx.scene_geometry);
             set_entry(wg::bindings::TEXTURE_DATA, ctx.texture_data);
             set_entry(wg::bindings::BVH_NODES, ctx.bvh_nodes);
@@ -1061,7 +1053,6 @@ namespace rl_tools {
             set_entry(wg::bindings::INSTANCE_DATA, ctx.instance_data);
             set_entry(wg::bindings::FRAME_INPUTS, ctx.frame_inputs);
             set_entry(wg::bindings::OUTPUTS, ctx.outputs);
-            entries[wg::bindings::DISPATCH_PARAMS].size = sizeof(wg::DispatchParams);
             WGPUBindGroupDescriptor descriptor{};
             descriptor.layout = ctx.bind_group_layout;
             descriptor.entryCount = wg::bindings::COUNT;
@@ -1204,37 +1195,21 @@ namespace rl_tools {
         constexpr uint32_t fb_groups_x = (SPEC::FB_WIDTH + wg::WORKGROUP_SIZE_X - 1) / wg::WORKGROUP_SIZE_X;
         constexpr uint32_t fb_groups_y = (SPEC::FB_HEIGHT + wg::WORKGROUP_SIZE_Y - 1) / wg::WORKGROUP_SIZE_Y;
         WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(ctx.device, nullptr);
-        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
-            if constexpr (SPEC::HAS_RGB){
-                wgpuCommandEncoderClearBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::RGB_ACCUMULATOR_OFFSET * sizeof(uint32_t), (uint64_t)LAYOUT::RGB_ACCUMULATOR_WORDS * sizeof(uint32_t));
-            }
-        }
         {
             WGPUComputePassEncoder pass = wgpuCommandEncoderBeginComputePass(encoder, nullptr);
-            const auto dispatch = [&](WGPUComputePipeline pipeline, uint32_t slot, uint32_t groups_x, uint32_t groups_y){
-                const uint32_t dynamic_offset = slot * wg::DISPATCH_PARAMS_STRIDE;
+            wgpuComputePassEncoderSetBindGroup(pass, 0, ctx.bind_group, 0, nullptr);
+            const auto dispatch = [&](WGPUComputePipeline pipeline){
                 wgpuComputePassEncoderSetPipeline(pass, pipeline);
-                wgpuComputePassEncoderSetBindGroup(pass, 0, ctx.bind_group, 1, &dynamic_offset);
-                wgpuComputePassEncoderDispatchWorkgroups(pass, groups_x, groups_y, 1);
+                wgpuComputePassEncoderDispatchWorkgroups(pass, fb_groups_x, fb_groups_y, 1);
             };
-            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
-                for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
-                    if constexpr (SPEC::HAS_RGB){
-                        dispatch(ctx.rgb_pipeline, 1 + (uint32_t)sample, fb_groups_x, fb_groups_y);
-                    }
-                }
+            if constexpr (SPEC::HAS_RGB){
+                dispatch(ctx.rgb_pipeline);
             }
-            else if constexpr (SPEC::HAS_RGB){
-                dispatch(ctx.rgb_pipeline, 0, fb_groups_x, fb_groups_y);
-            }
-            if constexpr (SPEC::HAS_DEPTH || SPEC::HAS_SEGMENTATION || SPEC::HAS_NORMALS || SPEC::HAS_FLOW){
-                dispatch(ctx.auxiliary_pipeline, 0, fb_groups_x, fb_groups_y);
+            if constexpr ((SPEC::HAS_DEPTH || SPEC::HAS_SEGMENTATION || SPEC::HAS_NORMALS || SPEC::HAS_FLOW) && !wg::FUSE_AUXILIARY<SPEC>){
+                dispatch(ctx.auxiliary_pipeline);
             }
             if constexpr (SPEC::HAS_FLOW_FORWARD){
-                dispatch(ctx.flow_forward_pipeline, 0, fb_groups_x, fb_groups_y);
-            }
-            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
-                dispatch(ctx.resolve_pipeline, 0, fb_groups_x, fb_groups_y);
+                dispatch(ctx.flow_forward_pipeline);
             }
             wgpuComputePassEncoderEnd(pass);
             wgpuComputePassEncoderRelease(pass);
@@ -1290,9 +1265,8 @@ namespace rl_tools {
         WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(ctx.device, nullptr);
         {
             WGPUComputePassEncoder pass = wgpuCommandEncoderBeginComputePass(encoder, nullptr);
-            const uint32_t dynamic_offset = 0;
             wgpuComputePassEncoderSetPipeline(pass, ctx.collision_pipeline);
-            wgpuComputePassEncoderSetBindGroup(pass, 0, ctx.bind_group, 1, &dynamic_offset);
+            wgpuComputePassEncoderSetBindGroup(pass, 0, ctx.bind_group, 0, nullptr);
             wgpuComputePassEncoderDispatchWorkgroups(pass, (SPEC::NUM_CAMERAS + wg::WORKGROUP_SIZE_X - 1) / wg::WORKGROUP_SIZE_X, (SPEC::NUM_PROBES + wg::WORKGROUP_SIZE_Y - 1) / wg::WORKGROUP_SIZE_Y, 1);
             wgpuComputePassEncoderEnd(pass);
             wgpuComputePassEncoderRelease(pass);
@@ -1326,7 +1300,6 @@ namespace rl_tools {
             wg::destroy_buffer(ctx.launch_params);
             wg::destroy_buffer(ctx.frame_inputs);
             wg::destroy_buffer(ctx.outputs);
-            wg::destroy_buffer(ctx.dispatch_params);
             wg::destroy_buffer(ctx.staging_frame_buffer);
             wg::destroy_buffer(ctx.staging_depth);
             wg::destroy_buffer(ctx.staging_segmentation);
@@ -1343,7 +1316,6 @@ namespace rl_tools {
             }
             if(ctx.collision_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.collision_pipeline); }
             if(ctx.flow_forward_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.flow_forward_pipeline); }
-            if(ctx.resolve_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.resolve_pipeline); }
             if(ctx.pipeline_layout != nullptr){ wgpuPipelineLayoutRelease(ctx.pipeline_layout); }
             if(ctx.bind_group_layout != nullptr){ wgpuBindGroupLayoutRelease(ctx.bind_group_layout); }
             if(ctx.module != nullptr){ wgpuShaderModuleRelease(ctx.module); }
@@ -1391,9 +1363,6 @@ namespace rl_tools {
         }
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
             free(device, renderer.transforms_motion);
-            if constexpr (SPEC::HAS_RGB) {
-                free(device, renderer.rgb_accumulator);
-            }
         }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         free(device, renderer.collision_results);
