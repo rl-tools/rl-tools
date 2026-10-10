@@ -244,6 +244,8 @@ wrapper — verb overloads registering and moving entities, compiled reward, ter
 compiles and flies its header. The environment's raytracing backend follows
 `HYPERDRONE_RENDER_BACKEND` like the renderer.
 
+Entity wrappers share their own pose writes in `prepare_entity_poses`: `render` calls it before forwarding acquisition, and `step` calls it before forwarding when a frame is pending and history or flow requires its poses. The base World separates input production (`prepare_render_inputs`), temporal reset (`reset_render_state`, using prepared poses for flow) and advancement (`advance_flow`), and acquisition (`render`, which publishes transforms, updates acceleration, and scatters images into history). Pose helpers neither render nor call `update`; CUDA may fuse temporal bookkeeping into existing kernels without changing these semantics.
+
 The target-frame task requires one agent with one camera and pre-renders its episode setups: a bank of one setup per instance
 (drone, scene placement, camera, brightness and the target perturbations) is rendered in one pass
 every `TARGET_BANK_REFRESH_STEPS` simulation steps (a compile-time task constant, default 32) and after

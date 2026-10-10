@@ -131,20 +131,12 @@ namespace rl_tools {
         request_render(device, world, reset_mask);
     }
 
-    // pose delivery: the gate's rows for every instance through its zero-coordinate rig (as the
-    // CUDA kernel does), then forward to the inner render
-    template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
-    void render(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input) {
-        if(!world.render_pending){
-            return;
-        }
-        request_render(device, world, reset_mask_input);
-        auto& reset_mask = world.render_reset;
+    template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC>
+    void prepare_entity_poses(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states) {
         using T = typename TASK_SPEC::T;
         using TI = typename TASK_SPEC::TI;
         using WORLD = rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>;
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
-        using BASE_SPEC = typename NEXT_WORLD::SPEC;
         const auto& kind = world.entity_kinds[world.entity_kind_index];
         const auto placement = rl::environments::hyperdrone::_entity_placement(world, kind);
         const float* no_coordinates = nullptr;
@@ -165,7 +157,17 @@ namespace rl_tools {
                 set_transform(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, kind.rig, pose, no_coordinates);
             }
         }
-        render(device, static_cast<NEXT_WORLD&>(world), parameters, states, reset_mask);
+    }
+
+    template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
+    void render(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input) {
+        if(!world.render_pending){
+            return;
+        }
+        using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
+        request_render(device, world, reset_mask_input);
+        prepare_entity_poses(device, world, parameters, states);
+        render(device, static_cast<NEXT_WORLD&>(world), parameters, states, world.render_reset);
     }
 
     // the gate's motion and interaction flags advance with the environment step
@@ -177,7 +179,7 @@ namespace rl_tools {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         if constexpr (NEXT_WORLD::SPEC::HISTORY_LENGTH > 1 || NEXT_WORLD::SPEC::OUTPUT_FLOW){
             if(world.render_pending){
-                render(device, world, parameters, states, world.render_reset);
+                prepare_entity_poses(device, world, parameters, states);
             }
         }
         step(device, static_cast<NEXT_WORLD&>(world), parameters, states, actions, next_states, rng);

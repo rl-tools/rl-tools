@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 
+#include "moving_gate_acquisition.h"
+
 namespace rlt = rl_tools;
 namespace l2f = rlt::rl::environments::l2f;
 
@@ -277,6 +279,16 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MOVING_GATE, ENTITY_MECHANISM_AND_TASK)
     rlt::free(device, world);
     rlt::free(device, shared.library);
     rlt::free(device, rng);
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MOVING_GATE, DEFERRED_ACQUISITION){
+    if(SCENE_PATH.empty()){
+        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
+    }
+    DEVICE device;
+    using namespace rlt;
+    init(device);
+    test_moving_gate_acquisition::check<WORLD_SPEC>(device, device, SCENE_PATH, GATE_PATH);
 }
 
 int main(int argc, char** argv) {

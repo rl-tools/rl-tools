@@ -389,8 +389,27 @@ namespace test_hyperdrone_acquisition {
         static constexpr bool OUTPUT_FLOW = FLOW;
     };
 
+    struct Checkpoint {
+        TI history_step, scene_version;
+        std::vector<T> observation, history, dynamics, flow;
+        std::vector<TI> episode_start, rotor_history_step;
+        std::vector<uint32_t> flow_status;
+    };
+
+    void expect_equal(const Checkpoint& a, const Checkpoint& b){
+        EXPECT_EQ(a.history_step, b.history_step);
+        EXPECT_EQ(a.scene_version, b.scene_version);
+        EXPECT_EQ(a.observation, b.observation);
+        EXPECT_EQ(a.history, b.history);
+        EXPECT_EQ(a.dynamics, b.dynamics);
+        EXPECT_EQ(a.flow, b.flow);
+        EXPECT_EQ(a.flow_status, b.flow_status);
+        EXPECT_EQ(a.episode_start, b.episode_start);
+        EXPECT_EQ(a.rotor_history_step, b.rotor_history_step);
+    }
+
     template <TI HISTORY, bool FLOW = false>
-    std::vector<T> rollout(bool read_every_step){
+    std::vector<Checkpoint> rollout(bool read_every_step){
         using namespace rlt;
         using WORLD_TYPE = rl::environments::hyperdrone::World<Specification<HISTORY, FLOW>>;
         constexpr TI COUNT = WORLD_TYPE::INSTANCES;
@@ -414,76 +433,101 @@ namespace test_hyperdrone_acquisition {
         malloc(device, reset_mask);
         malloc(device, actions);
         malloc(device, observations);
-        rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+        rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
         typename decltype(dataset)::Corpus corpus;
         rendering::datasets::procthor::enumerate(device, dataset, corpus);
-        init(device, world, shared, dataset, corpus, 0, 1, 0);
+        init(device, world, shared, dataset, corpus, 0, 2, 0);
+        set_all(device, world.history, T(-1));
         set_all(device, reset_mask, true);
         sample_initial_parameters(device, world, parameters, reset_mask, rng);
         sample_initial_state(device, world, parameters, states, reset_mask, rng);
         set_all(device, actions, T(0.1));
         set_all(device, reset_mask, false);
-        for(TI index = 0; index < 8; index++){
-            if(index == 3){
-                set(device, reset_mask, true, TI(0));
+        TI expected_episode_start[COUNT] = {};
+        const auto checkpoint = [&](){
+            observe(device, world, parameters, states, typename WORLD_TYPE::Observation{}, observations, rng);
+            EXPECT_FALSE(world.render_pending);
+            Checkpoint result;
+            result.history_step = world.history_step;
+            result.scene_version = world.scene_version;
+            for(TI slot = 0; slot < HISTORY; slot++){
+                for(TI camera = 0; camera < COUNT * WORLD_TYPE::N_VIEWS; camera++){
+                    for(TI column = 0; column < WORLD_TYPE::FRAME_DIM; column++){
+                        const T value = get(device, world.history, slot, camera, column);
+                        EXPECT_GE(value, T(0));
+                        EXPECT_LE(value, T(1));
+                        result.history.push_back(value);
+                    }
+                }
+            }
+            for(TI row = 0; row < COUNT; row++){
+                for(TI column = 0; column < WORLD_TYPE::OBSERVATION_DIM; column++){
+                    result.observation.push_back(get(device, observations, row, column));
+                }
+                const auto& state = get_ref(device, states, row);
+                result.dynamics.insert(result.dynamics.end(), state.position, state.position + 3);
+                result.dynamics.insert(result.dynamics.end(), state.orientation, state.orientation + 4);
+                result.dynamics.insert(result.dynamics.end(), state.linear_velocity, state.linear_velocity + 3);
+                result.dynamics.insert(result.dynamics.end(), state.angular_velocity, state.angular_velocity + 3);
+                result.dynamics.insert(result.dynamics.end(), state.last_action, state.last_action + 4);
+                result.dynamics.insert(result.dynamics.end(), state.force, state.force + 3);
+                result.dynamics.insert(result.dynamics.end(), state.torque, state.torque + 3);
+                result.dynamics.insert(result.dynamics.end(), state.rpm, state.rpm + 4);
+                for(TI slot = 0; slot < DYNAMICS_STATIC_PARAMETERS::ACTION_HISTORY_LENGTH; slot++){
+                    result.dynamics.insert(result.dynamics.end(), state.action_history[slot], state.action_history[slot] + 4);
+                }
+                result.rotor_history_step.push_back(state.rotor_history_step);
+                const TI episode_start = get(device, world.episode_start, row);
+                EXPECT_EQ(episode_start, expected_episode_start[row]);
+                result.episode_start.push_back(episode_start);
+            }
+            if constexpr (FLOW){
+                EXPECT_EQ(world.flow_scene_version, world.scene_version);
+                using RENDERER = typename WORLD_TYPE::RENDERER;
+                result.flow.resize(RENDERER::FLOW_TENSOR_SPEC::SIZE);
+                result.flow_status.resize(RENDERER::FLOW_STATUS_TENSOR_SPEC::SIZE);
+                Tensor<typename RENDERER::FLOW_TENSOR_SPEC> flow_alias;
+                Tensor<typename RENDERER::FLOW_STATUS_TENSOR_SPEC> status_alias;
+                flow_alias._data = result.flow.data();
+                status_alias._data = result.flow_status.data();
+                auto& renderer = get_renderer(device, world);
+                copy(renderer.device, device, flow_buffer(device, renderer), flow_alias);
+                copy(renderer.device, device, flow_status_buffer(device, renderer), status_alias);
+            }
+            return result;
+        };
+        std::vector<Checkpoint> result;
+        for(TI index = 0; index < 12; index++){
+            SCOPED_TRACE(index);
+            if(index == 3 || index == 6 || index == 9){
+                if(index == 6){
+                    select_scene(device, world, TI(1));
+                    EXPECT_EQ(world.active_slot, 1);
+                    set_all(device, reset_mask, true);
+                }
+                else{
+                    set(device, reset_mask, true, index == 3 ? TI(0) : TI(1));
+                }
+                for(TI row = 0; row < COUNT; row++){
+                    if(get(device, reset_mask, row)){
+                        expected_episode_start[row] = index;
+                    }
+                }
                 sample_initial_parameters(device, world, parameters, reset_mask, rng);
                 sample_initial_state(device, world, parameters, states, reset_mask, rng);
                 set_all(device, reset_mask, false);
             }
             step(device, world, parameters, states, actions, next_states, rng);
-            if constexpr (FLOW){
-                EXPECT_EQ(world.flow_scene_version, world.scene_version);
-            }
             copy(device, device, next_states, states);
-            if(read_every_step){
+            EXPECT_EQ(world.history_step, index + 2);
+            const bool acquire = index == 1 || index == 4 || index == 6 || index == 10 || index == 11;
+            if(read_every_step || acquire){
                 observe(device, world, parameters, states, typename WORLD_TYPE::Observation{}, observations, rng);
-                std::vector<T> before(COUNT * WORLD_TYPE::OBSERVATION_DIM);
-                for(TI row = 0; row < COUNT; row++){
-                    for(TI column = 0; column < WORLD_TYPE::OBSERVATION_DIM; column++){
-                        before[row * WORLD_TYPE::OBSERVATION_DIM + column] = get(device, observations, row, column);
-                    }
-                }
+            }
+            if(acquire){
+                result.push_back(checkpoint());
                 render(device, world, parameters, states, reset_mask);
-                observe(device, world, parameters, states, typename WORLD_TYPE::Observation{}, observations, rng);
-                for(TI row = 0; row < COUNT; row++){
-                    for(TI column = 0; column < WORLD_TYPE::OBSERVATION_DIM; column++){
-                        EXPECT_EQ(get(device, observations, row, column), before[row * WORLD_TYPE::OBSERVATION_DIM + column]);
-                    }
-                }
-            }
-        }
-        EXPECT_EQ(world.history_step, 9);
-        observe(device, world, parameters, states, typename WORLD_TYPE::Observation{}, observations, rng);
-        std::vector<T> result;
-        for(TI row = 0; row < COUNT; row++){
-            for(TI column = 0; column < WORLD_TYPE::OBSERVATION_DIM; column++){
-                result.push_back(get(device, observations, row, column));
-            }
-            const auto& state = get_ref(device, states, row);
-            for(TI axis = 0; axis < 3; axis++){
-                result.push_back(state.position[axis]);
-                result.push_back(state.linear_velocity[axis]);
-            }
-        }
-        if constexpr (FLOW){
-            using RENDERER = typename WORLD_TYPE::RENDERER;
-            std::vector<float> flow(RENDERER::FLOW_TENSOR_SPEC::SIZE);
-            std::vector<uint32_t> status(RENDERER::FLOW_STATUS_TENSOR_SPEC::SIZE);
-            Tensor<typename RENDERER::FLOW_TENSOR_SPEC> flow_alias;
-            Tensor<typename RENDERER::FLOW_STATUS_TENSOR_SPEC> status_alias;
-            flow_alias._data = flow.data();
-            status_alias._data = status.data();
-            auto& renderer = get_renderer(device, world);
-            copy(renderer.device, device, flow_buffer(device, renderer), flow_alias);
-            copy(renderer.device, device, flow_status_buffer(device, renderer), status_alias);
-            result.insert(result.end(), flow.begin(), flow.end());
-            for(const auto value : status){
-                result.push_back(static_cast<T>(value));
-            }
-            for(TI row = 0; row < COUNT; row++){
-                const TI start = get(device, world.episode_start, row);
-                EXPECT_EQ(start, row == 0 ? 3 : 0);
-                result.push_back(static_cast<T>(start));
+                expect_equal(result.back(), checkpoint());
             }
         }
         free(device, observations);
@@ -497,14 +541,28 @@ namespace test_hyperdrone_acquisition {
         free(device, rng);
         return result;
     }
+
+    template <TI HISTORY, bool FLOW = false>
+    void compare_acquisition(){
+        SCOPED_TRACE(HISTORY);
+        SCOPED_TRACE(FLOW);
+        const auto deferred = rollout<HISTORY, FLOW>(false);
+        const auto eager = rollout<HISTORY, FLOW>(true);
+        ASSERT_EQ(deferred.size(), 5);
+        ASSERT_EQ(deferred.size(), eager.size());
+        for(size_t index = 0; index < deferred.size(); index++){
+            SCOPED_TRACE(index);
+            expect_equal(deferred[index], eager[index]);
+        }
+    }
 }
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, ACQUISITION_READ_ORDER_AND_HISTORY){
     if(SCENE_PATH.empty()){
         GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
     }
-    EXPECT_EQ(test_hyperdrone_acquisition::rollout<1>(false), test_hyperdrone_acquisition::rollout<1>(true));
-    EXPECT_EQ(test_hyperdrone_acquisition::rollout<3>(false), test_hyperdrone_acquisition::rollout<3>(true));
-    EXPECT_EQ((test_hyperdrone_acquisition::rollout<1, true>(false)), (test_hyperdrone_acquisition::rollout<1, true>(true)));
-    EXPECT_EQ((test_hyperdrone_acquisition::rollout<3, true>(false)), (test_hyperdrone_acquisition::rollout<3, true>(true)));
+    test_hyperdrone_acquisition::compare_acquisition<1>();
+    test_hyperdrone_acquisition::compare_acquisition<3>();
+    test_hyperdrone_acquisition::compare_acquisition<1, true>();
+    test_hyperdrone_acquisition::compare_acquisition<3, true>();
 }

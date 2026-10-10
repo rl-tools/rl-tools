@@ -46,9 +46,7 @@ namespace rl_tools {
         update_sync(device, renderer);
     }
 
-    // flow: the previous instant becomes the current one (cameras -> cameras_previous,
-    // transforms -> transforms_previous, pending host rows alike); call after a frame's render
-    // and before the next frame's writes
+    // Snapshot current cameras and staged transforms as the previous instant before the next pose writes, whether or not an image was acquired.
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void advance_flow(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         advance_flow_launch(device, renderer);

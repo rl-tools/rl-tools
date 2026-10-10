@@ -86,24 +86,33 @@ namespace rl_tools{
                 }
             }
         }
+        template <typename DEVICE, typename RESET_SPEC, typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT void reset_episode_start(DEVICE& device, const Tensor<RESET_SPEC> reset_mask, TI* episode_start, TI history_step, TI instance){
+            if(get(device, reset_mask, instance)){
+                episode_start[instance] = history_step - 1;
+            }
+        }
         template <typename DEVICE, typename SPEC, typename RESET_SPEC>
-        __global__ void reset_flow_kernel(DEVICE device, const Tensor<RESET_SPEC> reset_mask, bool first,
-                                         const rendering::raytracing::Camera<typename SPEC::T>* current,
-                                         rendering::raytracing::Camera<typename SPEC::T>* previous,
-                                         const float* transforms_current, float* transforms_previous){
+        __global__ void reset_render_state_kernel(DEVICE device, const Tensor<RESET_SPEC> reset_mask, bool first, const rendering::raytracing::Camera<typename SPEC::T>* current, rendering::raytracing::Camera<typename SPEC::T>* previous, const float* transforms_current, float* transforms_previous, typename SPEC::TI* episode_start, typename SPEC::TI history_step){
             using TI = typename SPEC::TI;
             using WORLD = World<SPEC>;
             const TI instance = threadIdx.x + blockIdx.x * blockDim.x;
-            if(instance < WORLD::INSTANCES && (first || get(device, reset_mask, instance))){
-                for(TI view = 0; view < WORLD::N_VIEWS; view++){
-                    const TI camera = instance * WORLD::N_VIEWS + view;
-                    previous[camera] = current[camera];
-                }
-                if constexpr (WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){
-                    constexpr TI ELEMENTS = SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE * 12;
-                    for(TI element = 0; element < ELEMENTS; element++){
-                        const TI offset = instance * ELEMENTS + element;
-                        transforms_previous[offset] = transforms_current[offset];
+            if(instance < WORLD::INSTANCES){
+                const bool reset = get(device, reset_mask, instance);
+                reset_episode_start(device, reset_mask, episode_start, history_step, instance);
+                if constexpr(SPEC::OUTPUT_FLOW){
+                    if(first || reset){
+                        for(TI view = 0; view < WORLD::N_VIEWS; view++){
+                            const TI camera = instance * WORLD::N_VIEWS + view;
+                            previous[camera] = current[camera];
+                        }
+                        if constexpr(WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){
+                            constexpr TI ELEMENTS = SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE * 12;
+                            for(TI element = 0; element < ELEMENTS; element++){
+                                const TI offset = instance * ELEMENTS + element;
+                                transforms_previous[offset] = transforms_current[offset];
+                            }
+                        }
                     }
                 }
             }
@@ -151,8 +160,7 @@ namespace rl_tools{
                 drone_entity_rows<DEVICE, SPEC>(device, get_ref(device, bodies, instance_parameters.agents[agent_i].drone), base, base, coordinates_open, coordinates_close, transforms, transforms_motion, meshes, parts, row);
             }
         }
-        // the per-instance episode-start bookkeeping rides in the scatter grid (one designated
-        // thread per instance) to save a launch
+        // Fuse no-flow episode bookkeeping into scatter or step to avoid a separate kernel launch.
         template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RESET_SPEC>
         __global__ void scatter_kernel(DEVICE device, const float* __restrict__ observation, float* __restrict__ history_row, Tensor<PARAMETER_SPEC> parameters, typename SPEC::TI* episode_start, const Tensor<RESET_SPEC> reset_mask, typename SPEC::TI history_step){
             using TI = typename DEVICE::index_t;
@@ -164,8 +172,10 @@ namespace rl_tools{
                 TI camera_i = thread_i / CAM_PIXELS;
                 TI instance_i = camera_i / WORLD::N_VIEWS;
                 TI pixel_i = thread_i % CAM_PIXELS;
-                if(pixel_i == 0 && camera_i % WORLD::N_VIEWS == 0 && get(device, reset_mask, instance_i)){
-                    episode_start[instance_i] = history_step - 1;
+                if constexpr(!SPEC::OUTPUT_FLOW){
+                    if(pixel_i == 0 && camera_i % WORLD::N_VIEWS == 0){
+                        reset_episode_start(device, reset_mask, episode_start, history_step, static_cast<typename SPEC::TI>(instance_i));
+                    }
                 }
                 const float scale = (float)get_ref(device, parameters, instance_i).brightness_scale;
                 for(TI channel_i = 0; channel_i < 3; channel_i++){
@@ -205,14 +215,17 @@ namespace rl_tools{
                 }
             }
         }
-        template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename NEXT_STATE_SPEC, typename RNG>
-        __global__ void step_kernel(DEVICE device, typename World<SPEC>::DYNAMICS_ENV dynamics, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, const Tensor<ACTION_SPEC> actions, Tensor<NEXT_STATE_SPEC> next_states, RNG rng, rendering::raytracing::Camera<typename SPEC::T>* prev_cameras){
+        template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename NEXT_STATE_SPEC, typename RESET_SPEC, typename RNG>
+        __global__ void step_kernel(DEVICE device, typename World<SPEC>::DYNAMICS_ENV dynamics, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, const Tensor<ACTION_SPEC> actions, Tensor<NEXT_STATE_SPEC> next_states, RNG rng, rendering::raytracing::Camera<typename SPEC::T>* prev_cameras, const Tensor<RESET_SPEC> reset_mask, typename SPEC::TI* episode_start, typename SPEC::TI history_step){
             using TI = typename DEVICE::index_t;
             using WORLD = World<SPEC>;
             constexpr TI INSTANCES = WORLD::INSTANCES;
             static_assert(RNG::NUM_RNGS >= INSTANCES, "Please increase the number of CUDA RNGs");
             TI instance_i = threadIdx.x + blockIdx.x * blockDim.x;
             if(instance_i < INSTANCES){
+                if constexpr(SPEC::HISTORY_LENGTH == 1 && !SPEC::OUTPUT_FLOW){
+                    reset_episode_start(device, reset_mask, episode_start, history_step, static_cast<typename SPEC::TI>(instance_i));
+                }
                 if constexpr (SPEC::ENABLE_MOTION_BLUR){
                     const auto& instance_parameters = get_ref(device, parameters, instance_i);
                     const auto& state = get_ref(device, states, instance_i);
@@ -310,7 +323,7 @@ namespace rl_tools{
         request_render(device, world, reset_mask);
     }
     template <typename DEV_SPEC, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
-    void render(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input){
+    void prepare_render_inputs(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input){
         if(!world.render_pending){
             return;
         }
@@ -322,7 +335,6 @@ namespace rl_tools{
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
         static_assert(SPEC::OUTPUT_RGB, "hyperdrone::World::render requires the RGB observation output");
         constexpr TI INSTANCES = WORLD::INSTANCES;
-        constexpr TI CAM_PIXELS = SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT;
         const T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
         devices::cuda::TAG<DEVICE, true> tag_device{};
         auto& renderer = get_renderer(device, world);
@@ -346,32 +358,59 @@ namespace rl_tools{
             }
             rl::environments::hyperdrone::cuda::pose_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, parameters, states, reset_mask, cameras_data, cameras_open_data, data(world.prev_cameras), world.history_step, aspect);
         }
-        if constexpr (SPEC::OUTPUT_FLOW){
-            const float* current_transforms = nullptr;
-            float* previous_transforms = nullptr;
-            if constexpr (WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){
-                current_transforms = data(transforms(device, renderer));
-                previous_transforms = data(transforms_previous(device, renderer));
-            }
-            constexpr TI BLOCKSIZE = 32;
-            constexpr TI N_BLOCKS = (INSTANCES + BLOCKSIZE - 1) / BLOCKSIZE;
-            rl::environments::hyperdrone::cuda::reset_flow_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, reset_mask, world.flow_scene_version != world.scene_version,
-                data(cameras(device, renderer)), data(cameras_previous(device, renderer)), current_transforms, previous_transforms);
-            check_status(device);
+        check_status(device);
+    }
+    template <typename DEV_SPEC, typename SPEC, typename RESET_SPEC>
+    void reset_render_state(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::World<SPEC>& world, const Tensor<RESET_SPEC>& reset_mask){
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using TI = typename DEVICE::index_t;
+        using WORLD = rl::environments::hyperdrone::World<SPEC>;
+        auto& renderer = get_renderer(device, world);
+        rendering::raytracing::Camera<typename SPEC::T>* previous_cameras = nullptr;
+        if constexpr(SPEC::OUTPUT_FLOW){
+            previous_cameras = data(cameras_previous(device, renderer));
         }
+        const float* current_transforms = nullptr;
+        float* previous_transforms = nullptr;
+        if constexpr(WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){
+            current_transforms = data(transforms(device, renderer));
+            previous_transforms = data(transforms_previous(device, renderer));
+        }
+        constexpr TI BLOCKSIZE = 32;
+        constexpr TI N_BLOCKS = (WORLD::INSTANCES + BLOCKSIZE - 1) / BLOCKSIZE;
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        rl::environments::hyperdrone::cuda::reset_render_state_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, reset_mask, world.flow_scene_version != world.scene_version, data(cameras(device, renderer)), previous_cameras, current_transforms, previous_transforms, data(world.episode_start), world.history_step);
+        check_status(device);
+        if constexpr(SPEC::OUTPUT_FLOW){
+            world.flow_scene_version = world.scene_version;
+        }
+    }
+    template <typename DEV_SPEC, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
+    void render(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input){
+        if(!world.render_pending){
+            return;
+        }
+        prepare_render_inputs(device, world, parameters, states, reset_mask_input);
+        if constexpr(SPEC::OUTPUT_FLOW){
+            reset_render_state(device, world, world.render_reset);
+        }
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using TI = typename DEVICE::index_t;
+        using WORLD = rl::environments::hyperdrone::World<SPEC>;
+        constexpr TI INSTANCES = WORLD::INSTANCES;
+        constexpr TI CAM_PIXELS = SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT;
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        auto& renderer = get_renderer(device, world);
         if constexpr (WORLD::RENDERER_CONFIG::NUM_OVERLAYS > 0) {
             update_launch(device, renderer);
         }
         render_launch(device, renderer);
-        if constexpr (SPEC::OUTPUT_FLOW){
-            world.flow_scene_version = world.scene_version;
-        }
         const TI history_slot = (world.history_step - 1) % SPEC::HISTORY_LENGTH;
         float* history_row = data(world.history) + history_slot * INSTANCES * WORLD::N_VIEWS * WORLD::FRAME_DIM;
         {
             constexpr TI BLOCKSIZE = 256;
             constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES * WORLD::N_VIEWS * CAM_PIXELS, BLOCKSIZE);
-            rl::environments::hyperdrone::cuda::scatter_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, data(renderer.observation), history_row, parameters, data(world.episode_start), reset_mask, world.history_step);
+            rl::environments::hyperdrone::cuda::scatter_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, data(renderer.observation), history_row, parameters, data(world.episode_start), world.render_reset, world.history_step);
         }
         check_status(device);
         world.render_pending = false;
@@ -417,16 +456,22 @@ namespace rl_tools{
         constexpr TI BLOCKSIZE = 32;
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        if constexpr (SPEC::HISTORY_LENGTH > 1 || SPEC::OUTPUT_FLOW){
-            if(world.render_pending){
+        if(world.render_pending){
+            if constexpr(SPEC::HISTORY_LENGTH > 1){
                 render(device, world, parameters, states, world.render_reset);
+            }
+            else{
+                if constexpr(SPEC::OUTPUT_FLOW){
+                    prepare_render_inputs(device, world, parameters, states, world.render_reset);
+                    reset_render_state(device, world, world.render_reset);
+                }
             }
         }
         if constexpr (SPEC::OUTPUT_FLOW){
             advance_flow_launch(device, get_renderer(device, world));
         }
         auto world_rng = rl::environments::hyperdrone::cuda::instance_rng(device, world, rng);
-        rl::environments::hyperdrone::cuda::step_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, parameters, states, actions, next_states, world_rng, data(world.prev_cameras));
+        rl::environments::hyperdrone::cuda::step_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, parameters, states, actions, next_states, world_rng, data(world.prev_cameras), world.render_reset, data(world.episode_start), world.history_step);
         check_status(device);
         world.history_step++;
         set_all(device, world.render_reset, false);
