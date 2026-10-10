@@ -56,7 +56,7 @@ function set_status(text){
     status_element.textContent = text;
 }
 
-function active(){
+function has_control(){
     return !document.hidden && !tuning_panel.open && canvases.slice(0, 2).includes(document.pointerLockElement);
 }
 
@@ -66,22 +66,22 @@ function clear_input(){
 }
 
 function update_flight_state(){
-    const flying = active();
-    document.body.classList.toggle("flying", flying);
-    flight_state.textContent = !ready ? "Loading" : flying ? "Flying" : "Paused";
+    const controlling = has_control();
+    document.body.classList.toggle("controlling", controlling);
+    flight_state.textContent = !ready ? "Loading" : document.hidden ? "Paused" : controlling ? "Controlling" : "Running";
     if(ready && max_frames === 0){
-        set_status(flying ? "WASD to move · Mouse to turn · Click or Esc to pause" : "Ready · Click either camera to fly");
+        set_status(document.hidden ? "Simulation paused while this tab is hidden" : controlling ? "WASD to move · Mouse to turn · Click or Esc to release control" : "Simulation running · Click either camera to take control");
     }
 }
 
 function poll_input(){
-    const flying = active();
+    const controlling = has_control();
     const input = [
-        flying ? Number(keys.has("KeyW")) - Number(keys.has("KeyS")) : 0,
-        flying ? Number(keys.has("KeyA")) - Number(keys.has("KeyD")) : 0,
-        flying ? yaw_delta : 0,
+        controlling ? Number(keys.has("KeyW")) - Number(keys.has("KeyS")) : 0,
+        controlling ? Number(keys.has("KeyA")) - Number(keys.has("KeyD")) : 0,
+        controlling ? yaw_delta : 0,
         Number(reset_requested),
-        Number(flying),
+        Number(!document.hidden),
         Number(yaw_rate_limit.value) * Math.PI / 180,
         Number(yaw_error_limit.value) * Math.PI / 180,
         Number(position_offset.value),
@@ -96,7 +96,7 @@ async function toggle_pointer_lock(canvas){
     if(!ready){
         return;
     }
-    if(active()){
+    if(has_control()){
         document.exitPointerLock();
     }
     else{
@@ -121,9 +121,6 @@ for(const canvas of canvases.slice(0, 2)){
 }
 document.addEventListener("pointerlockchange", () => {
     clear_input();
-    fps_window_start = performance.now();
-    fps_window_frames = 0;
-    fps_element.textContent = "";
     update_flight_state();
 });
 document.addEventListener("pointerlockerror", () => set_status("Mouse capture was unavailable. Click a camera to try again."));
@@ -136,34 +133,38 @@ document.addEventListener("keydown", event => {
             }
             else{
                 tuning_panel.showModal();
-                pause();
+                release_controls();
             }
         }
         return;
     }
-    if(active() && ["KeyW", "KeyA", "KeyS", "KeyD"].includes(event.code)){
+    if(has_control() && ["KeyW", "KeyA", "KeyS", "KeyD"].includes(event.code)){
         event.preventDefault();
         keys.add(event.code);
     }
 });
 document.addEventListener("keyup", event => keys.delete(event.code));
 document.addEventListener("mousemove", event => {
-    if(active()){
+    if(has_control()){
         yaw_delta -= event.movementX * 0.002 * Number(mouse_sensitivity.value);
     }
 });
-function pause(){
+function release_controls(){
     clear_input();
     if(canvases.slice(0, 2).includes(document.pointerLockElement)){
         document.exitPointerLock();
     }
     update_flight_state();
 }
-window.addEventListener("blur", pause);
+window.addEventListener("blur", release_controls);
 document.addEventListener("visibilitychange", () => {
     if(document.hidden){
-        pause();
+        release_controls();
     }
+    fps_window_start = performance.now();
+    fps_window_frames = 0;
+    fps_element.textContent = "";
+    update_flight_state();
 });
 reset_button.addEventListener("click", () => {
     reset_requested = true;
@@ -187,7 +188,7 @@ document.getElementById("tuning-defaults").addEventListener("click", () => {
 update_tuning_values();
 
 function show_error(error){
-    pause();
+    release_controls();
     ready = false;
     reset_button.disabled = true;
     flight_state.textContent = "Unavailable";
