@@ -5,9 +5,11 @@
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/raytracing/save_cpu.h>
 #include <metra/metra.h>
+#include <rl_tools/utils/extrack/extrack.h>
 #include <nlohmann/json.hpp>
 
 #include "simulator_matrix_config.h"
+#include "simulator_matrix_physics.h"
 
 #include <algorithm>
 #include <cerrno>
@@ -22,6 +24,7 @@
 #include <limits>
 #include <random>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <type_traits>
@@ -42,6 +45,8 @@ static constexpr TI NUM_ENVS = CONFIG::NUM_CAMERAS;
 static constexpr TI CAM_WIDTH = CONFIG::RESOLUTION;
 static constexpr TI CAM_HEIGHT = CONFIG::RESOLUTION;
 static constexpr const char* OBJECTS20_LAYOUT_NAME = "canonical_staggered_v1";
+static constexpr const char* PAPER_SCENE_SHA1 = "7f1c9129532798e0b63bc41edb6b4c09251cf8a0";
+namespace paper = rlt::rendering::raytracing::benchmark;
 
 template <bool T_OUTPUT_RGB, bool T_OUTPUT_DEPTH, TI T_WIDTH = CAM_WIDTH, TI T_HEIGHT = CAM_HEIGHT, TI T_NUM_CAMERAS = NUM_ENVS, typename T_SHADING = ShadingProfile, bool T_ENABLE_AA = false, TI T_AA_GRID_SIZE = 1>
 struct BenchmarkConfig: rlt::rendering::raytracing::config::Default<T, TI>{
@@ -83,13 +88,14 @@ static CameraOffset camera_offset(SceneAxis scene) {
 }
 
 struct Options {
-    std::string scene = "procthor";
-    std::string output = "rgb";
+    std::string scene = CONFIG::PAPER ? "all" : "procthor";
+    std::string output = CONFIG::PAPER ? "all" : "rgb";
+    std::string workload = "render_only";
     std::string orientation_mode = "uniform_so3";
     std::string output_dir = ".";
     std::string output_png;
-    std::string procthor_path = "conta:75d1d67a17ecd16bc3a214baa895240da8060df7";
-    double seconds = 10.0;
+    std::string procthor_path = CONFIG::PAPER ? CONFIG::PAPER_SCENE : "conta:75d1d67a17ecd16bc3a214baa895240da8060df7";
+    double seconds = CONFIG::PAPER ? 20.0 : 10.0;
     double warmup_seconds = 2.0;
     double cooldown_seconds = 10.0;
     int iterations = 0;
@@ -161,6 +167,12 @@ static void print_help(const char* argv0) {
             << "  --cooldown-seconds <seconds>     Between configurations (default: 10)\n"
             << "  --sweep-config-start <index>     First configuration (default: 0)\n"
             << "  --sweep-config-count <count>     <=0 selects all remaining configurations\n";
+    }
+    if constexpr (CONFIG::PAPER) {
+        std::cout << "  Paper defaults: --scene all --output all --seconds 20\n"
+            << "  --workload <render_only|render_physics_static|render_physics_coupled|all>\n"
+            << "  Physics requires an OptiX/CUDA build. Default: render_only\n"
+            << "  ProcTHOR must match the May asset; download_paper_scene.py fetches it.\n";
     }
 }
 
@@ -258,6 +270,9 @@ static bool parse_options(int argc, char** argv, Options& options) {
         else if(get_option_value(i, argc, argv, arg, "--output", value)) {
             options.output = value;
         }
+        else if(CONFIG::PAPER && get_option_value(i, argc, argv, arg, "--workload", value)) {
+            options.workload = value;
+        }
         else if(CONFIG::MODE != BenchmarkMode::frame && get_option_value(i, argc, argv, arg, "--orientation-mode", value)) {
             options.orientation_mode = value;
         }
@@ -336,6 +351,19 @@ static bool parse_options(int argc, char** argv, Options& options) {
         }
     }
 
+    if(options.workload != "render_only" && options.workload != "render_physics_static"
+       && options.workload != "render_physics_coupled" && options.workload != "all") {
+        std::cerr << "Unsupported --workload: " << options.workload << std::endl;
+        return false;
+    }
+    if(!CONFIG::PHYSICS_AVAILABLE && options.workload != "render_only") {
+        std::cerr << "Paper physics workloads require the OptiX backend and CUDA." << std::endl;
+        return false;
+    }
+    if(CONFIG::PAPER && options.orientation_mode != "uniform_so3") {
+        std::cerr << "The paper contract requires --orientation-mode uniform_so3." << std::endl;
+        return false;
+    }
     if(!options.output_png.empty() && options.output == "all") {
         std::cerr << "--output-png requires --output rgb or depth." << std::endl;
         return false;
@@ -383,9 +411,9 @@ static const char* scene_name(SceneAxis scene) {
 
 template <typename SPEC>
 static constexpr const char* shading_profile_name_for_spec() {
-    return std::is_same<typename SPEC::SHADING, rlt::rendering::raytracing::Low>::value ? "low"
+    return std::is_base_of<rlt::rendering::raytracing::Low, typename SPEC::SHADING>::value ? "low"
         : (std::is_same<typename SPEC::SHADING, rlt::rendering::raytracing::VeryHigh>::value ? "very_high"
-        : (std::is_same<typename SPEC::SHADING, rlt::rendering::raytracing::High>::value ? "high" : "medium"));
+        : (std::is_base_of<rlt::rendering::raytracing::High, typename SPEC::SHADING>::value ? "high" : "medium"));
 }
 
 template <typename SPEC>
@@ -836,17 +864,41 @@ static void write_single_camera(DEVICE& device, rlt::rendering::raytracing::Rend
 }
 
 template <typename DEVICE, typename SPEC>
-static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, const Options& options) {
+static void step_paper_physics(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer,
+                               paper::PhysicsSimulation& physics, const Options& options, int iteration) {
+    if constexpr (CONFIG::PHYSICS_AVAILABLE) {
+        if(options.workload != "render_only") {
+            void* destination = options.workload == "render_physics_coupled" ? data(cameras(device, renderer)) : nullptr;
+            if(!physics_step_cameras(device, physics, destination, stream(device, renderer), iteration)) {
+                throw std::runtime_error(physics_last_error(device, physics));
+            }
+        }
+    }
+}
+
+template <typename DEVICE, typename SPEC>
+static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer,
+                                     const Options& options, paper::PhysicsSimulation& physics) {
     using Clock = std::chrono::steady_clock;
     const auto warmup_start = Clock::now();
+    int warmup_iterations = 0;
     do {
+        step_paper_physics(device, renderer, physics, options, warmup_iterations++);
         render(device, renderer);
-    } while(std::chrono::duration<double>(Clock::now() - warmup_start).count() < options.warmup_seconds);
+    } while(options.warmup_seconds > 0
+        ? std::chrono::duration<double>(Clock::now() - warmup_start).count() < options.warmup_seconds
+        : warmup_iterations < (CONFIG::PAPER ? 10 : 1));
 
     synchronize(device, renderer);
+    if constexpr (CONFIG::PHYSICS_AVAILABLE) {
+        if(!synchronize_physics(device, physics)) {
+            throw std::runtime_error(physics_last_error(device, physics));
+        }
+    }
     const auto start = Clock::now();
     int iterations = 0;
     for(;;) {
+        step_paper_physics(device, renderer, physics, options, iterations);
         render_launch(device, renderer);
         iterations++;
         if(iterations % options.sync_interval == 0) {
@@ -860,6 +912,11 @@ static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing:
         }
     }
     synchronize(device, renderer);
+    if constexpr (CONFIG::PHYSICS_AVAILABLE) {
+        if(!synchronize_physics(device, physics)) {
+            throw std::runtime_error(physics_last_error(device, physics));
+        }
+    }
     const double elapsed = std::chrono::duration<double>(Clock::now() - start).count();
     const double frames = static_cast<double>(iterations) * SPEC::NUM_CAMERAS;
     const double pixels = frames * SPEC::CAM_PIXELS;
@@ -873,6 +930,14 @@ static bool setup_scene(DEVICE& device, rlt::rendering::Bundle<T>& bundle, Scene
         make_20_object_scene(bundle.scene);
         apply_20_object_bounds(bundle.metadata);
         return true;
+    }
+    if constexpr (CONFIG::PAPER) {
+        std::string hash;
+        if(!conta::detail::sha1_file(options.procthor_path, hash) || hash != PAPER_SCENE_SHA1) {
+            std::cerr << "Paper ProcTHOR asset missing or mismatched: " << options.procthor_path
+                << ". Run download_paper_scene.py; expected SHA1 " << PAPER_SCENE_SHA1 << std::endl;
+            return false;
+        }
     }
     rlt::log(device, device.logger, "Loading ProcTHOR scene: ", options.procthor_path);
     return load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, options.procthor_path);
@@ -917,7 +982,9 @@ static std::string case_name(SceneAxis scene, const Options& options, const std:
         hash.update(reinterpret_cast<const unsigned char*>(camera.data()), camera.size());
         orientation = "pose" + hash.finalize().substr(0, 12);
     }
-    return std::string(CONFIG::MODE == BenchmarkMode::frame ? "frame_" : "render_") + BACKEND_NAME + "_"
+    const std::string prefix = CONFIG::PAPER ? "paper_may2026_" + options.workload + "_"
+        : (CONFIG::MODE == BenchmarkMode::frame ? "frame_" : "render_");
+    return prefix + BACKEND_NAME + "_"
         + sanitize_label(device) + "_" + scene_name(scene) + "_" + scene_id + "_" + output_name_for_spec<SPEC>() + "_"
         + shading_profile_name_for_spec<SPEC>() + "_" + anti_aliasing_name_for_spec<SPEC>() + "_"
         + std::to_string(SPEC::NUM_CAMERAS) + "views_" + std::to_string(SPEC::CAM_WIDTH) + "x"
@@ -933,9 +1000,9 @@ static void report(SceneAxis scene, const Options& options, const std::string& d
     const std::string reference = scene == SceneAxis::PROCTHOR ? options.procthor_path : OBJECTS20_LAYOUT_NAME;
     const bool frame = CONFIG::MODE == BenchmarkMode::frame;
     const T* position = frame ? options.position : eye;
-    const nlohmann::json record = {
+    nlohmann::json record = {
         {"schema", "render-v1"},
-        {"workload", frame ? "frame" : "render_only"},
+        {"workload", frame ? "frame" : options.workload},
         {"backend", BACKEND_NAME},
         {"device", device},
         {"scene", scene_name(scene)},
@@ -965,6 +1032,28 @@ static void report(SceneAxis scene, const Options& options, const std::string& d
         {"primary_mrays_per_s", result.primary_mrays_per_s},
         {"verification_png", image}
     };
+    if constexpr (CONFIG::PAPER) {
+        record["benchmark_contract"] = "hyperdrone-paper-may2026";
+        record["rltools_commit"] = RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH);
+        record["workload_source_sha256"] = CONFIG::WORKLOAD_SOURCE_SHA256;
+#ifdef RL_TOOLS_EXTRACK_GIT_DIFF
+        record["rltools_commit"] = rlt::utils::extrack::git::rl_tools::commit;
+        record["tracked_source_dirty"] = rlt::utils::extrack::git::rl_tools::diff[0] != '\0'
+            || rlt::utils::extrack::git::rl_tools::diff_staged[0] != '\0';
+#else
+        record["tracked_source_dirty"] = nullptr;
+#endif
+        record["historical_source_commit"] = options.workload == "render_physics_coupled"
+            ? "6c7fc4c6e0c912c451e40856b80740e65f129635" : "10bee5cdc6616e6c42c16cf8966abff3f007ef06";
+        record["historical_commit_attribution"] = "inferred_from_paper_runs_and_history";
+        record["scene_sha256"] = scene == SceneAxis::PROCTHOR
+            ? nlohmann::json("76c463017f2a25683abaea3b29786294602bd2629b2f0725b7215dabf58f35aa") : nlohmann::json(nullptr);
+        record["physics"] = options.workload == "render_only" ? nlohmann::json(nullptr) : nlohmann::json{
+            {"model", "crazyflie"}, {"action_interface", "direct_motor"}, {"integrator", "rk4"},
+            {"dt", 0.01}, {"substeps", 1}, {"reset_interval", 10}, {"action_amplitude", 0.01},
+            {"camera_coupled", options.workload == "render_physics_coupled"}, {"collision_response", false}
+        };
+    }
     std::cout << record.dump() << '\n';
 
     const std::string prefix = "raytracing/benchmark/render-v1/" + identity + "/sync" + std::to_string(frame ? 1 : options.sync_interval);
@@ -988,6 +1077,7 @@ static bool run_case(DEVICE& device, SceneAxis scene, const Options& options) {
 
     CameraPose pose{};
     BenchmarkResult result{};
+    paper::PhysicsSimulation physics;
     if constexpr (CONFIG::MODE == BenchmarkMode::frame) {
         pose = make_single_frame_pose(bundle.metadata, options);
         write_single_camera(device, renderer, options.position, pose);
@@ -1002,7 +1092,37 @@ static bool run_case(DEVICE& device, SceneAxis scene, const Options& options) {
     else {
         const auto poses = make_camera_poses<SPEC>(bundle.metadata, scene, options);
         write_cameras(device, renderer, scene, poses);
-        result = run_benchmark(device, renderer, options);
+        if constexpr (CONFIG::PHYSICS_AVAILABLE) {
+            if(options.workload != "render_only") {
+                std::vector<paper::PhysicsCameraPose> physics_poses(poses.size());
+                for(size_t i = 0; i < poses.size(); i++) {
+                    std::copy_n(poses[i].direction, 3, physics_poses[i].direction);
+                    std::copy_n(poses[i].up, 3, physics_poses[i].up);
+                }
+                const auto offset = camera_offset(scene);
+                const T position[3] = {offset.x, offset.y, offset.z};
+                if(!init_physics_simulation(device, physics, SPEC::NUM_CAMERAS, position, physics_poses.data(),
+                                           FOV, static_cast<T>(SPEC::CAM_WIDTH) / SPEC::CAM_HEIGHT, options.seed)) {
+                    std::cerr << physics_last_error(device, physics) << std::endl;
+                    free(device, renderer);
+                    return false;
+                }
+            }
+        }
+        try {
+            result = run_benchmark(device, renderer, options, physics);
+        }
+        catch(const std::runtime_error& error) {
+            std::cerr << error.what() << std::endl;
+            if constexpr (CONFIG::PHYSICS_AVAILABLE) {
+                free_physics_simulation(device, physics);
+            }
+            free(device, renderer);
+            return false;
+        }
+        if constexpr (CONFIG::PHYSICS_AVAILABLE) {
+            free_physics_simulation(device, physics);
+        }
     }
 
     const auto* frame_pose = CONFIG::MODE == BenchmarkMode::frame ? &pose : nullptr;
@@ -1025,8 +1145,19 @@ static bool run_case(DEVICE& device, SceneAxis scene, const Options& options) {
 template <typename SPEC, typename DEVICE>
 static bool run_scenes(DEVICE& device, const std::vector<SceneAxis>& scenes, const Options& options) {
     for(SceneAxis scene : scenes) {
-        if(!run_case<SPEC>(device, scene, options)) {
-            return false;
+        if(options.workload == "all") {
+            for(const char* workload : {"render_only", "render_physics_static", "render_physics_coupled"}) {
+                auto selected = options;
+                selected.workload = workload;
+                if(!run_case<SPEC>(device, scene, selected)) {
+                    return false;
+                }
+            }
+        }
+        else {
+            if(!run_case<SPEC>(device, scene, options)) {
+                return false;
+            }
         }
     }
     return true;
