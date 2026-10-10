@@ -59,6 +59,7 @@ namespace rl_tools::rl::environments::hyperdrone::web {
         T previous_actions[4] = {};
         TI motor_order[4] = {};
         bool moving = false;
+        bool moving_vertical = false;
     };
     struct Buffer {
         std::vector<uint32_t> rgba = std::vector<uint32_t>(VIEWS * PIXELS);
@@ -166,6 +167,7 @@ namespace rl_tools {
         reset(device, state.pilot, state.rng);
         state.target = {};
         state.moving = false;
+        state.moving_vertical = false;
         for(TI motor = 0; motor < 4; motor++) {
             state.previous_actions[motor] = 0;
         }
@@ -173,15 +175,15 @@ namespace rl_tools {
         set_all(device, state.actions, (T)0);
         request_render(device, world, state.reset_mask);
     }
-    void control(web::DEVICE& device, web::State& state, web::T forward, web::T left, web::T yaw_delta) {
+    void control(web::DEVICE& device, web::State& state, web::T forward, web::T left, web::T up, web::T yaw_delta) {
         using namespace web;
         auto& physical = get_ref(device, state.states, (TI)0);
         const T dt = get_ref(device, state.parameters, (TI)0).agents[0].dynamics.integration.dt;
         update_yaw_target(device, state.pilot, physical, state.target, yaw_delta, dt, state.yaw_rate_limit, state.yaw_error_limit);
-        const T norm = math::sqrt(device.math, forward * forward + left * left);
-        const bool moving = norm > 0;
+        const T norm = math::sqrt(device.math, forward * forward + left * left + up * up);
+        const T scale = norm > 1 ? 1 / norm : 1;
+        const bool moving = forward != 0 || left != 0;
         if(moving) {
-            const T scale = norm > 1 ? 1 / norm : 1;
             const auto& q = physical.orientation;
             const T heading = math::atan2(device.math, (T)2 * (q[0] * q[3] + q[1] * q[2]), (T)1 - (T)2 * (q[2] * q[2] + q[3] * q[3]));
             const T c = math::cos(device.math, heading), s = math::sin(device.math, heading);
@@ -199,6 +201,16 @@ namespace rl_tools {
             }
         }
         state.moving = moving;
+        if(up != 0) {
+            state.target.position[2] = physical.position[2] + state.position_offset * up * scale;
+            state.target.linear_velocity[2] = state.velocity_target * up * scale;
+        } else {
+            if(state.moving_vertical) {
+                state.target.position[2] = physical.position[2];
+            }
+            state.target.linear_velocity[2] = 0;
+        }
+        state.moving_vertical = up != 0;
         observe(device, state.pilot, physical, state.target, state.previous_actions, (TI)0);
         evaluate_step(device, state.pilot, state.rng);
         for(TI motor = 0; motor < 4; motor++) {
@@ -208,12 +220,12 @@ namespace rl_tools {
             set(device, state.actions, state.previous_actions[state.motor_order[motor]], (TI)0, motor);
         }
     }
-    void step(web::DEVICE& device, web::State& state, web::T forward, web::T left, web::T yaw_delta, web::TI steps) {
+    void step(web::DEVICE& device, web::State& state, web::T forward, web::T left, web::T up, web::T yaw_delta, web::TI steps) {
         using namespace web;
         auto& world = state.environment.environments[0];
         auto actions = matrix_view(device, state.actions);
         for(TI step_i = 0; step_i < steps; step_i++) {
-            control(device, state, forward, left, yaw_delta / steps);
+            control(device, state, forward, left, up, yaw_delta / steps);
             // Only the final control tick advances camera/flow history; scalar steps integrate dynamics alone.
             if(step_i + 1 < steps) {
                 step(device, world, get_ref(device, state.parameters, (TI)0), get_ref(device, state.states, (TI)0), actions, get_ref(device, state.next_states, (TI)0), state.rng);
@@ -264,10 +276,10 @@ static void status(const char* message) {
         }
     }, message);
 }
-static void read_input(float input[9]) {
+static void read_input(float input[10]) {
     EM_ASM({
         const input = Module.rlt_input();
-        for(let i = 0; i < 9; i++) {
+        for(let i = 0; i < 10; i++) {
             HEAPF32[($0 >> 2) + i] = input[i];
         }
     }, input);
@@ -320,14 +332,14 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
     double accumulator = 0;
     bool was_active = false;
     for(int frame = 0; max_frames <= 0 || frame < max_frames;) {
-        float input[9] = {};
+        float input[10] = {};
         read_input(input);
-        state.yaw_rate_limit = input[5];
-        state.yaw_error_limit = input[6];
-        state.position_offset = input[7];
-        state.velocity_target = input[8];
-        const bool active = max_frames > 0 || input[4] != 0;
-        if(input[3] != 0) {
+        state.yaw_rate_limit = input[6];
+        state.yaw_error_limit = input[7];
+        state.position_offset = input[8];
+        state.velocity_target = input[9];
+        const bool active = max_frames > 0 || input[5] != 0;
+        if(input[4] != 0) {
             reset(device, state);
             accumulator = 0;
         }
@@ -338,20 +350,21 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
         previous_ms = now_ms;
         if(!active && was_active) {
             const auto& physical = get_ref(device, state.states, (web::TI)0);
-            for(web::TI dim = 0; dim < 2; dim++) {
+            for(web::TI dim = 0; dim < 3; dim++) {
                 state.target.position[dim] = physical.position[dim];
                 state.target.linear_velocity[dim] = 0;
             }
             state.moving = false;
+            state.moving_vertical = false;
             accumulator = 0;
         }
         was_active = active;
         if(active) {
             const auto steps = (web::TI)(accumulator / dt);
-            step(device, state, input[0], input[1], input[2], steps);
+            step(device, state, input[0], input[1], input[2], input[3], steps);
             accumulator -= steps * dt;
         }
-        if(frame == 0 || active || input[3] != 0) {
+        if(frame == 0 || active || input[4] != 0) {
             render(device, state, buffer);
             present(buffer);
             frame++;

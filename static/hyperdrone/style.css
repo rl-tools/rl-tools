@@ -25,10 +25,17 @@ h1 img { display: block; width: 200px; height: auto; margin: auto; }
 .selector > span { color: var(--muted); font: 10px var(--mono); letter-spacing: .07em; text-transform: uppercase; }
 .session-controls { margin-left: auto; gap: 14px; }
 select, button { font: inherit; color: inherit; background: #fff; border: 1px solid #9da59b; border-radius: 0; padding: 4px 8px; min-height: 28px; }
-select { max-width: 100%; }
+select {
+    max-width: 100%;
+    appearance: none;
+    padding-right: 30px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%23646963' stroke-width='1.2'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+}
 button { font-size: 12px; }
 select:enabled, button:enabled { cursor: pointer; }
-button:hover:enabled, select:hover:enabled { border-color: var(--ink); background: var(--surface); }
+button:hover:enabled, select:hover:enabled { border-color: var(--ink); background-color: var(--surface); }
 button:active:enabled { background: #e5e9e2; }
 button:disabled { opacity: .5; }
 #flight-state { display: flex; align-items: center; gap: 7px; color: var(--muted); font: 11px var(--mono); white-space: nowrap; }
@@ -51,7 +58,6 @@ progress { display: block; width: 100%; height: 4px; margin-top: 6px; accent-col
 .sensor-views { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 10px; }
 .view { display: flex; flex-direction: column; margin: 0; min-width: 0; border: 1px solid var(--line); }
 figcaption { display: flex; flex: 1; align-items: center; justify-content: space-between; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--surface); font-size: 12px; font-weight: 600; }
-.view-number { margin-right: 6px; color: var(--muted); font: 10px var(--mono); }
 .view-format { color: var(--muted); font: 10px var(--mono); white-space: nowrap; }
 canvas { display: block; flex-shrink: 0; width: 100%; height: auto; aspect-ratio: 16 / 9; background: var(--surface); }
 .camera-frame { position: relative; }

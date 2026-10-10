@@ -66,7 +66,7 @@ function update_flight_state(){
     const controlling = has_control();
     document.body.classList.toggle("ready", ready);
     document.body.classList.toggle("controlling", controlling);
-    flight_state.textContent = !ready ? "Loading" : document.hidden ? "Paused" : controlling ? "Pilot control" : "Position hold";
+    flight_state.textContent = !ready ? "Loading" : document.hidden ? "Paused" : controlling ? "User control" : "Position hold";
     if(ready && max_frames === 0){
         set_status(document.hidden ? "Simulation paused while this tab is hidden" : controlling ? "Control active · Click or Esc to release" : "Simulation running · RAPTOR position hold");
     }
@@ -77,6 +77,7 @@ function poll_input(){
     const input = [
         controlling ? Number(keys.has("KeyW")) - Number(keys.has("KeyS")) : 0,
         controlling ? Number(keys.has("KeyA")) - Number(keys.has("KeyD")) : 0,
+        controlling ? Number(keys.has("KeyE")) - Number(keys.has("KeyQ")) : 0,
         controlling ? yaw_delta : 0,
         Number(reset_requested),
         Number(!document.hidden),
@@ -136,7 +137,7 @@ document.addEventListener("keydown", event => {
         }
         return;
     }
-    if(has_control() && ["KeyW", "KeyA", "KeyS", "KeyD"].includes(event.code)){
+    if(has_control() && ["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE"].includes(event.code)){
         event.preventDefault();
         keys.add(event.code);
     }

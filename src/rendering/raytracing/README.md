@@ -190,8 +190,9 @@ Browser demo: `src/rl/environments/hyperdrone/web/build.sh` compiles the WebGPU 
 WASM with an activated emsdk (`--use-port=emdawnwebgpu`, ASYNCIFY, `-fexceptions` — assimp
 relies on internal try/catch) and the page in `static/hyperdrone/` uses HyperDrone's
 MultiEnvironment for interactive flight with two mounted RGB cameras and onboard depth,
-semantic segmentation, normals, and optical flow. RAPTOR runs at 100 Hz: WASD supplies a current-relative
-position target and a horizontal velocity target; releasing the keys holds position. Click a
+semantic segmentation, normals, and optical flow. RAPTOR runs at 100 Hz: WASD moves horizontally,
+E ascends, and Q descends through current-relative position and velocity targets; releasing
+the keys holds position and altitude. Combined input is normalized to the configured speed. Click a
 camera to capture or release the mouse, horizontal mouse motion controls yaw, and RAPTOR
 holds position without user input; hidden tabs pause. The scene selector uses the shared
 `procthor::Train200` catalog. `static/hyperdrone/registry.json` pins the rigged airframes and
@@ -201,7 +202,8 @@ The browser conta `load` resolver first requests `blob/<sha1>.gz`, then tries th
 conta index entry points and their providers, preferring advertised gzip variants and checking
 decoded hashes. To prepare the local default scene, Crazyflie, and checkpoint, run
 `.venv/bin/python static/hyperdrone/prepare_blob.py /path/to/scene.glb /path/to/crazyflie.glb /path/to/policy.tar`.
-`static/hyperdrone/blob/` is the separate asset repository; the build script writes its module
+Run `static/hyperdrone/download_blob.sh` to clone the separate asset repository into
+`static/hyperdrone/blob/`; existing checkouts are left untouched. The build script writes its module
 to `blob/build/`. Serve the page over HTTPS or localhost; `?scene=ProcTHOR-Train-0` selects a
 scene, and `?frames=N` renders a deterministic finite sequence for verification.
 The blocking-wait seams and adapter acquisition switch on
