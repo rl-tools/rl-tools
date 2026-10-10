@@ -17,10 +17,10 @@ namespace test_agent_parameters {
                 counts[agent_i][agent.drone]++;
                 const auto& nominal = shared.drones[agent.drone].parameters;
                 EXPECT_EQ(agent.dynamics.dynamics.mass, nominal.dynamics.dynamics.mass);
-                EXPECT_EQ(agent.camera.fov, nominal.camera.fov);
+                EXPECT_EQ(agent.cameras[0].fov, nominal.cameras[0].fov);
             }
             EXPECT_EQ(preserved.agents[agent_i].drone, untouched.agents[agent_i].drone);
-            EXPECT_EQ(preserved.agents[agent_i].camera.fov, untouched.agents[agent_i].camera.fov);
+            EXPECT_EQ(preserved.agents[agent_i].cameras[0].fov, untouched.agents[agent_i].cameras[0].fov);
             EXPECT_EQ(preserved.agents[agent_i].dynamics.dynamics.mass, untouched.agents[agent_i].dynamics.dynamics.mass);
         }
         return sampled.agents[0].drone != sampled.agents[1].drone;
@@ -79,7 +79,7 @@ namespace test_agent_parameters {
                 const auto& body = shared.drone_bodies[parameters.agents[agent_i].drone];
                 const auto& agent = state.agent_states[agent_i];
                 for(TI dim = 0; dim < 3; dim++){
-                    EXPECT_NEAR(cameras[instance_i * WORLD::N_AGENTS + agent_i].pos[dim], parameters.scene_translation[dim] + agent.position[dim] + parameters.agents[agent_i].camera.mount.pose.position[dim], 1e-5);
+                    EXPECT_NEAR(cameras[instance_i * WORLD::N_AGENTS + agent_i].pos[dim], parameters.scene_translation[dim] + agent.position[dim] + parameters.agents[agent_i].cameras[0].mount.pose.position[dim], 1e-5);
                 }
                 using RIG_SPEC = typename decltype(body.rig)::SPEC;
                 float base[12];

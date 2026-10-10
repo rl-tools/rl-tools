@@ -10,7 +10,7 @@ Configuration follows the C++ extension ladder: a preset names the platform
 universal knobs (instances_per_environment, camera resolution, fidelity, motion blur) complete the picture. Arbitrary
 C++ specifications are reached through `spec_header=`: a path to a C++ header defining
 `hyperdrone_env_user::WORLD` (including any rl_tools headers it needs); the header's
-content hash is part of the JIT key, and preset/task/num_agents must stay at their
+content hash is part of the JIT key, and preset/task/num_agents/num_cameras_per_agent must stay at their
 defaults since the user type supersedes them.
 """
 import hashlib
@@ -25,7 +25,7 @@ import conta
 from .. import _jit as jit
 from .._dlpack import is_cuda
 from .._outputs import VALID_MOTION_BLUR_SAMPLES, normalize_outputs, output_defines
-from .._parameters import resolve
+from .._parameters import merge, resolve
 
 PRESETS = {"crazyflie": 0, "x500_fpv": 1, "x500_fpv_imu": 2}
 SELF_VISIBLE_PRESETS = ("x500_fpv", "x500_fpv_imu")
@@ -62,6 +62,7 @@ class EnvConfig:
     preset: str = "crazyflie"
     task: str = None
     num_agents: int = 1
+    num_cameras_per_agent: int = 1
     spec_header: str = None
     device: str = None
     motion_blur_samples: int = 1
@@ -70,7 +71,7 @@ class EnvConfig:
     dataset: str = "glb"
 
     def __post_init__(self):
-        for name in ("num_environments", "instances_per_environment", "width", "height", "num_agents"):
+        for name in ("num_environments", "instances_per_environment", "width", "height", "num_agents", "num_cameras_per_agent"):
             if type(getattr(self, name)) is not int or getattr(self, name) < 1:
                 raise ValueError(f"hyperdrone: {name} must be a positive integer")
         object.__setattr__(self, "output", normalize_outputs(self.output))
@@ -90,6 +91,8 @@ class EnvConfig:
             raise ValueError(f"hyperdrone: motion_blur_samples must be one of {VALID_MOTION_BLUR_SAMPLES}")
         if self.task is not None and self.num_agents > 1:
             raise ValueError(f"hyperdrone: task {self.task!r} is single-agent")
+        if self.task == "target_frame" and self.num_cameras_per_agent != 1:
+            raise ValueError("hyperdrone: task 'target_frame' requires one camera per agent")
         if self.device not in (None, "cuda", "cpu"):
             raise ValueError(f"hyperdrone: unknown device {self.device!r} (one of 'cuda', 'cpu' or None)")
         if self.num_agents > 1 and self.preset not in SELF_VISIBLE_PRESETS:
@@ -142,6 +145,7 @@ class EnvConfig:
             "HYPERDRONE_ENV_PRESET": PRESETS[self.preset],
             "HYPERDRONE_ENV_TASK": TASKS[self.task],
             "HYPERDRONE_ENV_N_AGENTS": self.num_agents,
+            "HYPERDRONE_ENV_N_CAMERAS_PER_AGENT": self.num_cameras_per_agent,
             "HYPERDRONE_ENV_DEVICE_CUDA": 1 if self.world_device == "cuda" else 0,
         }
         if self.spec_header is not None:
@@ -240,7 +244,7 @@ class MultiEnvironment:
     assets: task-owned references by name; moving_gate requires {"gate": reference}.
     All assets accept conta references too.
 
-    parameters: a partial dict in the schema of the parameters property, {"dynamics": <l2f parameters>, "cameras": {"fpv": {"mount": {"pose": {"position", "orientation"}}, "fov"}}}, merged over the preset's nominal values as the base of every drone entry (the specification's randomization ranges apply on top at reset). parameters["dynamics"]["dynamics"]["model"] loads an l2f registry entry (hyperdrone.dynamics.MODELS) before the rest is merged, J_inv follows J unless given, the camera orientation is a (w, x, y, z) quaternion mapping the camera's FLU axes into the body frame, and fov is the horizontal FOV in degrees.
+    parameters: a partial dict in the schema of the parameters property, {"dynamics": <l2f parameters>, "cameras": [{"mount": {"pose": {"position", "orientation"}}, "fov"}, ...]}, merged over the preset's nominal values as the base of every drone entry (the specification's randomization ranges apply on top at reset). cameras requires one partial dict per camera; {} keeps its nominal values. parameters["dynamics"]["dynamics"]["model"] loads an l2f registry entry (hyperdrone.dynamics.MODELS) before the rest is merged, J_inv follows J unless given, the camera orientation is a (w, x, y, z) quaternion mapping the camera's FLU axes into the body frame, and fov is the horizontal FOV in degrees.
 
     Tasks with an IMU stream (task='visual_inertial_localization') add observe_imu() — the
     IMU sample of the last step, named by observation_layout_imu — and render a camera frame
@@ -307,6 +311,14 @@ class MultiEnvironment:
             raise ValueError(f"hyperdrone: dynamics {shared} are shared by all instances; set them through parameters=")
 
     def _resolve(self, base, overrides):
+        overrides = dict(overrides)
+        if "cameras" in overrides:
+            cameras = overrides["cameras"]
+            if not isinstance(cameras, (list, tuple)) or len(cameras) != self.num_cameras_per_agent:
+                raise ValueError(f"hyperdrone: provide {self.num_cameras_per_agent} camera overrides per agent")
+            if any(not isinstance(camera, dict) for camera in cameras):
+                raise ValueError("hyperdrone: each camera override must be a dict")
+            overrides["cameras"] = [merge(nominal, camera, f"cameras[{index}].") for index, (nominal, camera) in enumerate(zip(base["cameras"], cameras))]
         return resolve(base, overrides, self._environment.model)
 
     @property
@@ -324,7 +336,7 @@ class MultiEnvironment:
         return json.loads(self._environment.instance_parameters())
 
     def set_instance_parameters(self, overrides, mask=None):
-        """Overrides current parameters until reset: one dict for all selected instances or a list with one dict per selected instance. Multi-agent dicts contain "agents", one override dict per agent; use {} to keep an agent unchanged. Per-agent keys are dynamics.dynamics, dynamics.imu, cameras and "drone". Switching "drone" starts from that table entry's nominal before merging other overrides. Integration and other shared settings belong in constructor parameters=. Rotor overrides must preserve each rotor's XY quadrant and spin direction."""
+        """Overrides current parameters until reset: one dict for all selected instances or a list with one dict per selected instance. Multi-agent dicts contain "agents", one override dict per agent; use {} to keep an agent unchanged. Per-agent keys are dynamics.dynamics, dynamics.imu, cameras and "drone". cameras takes one partial dict per camera. Switching "drone" starts from that table entry's nominal before merging other overrides. Integration and other shared settings belong in constructor parameters=. Rotor overrides must preserve each rotor's XY quadrant and spin direction."""
         mask = self._host_mask(mask)
         selected = np.flatnonzero(mask)
         if isinstance(overrides, dict):
@@ -499,7 +511,7 @@ class MultiEnvironment:
         return self.observe().reshape(self.total_instances, *self.observation_layout.shape)
 
     def _render_output(self, name, dtype, channels, out):
-        shape = (self.total_instances, self.num_agents, self.height, self.width)
+        shape = (self.total_instances, self.num_views, self.height, self.width)
         if channels > 1:
             shape += (channels,)
         out = self._output(out, shape, dtype)
@@ -507,11 +519,11 @@ class MultiEnvironment:
         return out
 
     def depth(self, *, out=None):
-        """Camera-forward depth at pixel centres and shutter close, float32 (total_instances, num_agents, H, W); misses are +inf. Acquires pending frames."""
+        """Camera-forward depth at pixel centres and shutter close, float32 (total_instances, num_views, H, W); misses are +inf. Acquires pending frames."""
         return self._render_output("depth", np.float32, 1, out)
 
     def segmentation(self, *, out=None):
-        """Instance IDs or semantic classes, uint32 (total_instances, num_agents, H, W); miss=0xFFFFFFFF."""
+        """Instance IDs or semantic classes, uint32 (total_instances, num_views, H, W); miss=0xFFFFFFFF."""
         return self._render_output("segmentation", np.uint32, 1, out)
 
     @property
@@ -525,16 +537,16 @@ class MultiEnvironment:
         return self._environment.segmentation_taxonomy
 
     def normals(self, *, out=None):
-        """Scene-frame FLU geometric unit normals, float32 (total_instances, num_agents, H, W, 3); miss=zero."""
+        """Scene-frame FLU geometric unit normals, float32 (total_instances, num_views, H, W, 3); miss=zero."""
         return self._render_output("normals", np.float32, 3, out)
 
     def flow(self, *, out=None):
-        """Current-to-previous capture displacement in pixels, float32 (total_instances, num_agents, H, W, 2).
+        """Current-to-previous capture displacement in pixels, float32 (total_instances, num_views, H, W, 2).
 
         First captures and reset instances use identical poses at both instants. Every due capture is retained even when unread; repeated reads reuse the same output. Use flow_status() to mask it.
         """
         return self._render_output("flow", np.float32, 2, out)
 
     def flow_status(self, *, out=None):
-        """FlowStatus codes, uint32 (total_instances, num_agents, H, W)."""
+        """FlowStatus codes, uint32 (total_instances, num_views, H, W)."""
         return self._render_output("flow_status", np.uint32, 1, out)

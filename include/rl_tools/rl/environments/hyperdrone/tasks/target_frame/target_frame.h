@@ -69,7 +69,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame {
         static constexpr TI OBSERVATION_CHANNELS = Observation::CHANNELS;
         static constexpr TI OBSERVATION_DIM = Observation::DIM;
         static_assert(NEXT_WORLD::SPEC::HISTORY_LENGTH >= TASK_SPEC::IMAGE_STACK_STRIDE * (TASK_SPEC::IMAGE_STACK_N - 1) + 1, "the base World's frame history must cover the image stack");
-        static_assert(NEXT_WORLD::N_VIEWS == 1, "the target frame is one view per instance: multi-agent Worlds are not supported");
+        static_assert(NEXT_WORLD::N_VIEWS == 1, "the target-frame task requires one agent and one camera per instance");
         static_assert(TASK_SPEC::TARGET_BANK_REFRESH_STEPS > 0);
 
         // a setup is everything the target frame depends on (view, scene placement, target

@@ -154,7 +154,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, GLOBAL_RNG_PARTITION
         for(TI i = 0; i < MEMBER::INSTANCES; i++){
             const auto& a = rlt::get_ref(host, parameters_host, MEMBER::INSTANCES + i);
             const auto& b = rlt::get_ref(host, local_host, i);
-            EXPECT_EQ(a.agents[0].camera.fov, b.agents[0].camera.fov) << "round " << round << " instance " << i;
+            EXPECT_EQ(a.agents[0].cameras[0].fov, b.agents[0].cameras[0].fov) << "round " << round << " instance " << i;
             EXPECT_EQ(a.brightness_scale, b.brightness_scale);
         }
     }
@@ -215,7 +215,7 @@ static void expect_adopted(DEVICE& host, BankMirror& mirror, TI instance_i){
     ASSERT_LT(index, INSTANCES);
     const auto& setup = rlt::get_ref(host, mirror.setups, index);
     const typename WORLD::Parameters parameters = rlt::get(host, mirror.parameters, instance_i);
-    EXPECT_EQ(parameters.agents[0].camera.fov, setup.agents[0].camera.fov);
+    EXPECT_EQ(parameters.agents[0].cameras[0].fov, setup.agents[0].cameras[0].fov);
     EXPECT_EQ(parameters.brightness_scale, setup.brightness_scale);
     EXPECT_EQ(parameters.scene_translation[0], setup.scene_translation[0]);
     EXPECT_EQ(parameters.target_roll, setup.target_roll);
