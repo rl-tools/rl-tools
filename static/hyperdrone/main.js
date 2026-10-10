@@ -1,19 +1,9 @@
-const SCENE = {description: "ProcTHOR-Train-1.glb", sha1: "75d1d67a17ecd16bc3a214baa895240da8060df7", size_mb: 32};
-const POLICY = {description: "Flight controller", sha1: "b6bd082c60fcb27f42a2b5f2f635587d2b60d170", size_mb: 1};
-const DRONES = [
-    {name: "crazyflie", label: "Crazyflie", sha1: "87d2b8b1d518445872d34906320a76656731902f", size_mb: 5},
-    {name: "crazyflie_brushless", label: "Crazyflie Brushless", sha1: "eedb897237c1d77ed8ef0681554d92d06a7c27ca", size_mb: 19},
-    {name: "savagebee_pusher", label: "SavageBee Pusher", sha1: "fd4eddc7c4a3f74e51823a2fa392bb96e095e53e", size_mb: 13},
-    {name: "arpl", label: "ARPL", sha1: "8398a239fd1cd80df8adab67497baf7be3d8cda4", size_mb: 46},
-    {name: "x500", label: "X500", sha1: "f6681e7a8b7fa7ef023bedcd795981becb731d0e", size_mb: 74},
-    {name: "soft", label: "Soft", sha1: "fcdf53a791f313b9bb07f775b10b9e4c2bfa0ae9", size_mb: 113},
-];
-const DEFAULT_ASSET_BASE = "https://huggingface.co/datasets/rl-tools/conta/resolve/main/data/";
+import {Conta} from "./conta.js";
+
 const params = new URLSearchParams(window.location.search);
-const asset_base = params.get("assets") === "local" ? "./assets/" : (params.get("assets") || DEFAULT_ASSET_BASE);
 const requested_frames = Number.parseInt(params.get("frames") || "0", 10);
 const max_frames = Number.isFinite(requested_frames) && requested_frames > 0 ? requested_frames : 0;
-const drone_index = Math.max(0, DRONES.findIndex(drone => drone.name === params.get("drone")));
+const conta = new Conta();
 
 const status_element = document.getElementById("status");
 const error_element = document.getElementById("error");
@@ -21,6 +11,7 @@ const fps_element = document.getElementById("fps");
 const progress_element = document.getElementById("progress");
 const progress_percent = document.getElementById("progress-percent");
 const drone_select = document.getElementById("drone");
+const scene_select = document.getElementById("scene");
 const reset_button = document.getElementById("reset");
 const flight_state = document.getElementById("flight-state");
 const tuning_panel = document.getElementById("flight-tuning");
@@ -40,17 +31,23 @@ let frame_count = 0;
 let fps_window_start = performance.now();
 let fps_window_frames = 0;
 
-for(const [index, drone] of DRONES.entries()){
-    const option = document.createElement("option");
-    option.value = drone.name;
-    option.textContent = `${drone.label} · ${drone.size_mb} MB`;
-    option.selected = index === drone_index;
-    drone_select.appendChild(option);
+for(const select of [scene_select, drone_select]){
+    select.addEventListener("change", () => {
+        params.set(select.id, select.value);
+        window.location.search = params.toString();
+    });
 }
-drone_select.addEventListener("change", () => {
-    params.set("drone", drone_select.value);
-    window.location.search = params.toString();
-});
+
+function populate(select, entries, selected){
+    for(const entry of entries){
+        const option = document.createElement("option");
+        option.value = entry.name;
+        option.textContent = entry.label || entry.name;
+        option.selected = entry.name === selected.name;
+        select.appendChild(option);
+    }
+    select.disabled = false;
+}
 
 function set_status(text){
     status_element.textContent = text;
@@ -202,51 +199,42 @@ function show_error(error){
 }
 
 async function fetch_asset(asset){
-    const url = `${asset_base.replace(/\/$/, "")}/${asset.sha1}`;
-    set_status(`Downloading ${asset.description}…`);
+    const description = asset.label || asset.name || asset.description;
     progress_element.hidden = false;
-    progress_element.value = 0;
     progress_percent.hidden = false;
-    progress_percent.textContent = "0%";
-    const response = await fetch(url);
-    if(!response.ok){
-        throw new Error(`Could not download ${asset.description}: HTTP ${response.status}.\nFor offline development, run static/hyperdrone/link_local_assets.sh and open this page with ?assets=local.`);
-    }
-    const content_length = Number(response.headers.get("Content-Length"));
-    const total = content_length || asset.size_mb * 1024 * 1024;
-    const reader = response.body.getReader();
-    const chunks = [];
-    let received = 0;
-    while(true){
-        const {done, value} = await reader.read();
-        if(done){
-            break;
-        }
-        chunks.push(value);
-        received += value.length;
-        const downloaded = (received / 1024 / 1024).toFixed(1);
-        set_status(`Downloading ${asset.description}: ${downloaded} / ${content_length ? "" : "~"}${(total / 1024 / 1024).toFixed(1)} MB`);
-        const percent = Math.min(99, Math.floor(received / total * 100));
-        progress_element.value = percent;
-        progress_percent.textContent = `${content_length ? "" : "~"}${percent}%`;
-    }
-    progress_element.value = 100;
-    progress_percent.textContent = "100%";
-    const bytes = new Uint8Array(received);
-    let offset = 0;
-    for(const chunk of chunks){
-        bytes.set(chunk, offset);
-        offset += chunk.length;
-    }
-    set_status(`Verifying ${asset.description}…`);
-    const digest = await window.crypto.subtle.digest("SHA-1", bytes);
-    const hex = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
-    if(hex !== asset.sha1){
-        throw new Error(`Integrity check failed for ${asset.description}: expected ${asset.sha1}, received ${hex}.`);
-    }
+    const bytes = await conta.load(asset.reference, {
+        sha256: asset.sha256,
+        on_progress: ({phase, received, total}) => {
+            if(phase !== "download"){
+                set_status(`${phase === "verify" ? "Verifying" : "Locating"} ${description}…`);
+                progress_element.removeAttribute("value");
+                progress_percent.textContent = "";
+                return;
+            }
+            const downloaded = (received / 1024 / 1024).toFixed(1);
+            set_status(`Downloading ${description}: ${downloaded}${total ? ` / ${(total / 1024 / 1024).toFixed(1)}` : ""} MB`);
+            if(total){
+                const percent = Math.min(100, Math.floor(received / total * 100));
+                progress_element.value = percent;
+                progress_percent.textContent = `${percent}%`;
+            }
+            else{
+                progress_element.removeAttribute("value");
+                progress_percent.textContent = "";
+            }
+        },
+    });
     progress_element.hidden = true;
     progress_percent.hidden = true;
     return bytes;
+}
+
+async function read_json(path){
+    const response = await fetch(path);
+    if(!response.ok){
+        throw new Error(`Could not load ${path}: HTTP ${response.status}`);
+    }
+    return response.json();
 }
 
 async function main(){
@@ -260,7 +248,7 @@ async function main(){
         throw new Error("Canvas drawing is unavailable in this browser.");
     }
     set_status("Loading the simulation…");
-    const {default: createModule} = await import("./build/hyperdrone_web.js");
+    const {default: createModule} = await import("./blob/build/hyperdrone_web.js");
     const module = await createModule({
         print: text => console.log(text),
         printErr: text => console.error(text),
@@ -306,12 +294,25 @@ async function main(){
             }
         },
     });
-    const drone = DRONES[drone_index];
-    module.FS.writeFile("/scene.glb", await fetch_asset(SCENE));
-    module.FS.writeFile("/drone.glb", await fetch_asset({...drone, description: `${drone.label} airframe`}));
-    module.FS.writeFile("/policy.tar", await fetch_asset(POLICY));
+    const [registry, pose] = await Promise.all([read_json("registry.json"), read_json("pose.json")]);
+    const scenes = JSON.parse(module.ccall("demo_scenes", "string", [], []));
+    const scene = scenes.find(scene => scene.name === (params.get("scene") || pose.scene));
+    const drone = registry.drones.find(drone => drone.name === (params.get("drone") || registry.drones[0].name));
+    if(!scene || !drone){
+        throw new Error("Unknown scene or airframe in the page URL.");
+    }
+    const default_scene = scenes.find(scene => scene.name === pose.scene);
+    if(default_scene?.reference !== pose.reference || pose.position?.length !== 3 || !pose.position.every(Number.isFinite) || !Number.isFinite(pose.yaw_degrees)){
+        throw new Error("pose.json must pin a Train200 scene and a finite FLU position and yaw.");
+    }
+    populate(scene_select, scenes, scene);
+    populate(drone_select, registry.drones, drone);
+    module.FS.writeFile("/scene.glb", await fetch_asset(scene));
+    module.FS.writeFile("/drone.glb", await fetch_asset(drone));
+    module.FS.writeFile("/policy.tar", await fetch_asset(registry.policy));
+    const spawn = scene.reference === pose.reference ? JSON.stringify({position: pose.position, yaw: pose.yaw_degrees * Math.PI / 180}) : "";
     set_status("Preparing the scene and cameras…");
-    const result = await module.ccall("demo_run", "number", ["string", "string", "string", "number", "number"], ["/scene.glb", "/drone.glb", "/policy.tar", drone_index, max_frames], {async: true});
+    const result = await module.ccall("demo_run", "number", ["string", "string", "string", "number", "number", "string"], ["/scene.glb", "/drone.glb", "/policy.tar", drone.dynamics_index, max_frames, spawn], {async: true});
     if(result !== 0){
         throw new Error(`The renderer exited with status ${result}.`);
     }

@@ -8,7 +8,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
 DEPS_DIR="${RL_TOOLS_WASM_DEPS_DIR:-$REPO_ROOT/.dependencies/wasm}"
-BUILD_DIR="${RL_TOOLS_WASM_BUILD_DIR:-$REPO_ROOT/static/hyperdrone/build}"
+BUILD_DIR="${RL_TOOLS_WASM_BUILD_DIR:-$REPO_ROOT/static/hyperdrone/blob/build}"
 
 command -v em++ >/dev/null || { echo "em++ not found: source ~/git/emsdk/emsdk_env.sh" >&2; exit 1; }
 mkdir -p "$DEPS_DIR" "$BUILD_DIR"
@@ -70,7 +70,7 @@ em++ --std=c++17 -O3 -fexceptions \
     -sEXPORT_ES6=1 \
     -sENVIRONMENT=web \
     -sEXPORTED_RUNTIME_METHODS=ccall,FS,HEAPU8 \
-    -sEXPORTED_FUNCTIONS=_demo_run,_main \
+    -sEXPORTED_FUNCTIONS=_demo_run,_demo_scenes,_main \
     "$SCRIPT_DIR/hyperdrone_web.cpp" \
     "$DEPS_DIR/device_wgsl.cpp" \
     "$ASSIMP_INSTALL/lib/libassimp.a" \

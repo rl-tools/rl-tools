@@ -16,6 +16,7 @@ h1 { margin: 0; line-height: 1; }
 h1 img { display: block; width: 200px; height: auto; margin: auto; }
 .toolbar, .drone-control, .session-controls { display: flex; align-items: center; gap: 10px; }
 .toolbar { justify-content: space-between; margin-bottom: 6px; }
+.drone-control { flex-wrap: wrap; }
 select, button { font: inherit; color: inherit; background: #fff; border: 1px solid #aaa; border-radius: 2px; padding: 3px 7px; }
 select, button:enabled { cursor: pointer; }
 button:hover:enabled { background: #f3f3f3; }
