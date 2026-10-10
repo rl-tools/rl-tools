@@ -8,6 +8,8 @@ const conta = new Conta();
 const status_element = document.getElementById("status");
 const error_element = document.getElementById("error");
 const fps_element = document.getElementById("fps");
+const frame_rate_panel = document.getElementById("frame-rate-tuning");
+const target_fps = document.getElementById("target-fps");
 const progress_element = document.getElementById("progress");
 const progress_percent = document.getElementById("progress-percent");
 const drone_select = document.getElementById("drone");
@@ -60,7 +62,7 @@ function format_pose(values, digits){
 }
 
 function has_control(){
-    return !document.hidden && !tuning_panel.open && canvases.slice(0, 2).includes(document.pointerLockElement);
+    return !document.hidden && !tuning_panel.open && !frame_rate_panel.open && canvases.slice(0, 2).includes(document.pointerLockElement);
 }
 
 function clear_input(){
@@ -91,6 +93,7 @@ function poll_input(){
         Number(yaw_error_limit.value) * Math.PI / 180,
         Number(position_offset.value),
         Number(velocity_target.value),
+        Number(target_fps.value),
     ];
     yaw_delta = 0;
     reset_requested = false;
@@ -137,6 +140,7 @@ document.addEventListener("keydown", event => {
                 tuning_panel.close();
             }
             else{
+                frame_rate_panel.close();
                 tuning_panel.showModal();
                 release_controls();
             }
@@ -168,13 +172,28 @@ document.addEventListener("visibilitychange", () => {
     }
     fps_window_start = performance.now();
     fps_window_frames = 0;
-    fps_element.textContent = "";
+    fps_element.textContent = "— fps";
     update_flight_state();
 });
 reset_button.addEventListener("click", () => {
     reset_requested = true;
     clear_input();
 });
+
+fps_element.addEventListener("click", () => {
+    frame_rate_panel.showModal();
+    release_controls();
+});
+function update_frame_rate(){
+    document.getElementById("target-fps-value").textContent = `${target_fps.value} FPS`;
+    fps_element.title = `Target: ${target_fps.value} FPS · Click to adjust`;
+}
+target_fps.addEventListener("input", update_frame_rate);
+document.getElementById("frame-rate-defaults").addEventListener("click", () => {
+    target_fps.value = target_fps.defaultValue;
+    update_frame_rate();
+});
+update_frame_rate();
 
 function update_tuning_values(){
     document.getElementById("position-offset-value").textContent = `${Number(position_offset.value).toFixed(2)} m`;
@@ -197,6 +216,7 @@ function show_error(error){
     ready = false;
     document.body.classList.remove("ready");
     reset_button.disabled = true;
+    fps_element.hidden = true;
     flight_state.textContent = "Unavailable";
     progress_element.hidden = true;
     progress_percent.hidden = true;
@@ -287,6 +307,7 @@ async function main(){
             if(!ready){
                 ready = true;
                 reset_button.disabled = false;
+                fps_element.hidden = false;
                 update_flight_state();
                 fps_window_start = performance.now();
                 fps_window_frames = 0;
