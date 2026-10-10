@@ -192,12 +192,18 @@ relies on internal try/catch) and the page in `static/hyperdrone/` uses HyperDro
 MultiEnvironment for interactive flight with two mounted RGB cameras and onboard depth,
 semantic segmentation, normals, and optical flow. RAPTOR runs at 100 Hz: WASD supplies a current-relative
 position target and a horizontal velocity target; releasing the keys holds position. Click a
-camera to capture or release the mouse, horizontal mouse motion controls yaw, and releasing
-the mouse pauses simulation. Scene, airframe, and flight-controller
-assets are fetched by sha1 from the conta-data store. For offline use, run
-`static/hyperdrone/link_local_assets.sh /path/to/drone-glbs /path/to/policy.tar /path/to/scene.glb` and open
-`?assets=local`; `?frames=N` renders a deterministic finite sequence for verification.
-The scene is the `ai2thor-hab`-labeled ProcTHOR-Train-1 asset (`75d1d67a17ecd16bc3a214baa895240da8060df7`).
+camera to capture or release the mouse, horizontal mouse motion controls yaw, and RAPTOR
+holds position without user input; hidden tabs pause. The scene selector uses the shared
+`procthor::Train200` catalog. `static/hyperdrone/registry.json` pins the rigged airframes and
+RAPTOR checkpoint; `pose.json` pins the default scene and its starting position in FLU meters
+and yaw in degrees (other scenes use MultiEnvironment's free-space annotations).
+The browser conta `load` resolver first requests `blob/<sha1>.gz`, then tries the format-1
+conta index entry points and their providers, preferring advertised gzip variants and checking
+decoded hashes. To prepare the local default scene, Crazyflie, and checkpoint, run
+`.venv/bin/python static/hyperdrone/prepare_blob.py /path/to/scene.glb /path/to/crazyflie.glb /path/to/policy.tar`.
+`static/hyperdrone/blob/` is the separate asset repository; the build script writes its module
+to `blob/build/`. Serve the page over HTTPS or localhost; `?scene=ProcTHOR-Train-0` selects a
+scene, and `?frames=N` renders a deterministic finite sequence for verification.
 The blocking-wait seams and adapter acquisition switch on
 `__EMSCRIPTEN__` in `backends/webgpu/operations_cpu.h`; browsers cap
 `maxStorageBuffersPerShaderStage` at the spec default of 8, which is why the bind layout packs

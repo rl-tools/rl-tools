@@ -11,14 +11,16 @@
 <body>
     <main>
         <header>
-            <h1><img src="logo.svg" alt="HyperDrone" width="200" height="39"></h1>
+            <h1><img src="blob/logo.svg" alt="HyperDrone" width="200" height="39"></h1>
         </header>
 
         <section class="simulation" aria-label="Interactive drone flight">
             <div class="toolbar">
                 <div class="drone-control">
+                    <label for="scene">Scene</label>
+                    <select id="scene" aria-label="Scene" disabled></select>
                     <label for="drone">Airframe</label>
-                    <select id="drone" aria-label="Drone airframe"></select>
+                    <select id="drone" aria-label="Drone airframe" disabled></select>
                 </div>
                 <div class="session-controls">
                     <span id="flight-state">Loading</span>

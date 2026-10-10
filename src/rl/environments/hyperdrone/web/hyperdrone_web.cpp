@@ -2,6 +2,7 @@
 #include <rl_tools/rl/environments/hyperdrone/presets.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/raptor/operations_cpu.h>
+#include <rl_tools/rendering/datasets/procthor/catalog.h>
 
 #include <emscripten.h>
 
@@ -50,6 +51,7 @@ namespace rl_tools::rl::environments::hyperdrone::web {
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1, 4>>> actions;
         Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, 1>>> reset_mask;
         raptor::Target<T> target;
+        rendering::datasets::annotations::FreeSpacePosition<T> spawn;
         T position_offset = 0.3;
         T velocity_target = 0.7;
         T yaw_rate_limit = PILOT::SPEC::YAW_RATE_LIMIT;
@@ -144,6 +146,8 @@ namespace rl_tools {
         drone.cameras[1].mount.pose.orientation[2] = math::sin(device.math, half_pitch);
         rendering::datasets::procthor::GLB dataset{{}, {scene_path}};
         init(device, state.environment, dataset);
+        const auto& world = state.environment.environments[0];
+        state.spawn = world.slots[world.active_slot].annotations.positions[0];
         init(device, state.rng, 1337);
     }
     void reset(web::DEVICE& device, web::State& state) {
@@ -151,7 +155,7 @@ namespace rl_tools {
         auto& world = state.environment.environments[0];
         auto& parameters = get_ref(device, state.parameters, (TI)0);
         initial_parameters(device, world, parameters);
-        const auto& spawn = world.slots[world.active_slot].annotations.positions[0];
+        const auto& spawn = state.spawn;
         for(TI dim = 0; dim < 3; dim++) {
             parameters.scene_translation[dim] = spawn.position[dim];
         }
@@ -276,7 +280,18 @@ static void present(const web::Buffer& buffer) {
     }, buffer.rgba.data(), (int)web::Config::CAM_WIDTH, (int)web::Config::CAM_HEIGHT, (int)web::VIEWS);
 }
 
-extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char* drone_path, const char* policy_path, int drone_index, int max_frames) {
+extern "C" EMSCRIPTEN_KEEPALIVE const char* demo_scenes() {
+    static const std::string catalog = [] {
+        auto scenes = nlohmann::json::array();
+        for(const auto& scene: rl_tools::rendering::datasets::procthor::Train200::SCENES) {
+            scenes.push_back({{"name", scene.id}, {"reference", scene.reference}});
+        }
+        return scenes.dump();
+    }();
+    return catalog.c_str();
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char* drone_path, const char* policy_path, int drone_index, int max_frames, const char* pose_json) {
     using namespace rl_tools;
     web::DEVICE device;
     init(device);
@@ -291,8 +306,15 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
     }
     status("Loading the scene and finding a clear starting position ...");
     init(device, state, scene_path, drone_path, drone_index);
+    if(pose_json[0] != '\0') {
+        const auto pose = nlohmann::json::parse(pose_json);
+        for(web::TI dim = 0; dim < 3; dim++) {
+            state.spawn.position[dim] = pose.at("position").at(dim).get<web::T>();
+        }
+        state.spawn.yaw = pose.at("yaw").get<web::T>();
+    }
     reset(device, state);
-    status("Ready — click a camera to fly");
+    status("Simulation running — click a camera to take control");
     const double dt = get_ref(device, state.parameters, (web::TI)0).agents[0].dynamics.integration.dt;
     double previous_ms = emscripten_get_now();
     double accumulator = 0;

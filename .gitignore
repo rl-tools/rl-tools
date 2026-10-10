@@ -94,8 +94,9 @@
 /**/*.csv
 raytracing_pose_trace*
 camera_poses.txt
-/static/hyperdrone/build
-/static/hyperdrone/assets
+/static/hyperdrone/blob
+!/static/hyperdrone/pose.json
+!/static/hyperdrone/registry.json
 
 # the hyperdrone python golden corpus is checked in (the cross-language stability anchor)
 !interface/python/hyperdrone/tests/env/golden/*
