@@ -175,11 +175,11 @@ namespace rl_tools {
         set_all(device, state.actions, (T)0);
         request_render(device, world, state.reset_mask);
     }
-    void control(web::DEVICE& device, web::State& state, web::T forward, web::T left, web::T up, web::T yaw_delta) {
+    void control(web::DEVICE& device, web::State& state, web::T forward, web::T left, web::T up, web::T yaw_delta, web::T yaw_axis) {
         using namespace web;
         auto& physical = get_ref(device, state.states, (TI)0);
         const T dt = get_ref(device, state.parameters, (TI)0).agents[0].dynamics.integration.dt;
-        update_yaw_target(device, state.pilot, physical, state.target, yaw_delta, dt, state.yaw_rate_limit, state.yaw_error_limit);
+        update_yaw_target(device, state.pilot, physical, state.target, yaw_delta + yaw_axis * state.yaw_rate_limit * dt, dt, state.yaw_rate_limit, state.yaw_error_limit);
         const T norm = math::sqrt(device.math, forward * forward + left * left + up * up);
         const T scale = norm > 1 ? 1 / norm : 1;
         const bool moving = forward != 0 || left != 0;
@@ -220,12 +220,12 @@ namespace rl_tools {
             set(device, state.actions, state.previous_actions[state.motor_order[motor]], (TI)0, motor);
         }
     }
-    void step(web::DEVICE& device, web::State& state, web::T forward, web::T left, web::T up, web::T yaw_delta, web::TI steps) {
+    void step(web::DEVICE& device, web::State& state, web::T forward, web::T left, web::T up, web::T yaw_delta, web::T yaw_axis, web::TI steps) {
         using namespace web;
         auto& world = state.environment.environments[0];
         auto actions = matrix_view(device, state.actions);
         for(TI step_i = 0; step_i < steps; step_i++) {
-            control(device, state, forward, left, up, yaw_delta / steps);
+            control(device, state, forward, left, up, yaw_delta / steps, yaw_axis);
             // Only the final control tick advances camera/flow history; scalar steps integrate dynamics alone.
             if(step_i + 1 < steps) {
                 step(device, world, get_ref(device, state.parameters, (TI)0), get_ref(device, state.states, (TI)0), actions, get_ref(device, state.next_states, (TI)0), state.rng);
@@ -276,10 +276,10 @@ static void status(const char* message) {
         }
     }, message);
 }
-static void read_input(float input[11]) {
+static void read_input(float input[12]) {
     EM_ASM({
         const input = Module.rlt_input();
-        for(let i = 0; i < 11; i++) {
+        for(let i = 0; i < 12; i++) {
             HEAPF32[($0 >> 2) + i] = input[i];
         }
     }, input);
@@ -346,7 +346,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
     double accumulator = 0;
     bool was_active = false;
     for(int frame = 0; max_frames <= 0 || frame < max_frames;) {
-        float input[11] = {};
+        float input[12] = {};
         read_input(input);
         const double frame_period = max_frames > 0 ? web::FRAME_PERIOD : 1.0 / std::clamp((double)input[10], 10.0, 240.0);
         state.yaw_rate_limit = input[6];
@@ -376,7 +376,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
         was_active = active;
         if(active) {
             const auto steps = (web::TI)(accumulator / dt);
-            step(device, state, input[0], input[1], input[2], input[3], steps);
+            step(device, state, input[0], input[1], input[2], input[3], input[11], steps);
             accumulator -= steps * dt;
         }
         if(frame == 0 || active || input[4] != 0) {
