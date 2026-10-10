@@ -167,7 +167,7 @@ namespace rl_tools {
         set_all(device, state.actions, (T)0);
         request_render(device, world, state.reset_mask);
     }
-    void step(web::DEVICE& device, web::State& state, web::T forward, web::T left, web::T yaw_delta) {
+    void control(web::DEVICE& device, web::State& state, web::T forward, web::T left, web::T yaw_delta) {
         using namespace web;
         auto& physical = get_ref(device, state.states, (TI)0);
         const T dt = get_ref(device, state.parameters, (TI)0).agents[0].dynamics.integration.dt;
@@ -201,8 +201,21 @@ namespace rl_tools {
         for(TI motor = 0; motor < 4; motor++) {
             set(device, state.actions, state.previous_actions[state.motor_order[motor]], (TI)0, motor);
         }
-        step(device, state.environment, state.parameters, state.states, state.actions, state.next_states, state.rng);
-        copy(device, device, state.next_states, state.states);
+    }
+    void step(web::DEVICE& device, web::State& state, web::T forward, web::T left, web::T yaw_delta, web::TI steps) {
+        using namespace web;
+        auto& world = state.environment.environments[0];
+        auto actions = matrix_view(device, state.actions);
+        for(TI step_i = 0; step_i < steps; step_i++) {
+            control(device, state, forward, left, yaw_delta / steps);
+            // Only the final control tick advances camera/flow history; scalar steps integrate dynamics alone.
+            if(step_i + 1 < steps) {
+                step(device, world, get_ref(device, state.parameters, (TI)0), get_ref(device, state.states, (TI)0), actions, get_ref(device, state.next_states, (TI)0), state.rng);
+            } else {
+                step(device, state.environment, state.parameters, state.states, state.actions, state.next_states, state.rng);
+            }
+            copy(device, device, state.next_states, state.states);
+        }
     }
     template <typename TENSOR, typename T>
     void copy_onboard(web::DEVICE& device, web::WORLD::RENDERER& renderer, TENSOR& source, T* destination) {
@@ -306,11 +319,9 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
         }
         was_active = active;
         if(active) {
-            const web::T yaw_delta = input[2] / std::max(1, (int)(accumulator / dt));
-            while(accumulator >= dt) {
-                step(device, state, input[0], input[1], yaw_delta);
-                accumulator -= dt;
-            }
+            const auto steps = (web::TI)(accumulator / dt);
+            step(device, state, input[0], input[1], input[2], steps);
+            accumulator -= steps * dt;
         }
         if(frame == 0 || active || input[3] != 0) {
             render(device, state, buffer);
