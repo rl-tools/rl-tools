@@ -261,6 +261,29 @@ generation) remains first-class: see `python -m hyperdrone.examples.drone_flythr
 for the wiring. `ClearanceSampler` lives in `hyperdrone.render` — it rides the
 renderer's collision probes and is deterministic given a seed.
 
+### Native spy
+
+`env.spy()` opens a live camera mosaic and an independent spectator camera. Call `update()` on the main thread after your usual `observe()` or `render()` and before changing the environment; the spy reads existing observations without producing new ones. GUI events are processed only by `update()`, so call it regularly even when training is paused. Closing its window leaves the environment running; `update()` then returns `False`.
+
+```python
+env.reset()
+with env.spy() as spy:
+    for _ in range(1000):
+        observations = env.observe()
+        spy.update()
+        env.step(policy(observations))
+        env.reset(env.terminated())
+env.close()
+```
+
+Click a camera tile to select its member, instance, agent and camera, then click the spectator for mouse look. WASD moves, Q/E moves down/up, Shift accelerates, and Esc releases the mouse; the spectator pose is retained for each world independently. The spectator has its own renderer; camera capture and spectator refresh are capped at 20 Hz, and GUI work at 60 Hz. They still consume GPU bandwidth and rendering capacity. Use `with` or explicitly close the spy on the main thread before environment teardown. The Gymnasium adapter also exposes `env.spy()`; call `update()` after `reset()` or `step()`.
+
+The optional native dependencies are GLFW, desktop OpenGL and Dear ImGui (on Ubuntu: `libglfw3-dev`, `libgl1-mesa-dev`, `libimgui-dev`). Alternatively, supply an existing ImGui source checkout with `RL_TOOLS_IMGUI_SOURCE_DIR=/path/to/imgui` before the first JIT configure. After adding dependencies to an existing build, run `cmake /path/to/cache/env-<backend>-<tag>` (add `-DRL_TOOLS_IMGUI_SOURCE_DIR=/path/to/imgui` for a source checkout), unset `HYPERDRONE_SKIP_BUILD`, and restart Python; constructing the next environment rebuilds its native module. The build directory lives under `HYPERDRONE_CACHE_DIR` (default `~/.cache/hyperdrone`); CMake reports `HyperDrone spy` availability. Ordinary environments remain usable when these dependencies are absent; `env.spy()` then explains the missing build feature. No display or window is opened until `env.spy()` is called.
+
+Run a local-scene example with `python -m hyperdrone.examples.spy /path/to/scene.glb`.
+
+C++ uses `hyperdrone::Spy<hyperdrone::spy::Config<ENVIRONMENT>>` with device-first `malloc`, `init`, `update` and `free`; link `RLtools::HyperDroneSpy` and close the spy before freeing its environment. The [C++ example](../../../src/rl/environments/hyperdrone/spy/example.cpp) builds as `example_hyperdrone_spy` when the GUI dependencies are available. Both interfaces share the same capture, spectator and window implementation.
+
 ### Visual-inertial localization
 
 `task="visual_inertial_localization"` on `preset="x500_fpv_imu"` is the localization
@@ -333,6 +356,8 @@ Use the repository `.venv` with editable `interface/python/conta` and `interface
 ```bash
 HYPERDRONE_RENDER_BACKEND=GENERIC .venv/bin/python -m pytest interface/python/hyperdrone/tests -v
 ```
+
+With the spy dependencies installed, run `HYPERDRONE_TEST_SPY=1 xvfb-run -a .venv/bin/python -m pytest interface/python/hyperdrone/tests/env/test_spy.py` to check the native GUI lifecycle and exact simulation equivalence; omit `xvfb-run -a` when using a desktop display.
 
 `tests/jit` exercises the build infrastructure against a toy component in seconds;
 `tests/test_architecture.py` enforces the import DAG (render and dynamics never see each

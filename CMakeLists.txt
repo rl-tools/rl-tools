@@ -25,6 +25,7 @@ option(RL_TOOLS_DISABLE_HDF5 "Disable HDF5" OFF)
 option(RL_TOOLS_DISABLE_ZLIB "Disable zlib" OFF)
 option(RL_TOOLS_DISABLE_TENSORBOARD "Disable TensorBoard logging" OFF)
 option(RL_TOOLS_DISABLE_CLI11 "Disable CLI11" OFF)
+option(RL_TOOLS_DISABLE_HYPERDRONE_SPY "Disable the native HyperDrone spy GUI" OFF)
 
 option(RL_TOOLS_BACKEND_DISABLE_BLAS "Disable all BLAS backends (naive fallback)" OFF)
 option(RL_TOOLS_BACKEND_DISABLE_MKL "Disable the MKL BLAS backend" OFF)
@@ -170,6 +171,7 @@ include(cmake/autodetect/all.cmake)
 
 include(cmake/optional/mujoco.cmake)
 include(cmake/optional/raytracing.cmake)
+add_subdirectory(src/rl/environments/hyperdrone/spy)
 
 if(NOT RL_TOOLS_DISABLE_TARGETS)
     add_subdirectory(src)

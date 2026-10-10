@@ -259,6 +259,7 @@ class MultiEnvironment:
     """
 
     def __init__(self, scenes, *, config=None, seed=0, drone_asset=None, assets=None, parameters=None, drones=None, stream=None):
+        self._spy = None
         self.config = config if config is not None else EnvConfig()
         if drones is not None and drone_asset is not None:
             raise ValueError("hyperdrone: pass either drone_asset= (one drone) or drones= (the table)")
@@ -419,7 +420,20 @@ class MultiEnvironment:
         self._environment.synchronize()
 
     def close(self):
+        if self._spy is not None:
+            self._spy.close()
         self._environment = None
+
+    def spy(self):
+        """Open the native camera mosaic and spectator on the main thread. Use `with env.spy() as spy:` and call spy.update() after normal observe/render calls; it never renders observations itself. Closing the window leaves this environment running."""
+        from ._spy import Spy
+
+        if self._environment is None:
+            raise RuntimeError("hyperdrone: cannot open a spy on a closed environment")
+        if self._spy is not None and self._spy._environment is not None:
+            raise RuntimeError("hyperdrone: this environment already has an open spy")
+        self._spy = Spy(self._environment)
+        return self._spy
 
     def _host_mask(self, mask):
         if mask is None:

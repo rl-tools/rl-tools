@@ -233,8 +233,8 @@ namespace rl_tools {
             const bool scene_loaded = load<typename SPEC::SHADING, SPEC::OUTPUT_RGB>(render_device, dataset, corpus, slot.corpus_index, bundle, Mode<LOAD_MODE>{});
             utils::assert_exit(device, scene_loaded, "hyperdrone::World: failed to load scene");
             slot.metadata = bundle.metadata;
-            const TI scene_id = insert(render_device, shared.library, bundle);
-            init(render_device, slot.renderer, shared.library, scene_id);
+            slot.scene_id = insert(render_device, shared.library, bundle);
+            init(render_device, slot.renderer, shared.library, slot.scene_id);
             generate_probe_directions(render_device, slot.renderer);
             rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
             rendering::datasets::annotations::annotate(render_device, slot.annotations, slot.metadata, slot.renderer, free_space_parameters, shared.annotation_cache);

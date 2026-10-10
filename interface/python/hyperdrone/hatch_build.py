@@ -10,7 +10,9 @@ from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 VENDOR_MANIFEST = (
     "include/rl_tools",
     "include/conta",
+    "include/metra",
     "src/rendering/raytracing",
+    "src/rl/environments/hyperdrone/spy",
     "CMakeLists.txt",
     "cmake",
     "LICENSE",

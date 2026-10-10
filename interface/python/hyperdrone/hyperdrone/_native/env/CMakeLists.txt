@@ -85,9 +85,14 @@ if(HYPERDRONE_VARIANT STREQUAL "OPTIX")
     set_source_files_properties(impl.cpp PROPERTIES LANGUAGE CUDA)
 endif()
 
+set(hyperdrone_env_libraries RLtools::RLtools hyperdrone_env_stb)
+if(TARGET RLtools::HyperDroneSpy)
+    list(APPEND hyperdrone_env_libraries RLtools::HyperDroneSpy rendering_raytracing_backend)
+endif()
+
 hyperdrone_jit_add_configs(
     COMPONENT env
     PYTHON_MODULE
     SOURCES environment.cpp impl.cpp
-    LINK RLtools::RLtools hyperdrone_env_stb
+    LINK ${hyperdrone_env_libraries}
 )

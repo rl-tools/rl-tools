@@ -211,6 +211,9 @@ namespace HYPERDRONE_MODULE_NAME {
         void set_stream(uintptr_t stream);
         int device_id() const;
         void synchronize();
+        void spy_open();
+        bool spy_update();
+        void spy_close();
     };
 
     struct ObservationBlock {

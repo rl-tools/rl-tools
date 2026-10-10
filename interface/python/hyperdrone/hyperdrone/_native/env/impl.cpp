@@ -13,6 +13,12 @@
 #endif
 #include <cuda_runtime.h>
 #endif
+#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+#include <rl_tools/rl/environments/hyperdrone/spy/operations_cpu.h>
+#if HYPERDRONE_ENV_DEVICE_CUDA
+#include <rl_tools/rl/environments/hyperdrone/spy/operations_cuda.h>
+#endif
+#endif
 
 #include "../common/models.h"
 
@@ -69,6 +75,10 @@ namespace HYPERDRONE_MODULE_NAME {
         DEVICE device{};
         ENV env{};
         RNG rng{};
+#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+        rlt::rl::environments::hyperdrone::Spy<rlt::rl::environments::hyperdrone::spy::Config<ENV>> spy{};
+        bool spy_open = false;
+#endif
         int device_id = 0;
         std::array<bool, TOTAL> sampled{};
         bool all_sampled = false;
@@ -307,6 +317,7 @@ namespace HYPERDRONE_MODULE_NAME {
     }
     Environment::~Environment(){
         const CurrentDevice current(impl->device_id);
+        spy_close();
         if constexpr (CUDA_WORLD){
             rlt::free(impl->device, impl->mask_staging);
             rlt::free(impl->device, impl->actions_staging);
@@ -718,6 +729,51 @@ namespace HYPERDRONE_MODULE_NAME {
 #if HYPERDRONE_ENV_DEVICE_CUDA
         const CurrentDevice current(impl->device_id);
         cudaStreamSynchronize(impl->device.stream);
+#endif
+    }
+    void Environment::spy_open(){
+#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+        const CurrentDevice current(impl->device_id);
+        if(impl->spy_open){
+            throw std::runtime_error("hyperdrone: this environment already has an open spy");
+        }
+        using rlt::malloc;
+        using rlt::init;
+        using rlt::free;
+        try{
+            malloc(impl->device, impl->spy);
+            init(impl->device, impl->spy, impl->env);
+            impl->spy_open = true;
+        }
+        catch(...){
+            free(impl->device, impl->spy);
+            throw;
+        }
+#else
+        throw std::runtime_error("hyperdrone: the spy was not compiled; provide GLFW, desktop OpenGL and Dear ImGui sources, then reconfigure the HyperDrone JIT build (see the HyperDrone README)");
+#endif
+    }
+    bool Environment::spy_update(){
+#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+        const CurrentDevice current(impl->device_id);
+        if(impl->spy_open){
+            using rlt::update;
+            if(update(impl->device, impl->spy, impl->env)){
+                return true;
+            }
+            spy_close();
+        }
+#endif
+        return false;
+    }
+    void Environment::spy_close(){
+#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+        const CurrentDevice current(impl->device_id);
+        if(impl->spy_open){
+            using rlt::free;
+            free(impl->device, impl->spy);
+            impl->spy_open = false;
+        }
 #endif
     }
 }

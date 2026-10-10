@@ -174,6 +174,9 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
             self.set_stream(stream);
         })
         .def_prop_ro("device_id", &Environment::device_id)
+        .def("spy_open", &Environment::spy_open, nb::call_guard<nb::gil_scoped_release>())
+        .def("spy_update", &Environment::spy_update, nb::call_guard<nb::gil_scoped_release>())
+        .def("spy_close", &Environment::spy_close, nb::call_guard<nb::gil_scoped_release>())
         .def("synchronize", &Environment::synchronize, nb::call_guard<nb::gil_scoped_release>());
     bind_output<&Environment::observe, WORLD::OBSERVATION_DIM>(environment_class, "observe");
     bind_output<&Environment::observe_privileged, WORLD::OBSERVATION_DIM_PRIVILEGED>(environment_class, "observe_privileged");
