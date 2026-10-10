@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="description" content="HyperDrone: visual drone simulation with RLtools. Fly a drone and explore its camera, depth, segmentation, surface normals, and optical flow in your browser.">
     <meta name="theme-color" content="#ffffff">
     <title>HyperDrone</title>
@@ -26,6 +26,8 @@
                 </div>
                 <div class="session-controls">
                     <span id="flight-state">Loading</span>
+                    <button id="release-control" type="button" hidden>Release control</button>
+                    <button id="touch-tuning" type="button" aria-haspopup="dialog" aria-controls="flight-tuning" disabled>Tuning</button>
                     <button id="reset" type="button" disabled>Reset flight</button>
                 </div>
             </div>
@@ -43,26 +45,44 @@
             <p id="error" role="alert" hidden></p>
 
             <div class="views rgb-views">
-                <figure class="view">
+                <figure class="view onboard-view">
                     <figcaption><span>Onboard camera</span><span class="view-format">RGB</span></figcaption>
                     <div class="camera-frame">
-                        <canvas id="camera0" width="480" height="270" tabindex="0" aria-label="Onboard view. Click or press Enter to take control; click again or press Escape to release control."></canvas>
+                        <canvas id="camera0" width="480" height="270" tabindex="0" aria-label="Onboard view. Tap for touch controls, or click or press Enter for mouse control. Use Release control on touch, or click again or press Escape with a mouse."></canvas>
                         <div class="control-hint" aria-hidden="true">
-                            <span class="hint-action">Click to take control <span>↗</span></span>
-                            <span class="hint-keys">WASD move · E up / Q down · Mouse turn</span>
+                            <span class="hint-action"><span class="mouse-hint">Click to take control</span><span class="touch-hint">Tap to take control</span><span>↗</span></span>
+                            <span class="hint-keys mouse-hint">WASD move · E up / Q down · Mouse turn</span>
+                            <span class="hint-keys touch-hint">Left: turn / altitude · Right: move</span>
                         </div>
                     </div>
                 </figure>
-                <figure class="view">
+                <figure class="view external-view">
                     <figcaption><span>External camera</span><span class="view-format">RGB</span></figcaption>
                     <div class="camera-frame">
-                        <canvas id="camera1" width="480" height="270" tabindex="0" aria-label="External view fixed to the drone. Click or press Enter to take control; click again or press Escape to release control."></canvas>
+                        <canvas id="camera1" width="480" height="270" tabindex="0" aria-label="External view fixed to the drone. Tap for touch controls, or click or press Enter for mouse control. Use Release control on touch, or click again or press Escape with a mouse."></canvas>
                         <div class="control-hint" aria-hidden="true">
-                            <span class="hint-action">Click to take control <span>↗</span></span>
-                            <span class="hint-keys">WASD move · E up / Q down · Mouse turn</span>
+                            <span class="hint-action"><span class="mouse-hint">Click to take control</span><span class="touch-hint">Tap to take control</span><span>↗</span></span>
+                            <span class="hint-keys mouse-hint">WASD move · E up / Q down · Mouse turn</span>
+                            <span class="hint-keys touch-hint">Left: turn / altitude · Right: move</span>
                         </div>
                     </div>
                 </figure>
+                <div class="touch-controls">
+                    <div class="stick-group stick-left">
+                        <span class="stick-title">Turn / altitude</span>
+                        <div id="left-stick" class="touch-stick" role="group" aria-label="Left thumbstick: drag left or right to turn, up to ascend, down to descend" aria-disabled="true">
+                            <span class="stick-thumb" aria-hidden="true"></span>
+                        </div>
+                        <span class="stick-help">↑ Up · ↓ Down · ↔ Turn</span>
+                    </div>
+                    <div class="stick-group stick-right">
+                        <span class="stick-title">Move</span>
+                        <div id="right-stick" class="touch-stick" role="group" aria-label="Right thumbstick: drag up to move forward, down to move backward, left or right to strafe" aria-disabled="true">
+                            <span class="stick-thumb" aria-hidden="true"></span>
+                        </div>
+                        <span class="stick-help">↑ Forward · ↔ Strafe</span>
+                    </div>
+                </div>
             </div>
 
             <div class="views sensor-views" role="group" aria-label="Onboard sensing">
@@ -85,13 +105,14 @@
             </div>
 
             <div class="flight-footer">
-                <div class="instructions">
+                <div class="instructions mouse-hint">
                     <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</span>
                     <span><kbd>E</kbd> Up <kbd>Q</kbd> Down</span>
                     <span><kbd>Mouse</kbd> Turn</span>
                     <span><kbd>Click</kbd> Take / release control</span>
                     <span><kbd>Esc</kbd> Release</span>
                 </div>
+                <div class="instructions touch-hint">Lift thumbs to hold position · Release control to browse</div>
                 <div class="pose-readout" role="group" aria-label="Drone pose in scene coordinates">
                     <span title="Drone position in scene coordinates, in meters"><span>XYZ / m</span><span id="position-readout" class="pose-values">(—, —, —)</span></span>
                     <span title="Drone orientation in scene coordinates as a w, x, y, z quaternion"><span>QUAT / WXYZ</span><span id="orientation-readout" class="pose-values">(—, —, —, —)</span></span>
@@ -131,7 +152,7 @@
             <div class="tuning-control">
                 <label for="velocity-target">Linear velocity target <output id="velocity-target-value" for="velocity-target"></output></label>
                 <input id="velocity-target" type="range" min="0" max="2" step="0.05" value="0.7" aria-describedby="velocity-target-help">
-                <p id="velocity-target-help">Requested speed for WASD and E/Q movement.</p>
+                <p id="velocity-target-help">Requested speed for keyboard and touch movement.</p>
             </div>
             <div class="tuning-control">
                 <label for="yaw-rate-limit">Yaw target rate <output id="yaw-rate-value" for="yaw-rate-limit"></output></label>

@@ -1,4 +1,5 @@
 import {Conta} from "./conta.js";
+import {create_touch_stick} from "./touch-stick.js";
 
 const params = new URLSearchParams(window.location.search);
 const requested_frames = Number.parseInt(params.get("frames") || "0", 10);
@@ -24,19 +25,27 @@ const velocity_target = document.getElementById("velocity-target");
 const yaw_rate_limit = document.getElementById("yaw-rate-limit");
 const yaw_error_limit = document.getElementById("yaw-error-limit");
 const mouse_sensitivity = document.getElementById("mouse-sensitivity");
+const release_button = document.getElementById("release-control");
+const tuning_button = document.getElementById("touch-tuning");
 const canvases = ["camera0", "camera1", "depth", "segmentation", "normals", "flow"].map(id => document.getElementById(id));
 const contexts = canvases.map(canvas => canvas.getContext("2d"));
 const keys = new Set();
 let yaw_delta = 0;
 let reset_requested = false;
 let ready = false;
+let touch_control = false;
+let mouse_control_requested = false;
 let images = null;
 let frame_count = 0;
 let fps_window_start = performance.now();
 let fps_window_frames = 0;
+const left_stick = create_touch_stick(document.getElementById("left-stick"), () => touch_control && has_control());
+const right_stick = create_touch_stick(document.getElementById("right-stick"), () => touch_control && has_control());
+document.body.classList.toggle("touch-ui", navigator.maxTouchPoints > 0);
 
 for(const select of [scene_select, drone_select]){
     select.addEventListener("change", () => {
+        release_controls();
         params.set(select.id, select.value);
         window.location.search = params.toString();
     });
@@ -62,31 +71,44 @@ function format_pose(values, digits){
 }
 
 function has_control(){
-    return !document.hidden && !tuning_panel.open && !frame_rate_panel.open && canvases.slice(0, 2).includes(document.pointerLockElement);
+    return ready && !document.hidden && !tuning_panel.open && !frame_rate_panel.open && (touch_control || mouse_has_control());
+}
+
+function mouse_has_control(){
+    return canvases.slice(0, 2).includes(document.pointerLockElement);
 }
 
 function clear_input(){
     keys.clear();
     yaw_delta = 0;
+    left_stick.clear();
+    right_stick.clear();
 }
 
 function update_flight_state(){
     const controlling = has_control();
     document.body.classList.toggle("ready", ready);
     document.body.classList.toggle("controlling", controlling);
+    document.body.classList.toggle("touch-controlling", controlling && touch_control);
+    document.body.classList.toggle("mouse-controlling", controlling && mouse_has_control());
+    release_button.hidden = !controlling || !touch_control;
+    tuning_button.disabled = !ready;
+    for(const id of ["left-stick", "right-stick"]){
+        document.getElementById(id).setAttribute("aria-disabled", String(!controlling || !touch_control));
+    }
     flight_state.textContent = !ready ? "Loading" : document.hidden ? "Paused" : controlling ? "User control" : "Position hold";
     if(ready && max_frames === 0){
-        set_status(document.hidden ? "Simulation paused while this tab is hidden" : controlling ? "Control active · Click or Esc to release" : "Simulation running · RAPTOR position hold");
+        set_status(document.hidden ? "Simulation paused while this tab is hidden" : controlling ? (touch_control ? "Control active · Lift thumbs to hold position" : "Control active · Click or Esc to release") : "Simulation running · RAPTOR position hold");
     }
 }
 
 function poll_input(){
     const controlling = has_control();
     const input = [
-        controlling ? Number(keys.has("KeyW")) - Number(keys.has("KeyS")) : 0,
-        controlling ? Number(keys.has("KeyA")) - Number(keys.has("KeyD")) : 0,
-        controlling ? Number(keys.has("KeyE")) - Number(keys.has("KeyQ")) : 0,
-        controlling ? yaw_delta : 0,
+        controlling ? (touch_control ? -right_stick.y : Number(keys.has("KeyW")) - Number(keys.has("KeyS"))) : 0,
+        controlling ? (touch_control ? -right_stick.x : Number(keys.has("KeyA")) - Number(keys.has("KeyD"))) : 0,
+        controlling ? (touch_control ? -left_stick.y : Number(keys.has("KeyE")) - Number(keys.has("KeyQ"))) : 0,
+        controlling && !touch_control ? yaw_delta : 0,
         Number(reset_requested),
         Number(!document.hidden),
         Number(yaw_rate_limit.value) * Math.PI / 180,
@@ -94,6 +116,7 @@ function poll_input(){
         Number(position_offset.value),
         Number(velocity_target.value),
         Number(target_fps.value),
+        controlling && touch_control ? -left_stick.x : 0,
     ];
     yaw_delta = 0;
     reset_requested = false;
@@ -104,11 +127,13 @@ async function toggle_pointer_lock(canvas){
     if(!ready){
         return;
     }
-    if(has_control()){
-        document.exitPointerLock();
+    if(mouse_has_control()){
+        release_controls();
     }
     else{
+        release_controls();
         try{
+            mouse_control_requested = true;
             await canvas.requestPointerLock();
         }
         catch(error){
@@ -119,7 +144,25 @@ async function toggle_pointer_lock(canvas){
 }
 
 for(const canvas of canvases.slice(0, 2)){
-    canvas.addEventListener("click", () => toggle_pointer_lock(canvas));
+    let pointer_type = "";
+    canvas.addEventListener("pointerdown", event => {
+        pointer_type = event.pointerType;
+    });
+    canvas.addEventListener("click", event => {
+        const type = event.pointerType || pointer_type;
+        pointer_type = "";
+        if(type === "touch" || type === "pen"){
+            if(ready && !tuning_panel.open && !frame_rate_panel.open){
+                release_controls();
+                document.body.classList.add("touch-ui");
+                touch_control = true;
+                update_flight_state();
+            }
+        }
+        else{
+            toggle_pointer_lock(canvas);
+        }
+    });
     canvas.addEventListener("keydown", event => {
         if(event.code === "Enter" || event.code === "Space"){
             event.preventDefault();
@@ -128,11 +171,25 @@ for(const canvas of canvases.slice(0, 2)){
     });
 }
 document.addEventListener("pointerlockchange", () => {
+    if(mouse_has_control() && !mouse_control_requested){
+        document.exitPointerLock();
+        return;
+    }
     clear_input();
+    if(mouse_has_control()){
+        touch_control = false;
+        document.body.classList.remove("touch-ui");
+    }
+    else{
+        mouse_control_requested = false;
+    }
     update_flight_state();
 });
 document.addEventListener("pointerlockerror", () => set_status("Mouse capture was unavailable. Click a camera to try again."));
 document.addEventListener("keydown", event => {
+    if(event.code === "Escape" && touch_control){
+        release_controls();
+    }
     if(event.code === "KeyT" && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey){
         event.preventDefault();
         if(!event.repeat){
@@ -140,32 +197,45 @@ document.addEventListener("keydown", event => {
                 tuning_panel.close();
             }
             else{
-                frame_rate_panel.close();
-                tuning_panel.showModal();
-                release_controls();
+                open_tuning();
             }
         }
         return;
     }
-    if(has_control() && ["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE"].includes(event.code)){
+    if(has_control() && mouse_has_control() && ["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE"].includes(event.code)){
         event.preventDefault();
         keys.add(event.code);
     }
 });
 document.addEventListener("keyup", event => keys.delete(event.code));
 document.addEventListener("mousemove", event => {
-    if(has_control()){
+    if(has_control() && mouse_has_control()){
         yaw_delta -= event.movementX * 0.002 * Number(mouse_sensitivity.value);
     }
 });
 function release_controls(){
+    touch_control = false;
+    mouse_control_requested = false;
     clear_input();
-    if(canvases.slice(0, 2).includes(document.pointerLockElement)){
+    if(mouse_has_control()){
         document.exitPointerLock();
     }
     update_flight_state();
 }
 window.addEventListener("blur", release_controls);
+window.addEventListener("pagehide", release_controls);
+window.addEventListener("resize", () => {
+    if(touch_control){
+        release_controls();
+    }
+});
+release_button.addEventListener("click", release_controls);
+function open_tuning(){
+    frame_rate_panel.close();
+    tuning_panel.showModal();
+    release_controls();
+}
+tuning_button.addEventListener("click", open_tuning);
 document.addEventListener("visibilitychange", () => {
     if(document.hidden){
         release_controls();
@@ -177,7 +247,7 @@ document.addEventListener("visibilitychange", () => {
 });
 reset_button.addEventListener("click", () => {
     reset_requested = true;
-    clear_input();
+    release_controls();
 });
 
 fps_element.addEventListener("click", () => {
@@ -212,9 +282,8 @@ document.getElementById("tuning-defaults").addEventListener("click", () => {
 update_tuning_values();
 
 function show_error(error){
-    release_controls();
     ready = false;
-    document.body.classList.remove("ready");
+    release_controls();
     reset_button.disabled = true;
     fps_element.hidden = true;
     flight_state.textContent = "Unavailable";

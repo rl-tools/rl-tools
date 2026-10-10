@@ -62,11 +62,11 @@ figcaption { display: flex; flex: 1; align-items: center; justify-content: space
 canvas { display: block; flex-shrink: 0; width: 100%; height: auto; aspect-ratio: 16 / 9; background: var(--surface); }
 .camera-frame { position: relative; }
 .camera-frame canvas { cursor: pointer; outline: none; }
-body.controlling .camera-frame canvas { cursor: none; }
+body.mouse-controlling .camera-frame canvas { cursor: none; }
 .control-hint { display: none; position: absolute; top: 14px; left: 50%; transform: translateX(-50%); flex-direction: column; gap: 5px; width: max-content; max-width: calc(100% - 24px); padding: 11px 13px; border: 1px solid var(--ink); background: #fff; pointer-events: none; user-select: none; }
 body.ready:not(.controlling) .control-hint { display: flex; }
 .hint-action { display: flex; align-items: center; justify-content: space-between; gap: 20px; color: var(--accent); font-size: 14px; font-weight: 600; }
-.hint-action > span { font-size: 18px; line-height: 1; }
+.hint-action > span:last-child { font-size: 18px; line-height: 1; }
 .hint-keys { color: var(--muted); font: 10px var(--mono); }
 .camera-frame:hover .control-hint { border-color: var(--accent); background: #f0f4ff; }
 .flight-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 7px 16px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--ink); }
@@ -90,6 +90,26 @@ kbd { display: inline-block; min-width: 18px; padding: 1px 4px; border: 1px soli
 .tuning-control p { margin: 3px 0 0; }
 .tuning-actions { flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--line); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.touch-controls, .touch-hint, #touch-tuning { display: none; }
+.touch-ui .mouse-hint { display: none; }
+.touch-ui .touch-hint, .touch-ui #touch-tuning { display: block; }
+.touch-ui main { max-width: 1200px; padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+.touch-ui .rgb-views { grid-template-areas: "onboard external" "left right"; }
+.touch-ui .onboard-view { grid-area: onboard; }
+.touch-ui .external-view { grid-area: external; }
+.touch-ui .touch-controls { display: contents; }
+.stick-left { grid-area: left; }
+.stick-right { grid-area: right; }
+.stick-group { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 0; user-select: none; -webkit-user-select: none; }
+.stick-title { color: var(--ink); font: 10px var(--mono); letter-spacing: .07em; text-transform: uppercase; }
+.stick-help { color: var(--muted); font: 10px var(--mono); text-align: center; }
+.touch-stick { position: relative; width: 124px; height: 124px; flex-shrink: 0; border: 1px solid var(--line); border-radius: 50%; background: linear-gradient(var(--line), var(--line)) center / 1px 100% no-repeat, linear-gradient(var(--line), var(--line)) center / 100% 1px no-repeat, var(--surface); touch-action: none; -webkit-touch-callout: none; }
+.touch-stick[aria-disabled="true"] { opacity: .4; }
+.touch-controlling .touch-stick { border-color: var(--ink); }
+.stick-thumb { position: absolute; left: 50%; top: 50%; width: 42px; height: 42px; border: 1px solid var(--accent); border-radius: 50%; background: #e8eefc; pointer-events: none; transform: translate(calc(-50% + var(--stick-x, 0px)), calc(-50% + var(--stick-y, 0px))); }
+.touch-ui button, .touch-ui select { min-height: 44px; }
+.touch-ui .session-controls { gap: 8px; }
+.touch-ui #fps { min-width: 64px; }
 @media (min-width: 800px) {
     main { max-width: clamp(680px, calc((100dvh - 269px) * 64 / 27), 1200px); }
 }
@@ -107,4 +127,35 @@ kbd { display: inline-block; min-width: 18px; padding: 1px 4px; border: 1px soli
     .selector { align-items: flex-start; flex-direction: column; gap: 4px; }
     .session-controls { justify-content: space-between; width: 100%; margin-left: 0; }
     .rgb-views { grid-template-columns: minmax(0, 1fr); }
+    .touch-ui .rgb-views { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "onboard onboard" "left right" "external external"; }
+    .touch-ui #flight-state { font-size: 10px; }
+    .touch-ui .drone-control { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .touch-ui .selector { min-width: 0; }
+    .touch-ui select { width: 100%; }
+    .touch-controlling #flight-state { display: none; }
+    .touch-ui .session-controls { gap: 6px; }
+    .touch-ui .session-controls button { padding: 4px 6px; font-size: 11px; }
+}
+@media (orientation: landscape) and (max-height: 540px) {
+    .touch-ui main { padding-top: 6px; }
+    .touch-ui header { margin-bottom: 5px; }
+    .touch-ui h1 img { width: 120px; }
+    .touch-ui .toolbar { padding: 3px 0; gap: 4px; }
+    .touch-ui .drone-control { gap: 8px; }
+    .touch-ui .selector { gap: 4px; }
+    .touch-ui .selector > span { display: none; }
+    .touch-ui .status-bar { padding: 2px 0; }
+    .touch-ui .rgb-views { grid-template-columns: minmax(132px, 1fr) minmax(0, 3fr) minmax(132px, 1fr); grid-template-areas: "left onboard right" ". external ."; align-items: center; }
+    .touch-ui .onboard-view { width: min(100%, calc((100dvh - 182px) * 16 / 9)); justify-self: center; }
+    .touch-ui .external-view { margin-top: 10px; }
+}
+@media (orientation: landscape) and (max-height: 540px) and (max-width: 760px) {
+    .touch-ui #flight-state { display: none; }
+}
+@media (orientation: portrait) and (max-height: 620px) {
+    .touch-ui main { padding-top: 6px; }
+    .touch-ui header { margin-bottom: 6px; }
+    .touch-ui h1 img { width: 140px; }
+    .touch-ui .touch-stick { width: 100px; height: 100px; }
+    .touch-ui .stick-group { gap: 4px; padding: 4px 0; }
 }
