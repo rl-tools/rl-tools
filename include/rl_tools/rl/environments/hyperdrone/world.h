@@ -252,6 +252,7 @@ namespace rl_tools::rl::environments::hyperdrone {
             ANNOTATIONS annotations;
             rendering::SceneMetadata<T> metadata;
             TI corpus_index;
+            TI scene_id;
         };
 
         std::vector<HotSlot> slots;        // this World's partition of the dataset corpus

@@ -99,7 +99,7 @@ SIGNATURES = {
     "hyperdrone.env.MultiEnvironment.reset": ("mask",),
     "hyperdrone.env.MultiEnvironment.step": ("actions",),
     "hyperdrone.env.MultiEnvironment.set_instance_parameters": ("overrides", "mask"),
-    **{f"hyperdrone.env.MultiEnvironment.{name}": () for name in ("observe", "observe_privileged", "observe_imu", "rewards", "terminated", "depth", "segmentation", "normals", "flow", "flow_status")},
+    **{f"hyperdrone.env.MultiEnvironment.{name}": () for name in ("observe", "observe_privileged", "observe_imu", "rewards", "terminated", "depth", "segmentation", "normals", "flow", "flow_status", "spy")},
     "hyperdrone.env.Rotorcraft": ("assembly",),
 }
 

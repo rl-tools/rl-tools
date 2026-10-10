@@ -61,3 +61,7 @@ class VectorEnv(gymnasium.vector.VectorEnv):
 
     def close_extras(self, **kwargs):
         self._env.close()
+
+    def spy(self):
+        """Open the native viewer; call spy.update() after reset() or step()."""
+        return self._env.spy()
