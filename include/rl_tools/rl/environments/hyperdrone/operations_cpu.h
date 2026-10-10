@@ -169,14 +169,19 @@ namespace rl_tools {
         if (shared.num_drones == 0) {
             if (shared.drones.empty()) {
                 // no registration: the first World's nominal is the single drone (no assembly)
-                shared.drones.push_back({"", {world.dynamics.parameters, world.parameters.agents[0].camera}});
+                rl::environments::hyperdrone::Drone<SPEC> drone;
+                drone.parameters = world.parameters.agents[0];
+                drone.parameters.dynamics = world.dynamics.parameters;
+                shared.drones.push_back(drone);
             }
             init(device, shared);
         }
         world.num_drones = shared.num_drones;
         world.dynamics.parameters = shared.drones[0].parameters.dynamics;
         for (TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++) {
-            world.parameters.agents[agent_i].camera = shared.drones[0].parameters.camera;
+            for (TI camera_i = 0; camera_i < WORLD::N_CAMERAS_PER_AGENT; camera_i++) {
+                world.parameters.agents[agent_i].cameras[camera_i] = shared.drones[0].parameters.cameras[camera_i];
+            }
         }
         {
             std::vector<rl::environments::hyperdrone::DroneParameters<SPEC>> parameters_staging(SPEC::MAX_DRONES);
@@ -339,16 +344,16 @@ namespace rl_tools {
             sample_initial_parameters(device, drone_dynamics, parameters.dynamics, rng);
         }
         template <typename DEVICE, typename SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT void _sample_view_parameters(DEVICE& device, const Camera<typename SPEC::T>& camera, AgentParameters<SPEC>& parameters, RNG& rng) {
+        RL_TOOLS_FUNCTION_PLACEMENT void _sample_view_parameters(DEVICE& device, const Camera<typename SPEC::T>& nominal, Camera<typename SPEC::T>& camera, RNG& rng) {
             using T = typename SPEC::T;
-            parameters.camera = camera;
-            parameters.camera.fov = camera.fov + SPEC::CAMERA_FOV_RANDOMIZATION_RANGE * random::uniform_real_distribution(device.random, (T)-1, (T)1, rng);
+            camera = nominal;
+            camera.fov = nominal.fov + SPEC::CAMERA_FOV_RANDOMIZATION_RANGE * random::uniform_real_distribution(device.random, (T)-1, (T)1, rng);
             CameraRandomization<T> randomization;
             for (unsigned axis_i = 0; axis_i < 3; axis_i++) {
                 randomization.offset_body_range[axis_i] = SPEC::CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE;
                 randomization.rotation_body_range[axis_i] = SPEC::CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE;
             }
-            randomize_camera_mount(device, randomization, parameters.camera.mount, rng);
+            randomize_camera_mount(device, randomization, camera.mount, rng);
         }
         template <typename DEVICE, typename SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT void _sample_brightness(DEVICE& device, Parameters<SPEC>& parameters, RNG& rng) {
@@ -369,7 +374,9 @@ namespace rl_tools {
                 agent.drone = _sample_drone<DEVICE, SPEC>(device, num_drones, rng);
                 const auto& drone = get_ref(device, drones, agent.drone);
                 _sample_dynamics_parameters<DEVICE, SPEC>(device, dynamics, drone, agent, rng);
-                _sample_view_parameters<DEVICE, SPEC>(device, drone.camera, agent, rng);
+                for (typename SPEC::TI camera_i = 0; camera_i < SPEC::N_CAMERAS_PER_AGENT; camera_i++) {
+                    _sample_view_parameters<DEVICE, SPEC>(device, drone.cameras[camera_i], agent.cameras[camera_i], rng);
+                }
             }
             _sample_brightness<DEVICE, SPEC>(device, parameters, rng);
             _sample_shutter_fraction<DEVICE, SPEC>(device, parameters, rng);
@@ -656,10 +663,12 @@ namespace rl_tools {
 
         for (TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++) {
             const TI instance_i = camera_i / WORLD::N_VIEWS;
-            const TI agent_i = camera_i % WORLD::N_VIEWS;
+            const TI view_i = camera_i % WORLD::N_VIEWS;
+            const TI agent_i = view_i / WORLD::N_CAMERAS_PER_AGENT;
+            const TI mount_i = view_i % WORLD::N_CAMERAS_PER_AGENT;
             const auto& instance_parameters = get_ref(device, parameters, instance_i);
             const auto& agent_state = rl::environments::hyperdrone::_agent_state<SPEC>(get_ref(device, states, instance_i), agent_i);
-            set(device, world.camera_staging_close, rl::environments::hyperdrone::make_camera<DEVICE, T>(device, instance_parameters.agents[agent_i].camera, agent_state.orientation, agent_state.position, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin), camera_i);
+            set(device, world.camera_staging_close, rl::environments::hyperdrone::make_camera<DEVICE, T>(device, instance_parameters.agents[agent_i].cameras[mount_i], agent_state.orientation, agent_state.position, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin), camera_i);
         }
         copy(device, renderer.device, world.camera_staging_close, cameras(device, renderer));
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
@@ -698,8 +707,8 @@ namespace rl_tools {
             }
             for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
                 if(first || get(device, reset_mask, instance_i)){
-                    for(TI agent_i = 0; agent_i < WORLD::N_VIEWS; agent_i++){
-                        const TI camera_i = instance_i * WORLD::N_VIEWS + agent_i;
+                    for(TI view_i = 0; view_i < WORLD::N_VIEWS; view_i++){
+                        const TI camera_i = instance_i * WORLD::N_VIEWS + view_i;
                         set(device, world.camera_staging_previous, get(device, world.camera_staging_close, camera_i), camera_i);
                     }
                     if constexpr (WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){

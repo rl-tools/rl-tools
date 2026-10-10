@@ -111,6 +111,7 @@ int main(){
         {"HYPERDRONE_ENV_PRESET", HYPERDRONE_ENV_PRESET},
         {"HYPERDRONE_ENV_TASK", HYPERDRONE_ENV_TASK},
         {"HYPERDRONE_ENV_N_AGENTS", HYPERDRONE_ENV_N_AGENTS},
+        {"HYPERDRONE_ENV_N_CAMERAS_PER_AGENT", HYPERDRONE_ENV_N_CAMERAS_PER_AGENT},
         {"HYPERDRONE_ENV_DEVICE_CUDA", HYPERDRONE_ENV_DEVICE_CUDA},
     };
     manifest["observation_layout"] = layout_json(henv::observation_layout());

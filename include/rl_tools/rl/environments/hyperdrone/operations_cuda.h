@@ -73,10 +73,12 @@ namespace rl_tools{
             TI camera_i = threadIdx.x + blockIdx.x * blockDim.x;
             if(camera_i < NUM_CAMERAS){
                 const TI instance_i = camera_i / WORLD::N_VIEWS;
-                const TI agent_i = camera_i % WORLD::N_VIEWS;
+                const TI view_i = camera_i % WORLD::N_VIEWS;
+                const TI agent_i = view_i / WORLD::N_CAMERAS_PER_AGENT;
+                const TI mount_i = view_i % WORLD::N_CAMERAS_PER_AGENT;
                 const auto& instance_parameters = get_ref(device, parameters, instance_i);
                 const auto& agent_state = _agent_state<SPEC>(get_ref(device, states, instance_i), agent_i);
-                auto close = make_camera<DEVICE, T>(device, instance_parameters.agents[agent_i].camera, agent_state.orientation, agent_state.position, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin);
+                auto close = make_camera<DEVICE, T>(device, instance_parameters.agents[agent_i].cameras[mount_i], agent_state.orientation, agent_state.position, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin);
                 cameras[camera_i] = close;
                 if constexpr(SPEC::ENABLE_MOTION_BLUR){
                     bool reset = history_step == 0 || get(device, reset_mask, instance_i);
@@ -94,8 +96,8 @@ namespace rl_tools{
             using WORLD = World<SPEC>;
             const TI instance = threadIdx.x + blockIdx.x * blockDim.x;
             if(instance < WORLD::INSTANCES && (first || get(device, reset_mask, instance))){
-                for(TI agent = 0; agent < WORLD::N_VIEWS; agent++){
-                    const TI camera = instance * WORLD::N_VIEWS + agent;
+                for(TI view = 0; view < WORLD::N_VIEWS; view++){
+                    const TI camera = instance * WORLD::N_VIEWS + view;
                     previous[camera] = current[camera];
                 }
                 if constexpr (WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){

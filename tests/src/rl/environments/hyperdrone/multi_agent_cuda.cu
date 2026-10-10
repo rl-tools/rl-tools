@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "multi_agent_test.h"
+#include "multicamera_test.h"
 
 namespace rlt = rl_tools;
 namespace l2f = rlt::rl::environments::l2f;
@@ -148,10 +149,10 @@ static void arrange(DEVICE& device, Tensors& tensors, const WORLD::SharedContext
             auto& agent_parameters = instance_parameters.agents[agent_i];
             agent_parameters.drone = (instance_i + agent_i) % WORLD_SPEC::MAX_DRONES;
             agent_parameters.dynamics = shared.drones[agent_parameters.drone].parameters.dynamics;
-            agent_parameters.camera = shared.drones[agent_parameters.drone].parameters.camera;
-            agent_parameters.camera.mount.pose.position[0] = (T)0.2;
-            agent_parameters.camera.mount.pose.position[1] = 0;
-            agent_parameters.camera.mount.pose.position[2] = (T)0.05 + (T)0.05 * (T)agent_i;
+            agent_parameters.cameras[0] = shared.drones[agent_parameters.drone].parameters.cameras[0];
+            agent_parameters.cameras[0].mount.pose.position[0] = (T)0.2;
+            agent_parameters.cameras[0].mount.pose.position[1] = 0;
+            agent_parameters.cameras[0].mount.pose.position[2] = (T)0.05 + (T)0.05 * (T)agent_i;
             auto& agent_state = state.agent_states[agent_i];
             agent_state.orientation[0] = 1;
             agent_state.orientation[1] = 0;
@@ -194,8 +195,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT_CUDA, HETEROGENEOUS_AGENTS_
     shared.drones.push_back({OTHER_DRONE_PATH, {}});
     shared.drones[0].parameters.dynamics.dynamics = l2f::parameters::dynamics::registry<l2f::parameters::dynamics::REGISTRY::x500, PARAMETERS_SPEC>;
     shared.drones[1].parameters.dynamics.dynamics = l2f::parameters::dynamics::registry<l2f::parameters::dynamics::REGISTRY::arpl, PARAMETERS_SPEC>;
-    shared.drones[0].parameters.camera.fov = 60;
-    shared.drones[1].parameters.camera.fov = 70;
+    shared.drones[0].parameters.cameras[0].fov = 60;
+    shared.drones[1].parameters.cameras[0].fov = 70;
     rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
     rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
@@ -362,4 +363,20 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT_CUDA, HETEROGENEOUS_AGENTS_
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
+}
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT_CUDA, MULTIPLE_CAMERAS) {
+    if (SCENE_PATH.empty()) {
+        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
+    }
+    if (!cuda_available()) {
+        GTEST_SKIP() << "no CUDA device available";
+    }
+    DEVICE_GPU device_gpu;
+    auto& device = device_gpu.rendering;
+    rlt::init(device);
+    rlt::init(device_gpu);
+    using SINGLE_WORLD = rlt::rl::environments::hyperdrone::World<test_multicamera::Specification<WORLD_SPEC, 1>>;
+    using MULTI_WORLD = rlt::rl::environments::hyperdrone::World<test_multicamera::Specification<WORLD_SPEC, 2>>;
+    test_multicamera::run<SINGLE_WORLD>(device, device_gpu, SCENE_PATH, DRONE_PATH);
+    test_multicamera::run<MULTI_WORLD>(device, device_gpu, SCENE_PATH, DRONE_PATH);
 }

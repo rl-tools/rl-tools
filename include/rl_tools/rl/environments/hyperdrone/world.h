@@ -28,9 +28,8 @@ namespace rl_tools::rl::environments::hyperdrone {
         using DYNAMICS_STATIC_PARAMETERS = T_DYNAMICS_STATIC_PARAMETERS;
         // derive-and-shadow: override by deriving from this Specification and shadowing members
         static constexpr TI INSTANCES_PER_ENVIRONMENT = 64;
-        // agents per instance: one FPV camera per agent (N_VIEWS == N_AGENTS); N_AGENTS > 1
-        // requires SELF_VISIBLE (agents seeing each other needs geometry to see)
         static constexpr TI N_AGENTS = 1;
+        static constexpr TI N_CAMERAS_PER_AGENT = 1;
         static constexpr T AGENT_COLLISION_DISTANCE = 0.15;
         static constexpr TI CAM_WIDTH = 64;
         static constexpr TI CAM_HEIGHT = 64;
@@ -89,7 +88,7 @@ namespace rl_tools::rl::environments::hyperdrone {
             using TI = typename SPEC::TI;
             static constexpr TI CAM_WIDTH = SPEC::CAM_WIDTH;
             static constexpr TI CAM_HEIGHT = SPEC::CAM_HEIGHT;
-            static constexpr TI NUM_CAMERAS = SPEC::INSTANCES_PER_ENVIRONMENT * SPEC::N_AGENTS;
+            static constexpr TI NUM_CAMERAS = SPEC::INSTANCES_PER_ENVIRONMENT * SPEC::N_AGENTS * SPEC::N_CAMERAS_PER_AGENT;
             static constexpr TI NUM_PROBES = SPEC::NUM_PROBES;
             using SHADING = typename SPEC::SHADING;
             static constexpr bool OUTPUT_RGB = SPEC::OUTPUT_RGB;
@@ -135,7 +134,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         using T = typename SPEC::T;
         using DYNAMICS_ENV = Multirotor<l2f::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::DYNAMICS_STATIC_PARAMETERS>>;
         typename DYNAMICS_ENV::Parameters dynamics = SPEC::DYNAMICS_STATIC_PARAMETERS::PARAMETER_VALUES;
-        Camera<T> camera;
+        Camera<T> cameras[SPEC::N_CAMERAS_PER_AGENT];
     };
     template <typename T_SPEC>
     struct AgentParameters: DroneParameters<T_SPEC> {
@@ -193,6 +192,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static_assert(SPEC::MAX_DRONES > 0, "MAX_DRONES must be positive");
+        static_assert(SPEC::N_CAMERAS_PER_AGENT > 0, "N_CAMERAS_PER_AGENT must be positive");
         static_assert(!SPEC::SELF_VISIBLE || SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE > 0, "SELF_VISIBLE needs entity slots: set MAX_ENTITY_SLOTS_PER_INSTANCE");
         static_assert(SPEC::N_AGENTS == 1 || SPEC::SELF_VISIBLE, "multi-agent Worlds require SELF_VISIBLE: agents seeing each other needs geometry to see");
 
@@ -202,14 +202,15 @@ namespace rl_tools::rl::environments::hyperdrone {
 
         static constexpr TI INSTANCES = SPEC::INSTANCES_PER_ENVIRONMENT;
         static constexpr TI N_AGENTS = SPEC::N_AGENTS;
-        static constexpr TI N_VIEWS = N_AGENTS;
+        static constexpr TI N_CAMERAS_PER_AGENT = SPEC::N_CAMERAS_PER_AGENT;
+        static constexpr TI N_VIEWS = N_AGENTS * N_CAMERAS_PER_AGENT;
         static constexpr TI ACTION_DIM = N_AGENTS * DYNAMICS_ENV::ACTION_DIM;
         static constexpr TI EPISODE_STEP_LIMIT = DYNAMICS_ENV::EPISODE_STEP_LIMIT;
         static constexpr TI IMAGE_CHANNELS = 3;
 
-        // agent frames stack along the image height so the flat row layout matches the
+        // agent-major camera frames stack along the image height so the flat row layout matches the
         // camera-major frame history exactly
-        using Observation = rl::environments::observation::Image<TI, N_AGENTS * SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, IMAGE_CHANNELS>;
+        using Observation = rl::environments::observation::Image<TI, N_VIEWS * SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, IMAGE_CHANNELS>;
         struct ObservationPrivilegedMultiAgent {
             static constexpr TI PER_AGENT_DIM = DYNAMICS_ENV::Observation::DIM;
             static constexpr TI DIM = N_AGENTS * PER_AGENT_DIM;
@@ -315,6 +316,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         using Observation = typename ENVIRONMENT::Observation;
         using ObservationPrivileged = typename ENVIRONMENT::ObservationPrivileged;
         static constexpr TI N_AGENTS = ENVIRONMENT::N_AGENTS;
+        static constexpr TI N_CAMERAS_PER_AGENT = ENVIRONMENT::N_CAMERAS_PER_AGENT;
         static constexpr TI ACTION_DIM = ENVIRONMENT::ACTION_DIM;
         static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT::EPISODE_STEP_LIMIT;
         static constexpr TI INSTANCES_PER_ENVIRONMENT = ENVIRONMENT::INSTANCES;

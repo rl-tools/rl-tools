@@ -190,7 +190,7 @@ std::string trajectory_episodes_to_json(DEVICE& device, TASK_WORLD& env,
             + ", \"scene_hash\": \"" + episode.front().scene_hash + "\""
             + ", \"cam_width\": " + std::to_string(WORLD_SPEC::CAM_WIDTH)
             + ", \"cam_height\": " + std::to_string(WORLD_SPEC::CAM_HEIGHT)
-            + ", \"fov\": " + std::to_string(parameters.agents[0].camera.fov) + "}}";
+            + ", \"fov\": " + std::to_string(parameters.agents[0].cameras[0].fov) + "}}";
         json += "{\"parameters\": " + parameters_json + ",\n";
         json += "\"trajectory\": [";
         for(TI step_i = 0; step_i < max_len; step_i++){
@@ -496,7 +496,7 @@ int main(int argc, char** argv){
     for(TI member_i = 0; member_i < NUMBER_OF_ENVIRONMENTS; member_i++){
         auto& world = env.environments[member_i];
         world.rng_offset = member_i * N_ENVIRONMENTS_PER_SCENE;
-        world.parameters.agents[0].camera.fov = CAMERA_FOV;
+        world.parameters.agents[0].cameras[0].fov = CAMERA_FOV;
         rlt::init(device_gpu, world, env.shared, scene_dataset, scene_corpus, (TI)0, N_TOTAL_SCENES, member_i);
     }
     std::cout << "Loaded " << N_TOTAL_SCENES << " scenes" << std::endl;
