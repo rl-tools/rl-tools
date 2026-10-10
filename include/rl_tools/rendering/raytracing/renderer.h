@@ -56,10 +56,7 @@ namespace rl_tools {
                 static constexpr bool OUTPUT_FLOW_FORWARD = false;
                 static constexpr bool ENABLE_MOTION_BLUR = false;
                 static constexpr T_TI MOTION_BLUR_SAMPLES = 1;
-                // dynamic motion blur renders MOTION_BLUR_SAMPLES sequential passes per frame,
-                // rebuilding the overlay acceleration structures from per-sample transforms
-                // (transforms_motion) between passes and accumulating linear radiance on the
-                // device — overlays blur, not just the camera. Requires motion blur + overlays.
+                // Dynamic motion blur uses transforms_motion for each shutter sample and averages linear radiance; requires motion blur and overlays.
                 static constexpr bool ENABLE_DYNAMIC_MOTION_BLUR = false;
                 static constexpr bool ENABLE_ANTI_ALIASING = false;
                 static constexpr T_TI ANTI_ALIASING_GRID_SIZE = 1;

@@ -31,15 +31,14 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
     // read-only storage, not uniform — see the binding comment in device.wgsl.
     namespace bindings{
         constexpr uint32_t LAUNCH_PARAMS = 0;
-        constexpr uint32_t DISPATCH_PARAMS = 1; // dynamic-offset uniform: {shutter_t, overlay_region}
-        constexpr uint32_t SCENE_GEOMETRY = 2;  // u32-addressed: mesh data, triangle tables, TLAS leaf permutation, object records, sRGB LUT, mesh records, scene lights, instance classes
-        constexpr uint32_t TEXTURE_DATA = 3;    // packed RGBA8 texels, one u32 each, sampled in the shader
-        constexpr uint32_t BVH_NODES = 4;       // per-object BLAS slices, the scene TLAS, then the per-region overlay TLASes
-        constexpr uint32_t TRIANGLES = 5;       // leaf-ordered packed triangles: 3 x vec4 {vertex.xyz, w: bitcast global id / 0 / 0}
-        constexpr uint32_t INSTANCE_DATA = 6;
-        constexpr uint32_t FRAME_INPUTS = 7;    // cameras, overlay attachments/meta/primitives, flow deltas, probe directions
-        constexpr uint32_t OUTPUTS = 8;         // frame buffer, depth, segmentation, normals, flow, observation, accumulators, collision results
-        constexpr uint32_t COUNT = 9;
+        constexpr uint32_t SCENE_GEOMETRY = 1;  // u32-addressed: mesh data, triangle tables, TLAS leaf permutation, object records, sRGB LUT, mesh records, scene lights, instance classes
+        constexpr uint32_t TEXTURE_DATA = 2;    // packed RGBA8 texels, one u32 each, sampled in the shader
+        constexpr uint32_t BVH_NODES = 3;       // per-object BLAS slices, the scene TLAS, then the per-region overlay TLASes
+        constexpr uint32_t TRIANGLES = 4;       // leaf-ordered packed triangles: 3 x vec4 {vertex.xyz, w: bitcast global id / 0 / 0}
+        constexpr uint32_t INSTANCE_DATA = 5;
+        constexpr uint32_t FRAME_INPUTS = 6;    // cameras, overlay attachments/meta/primitives, flow deltas, probe directions
+        constexpr uint32_t OUTPUTS = 7;         // frame buffer, depth, segmentation, normals, flow, observation, collision results
+        constexpr uint32_t COUNT = 8;
         constexpr uint32_t STORAGE_COUNT = 8;
     }
     // must match the @workgroup_size of every entry point in device.wgsl
@@ -48,9 +47,6 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
     // must match TRAVERSAL_STACK_SIZE in device.wgsl; the ordered traversal pushes at most one
     // entry per tree level, so the host asserts every built tree's depth against this bound
     constexpr uint32_t TRAVERSAL_STACK_SIZE = 48;
-    // one 256-byte slot per dynamic-motion-blur sample (+ slot 0 for the shutter-close state);
-    // 256 is a multiple of every legal minUniformBufferOffsetAlignment
-    constexpr uint32_t DISPATCH_PARAMS_STRIDE = 256;
     constexpr uint32_t ABSENT = 0xFFFFFFFFu;
 
     using BVHNode = generic::BVHNode<float, uint32_t>;
@@ -101,10 +97,9 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         uint32_t out_flow_forward;
         uint32_t out_flow_forward_status;
         uint32_t out_observation;
-        uint32_t out_rgb_accumulator;
         uint32_t out_collision;
     };
-    static_assert(sizeof(LaunchParams) == 196, "LaunchParams layout must match the WGSL declaration in device.wgsl");
+    static_assert(sizeof(LaunchParams) == 192, "LaunchParams layout must match the WGSL declaration in device.wgsl");
 
     struct TextureRef{
         uint32_t offset; // texel index into TEXTURE_DATA, ABSENT = no texture
@@ -142,13 +137,6 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         uint32_t padding[2];
     };
     static_assert(sizeof(InstanceData) == 112, "InstanceData layout must match the WGSL declaration in device.wgsl");
-
-    struct DispatchParams{
-        float shutter_t;
-        uint32_t overlay_region; // 0 = shutter-close state, 1 + s = dynamic-motion-blur sample s (the flow passes address the previous-instant region themselves)
-        uint32_t padding[2];
-    };
-    static_assert(sizeof(DispatchParams) == 16, "DispatchParams layout must match the WGSL declaration in device.wgsl");
 
     // section offsets (u32 elements) of the SPEC-sized FRAME_INPUTS and OUTPUTS arenas: the
     // single source for buffer sizing, the LaunchParams offset fields, and the host's
@@ -193,7 +181,6 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         static constexpr uint32_t FLOW_FORWARD_WORDS = SPEC::HAS_FLOW_FORWARD ? CAM_PIXEL_WORDS * 2 : 0;
         static constexpr uint32_t FLOW_FORWARD_STATUS_WORDS = SPEC::HAS_FLOW_FORWARD ? CAM_PIXEL_WORDS : 0;
         static constexpr uint32_t OBSERVATION_WORDS = SPEC::HAS_OBSERVATION ? CAM_PIXEL_WORDS * (uint32_t)SPEC::OBSERVATION_CHANNELS : 0;
-        static constexpr uint32_t RGB_ACCUMULATOR_WORDS = (SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_RGB) ? CAM_PIXEL_WORDS * 3 : 0;
         static constexpr uint32_t FRAME_BUFFER_OFFSET = 0;
         static constexpr uint32_t DEPTH_OFFSET = FRAME_BUFFER_OFFSET + FRAME_BUFFER_WORDS;
         static constexpr uint32_t SEGMENTATION_OFFSET = DEPTH_OFFSET + DEPTH_WORDS;
@@ -203,8 +190,7 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         static constexpr uint32_t FLOW_FORWARD_OFFSET = FLOW_STATUS_OFFSET + FLOW_STATUS_WORDS;
         static constexpr uint32_t FLOW_FORWARD_STATUS_OFFSET = FLOW_FORWARD_OFFSET + FLOW_FORWARD_WORDS;
         static constexpr uint32_t OBSERVATION_OFFSET = FLOW_FORWARD_STATUS_OFFSET + FLOW_FORWARD_STATUS_WORDS;
-        static constexpr uint32_t RGB_ACCUMULATOR_OFFSET = OBSERVATION_OFFSET + OBSERVATION_WORDS;
-        static constexpr uint32_t COLLISION_OFFSET = RGB_ACCUMULATOR_OFFSET + RGB_ACCUMULATOR_WORDS;
+        static constexpr uint32_t COLLISION_OFFSET = OBSERVATION_OFFSET + OBSERVATION_WORDS;
         static constexpr uint32_t OUTPUTS_WORDS = COLLISION_OFFSET + COLLISION_WORDS;
     };
 
@@ -236,7 +222,6 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         WGPUComputePipeline auxiliary_pipeline = nullptr;
         WGPUComputePipeline collision_pipeline = nullptr;
         WGPUComputePipeline flow_forward_pipeline = nullptr;
-        WGPUComputePipeline resolve_pipeline = nullptr;
         WGPUBindGroup bind_group = nullptr; // recreated per init (scene buffers change)
 
         BufferResource launch_params;
@@ -247,7 +232,6 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         BufferResource instance_data;
         BufferResource frame_inputs;
         BufferResource outputs;
-        BufferResource dispatch_params;
 
         BufferResource staging_frame_buffer;
         BufferResource staging_depth;
