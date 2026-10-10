@@ -42,13 +42,13 @@
                 <figure class="view">
                     <figcaption>Onboard camera</figcaption>
                     <div class="camera-frame">
-                        <canvas id="camera0" width="480" height="270" tabindex="0" aria-label="Onboard view. Click or press Enter to capture the mouse and fly; click again or press Escape to release."></canvas>
+                        <canvas id="camera0" width="480" height="270" tabindex="0" aria-label="Onboard view. Click or press Enter to take control; click again or press Escape to release control."></canvas>
                     </div>
                 </figure>
                 <figure class="view">
                     <figcaption>External camera</figcaption>
                     <div class="camera-frame">
-                        <canvas id="camera1" width="480" height="270" tabindex="0" aria-label="External view fixed to the drone. Click or press Enter to capture the mouse and fly; click again or press Escape to release."></canvas>
+                        <canvas id="camera1" width="480" height="270" tabindex="0" aria-label="External view fixed to the drone. Click or press Enter to take control; click again or press Escape to release control."></canvas>
                     </div>
                 </figure>
             </div>
@@ -72,7 +72,7 @@
                 </figure>
             </div>
 
-            <p class="instructions"><kbd>WASD</kbd> move · Mouse turns · Click either camera to capture or release the mouse · <kbd>Esc</kbd> releases</p>
+            <p class="instructions"><kbd>WASD</kbd> move · Mouse turns · Click either camera to take or release control · <kbd>Esc</kbd> releases</p>
         </section>
     </main>
     <dialog id="flight-tuning" aria-labelledby="tuning-title" aria-keyshortcuts="Shift+T">
@@ -111,7 +111,7 @@
                 <button id="tuning-defaults" type="button">Restore defaults</button>
                 <span><kbd>Shift</kbd> + <kbd>T</kbd> to toggle</span>
             </div>
-            <p class="tuning-description">Close and click a camera to try your settings. Reloading restores defaults.</p>
+            <p class="tuning-description">Settings apply immediately. Reloading restores defaults.</p>
         </form>
     </dialog>
     <script type="module" src="main.js"></script>
