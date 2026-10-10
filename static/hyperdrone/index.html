@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="HyperDrone: visual drone simulation with RLtools. Fly a drone and explore its camera, depth, segmentation, surface normals, and optical flow in your browser.">
     <meta name="theme-color" content="#ffffff">
-    <title>HyperDrone · RLtools</title>
+    <title>HyperDrone</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -17,10 +17,12 @@
         <section class="simulation" aria-label="Interactive drone flight">
             <div class="toolbar">
                 <div class="drone-control">
-                    <label for="scene">Scene</label>
-                    <select id="scene" aria-label="Scene" disabled></select>
-                    <label for="drone">Airframe</label>
-                    <select id="drone" aria-label="Drone airframe" disabled></select>
+                    <label class="selector" for="scene"><span>Scene</span>
+                        <select id="scene" aria-label="Scene" disabled></select>
+                    </label>
+                    <label class="selector" for="drone"><span>Airframe</span>
+                        <select id="drone" aria-label="Drone airframe" disabled></select>
+                    </label>
                 </div>
                 <div class="session-controls">
                     <span id="flight-state">Loading</span>
@@ -42,39 +44,52 @@
 
             <div class="views rgb-views">
                 <figure class="view">
-                    <figcaption>Onboard camera</figcaption>
+                    <figcaption><span><span class="view-number">01</span> Onboard camera</span><span class="view-format">RGB</span></figcaption>
                     <div class="camera-frame">
                         <canvas id="camera0" width="480" height="270" tabindex="0" aria-label="Onboard view. Click or press Enter to take control; click again or press Escape to release control."></canvas>
+                        <div class="control-hint" aria-hidden="true">
+                            <span class="hint-action">Click to take control <span>↗</span></span>
+                            <span class="hint-keys">WASD to move · Mouse to turn</span>
+                        </div>
                     </div>
                 </figure>
                 <figure class="view">
-                    <figcaption>External camera</figcaption>
+                    <figcaption><span><span class="view-number">02</span> External camera</span><span class="view-format">RGB</span></figcaption>
                     <div class="camera-frame">
                         <canvas id="camera1" width="480" height="270" tabindex="0" aria-label="External view fixed to the drone. Click or press Enter to take control; click again or press Escape to release control."></canvas>
+                        <div class="control-hint" aria-hidden="true">
+                            <span class="hint-action">Click to take control <span>↗</span></span>
+                            <span class="hint-keys">WASD to move · Mouse to turn</span>
+                        </div>
                     </div>
                 </figure>
             </div>
 
             <div class="views sensor-views" role="group" aria-label="Onboard sensing">
                 <figure class="view">
-                    <figcaption title="0–10 m: dark near, white far or no surface">Depth</figcaption>
+                    <figcaption title="0–10 m: dark near, white far or no surface"><span><span class="view-number">03</span> Depth</span><span class="view-format">0–10 m</span></figcaption>
                     <canvas id="depth" width="480" height="270" aria-label="Onboard depth visualization"></canvas>
                 </figure>
                 <figure class="view">
-                    <figcaption title="A color for each object class">Semantic segmentation</figcaption>
+                    <figcaption title="A color for each object class"><span><span class="view-number">04</span> Semantic segmentation</span></figcaption>
                     <canvas id="segmentation" width="480" height="270" aria-label="Onboard semantic segmentation"></canvas>
                 </figure>
                 <figure class="view">
-                    <figcaption title="Surface orientation in world coordinates">Surface normals</figcaption>
+                    <figcaption title="Surface orientation in world coordinates"><span><span class="view-number">05</span> Surface normals</span><span class="view-format">XYZ</span></figcaption>
                     <canvas id="normals" width="480" height="270" aria-label="Onboard surface normals in world coordinates"></canvas>
                 </figure>
                 <figure class="view">
-                    <figcaption title="Current-to-previous motion: hue is direction, full color is 20 px. Invalid correspondences: miss black, behind magenta, outside the image blue, occluded orange.">Optical flow</figcaption>
+                    <figcaption title="Current-to-previous motion: hue is direction, full color is 20 px. Invalid correspondences: miss black, behind magenta, outside the image blue, occluded orange."><span><span class="view-number">06</span> Optical flow</span><span class="view-format">px</span></figcaption>
                     <canvas id="flow" width="480" height="270" aria-label="Onboard backward optical flow from the current image to the previous image"></canvas>
                 </figure>
             </div>
 
-            <p class="instructions"><kbd>WASD</kbd> move · Mouse turns · Click either camera to take or release control · <kbd>Esc</kbd> releases</p>
+            <div class="instructions">
+                <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</span>
+                <span><kbd>Mouse</kbd> Turn</span>
+                <span><kbd>Click</kbd> Take / release control</span>
+                <span><kbd>Esc</kbd> Release</span>
+            </div>
         </section>
     </main>
     <dialog id="flight-tuning" aria-labelledby="tuning-title" aria-keyshortcuts="Shift+T">

@@ -64,10 +64,11 @@ function clear_input(){
 
 function update_flight_state(){
     const controlling = has_control();
+    document.body.classList.toggle("ready", ready);
     document.body.classList.toggle("controlling", controlling);
-    flight_state.textContent = !ready ? "Loading" : document.hidden ? "Paused" : controlling ? "Controlling" : "Running";
+    flight_state.textContent = !ready ? "Loading" : document.hidden ? "Paused" : controlling ? "Pilot control" : "Position hold";
     if(ready && max_frames === 0){
-        set_status(document.hidden ? "Simulation paused while this tab is hidden" : controlling ? "WASD to move · Mouse to turn · Click or Esc to release control" : "Simulation running · Click either camera to take control");
+        set_status(document.hidden ? "Simulation paused while this tab is hidden" : controlling ? "Control active · Click or Esc to release" : "Simulation running · RAPTOR position hold");
     }
 }
 
@@ -187,6 +188,7 @@ update_tuning_values();
 function show_error(error){
     release_controls();
     ready = false;
+    document.body.classList.remove("ready");
     reset_button.disabled = true;
     flight_state.textContent = "Unavailable";
     progress_element.hidden = true;
@@ -194,7 +196,6 @@ function show_error(error){
     error_element.textContent = error instanceof Error ? error.message : String(error);
     error_element.hidden = false;
     set_status("The simulation could not start.");
-    document.title = "failed";
     console.error(error);
 }
 
@@ -289,7 +290,6 @@ async function main(){
                 fps_window_frames = 0;
             }
             if(max_frames > 0 && frame_count >= max_frames){
-                document.title = "done";
                 set_status(`Rendered ${frame_count} frames`);
             }
         },
