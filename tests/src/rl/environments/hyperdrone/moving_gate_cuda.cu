@@ -7,6 +7,8 @@
 
 #include <gtest/gtest.h>
 
+#include "moving_gate_acquisition.h"
+
 #include <cmath>
 #include <string>
 #include <vector>
@@ -119,6 +121,18 @@ struct Tensors {
 static bool cuda_available(){
     int device_count = 0;
     return cudaGetDeviceCount(&device_count) == cudaSuccess && device_count > 0;
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MOVING_GATE_CUDA, DEFERRED_ACQUISITION_PRESERVES_FLOW_AND_HISTORY){
+    if(SCENE_PATH.empty() || !cuda_available()){
+        GTEST_SKIP() << "scene or CUDA device unavailable";
+    }
+    DEVICE_GPU device_gpu;
+    auto& device = device_gpu.rendering;
+    using rlt::init;
+    init(device);
+    init(device_gpu);
+    test_moving_gate_acquisition::check<WORLD_SPEC>(device_gpu, device, SCENE_PATH, GATE_PATH);
 }
 
 // deterministic scene placement mirroring the CPU test: identity yaw + gate orientation, drone

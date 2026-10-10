@@ -131,13 +131,8 @@ namespace rl_tools{
         request_render(device, world, reset_mask);
     }
 
-    template <typename DEV_SPEC, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
-    void render(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input){
-        if(!world.render_pending){
-            return;
-        }
-        request_render(device, world, reset_mask_input);
-        auto& reset_mask = world.render_reset;
+    template <typename DEV_SPEC, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC>
+    void prepare_entity_poses(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
         using WORLD = rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>;
@@ -155,7 +150,17 @@ namespace rl_tools{
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
         rl::environments::hyperdrone::tasks::moving_gate::cuda::gate_rows_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, parameters, states, kind.rig, kind.slot_offset, transforms_rows, transforms_motion_rows);
         check_status(device);
-        render(device, static_cast<NEXT_WORLD&>(world), parameters, states, reset_mask);
+    }
+
+    template <typename DEV_SPEC, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
+    void render(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input){
+        if(!world.render_pending){
+            return;
+        }
+        using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
+        request_render(device, world, reset_mask_input);
+        prepare_entity_poses(device, world, parameters, states);
+        render(device, static_cast<NEXT_WORLD&>(world), parameters, states, world.render_reset);
     }
 
     template <typename DEV_SPEC, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename NEXT_STATE_SPEC, typename RNG>
@@ -166,7 +171,7 @@ namespace rl_tools{
         constexpr TI INSTANCES = rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>::INSTANCES;
         if constexpr (NEXT_WORLD::SPEC::HISTORY_LENGTH > 1 || NEXT_WORLD::SPEC::OUTPUT_FLOW){
             if(world.render_pending){
-                render(device, world, parameters, states, world.render_reset);
+                prepare_entity_poses(device, world, parameters, states);
             }
         }
         step(device, static_cast<NEXT_WORLD&>(world), parameters, states, actions, next_states, rng);

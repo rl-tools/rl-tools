@@ -86,6 +86,9 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
             RLtools::RLtools
             RLtools::Test
             rendering_raytracing_backend
+            rendering_raytracing_backend_depth
+            rendering_raytracing_backend_segmentation
+            rendering_raytracing_backend_normals
             rendering_raytracing_stb
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_moving_gate)
@@ -278,6 +281,7 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
                 RLtools::Test
                 owl::owl
                 rendering_raytracing_device_ptx
+                rendering_raytracing_device_depth_segmentation_normals_ptx
                 assimp::assimp
                 rendering_raytracing_stb
         )

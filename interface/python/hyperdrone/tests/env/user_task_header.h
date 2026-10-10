@@ -154,33 +154,12 @@ namespace rl_tools {
         request_render(device, world, reset_mask);
     }
 
-    template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename NEXT_STATE_SPEC, typename RNG>
-    void step(DEVICE& device, hyperdrone_env_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<ACTION_SPEC>& actions, Tensor<NEXT_STATE_SPEC>& next_states, RNG& rng){
+    template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC>
+    void prepare_entity_poses(DEVICE& device, hyperdrone_env_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states){
         using T = typename TASK_SPEC::T;
         using TI = typename TASK_SPEC::TI;
         using WORLD = hyperdrone_env_user::orbiter::World<TASK_SPEC>;
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
-        constexpr T TWO_PI = (T)2 * math::PI<T>;
-        step(device, static_cast<NEXT_WORLD&>(world), parameters, states, actions, next_states, rng);
-        for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
-            const auto& instance_parameters = get_ref(device, parameters, instance_i);
-            const T dt = instance_parameters.agents[0].dynamics.integration.dt;
-            T phase = get_ref(device, states, instance_i).orbit_phase + TWO_PI * TASK_SPEC::ORBIT_RATE * dt;
-            phase = phase - math::floor(device.math, phase / TWO_PI) * TWO_PI;
-            get_ref(device, next_states, instance_i).orbit_phase = phase;
-        }
-    }
-
-    template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
-    void render(DEVICE& device, hyperdrone_env_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask){
-        if(!world.render_pending){
-            return;
-        }
-        using T = typename TASK_SPEC::T;
-        using TI = typename TASK_SPEC::TI;
-        using WORLD = hyperdrone_env_user::orbiter::World<TASK_SPEC>;
-        using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
-        request_render(device, world, reset_mask);
         const auto& kind = world.entity_kinds[world.entity_kind_index];
         const auto placement = rl::environments::hyperdrone::_entity_placement(world, kind);
         const float* no_coordinates = nullptr;  // a rigid entity: its rig has no coordinates
@@ -201,6 +180,38 @@ namespace rl_tools {
                 set_transform(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, kind.rig, pose, no_coordinates);
             }
         }
+    }
+
+    template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename NEXT_STATE_SPEC, typename RNG>
+    void step(DEVICE& device, hyperdrone_env_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<ACTION_SPEC>& actions, Tensor<NEXT_STATE_SPEC>& next_states, RNG& rng){
+        using T = typename TASK_SPEC::T;
+        using TI = typename TASK_SPEC::TI;
+        using WORLD = hyperdrone_env_user::orbiter::World<TASK_SPEC>;
+        using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
+        constexpr T TWO_PI = (T)2 * math::PI<T>;
+        if constexpr (NEXT_WORLD::SPEC::HISTORY_LENGTH > 1 || NEXT_WORLD::SPEC::OUTPUT_FLOW){
+            if(world.render_pending){
+                prepare_entity_poses(device, world, parameters, states);
+            }
+        }
+        step(device, static_cast<NEXT_WORLD&>(world), parameters, states, actions, next_states, rng);
+        for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
+            const auto& instance_parameters = get_ref(device, parameters, instance_i);
+            const T dt = instance_parameters.agents[0].dynamics.integration.dt;
+            T phase = get_ref(device, states, instance_i).orbit_phase + TWO_PI * TASK_SPEC::ORBIT_RATE * dt;
+            phase = phase - math::floor(device.math, phase / TWO_PI) * TWO_PI;
+            get_ref(device, next_states, instance_i).orbit_phase = phase;
+        }
+    }
+
+    template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
+    void render(DEVICE& device, hyperdrone_env_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask){
+        if(!world.render_pending){
+            return;
+        }
+        using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
+        request_render(device, world, reset_mask);
+        prepare_entity_poses(device, world, parameters, states);
         render(device, static_cast<NEXT_WORLD&>(world), parameters, states, world.render_reset);
     }
     // a frame requested by reset or step and observed without an explicit render goes through
