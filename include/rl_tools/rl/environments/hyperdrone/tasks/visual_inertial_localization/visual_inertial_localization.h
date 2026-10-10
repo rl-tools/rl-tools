@@ -5,7 +5,7 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TASKS_VISUAL_INERTIAL_LOCALIZATION_VISUAL_INERTIAL_LOCALIZATION_H
 
 #include "../../world.h"
-#include "autopilot.h"
+#include "../../raptor/raptor.h"
 
 #include <string>
 
@@ -71,7 +71,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localiz
         // acceleration jerk that static visual-inertial initializers wait for
         static constexpr TI INITIALIZATION_HOLD_STEPS = 0;
         // the autopilot checkpoint (RAPTOR/policy.tar in the conta store): a path or a conta:HASH reference
-        static constexpr const char* AUTOPILOT_POLICY = "conta:b6bd082c60fcb27f42a2b5f2f635587d2b60d170";
+        static constexpr const char* AUTOPILOT_POLICY = raptor::CHECKPOINT;
     };
 
     // benchmark protocol: fixed-length synchronized episodes only — the camera stride phase and
@@ -94,7 +94,8 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localiz
         static constexpr bool SYNCHRONIZED_RESETS = true;
         static constexpr TI INITIALIZATION_HOLD_STEPS = TASK_SPEC::INITIALIZATION_HOLD_STEPS;
         static constexpr TI ACTION_DIM = 0;
-        using AUTOPILOT = Autopilot<NEXT_WORLD>;
+        using AUTOPILOT = Raptor<raptor::Specification<numeric_types::Policy<T>, TI, NEXT_WORLD::INSTANCES>>;
+        static_assert(AUTOPILOT::ACTION_DIM == NEXT_WORLD::ACTION_DIM);
 
         // estimator inputs beyond the frames: [accelerometer(3) | gyroscope(3) | frame_age/FRAME_STRIDE | new_frame]
         struct ObservationIMU {

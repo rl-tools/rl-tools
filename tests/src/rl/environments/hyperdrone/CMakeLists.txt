@@ -1,3 +1,9 @@
+if(NOT RL_TOOLS_DISABLE_TAR)
+    add_executable(test_rl_environments_hyperdrone_raptor raptor.cpp)
+    target_link_libraries(test_rl_environments_hyperdrone_raptor PRIVATE RLtools::RLtools GTest::gtest_main)
+    gtest_discover_tests(test_rl_environments_hyperdrone_raptor)
+endif()
+
 add_executable(test_rl_environments_hyperdrone_on_policy_gradient on_policy_gradient.cpp)
 target_link_libraries(test_rl_environments_hyperdrone_on_policy_gradient PRIVATE RLtools::RLtools GTest::gtest_main)
 gtest_discover_tests(test_rl_environments_hyperdrone_on_policy_gradient)
