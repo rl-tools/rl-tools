@@ -14,6 +14,8 @@ const drone_select = document.getElementById("drone");
 const scene_select = document.getElementById("scene");
 const reset_button = document.getElementById("reset");
 const flight_state = document.getElementById("flight-state");
+const position_readout = document.getElementById("position-readout");
+const orientation_readout = document.getElementById("orientation-readout");
 const tuning_panel = document.getElementById("flight-tuning");
 const position_offset = document.getElementById("position-offset");
 const velocity_target = document.getElementById("velocity-target");
@@ -51,6 +53,10 @@ function populate(select, entries, selected){
 
 function set_status(text){
     status_element.textContent = text;
+}
+
+function format_pose(values, digits){
+    return `(${values.map(value => Number(value.toFixed(digits)).toFixed(digits)).join(", ")})`;
 }
 
 function has_control(){
@@ -258,7 +264,7 @@ async function main(){
         onAbort: reason => show_error(`Renderer stopped: ${reason}`),
         rlt_status: set_status,
         rlt_input: poll_input,
-        rlt_present: (pointer, width, height, num_views) => {
+        rlt_present: (pointer, width, height, num_views, x, y, z, qw, qx, qy, qz) => {
             if(num_views !== canvases.length){
                 throw new Error(`Expected ${canvases.length} camera outputs; received ${num_views}. Rebuild the HyperDrone browser module.`);
             }
@@ -276,6 +282,8 @@ async function main(){
                 images[view].data.set(heap.subarray(begin, begin + image_bytes));
                 contexts[view].putImageData(images[view], 0, 0);
             }
+            position_readout.textContent = format_pose([x, y, z], 2);
+            orientation_readout.textContent = format_pose([qw, qx, qy, qz], 4);
             if(!ready){
                 ready = true;
                 reset_button.disabled = false;

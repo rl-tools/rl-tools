@@ -84,12 +84,18 @@
                 </figure>
             </div>
 
-            <div class="instructions">
-                <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</span>
-                <span><kbd>E</kbd> Up <kbd>Q</kbd> Down</span>
-                <span><kbd>Mouse</kbd> Turn</span>
-                <span><kbd>Click</kbd> Take / release control</span>
-                <span><kbd>Esc</kbd> Release</span>
+            <div class="flight-footer">
+                <div class="instructions">
+                    <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</span>
+                    <span><kbd>E</kbd> Up <kbd>Q</kbd> Down</span>
+                    <span><kbd>Mouse</kbd> Turn</span>
+                    <span><kbd>Click</kbd> Take / release control</span>
+                    <span><kbd>Esc</kbd> Release</span>
+                </div>
+                <div class="pose-readout" role="group" aria-label="Drone pose in scene coordinates">
+                    <span title="Drone position in scene coordinates, in meters"><span>XYZ / m</span><span id="position-readout" class="pose-values">(—, —, —)</span></span>
+                    <span title="Drone orientation in scene coordinates as a w, x, y, z quaternion"><span>QUAT / WXYZ</span><span id="orientation-readout" class="pose-values">(—, —, —, —)</span></span>
+                </div>
             </div>
         </section>
     </main>
