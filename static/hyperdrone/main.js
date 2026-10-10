@@ -107,7 +107,7 @@ function poll_input(){
     const input = [
         controlling ? (touch_control ? -right_stick.y : Number(keys.has("KeyW")) - Number(keys.has("KeyS"))) : 0,
         controlling ? (touch_control ? -right_stick.x : Number(keys.has("KeyA")) - Number(keys.has("KeyD"))) : 0,
-        controlling ? (touch_control ? -left_stick.y : Number(keys.has("KeyE")) - Number(keys.has("KeyQ"))) : 0,
+        controlling ? (touch_control ? -left_stick.y * 0.7 : Number(keys.has("KeyE")) - Number(keys.has("KeyQ"))) : 0,
         controlling && !touch_control ? yaw_delta : 0,
         Number(reset_requested),
         Number(!document.hidden),
@@ -116,7 +116,7 @@ function poll_input(){
         Number(position_offset.value),
         Number(velocity_target.value),
         Number(target_fps.value),
-        controlling && touch_control ? -left_stick.x : 0,
+        controlling && touch_control ? -left_stick.x * 0.5 : 0,
     ];
     yaw_delta = 0;
     reset_requested = false;
