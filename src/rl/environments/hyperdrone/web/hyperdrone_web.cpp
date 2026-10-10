@@ -39,7 +39,7 @@ namespace rl_tools::rl::environments::hyperdrone::web {
     constexpr TI VIEWS = 6;
     constexpr T DEPTH_DISPLAY_METERS = 10;
     constexpr T FLOW_DISPLAY_PIXELS = 20;
-    constexpr double FRAME_PERIOD = 0.04;
+    constexpr double FRAME_PERIOD = 1.0 / 60.0;
 
     struct State {
         ENVIRONMENT environment;
