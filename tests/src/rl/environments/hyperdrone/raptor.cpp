@@ -144,13 +144,48 @@ TEST(RL_ENVIRONMENTS_HYPERDRONE_RAPTOR, InferenceMatchesDirectRecurrentCalls) {
     free(device, rng);
 }
 
+TEST(RL_ENVIRONMENTS_HYPERDRONE_RAPTOR, YawInputLimitsAndRelease) {
+    DEVICE device;
+    PILOT policy;
+    for (T dt : {T(0.005), T(0.01), T(0.04)}) {
+        for (T yaw : {T(0), rlt::math::PI<T> - T(0.005), -rlt::math::PI<T> + T(0.005)}) {
+            for (T direction : {T(-1), T(1)}) {
+                RaptorObservationState state;
+                state.orientation[0] = std::cos(yaw / 2);
+                state.orientation[3] = std::sin(yaw / 2);
+                hd::raptor::Target<T> target;
+                target.yaw = yaw;
+                for (TI step_i = 0; step_i < 100; step_i++) {
+                    const T before = target.yaw;
+                    update_yaw_target(device, policy, state, target, direction * T(100), dt);
+                    const T delta = std::atan2(std::sin(target.yaw - before), std::cos(target.yaw - before));
+                    const T error = std::atan2(std::sin(target.yaw - yaw), std::cos(target.yaw - yaw));
+                    EXPECT_GE(direction * delta, -1e-6);
+                    EXPECT_LE(std::abs(delta), PILOT::SPEC::YAW_RATE_LIMIT * dt + 1e-6);
+                    EXPECT_LE(std::abs(error), PILOT::SPEC::YAW_ERROR_LIMIT + 1e-6);
+                }
+                const T held = target.yaw;
+                state.orientation[0] = std::cos(held / 2);
+                state.orientation[3] = std::sin(held / 2);
+                for (TI step_i = 0; step_i < 100; step_i++) {
+                    update_yaw_target(device, policy, state, target, T(0), dt);
+                    EXPECT_NEAR(target.yaw, held, 1e-6);
+                }
+                update_yaw_target(device, policy, state, target, -direction * T(100), dt);
+                const T reverse_delta = std::atan2(std::sin(target.yaw - held), std::cos(target.yaw - held));
+                EXPECT_NEAR(reverse_delta, -direction * PILOT::SPEC::YAW_RATE_LIMIT * dt, 1e-6);
+            }
+        }
+    }
+}
+
 namespace {
     namespace l2f = rlt::rl::environments::l2f;
     using FLIGHT_CONFIG = hd::presets::x500_fpv::DynamicsStaticParameters<T, TI>;
     using FLIGHT_ENV = rlt::rl::environments::Multirotor<l2f::Specification<T, TI, FLIGHT_CONFIG>>;
 
-    template <l2f::parameters::dynamics::REGISTRY MODEL>
-    void fly(DEVICE& device, PILOT& policy, DEVICE::SPEC::RANDOM::ENGINE<>& rng, T turn_direction) {
+    template <l2f::parameters::dynamics::REGISTRY MODEL, typename YAW_INPUT>
+    void fly(DEVICE& device, PILOT& policy, DEVICE::SPEC::RANDOM::ENGINE<>& rng, T turn_direction, YAW_INPUT yaw_input) {
         reset(device, policy, rng);
         FLIGHT_ENV env;
         auto parameters = env.parameters;
@@ -177,15 +212,16 @@ namespace {
         hd::raptor::Target<T> target;
         rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 4, false>> action;
         T max_altitude_error = 0;
+        T max_body_yaw_rate = 0;
         T forward_displacement = 0;
         for (TI step_i = 0; step_i < 1100; step_i++) {
             const bool translating = (step_i >= 100 && step_i < 300) || (step_i >= 500 && step_i < 700);
-            if (step_i >= 300 && step_i < 500) {
-                target.yaw = turn_direction * rlt::math::PI<T> / 2 * T(step_i - 300) / 200;
-            }
+            update_yaw_target(device, policy, state, target, turn_direction * yaw_input(step_i), parameters.integration.dt);
             if (translating || step_i == 300 || step_i == 700) {
+                const auto& q = state.orientation;
+                const T heading = std::atan2(2 * (q[0] * q[3] + q[1] * q[2]), 1 - 2 * (q[2] * q[2] + q[3] * q[3]));
                 for (TI axis = 0; axis < 2; axis++) {
-                    const T direction = axis == 0 ? std::cos(target.yaw) : std::sin(target.yaw);
+                    const T direction = axis == 0 ? std::cos(heading) : std::sin(heading);
                     target.position[axis] = state.position[axis] + (translating ? T(0.5) * direction : 0);
                     target.linear_velocity[axis] = translating ? T(0.6) * direction : 0;
                 }
@@ -200,7 +236,10 @@ namespace {
             }
             ASSERT_EQ(step(device, env, parameters, state, action, next, rng), T(0.01));
             state = next;
+            ASSERT_TRUE(std::isfinite(state.position[2]));
+            ASSERT_TRUE(std::isfinite(state.angular_velocity[2]));
             max_altitude_error = rlt::math::max(device.math, max_altitude_error, std::abs(state.position[2]));
+            max_body_yaw_rate = rlt::math::max(device.math, max_body_yaw_rate, std::abs(state.angular_velocity[2]));
             if (step_i == 299) {
                 forward_displacement = state.position[0];
             }
@@ -212,11 +251,13 @@ namespace {
         EXPECT_LT(speed, T(0.1));
         EXPECT_LT(std::abs(yaw_error), T(0.1));
         EXPECT_LT(max_altitude_error, T(0.5));
+        EXPECT_LT(max_body_yaw_rate, T(2.5));
         EXPECT_GT(forward_displacement, T(0.2));
         EXPECT_GT(turn_direction * state.position[1], T(0.2));
         metra::log("hyperdrone/raptor/flight/final_speed", speed);
         metra::log("hyperdrone/raptor/flight/yaw_error", std::abs(yaw_error));
         metra::log("hyperdrone/raptor/flight/max_altitude_error", max_altitude_error);
+        metra::log("hyperdrone/raptor/flight/max_body_yaw_rate", max_body_yaw_rate);
     }
 }
 
@@ -235,23 +276,44 @@ TEST(RL_ENVIRONMENTS_HYPERDRONE_RAPTOR, CheckpointFlightAcrossDroneModels) {
     init(device, rng, 0);
     malloc(device, policy);
     ASSERT_TRUE(load(device, policy, path));
-    for (T direction : {T(-1), T(1)}) {
-        SCOPED_TRACE(direction);
-        {
-            SCOPED_TRACE("x500");
-            fly<l2f::parameters::dynamics::REGISTRY::x500>(device, policy, rng, direction);
-        }
-        {
-            SCOPED_TRACE("crazyflie");
-            fly<l2f::parameters::dynamics::REGISTRY::crazyflie>(device, policy, rng, direction);
-        }
-        {
-            SCOPED_TRACE("arpl");
-            fly<l2f::parameters::dynamics::REGISTRY::arpl>(device, policy, rng, direction);
-        }
-        {
-            SCOPED_TRACE("soft");
-            fly<l2f::parameters::dynamics::REGISTRY::soft>(device, policy, rng, direction);
+    struct YawScenario {
+        const char* name;
+        T (*input)(TI);
+    };
+    const YawScenario scenarios[] = {
+        {"smooth", [](TI step_i) -> T {
+            return step_i >= 300 && step_i < 500 ? rlt::math::PI<T> / 400 : 0;
+        }},
+        {"rapid reversals", [](TI step_i) -> T {
+            if (step_i >= 300 && step_i < 400) {
+                return (step_i / 4) % 2 == 0 ? T(100) : T(-100);
+            }
+            if (step_i >= 400 && step_i < 650) {
+                return T(100);
+            }
+            return step_i >= 650 && step_i < 700 ? T(-100) : 0;
+        }},
+    };
+    for (const auto& scenario : scenarios) {
+        SCOPED_TRACE(scenario.name);
+        for (T direction : {T(-1), T(1)}) {
+            SCOPED_TRACE(direction);
+            {
+                SCOPED_TRACE("x500");
+                fly<l2f::parameters::dynamics::REGISTRY::x500>(device, policy, rng, direction, scenario.input);
+            }
+            {
+                SCOPED_TRACE("crazyflie");
+                fly<l2f::parameters::dynamics::REGISTRY::crazyflie>(device, policy, rng, direction, scenario.input);
+            }
+            {
+                SCOPED_TRACE("arpl");
+                fly<l2f::parameters::dynamics::REGISTRY::arpl>(device, policy, rng, direction, scenario.input);
+            }
+            {
+                SCOPED_TRACE("soft");
+                fly<l2f::parameters::dynamics::REGISTRY::soft>(device, policy, rng, direction, scenario.input);
+            }
         }
     }
     free(device, policy);

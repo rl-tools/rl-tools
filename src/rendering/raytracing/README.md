@@ -190,13 +190,14 @@ Browser demo: `src/rl/environments/hyperdrone/web/build.sh` compiles the WebGPU 
 WASM with an activated emsdk (`--use-port=emdawnwebgpu`, ASYNCIFY, `-fexceptions` — assimp
 relies on internal try/catch) and the page in `static/hyperdrone/` uses HyperDrone's
 MultiEnvironment for interactive flight with two mounted RGB cameras and onboard depth,
-segmentation, normals, and optical flow. RAPTOR runs at 100 Hz: WASD supplies a current-relative
+semantic segmentation, normals, and optical flow. RAPTOR runs at 100 Hz: WASD supplies a current-relative
 position target and a horizontal velocity target; releasing the keys holds position. Click a
 camera to capture or release the mouse, horizontal mouse motion controls yaw, and releasing
 the mouse pauses simulation. Scene, airframe, and flight-controller
 assets are fetched by sha1 from the conta-data store. For offline use, run
-`static/hyperdrone/link_local_assets.sh /path/to/drone-glbs /path/to/policy.tar` and open
+`static/hyperdrone/link_local_assets.sh /path/to/drone-glbs /path/to/policy.tar /path/to/scene.glb` and open
 `?assets=local`; `?frames=N` renders a deterministic finite sequence for verification.
+The scene is the `ai2thor-hab`-labeled ProcTHOR-Train-1 asset (`75d1d67a17ecd16bc3a214baa895240da8060df7`).
 The blocking-wait seams and adapter acquisition switch on
 `__EMSCRIPTEN__` in `backends/webgpu/operations_cpu.h`; browsers cap
 `maxStorageBuffersPerShaderStage` at the spec default of 8, which is why the bind layout packs

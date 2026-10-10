@@ -37,6 +37,18 @@
                 </div>
             </div>
 
+            <div class="status-bar">
+                <div class="loading-status">
+                    <div class="status-heading">
+                        <span id="status" role="status">Preparing the simulation…</span>
+                        <span id="progress-percent" hidden></span>
+                    </div>
+                    <progress id="progress" max="100" value="0" hidden aria-label="Asset download progress"></progress>
+                </div>
+                <span id="fps"></span>
+            </div>
+            <p id="error" role="alert" hidden></p>
+
             <div class="views rgb-views">
                 <figure class="view">
                     <figcaption><span><b>01</b> Onboard camera</span><span class="view-type">RGB</span></figcaption>
@@ -67,9 +79,9 @@
                     <p class="legend">0–10 m · dark near, white far or no surface</p>
                 </figure>
                 <figure class="view">
-                    <figcaption><span>Segmentation</span><span class="view-type">INSTANCES</span></figcaption>
-                    <canvas id="segmentation" width="480" height="270" aria-label="Onboard instance segmentation"></canvas>
-                    <p class="legend">A color for each object instance</p>
+                    <figcaption><span>Semantic segmentation</span><span class="view-type">CLASSES</span></figcaption>
+                    <canvas id="segmentation" width="480" height="270" aria-label="Onboard semantic segmentation"></canvas>
+                    <p class="legend">A color for each object class</p>
                 </figure>
                 <figure class="view">
                     <figcaption><span>Surface normals</span><span class="view-type">DIRECTION</span></figcaption>
@@ -83,11 +95,6 @@
                 </figure>
             </div>
 
-            <div class="status-bar">
-                <div class="loading-status"><span id="status" role="status">Preparing the simulation…</span><progress id="progress" hidden aria-label="Asset download progress"></progress></div>
-                <span id="fps"></span>
-            </div>
-            <p id="error" role="alert" hidden></p>
         </section>
 
         <footer><span>Built with <a href="https://rl.tools">RLtools</a> · ProcTHOR indoor scene</span><span>A keyboard, mouse, and WebGPU-capable browser are required.</span></footer>

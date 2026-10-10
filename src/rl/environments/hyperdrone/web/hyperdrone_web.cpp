@@ -6,7 +6,6 @@
 #include <emscripten.h>
 
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -25,6 +24,7 @@ namespace rl_tools::rl::environments::hyperdrone::web {
         static constexpr TI NUM_PROBES = 64;
         static constexpr bool OUTPUT_DEPTH = true;
         static constexpr bool OUTPUT_SEGMENTATION = true;
+        static constexpr bool SEMANTIC_SEGMENTATION = true;
         static constexpr bool OUTPUT_NORMALS = true;
         static constexpr bool OUTPUT_FLOW = true;
         static constexpr bool ENABLE_MOTION_BLUR = true;
@@ -165,10 +165,13 @@ namespace rl_tools {
         }
         set_all(device, state.reset_mask, true);
         set_all(device, state.actions, (T)0);
+        request_render(device, world, state.reset_mask);
     }
-    void step(web::DEVICE& device, web::State& state, web::T forward, web::T left) {
+    void step(web::DEVICE& device, web::State& state, web::T forward, web::T left, web::T yaw_delta) {
         using namespace web;
         auto& physical = get_ref(device, state.states, (TI)0);
+        const T dt = get_ref(device, state.parameters, (TI)0).agents[0].dynamics.integration.dt;
+        update_yaw_target(device, state.pilot, physical, state.target, yaw_delta, dt);
         const T norm = math::sqrt(device.math, forward * forward + left * left);
         const bool moving = norm > 0;
         if(moving) {
@@ -303,9 +306,9 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
         }
         was_active = active;
         if(active) {
-            state.target.yaw = std::atan2(std::sin(state.target.yaw + input[2]), std::cos(state.target.yaw + input[2]));
+            const web::T yaw_delta = input[2] / std::max(1, (int)(accumulator / dt));
             while(accumulator >= dt) {
-                step(device, state, input[0], input[1]);
+                step(device, state, input[0], input[1], yaw_delta);
                 accumulator -= dt;
             }
         }
