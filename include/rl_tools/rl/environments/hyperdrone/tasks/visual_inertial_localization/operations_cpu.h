@@ -6,13 +6,7 @@
 
 #include "visual_inertial_localization.h"
 #include "../../operations_cpu.h"
-#include "../../../../../nn/layers/dense/operations_generic.h"
-#include "../../../../../nn/layers/gru/operations_generic.h"
-#include "../../../../../nn_models/sequential/operations_generic.h"
-#include "../../../../../persist/backends/tar/operations_cpu.h"
-#include "../../../../../nn/layers/dense/persist.h"
-#include "../../../../../nn/layers/gru/persist.h"
-#include "../../../../../nn_models/sequential/persist.h"
+#include "../../raptor/operations_cpu.h"
 
 #include <string>
 
@@ -135,12 +129,9 @@ namespace rl_tools {
         }
         template <typename DEVICE, typename TASK_SPEC>
         void _load_autopilot(DEVICE& device, World<TASK_SPEC>& world){
-            using TI = typename TASK_SPEC::TI;
             std::string path;
             utils::assert_exit(device, rendering::datasets::resolve_reference(device, world.autopilot_policy_path, path), "hyperdrone::tasks::visual_inertial_localization: cannot resolve the autopilot checkpoint");
-            persist::backends::tar::File<TI> checkpoint(path, persist::backends::tar::Mode::READ);
-            auto actor = get_group(device, checkpoint, "actor");
-            utils::assert_exit(device, load(device, world.autopilot.model, actor), "hyperdrone::tasks::visual_inertial_localization: the autopilot checkpoint does not match the RAPTOR architecture");
+            utils::assert_exit(device, load(device, world.autopilot, path), "hyperdrone::tasks::visual_inertial_localization: the autopilot checkpoint does not match the RAPTOR architecture");
         }
         template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RNG>
         void _control(DEVICE& device, World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, RNG& rng){
@@ -160,8 +151,7 @@ namespace rl_tools {
                     set(observation_row, 0, dim_i, error);
                 }
             }
-            Mode<nn::layers::gru::NoAutoResetMode<mode::Default<>>> no_auto_reset_mode;
-            evaluate_step(device, world.autopilot.model, world.autopilot.observations, world.autopilot.state, world.autopilot.actions, world.autopilot.buffer, rng, no_auto_reset_mode);
+            evaluate_step(device, world.autopilot, rng);
         }
         template <typename DEVICE, typename TASK_SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT void _waypoint_step(DEVICE& device, const typename World<TASK_SPEC>::Parameters& parameters, const typename World<TASK_SPEC>::State& state, typename World<TASK_SPEC>::State& next_state){
@@ -184,11 +174,7 @@ namespace rl_tools {
     void malloc(DEVICE& device, rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>& world) {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         malloc(device, static_cast<NEXT_WORLD&>(world));
-        malloc(device, world.autopilot.model);
-        malloc(device, world.autopilot.state);
-        malloc(device, world.autopilot.buffer);
-        malloc(device, world.autopilot.observations);
-        malloc(device, world.autopilot.actions);
+        malloc(device, world.autopilot);
     }
     template <typename DEVICE, typename TASK_SPEC, typename DATASET>
     void init(DEVICE& device, rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, const DATASET& dataset, const typename DATASET::Corpus& corpus, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index) {
@@ -200,11 +186,7 @@ namespace rl_tools {
     template <typename DEVICE, typename TASK_SPEC>
     void free(DEVICE& device, rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>& world) {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
-        free(device, world.autopilot.model);
-        free(device, world.autopilot.state);
-        free(device, world.autopilot.buffer);
-        free(device, world.autopilot.observations);
-        free(device, world.autopilot.actions);
+        free(device, world.autopilot);
         free(device, static_cast<NEXT_WORLD&>(world));
     }
 
@@ -239,7 +221,7 @@ namespace rl_tools {
         }
         utils::assert_exit(device, !any_reset || all_reset, "hyperdrone::tasks::visual_inertial_localization: resets must be synchronized (fixed-length episodes)");
         if (all_reset) {
-            reset(device, world.autopilot.model, world.autopilot.state, rng);
+            reset(device, world.autopilot, rng);
             world.task_step = 0;
         }
         request_render(device, world, reset_mask);

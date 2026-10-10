@@ -186,12 +186,18 @@ Python (hypert) consumers JIT against these headers out of tree: `data()` on the
 tensors yields stable device pointers suitable for dlpack/`__cuda_array_interface__` wrapping,
 and the `_launch`/`_sync` verb split maps onto phase-based scheduling.
 
-Browser demo: `src/rendering/raytracing/example/web/build.sh` compiles the WebGPU backend to
+Browser demo: `src/rl/environments/hyperdrone/web/build.sh` compiles the WebGPU backend to
 WASM with an activated emsdk (`--use-port=emdawnwebgpu`, ASYNCIFY, `-fexceptions` — assimp
-relies on internal try/catch) and the page in `static/raytracing/` runs the drone
-motion-blur demo (`drone.cpp` semantics) live on canvases; assets are fetched by sha1 from the
-conta-data store (`?assets=local` serves `static/raytracing/assets/`, populated by
-`link_local_assets.sh`). The blocking-wait seams and adapter acquisition switch on
+relies on internal try/catch) and the page in `static/hyperdrone/` uses HyperDrone's
+MultiEnvironment for interactive flight with two mounted RGB cameras and onboard depth,
+segmentation, normals, and optical flow. RAPTOR runs at 100 Hz: WASD supplies a current-relative
+position target and a horizontal velocity target; releasing the keys holds position. Click a
+camera to capture or release the mouse, horizontal mouse motion controls yaw, and releasing
+the mouse pauses simulation. Scene, airframe, and flight-controller
+assets are fetched by sha1 from the conta-data store. For offline use, run
+`static/hyperdrone/link_local_assets.sh /path/to/drone-glbs /path/to/policy.tar` and open
+`?assets=local`; `?frames=N` renders a deterministic finite sequence for verification.
+The blocking-wait seams and adapter acquisition switch on
 `__EMSCRIPTEN__` in `backends/webgpu/operations_cpu.h`; browsers cap
 `maxStorageBuffersPerShaderStage` at the spec default of 8, which is why the bind layout packs
 per-frame inputs and outputs into the `FRAME_INPUTS`/`OUTPUTS` arenas.

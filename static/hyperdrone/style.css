@@ -1,0 +1,94 @@
+:root {
+    color-scheme: dark;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: #e9eee9;
+    background: #111514;
+    font-synthesis: none;
+    --muted: #929e96;
+    --line: #303a33;
+    --accent: #c4efad;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { width: min(1400px, 100%); margin: auto; padding: 0 44px; }
+a { color: inherit; text-decoration: none; }
+a:hover { color: var(--accent); }
+nav { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 27px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.wordmark { font-weight: 700; letter-spacing: -.3px; }
+.wordmark span { font-weight: 400; color: var(--muted); margin-left: 12px; }
+.links { display: flex; gap: 28px; color: #bdc9bf; }
+.links span { color: var(--muted); margin-left: 5px; }
+header { padding: 47px 0 38px; max-width: 730px; }
+.eyebrow, .view-type, .drone-control label { font-size: 10px; font-weight: 600; letter-spacing: 1.7px; text-transform: uppercase; }
+.eyebrow { display: flex; align-items: center; gap: 10px; color: var(--accent); margin: 0 0 17px; }
+.dot { width: 6px; height: 6px; display: inline-block; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+h1 { font-size: clamp(48px, 7vw, 76px); font-weight: 560; line-height: 1.05; letter-spacing: -4px; margin: 0; }
+.accent { color: var(--accent); }
+.intro { margin: 21px 0 9px; font-size: 22px; letter-spacing: -.5px; }
+.description { color: var(--muted); font-size: 15px; line-height: 1.7; max-width: 650px; margin: 0; }
+.simulation { border-top: 1px solid var(--line); }
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 19px 0; }
+.drone-control, .session-controls { display: flex; align-items: center; gap: 15px; }
+.drone-control label { color: var(--muted); }
+select, button { color: #e2ece0; background: #1b241e; font: inherit; font-size: 12px; border: 1px solid #414e42; border-radius: 5px; padding: 8px 11px; }
+select { min-width: 185px; cursor: pointer; }
+button { cursor: pointer; }
+button:hover:enabled { background: #2d3c2e; border-color: var(--accent); }
+button:disabled { opacity: .4; cursor: default; }
+button span { margin-left: 12px; font-size: 16px; line-height: .5; }
+#flight-state { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
+body.flying #flight-state { color: var(--accent); }
+.views { display: grid; gap: 14px; }
+.rgb-views { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sensor-views { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.view { margin: 0; min-width: 0; }
+figcaption { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: #1a211c; padding: 12px 14px; border: 1px solid var(--line); border-bottom: 0; border-radius: 6px 6px 0 0; font-size: 12px; }
+figcaption b { font-weight: 400; font-size: 10px; color: #859b85; padding-right: 10px; }
+.view-type { color: #95a38f; font-size: 8px; letter-spacing: 1.1px; }
+canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; background: #0b0f0c; border: 1px solid var(--line); }
+.camera-frame { position: relative; }
+.camera-frame canvas { cursor: pointer; }
+.camera-hint { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); border: 1px solid #5b6d59; border-radius: 20px; background: #111a13d9; color: #e3f5d9; padding: 7px 15px; font-size: 11px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .15s; }
+body.ready:not(.flying) .camera-hint { opacity: 1; }
+body.flying .camera-frame canvas { cursor: none; }
+.instructions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 20px; padding: 12px 0 24px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.instructions p { margin: 0; }
+kbd { display: inline-block; font: inherit; font-size: 10px; min-width: 20px; padding: 1px 5px; border: 1px solid #3b483d; border-radius: 3px; text-align: center; margin-right: 3px; color: #d2ded0; }
+.divider { margin: 0 10px; color: #526354; }
+.section-caption { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 3px 0 13px; }
+h2 { font-size: 13px; font-weight: 500; margin: 0; }
+.section-caption > span { font-size: 11px; color: var(--muted); }
+.sensor-views figcaption { padding: 11px 12px; font-size: 11px; }
+.legend { margin: 9px 1px 0; font-size: 10px; line-height: 1.6; color: var(--muted); }
+.status-bar { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 65px; padding: 14px 0; color: var(--muted); font-size: 11px; }
+.loading-status { min-width: 0; }
+#status { overflow-wrap: anywhere; }
+#fps { white-space: nowrap; color: var(--accent); font-variant-numeric: tabular-nums; }
+progress { display: block; width: 210px; max-width: 100%; height: 3px; margin-top: 9px; accent-color: var(--accent); }
+[hidden] { display: none !important; }
+#error { background: #351e1c; color: #f6b7a5; border: 1px solid #6d3730; padding: 14px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; border-radius: 5px; }
+footer { display: flex; justify-content: space-between; gap: 12px 30px; padding: 19px 0 28px; border-top: 1px solid var(--line); font-size: 10px; line-height: 1.6; color: var(--muted); }
+footer a { color: #d8e5d1; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+@media (max-width: 1000px) {
+    main { padding: 0 25px; }
+    .sensor-views { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 20px; }
+}
+@media (max-width: 640px) {
+    main { padding: 0 16px; }
+    nav { padding: 21px 0; font-size: 11px; }
+    .wordmark span { display: none; }
+    .links { gap: 17px; }
+    header { padding: 32px 0; }
+    h1 { letter-spacing: -2.5px; }
+    .intro { font-size: 20px; }
+    .description { font-size: 13px; }
+    .toolbar { flex-wrap: wrap; }
+    .drone-control { gap: 12px; }
+    .session-controls { margin-left: auto; }
+    .rgb-views { grid-template-columns: minmax(0, 1fr); }
+    .sensor-views { gap: 18px 10px; }
+    .sensor-views .view-type { display: none; }
+    .section-caption > span { display: none; }
+    footer { flex-direction: column; }
+}

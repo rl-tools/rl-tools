@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Populates static/raytracing/assets/ with the demo GLBs under their content-addressed (sha1)
-# names so the page works offline via ?assets=local. Sources: tests/data for the scene; drone
-# GLBs from a directory given as $1 (they moved from the test-data repo to the conta-data store).
+# Populates static/hyperdrone/assets/ for ?assets=local: drone GLB directory as $1,
+# optional flight-controller TAR path as $2; the scene comes from tests/data.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ASSETS_DIR="$SCRIPT_DIR/assets"
 DRONE_SOURCE_DIR="${1:-}"
+POLICY_SOURCE_PATH="${2:-}"
 mkdir -p "$ASSETS_DIR"
 
 link_asset() {
@@ -19,7 +19,7 @@ link_asset() {
         return 0
     fi
     local actual
-    actual="$(sha1sum "$source_path" | cut -d' ' -f1)"
+    actual="$(shasum -a 1 "$source_path" | cut -d' ' -f1)"
     if [ "$actual" != "$sha1" ]; then
         echo "sha1 mismatch for $label: expected $sha1, got $actual — skipped" >&2
         return 0
@@ -36,4 +36,7 @@ if [ -n "$DRONE_SOURCE_DIR" ]; then
     link_asset "$DRONE_SOURCE_DIR/arpl.glb"                8398a239fd1cd80df8adab67497baf7be3d8cda4 "arpl.glb"
     link_asset "$DRONE_SOURCE_DIR/x500.glb"                f6681e7a8b7fa7ef023bedcd795981becb731d0e "x500.glb"
     link_asset "$DRONE_SOURCE_DIR/soft.glb"                fcdf53a791f313b9bb07f775b10b9e4c2bfa0ae9 "soft.glb"
+fi
+if [ -n "$POLICY_SOURCE_PATH" ]; then
+    link_asset "$POLICY_SOURCE_PATH" b6bd082c60fcb27f42a2b5f2f635587d2b60d170 "flight controller"
 fi
