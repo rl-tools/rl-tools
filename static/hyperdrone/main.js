@@ -123,8 +123,21 @@ function poll_input(){
     return input;
 }
 
+function take_touch_control(){
+    if(ready && !tuning_panel.open && !frame_rate_panel.open){
+        release_controls();
+        document.body.classList.add("touch-ui");
+        touch_control = true;
+        update_flight_state();
+    }
+}
+
 async function toggle_pointer_lock(canvas){
     if(!ready){
+        return;
+    }
+    if(!canvas.requestPointerLock){
+        take_touch_control();
         return;
     }
     if(mouse_has_control()){
@@ -152,12 +165,7 @@ for(const canvas of canvases.slice(0, 2)){
         const type = event.pointerType || pointer_type;
         pointer_type = "";
         if(type === "touch" || type === "pen"){
-            if(ready && !tuning_panel.open && !frame_rate_panel.open){
-                release_controls();
-                document.body.classList.add("touch-ui");
-                touch_control = true;
-                update_flight_state();
-            }
+            take_touch_control();
         }
         else{
             toggle_pointer_lock(canvas);

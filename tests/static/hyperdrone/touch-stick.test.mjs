@@ -61,13 +61,13 @@ test("stick has a neutral center, rescaled dead zone, and circular saturation", 
     close(stick.y, 0);
 });
 
-test("disabled pads, mouse input, and non-primary buttons do not claim pointers", () => {
+test("disabled pads and non-primary buttons do not claim pointers", () => {
     const fixture = pad();
     let enabled = false;
     const stick = create_touch_stick(fixture.element, () => enabled);
     assert.equal(fixture.send("pointerdown", {clientX: 120}).defaultPrevented, false);
     enabled = true;
-    fixture.send("pointerdown", {pointerType: "mouse", clientX: 120});
+    fixture.send("pointerdown", {pointerType: "mouse", button: 2, clientX: 120});
     fixture.send("pointerdown", {pointerType: "pen", button: 2, clientX: 120});
     assert.deepEqual([stick.x, stick.y], [0, 0]);
     assert.equal(fixture.captures.size, 0);

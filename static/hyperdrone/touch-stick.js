@@ -32,7 +32,7 @@ export function create_touch_stick(element, enabled){
     }
 
     element.addEventListener("pointerdown", event => {
-        if(!enabled() || pointer_id !== null || event.button !== 0 || !["touch", "pen"].includes(event.pointerType)){
+        if(!enabled() || pointer_id !== null || event.button !== 0){
             return;
         }
         const bounds = element.getBoundingClientRect();

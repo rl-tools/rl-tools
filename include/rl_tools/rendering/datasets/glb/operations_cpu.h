@@ -540,18 +540,28 @@ namespace rl_tools {
     }
 
     namespace rendering::datasets::glb{
-    struct DecodedTexture{
-        std::vector<uint8_t> pixels;
-        int width;
-        int height;
-    };
     struct MeshConversionState{
-        std::map<std::string, size_t> tex_cache;
-        std::vector<DecodedTexture> decoded_textures;
+        std::map<const aiTexture*, rendering::Texture> embedded_textures;
+        std::map<std::string, rendering::Texture> external_textures;
+        std::map<int, rendering::Texture> metallic_roughness_textures;
         std::map<std::string, RepresentativeTextureColor> representative_texture_color_cache;
         size_t representative_texture_color_meshes = 0;
         size_t representative_texture_color_decoded = 0;
     };
+
+    inline rendering::Texture load_texture(const aiTexture* source, MeshConversionState& state){
+        if(source == nullptr){
+            return {};
+        }
+        auto& texture = state.embedded_textures[source];
+        if(!texture.present()){
+            std::vector<uint8_t> pixels;
+            if(decode_embedded_texture(source, pixels, texture.width, texture.height)){
+                texture.pixels = std::make_shared<const std::vector<uint8_t>>(std::move(pixels));
+            }
+        }
+        return texture;
+    }
 
     template <typename SHADING, bool HAS_RGB>
     rendering::Mesh convert_mesh(const aiScene* scene, const aiMesh* mesh, const aiMatrix4x4& global_transform, const ParsedMetadata& glb_metadata, MeshConversionState& state){
@@ -684,38 +694,20 @@ namespace rl_tools {
             if(mat->GetTextureCount(aiTextureType_DIFFUSE) > 0){
                 aiString tex_path;
                 if(mat->GetTexture(aiTextureType_DIFFUSE, 0, &tex_path) == AI_SUCCESS){
-                    std::string path_str(tex_path.C_Str());
-
-                    auto it = state.tex_cache.find(path_str);
-                    if(it != state.tex_cache.end()){
-                        auto& cached = state.decoded_textures[it->second];
-                        md.texture.pixels = cached.pixels;
-                        md.texture.width = cached.width;
-                        md.texture.height = cached.height;
-                    } else {
-                        const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
-                        if(emb_tex){
-                            int w, h;
-                            std::vector<uint8_t> pixels;
-                            if(decode_embedded_texture(emb_tex, pixels, w, h)){
-                                md.texture.pixels = pixels;
-                                md.texture.width = w;
-                                md.texture.height = h;
-                                state.tex_cache[path_str] = state.decoded_textures.size();
-                                state.decoded_textures.push_back({std::move(pixels), w, h});
-                            }
-                        } else if(!path_str.empty()){
-                            int w, h, channels;
-                            unsigned char* data = stbi_load(path_str.c_str(), &w, &h, &channels, 4);
+                    const aiTexture* embedded = scene->GetEmbeddedTexture(tex_path.C_Str());
+                    if(embedded){
+                        md.texture = load_texture(embedded, state);
+                    } else if(tex_path.length > 0){
+                        auto& texture = state.external_textures[tex_path.C_Str()];
+                        if(!texture.present()){
+                            int channels;
+                            unsigned char* data = stbi_load(tex_path.C_Str(), &texture.width, &texture.height, &channels, 4);
                             if(data){
-                                md.texture.pixels.assign(data, data + w * h * 4);
-                                md.texture.width = w;
-                                md.texture.height = h;
+                                texture.pixels = std::make_shared<const std::vector<uint8_t>>(data, data + (size_t)texture.width * texture.height * 4);
                                 stbi_image_free(data);
-                                state.tex_cache[path_str] = state.decoded_textures.size();
-                                state.decoded_textures.push_back({md.texture.pixels, w, h});
                             }
                         }
+                        md.texture = texture;
                     }
                 }
             }
@@ -740,16 +732,7 @@ namespace rl_tools {
                 if (mat->GetTextureCount(aiTextureType_NORMALS) > 0) {
                     aiString tex_path;
                     if (mat->GetTexture(aiTextureType_NORMALS, 0, &tex_path) == AI_SUCCESS) {
-                        const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
-                        if (emb_tex) {
-                            int w, h;
-                            std::vector<uint8_t> pixels;
-                            if (decode_embedded_texture(emb_tex, pixels, w, h)) {
-                                md.normal_map.pixels = std::move(pixels);
-                                md.normal_map.width = w;
-                                md.normal_map.height = h;
-                            }
-                        }
+                        md.normal_map = load_texture(scene->GetEmbeddedTexture(tex_path.C_Str()), state);
                     }
                 }
 
@@ -761,13 +744,14 @@ namespace rl_tools {
                     if (glb_material != glb_metadata.materials.end() && glb_material->second.metallic_roughness_image >= 0) {
                         const auto image = glb_metadata.images.find(glb_material->second.metallic_roughness_image);
                         if (image != glb_metadata.images.end()) {
-                            int w, h;
-                            std::vector<uint8_t> pixels;
-                            if (decode_image_bytes(image->second, pixels, w, h)) {
-                                md.metallic_roughness_map.pixels = std::move(pixels);
-                                md.metallic_roughness_map.width = w;
-                                md.metallic_roughness_map.height = h;
+                            auto& texture = state.metallic_roughness_textures[image->first];
+                            if(!texture.present()){
+                                std::vector<uint8_t> pixels;
+                                if(decode_image_bytes(image->second, pixels, texture.width, texture.height)){
+                                    texture.pixels = std::make_shared<const std::vector<uint8_t>>(std::move(pixels));
+                                }
                             }
+                            md.metallic_roughness_map = texture;
                         }
                     }
                 }
@@ -784,46 +768,19 @@ namespace rl_tools {
                 if (mat->GetTextureCount(aiTextureType_EMISSIVE) > 0) {
                     aiString tex_path;
                     if (mat->GetTexture(aiTextureType_EMISSIVE, 0, &tex_path) == AI_SUCCESS) {
-                        const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
-                        if (emb_tex) {
-                            int w, h;
-                            std::vector<uint8_t> pixels;
-                            if (decode_embedded_texture(emb_tex, pixels, w, h)) {
-                                md.emissive_map.pixels = std::move(pixels);
-                                md.emissive_map.width = w;
-                                md.emissive_map.height = h;
-                            }
-                        }
+                        md.emissive_map = load_texture(scene->GetEmbeddedTexture(tex_path.C_Str()), state);
                     }
                 }
 
                 if (mat->GetTextureCount(aiTextureType_AMBIENT_OCCLUSION) > 0) {
                     aiString tex_path;
                     if (mat->GetTexture(aiTextureType_AMBIENT_OCCLUSION, 0, &tex_path) == AI_SUCCESS) {
-                        const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
-                        if (emb_tex) {
-                            int w, h;
-                            std::vector<uint8_t> pixels;
-                            if (decode_embedded_texture(emb_tex, pixels, w, h)) {
-                                md.occlusion_map.pixels = std::move(pixels);
-                                md.occlusion_map.width = w;
-                                md.occlusion_map.height = h;
-                            }
-                        }
+                        md.occlusion_map = load_texture(scene->GetEmbeddedTexture(tex_path.C_Str()), state);
                     }
                 } else if (mat->GetTextureCount(aiTextureType_LIGHTMAP) > 0) {
                     aiString tex_path;
                     if (mat->GetTexture(aiTextureType_LIGHTMAP, 0, &tex_path) == AI_SUCCESS) {
-                        const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
-                        if (emb_tex) {
-                            int w, h;
-                            std::vector<uint8_t> pixels;
-                            if (decode_embedded_texture(emb_tex, pixels, w, h)) {
-                                md.occlusion_map.pixels = std::move(pixels);
-                                md.occlusion_map.width = w;
-                                md.occlusion_map.height = h;
-                            }
-                        }
+                        md.occlusion_map = load_texture(scene->GetEmbeddedTexture(tex_path.C_Str()), state);
                     }
                 }
                 }
@@ -861,16 +818,7 @@ namespace rl_tools {
             if(!md.texture.present() && mat->GetTextureCount(aiTextureType_BASE_COLOR) > 0){
                 aiString tex_path;
                 if(mat->GetTexture(aiTextureType_BASE_COLOR, 0, &tex_path) == AI_SUCCESS){
-                    const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
-                    if(emb_tex){
-                        int w, h;
-                        std::vector<uint8_t> pixels;
-                        if(decode_embedded_texture(emb_tex, pixels, w, h)){
-                            md.texture.pixels = pixels;
-                            md.texture.width = w;
-                            md.texture.height = h;
-                        }
-                    }
+                    md.texture = load_texture(scene->GetEmbeddedTexture(tex_path.C_Str()), state);
                 }
             }
             }

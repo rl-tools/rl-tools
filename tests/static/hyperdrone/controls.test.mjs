@@ -136,6 +136,24 @@ test("touch holds yaw and translation across polls, ignores desktop inputs, and 
     assert.equal(f.element("release-control").hidden, false);
 });
 
+test("browsers without pointer lock can activate and drag the on-screen sticks with a mouse", () => {
+    const f = fixture();
+    f.element("camera0").requestPointerLock = undefined;
+    f.start();
+    f.click("camera0", "mouse");
+    assert.equal(f.classes.has("touch-controlling"), true);
+    assert.equal(f.document.pointerLockElement, null);
+    send(f.element("right-stick"), "pointerdown", {pointerType: "mouse", clientY: 10});
+    assert.deepEqual(f.axes(), [1, 0, 0, 0, 0]);
+    send(f.element("right-stick"), "pointerup", {pointerType: "mouse"});
+    assert.deepEqual(f.axes(), [0, 0, 0, 0, 0]);
+    f.click("release-control", "mouse");
+    assert.equal(f.classes.has("controlling"), false);
+    f.click("touch-tuning");
+    send(f.element("camera0"), "keydown", {code: "Enter"});
+    assert.equal(f.classes.has("controlling"), false);
+});
+
 test("mouse and touch handoffs clear the previous input source", () => {
     const f = fixture();
     touch_flight(f);

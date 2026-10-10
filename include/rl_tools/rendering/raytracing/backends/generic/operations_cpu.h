@@ -109,7 +109,7 @@ namespace rl_tools {
         TextureView<TI> texture_view(const rendering::raytracing::Texture& texture){
             TextureView<TI> view;
             if(texture.present()){
-                view.pixels = texture.pixels.data();
+                view.pixels = texture.pixels->data();
                 view.width = (TI)texture.width;
                 view.height = (TI)texture.height;
             }
