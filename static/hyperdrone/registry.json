@@ -1,6 +1,6 @@
 {
     "policy": {
-        "description": "Flight controller",
+        "description": "RAPTOR",
         "reference": "conta:b6bd082c60fcb27f42a2b5f2f635587d2b60d170",
         "sha256": "5327c83dc57f094ca1977a2533ebce318645be010e16b9354c96c337cd5c278b"
     },
