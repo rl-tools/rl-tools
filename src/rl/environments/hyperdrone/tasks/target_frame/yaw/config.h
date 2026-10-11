@@ -153,6 +153,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::yaw{
     static constexpr TI FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + 1;
 
     struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, STATIC_PARAMETERS>{
+        static constexpr TI N_CAMERA_AGENTS = 1;
         static constexpr TI INSTANCES_PER_ENVIRONMENT = N_ENVIRONMENTS_PER_SCENE;
         static constexpr TI CAM_WIDTH = yaw::CAM_WIDTH;
         static constexpr TI CAM_HEIGHT = yaw::CAM_HEIGHT;

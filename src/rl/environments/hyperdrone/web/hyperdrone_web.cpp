@@ -17,7 +17,7 @@ namespace rl_tools::rl::environments::hyperdrone::web {
     using T = float;
     using TYPE_POLICY = numeric_types::Policy<T>;
     using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
-    template <typename T_SHADING, TI T_MOTION_BLUR_SAMPLES, TI T_ANTI_ALIASING_GRID_SIZE, TI T_RESOLUTION_SCALE>
+    template <typename T_SHADING, TI T_MOTION_BLUR_SAMPLES, TI T_ANTI_ALIASING_GRID_SIZE, TI T_RESOLUTION_SCALE, TI T_N_AGENTS>
     struct Config: presets::X500FPV<T, TI> {
         using SHADING = T_SHADING;
         static_assert(utils::typing::is_same_v<SHADING, rendering::raytracing::Low>
@@ -27,11 +27,16 @@ namespace rl_tools::rl::environments::hyperdrone::web {
         static_assert(T_MOTION_BLUR_SAMPLES == 1 || T_MOTION_BLUR_SAMPLES == 4);
         static_assert(T_ANTI_ALIASING_GRID_SIZE == 1 || T_ANTI_ALIASING_GRID_SIZE == 2);
         static_assert(T_RESOLUTION_SCALE == 1 || T_RESOLUTION_SCALE == 2);
+        static_assert(T_N_AGENTS == 1 || T_N_AGENTS == 8);
         static constexpr const char* FIDELITY = utils::typing::is_same_v<SHADING, rendering::raytracing::Low> ? "low"
             : utils::typing::is_same_v<SHADING, rendering::raytracing::Medium> ? "medium"
             : utils::typing::is_same_v<SHADING, rendering::raytracing::High> ? "high" : "very-high";
         static constexpr TI INSTANCES_PER_ENVIRONMENT = 1;
+        static constexpr TI N_AGENTS = T_N_AGENTS;
+        static constexpr TI N_CAMERA_AGENTS = 1;
         static constexpr TI N_CAMERAS_PER_AGENT = 2;
+        static constexpr TI MAX_DRONES = 6;
+        static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = N_AGENTS * rig::Rotorcraft<TI>::SPEC::MAX_PARTS;
         static constexpr TI CAM_WIDTH = 480 * T_RESOLUTION_SCALE;
         static constexpr TI CAM_HEIGHT = 270 * T_RESOLUTION_SCALE;
         static constexpr TI NUM_PROBES = 64;
@@ -51,31 +56,40 @@ namespace rl_tools::rl::environments::hyperdrone::web {
     struct Configurations {
         static_assert(sizeof...(CONFIGS) > 0, "The web demo requires at least one compiled configuration");
     };
-    using PILOT = Raptor<raptor::Specification<TYPE_POLICY, TI, 1>>;
     constexpr TI VIEWS = 6;
+    constexpr TI SPAWN_ATTEMPTS = 4096;
+    constexpr T DRONE_SEPARATION = 1.5;
     constexpr T DEPTH_DISPLAY_METERS = 10;
     constexpr T FLOW_DISPLAY_PIXELS = 20;
     constexpr double FRAME_PERIOD = 1.0 / 60.0;
+
+    struct Drone {
+        std::string path;
+        int dynamics_index;
+        T fpv_position[3];
+    };
 
     template <typename CONFIG>
     struct State {
         using WORLD = World<CONFIG>;
         using ENVIRONMENT = MultiEnvironment<WORLD, 1>;
+        using PILOT = Raptor<raptor::Specification<TYPE_POLICY, TI, CONFIG::N_AGENTS>>;
         ENVIRONMENT environment;
         PILOT pilot;
         RNG rng;
         Tensor<tensor::Specification<typename WORLD::Parameters, TI, tensor::Shape<TI, 1>>> parameters;
         Tensor<tensor::Specification<typename WORLD::State, TI, tensor::Shape<TI, 1>>> states, next_states;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1, 4>>> actions;
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1, WORLD::ACTION_DIM>>> actions;
         Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, 1>>> reset_mask;
-        raptor::Target<T> target;
+        raptor::Target<T> targets[CONFIG::N_AGENTS];
         rendering::datasets::annotations::FreeSpacePosition<T> spawn;
+        uint32_t seed = 1337;
         T position_offset = 0.3;
         T velocity_target = 0.7;
         T yaw_rate_limit = PILOT::SPEC::YAW_RATE_LIMIT;
         T yaw_error_limit = PILOT::SPEC::YAW_ERROR_LIMIT;
-        T previous_actions[4] = {};
-        TI motor_order[4] = {};
+        T previous_actions[CONFIG::N_AGENTS][4] = {};
+        TI motor_order[CONFIG::N_AGENTS][4] = {};
         bool moving = false;
         bool moving_vertical = false;
     };
@@ -119,75 +133,69 @@ namespace rl_tools {
         free(device, state.environment);
     }
     template <typename CONFIG>
-    void init(web::DEVICE& device, web::State<CONFIG>& state, const std::string& scene_path, const std::string& drone_path, int drone_index, const web::T fpv_position[3]) {
+    void init(web::DEVICE& device, web::State<CONFIG>& state, const std::string& scene_path, const std::vector<web::Drone>& entries) {
         using namespace web;
         using PARAMETER_SPEC = typename CONFIG::DYNAMICS_STATIC_PARAMETERS::PARAMETERS_SPEC;
         namespace models = rl::environments::l2f::parameters::dynamics;
-        state.environment.shared.drones.push_back({drone_path, {}});
-        auto& drone = state.environment.shared.drones[0].parameters;
-        auto& dynamics = drone.dynamics.dynamics;
-        switch(drone_index) {
-            case 1:
-                dynamics = models::registry<models::REGISTRY::crazyflie_brushless, PARAMETER_SPEC>;
-                break;
-            case 2:
-                dynamics = models::registry<models::REGISTRY::savagebee_pusher, PARAMETER_SPEC>;
-                break;
-            case 3:
-                dynamics = models::registry<models::REGISTRY::arpl, PARAMETER_SPEC>;
-                break;
-            case 4:
-                dynamics = models::registry<models::REGISTRY::x500, PARAMETER_SPEC>;
-                break;
-            case 5:
-                dynamics = models::registry<models::REGISTRY::soft, PARAMETER_SPEC>;
-                break;
-            default:
-                dynamics = models::registry<models::REGISTRY::crazyflie, PARAMETER_SPEC>;
-                break;
-        }
-        const auto policy_dynamics = models::registry<models::REGISTRY::x500, PARAMETER_SPEC>;
-        for(TI motor = 0; motor < 4; motor++) {
-            TI policy_motor = 0;
-            for(; policy_motor < 4; policy_motor++) {
-                if((dynamics.rotor_positions[motor][0] > 0) == (policy_dynamics.rotor_positions[policy_motor][0] > 0)
-                    && (dynamics.rotor_positions[motor][1] > 0) == (policy_dynamics.rotor_positions[policy_motor][1] > 0)) {
+        for(const auto& entry: entries) {
+            state.environment.shared.drones.push_back({entry.path, {}});
+            auto& drone = state.environment.shared.drones.back().parameters;
+            auto& dynamics = drone.dynamics.dynamics;
+            switch(entry.dynamics_index) {
+                case 0:
+                    dynamics = models::registry<models::REGISTRY::crazyflie, PARAMETER_SPEC>;
                     break;
-                }
+                case 1:
+                    dynamics = models::registry<models::REGISTRY::crazyflie_brushless, PARAMETER_SPEC>;
+                    break;
+                case 2:
+                    dynamics = models::registry<models::REGISTRY::savagebee_pusher, PARAMETER_SPEC>;
+                    break;
+                case 3:
+                    dynamics = models::registry<models::REGISTRY::arpl, PARAMETER_SPEC>;
+                    break;
+                case 4:
+                    dynamics = models::registry<models::REGISTRY::x500, PARAMETER_SPEC>;
+                    break;
+                case 5:
+                    dynamics = models::registry<models::REGISTRY::soft, PARAMETER_SPEC>;
+                    break;
             }
-            utils::assert_exit(device, policy_motor < 4, "HyperDrone: unsupported rotor layout");
-            state.motor_order[motor] = policy_motor;
+            constexpr T RPM_SCALE = 10000;
+            dynamics.action_limit.min *= RPM_SCALE;
+            dynamics.action_limit.max *= RPM_SCALE;
+            for(TI motor = 0; motor < 4; motor++) {
+                dynamics.rotor_thrust_coefficients[motor][1] /= RPM_SCALE;
+                dynamics.rotor_thrust_coefficients[motor][2] /= RPM_SCALE * RPM_SCALE;
+            }
+            drone.cameras[0].fov = 80;
+            for(TI dim = 0; dim < 3; dim++) {
+                drone.cameras[0].mount.pose.position[dim] = entry.fpv_position[dim];
+            }
+            drone.cameras[0].mount.pose.orientation[0] = math::cos(device.math, (T)0.15);
+            drone.cameras[0].mount.pose.orientation[2] = math::sin(device.math, (T)0.15);
+            drone.cameras[1].fov = 50;
+            drone.cameras[1].mount.pose.position[0] = -1.2;
+            drone.cameras[1].mount.pose.position[2] = 0.4;
+            const T half_pitch = math::atan2(device.math, (T)0.4, (T)1.2) / 2;
+            drone.cameras[1].mount.pose.orientation[0] = math::cos(device.math, half_pitch);
+            drone.cameras[1].mount.pose.orientation[2] = math::sin(device.math, half_pitch);
         }
-        constexpr T RPM_SCALE = 10000;
-        dynamics.action_limit.min *= RPM_SCALE;
-        dynamics.action_limit.max *= RPM_SCALE;
-        for(TI motor = 0; motor < 4; motor++) {
-            dynamics.rotor_thrust_coefficients[motor][1] /= RPM_SCALE;
-            dynamics.rotor_thrust_coefficients[motor][2] /= RPM_SCALE * RPM_SCALE;
-        }
-        drone.cameras[0].fov = 80;
-        for(TI dim = 0; dim < 3; dim++) {
-            drone.cameras[0].mount.pose.position[dim] = fpv_position[dim];
-        }
-        drone.cameras[0].mount.pose.orientation[0] = math::cos(device.math, (T)0.15);
-        drone.cameras[0].mount.pose.orientation[2] = math::sin(device.math, (T)0.15);
-        drone.cameras[1].fov = 50;
-        drone.cameras[1].mount.pose.position[0] = -1.2;
-        drone.cameras[1].mount.pose.position[2] = 0.4;
-        const T half_pitch = math::atan2(device.math, (T)0.4, (T)1.2) / 2;
-        drone.cameras[1].mount.pose.orientation[0] = math::cos(device.math, half_pitch);
-        drone.cameras[1].mount.pose.orientation[2] = math::sin(device.math, half_pitch);
         rendering::datasets::procthor::GLB dataset{{}, {scene_path}};
         init(device, state.environment, dataset);
         const auto& world = state.environment.environments[0];
         state.spawn = world.slots[world.active_slot].annotations.positions[0];
-        init(device, state.rng, 1337);
     }
     template <typename CONFIG>
-    void reset(web::DEVICE& device, web::State<CONFIG>& state) {
+    bool reset(web::DEVICE& device, web::State<CONFIG>& state) {
         using namespace web;
+        using PARAMETER_SPEC = typename CONFIG::DYNAMICS_STATIC_PARAMETERS::PARAMETERS_SPEC;
+        namespace models = rl::environments::l2f::parameters::dynamics;
+        const auto policy_dynamics = models::registry<models::REGISTRY::x500, PARAMETER_SPEC>;
         auto& world = state.environment.environments[0];
         auto& parameters = get_ref(device, state.parameters, (TI)0);
+        auto& physical = get_ref(device, state.states, (TI)0);
+        init(device, state.rng, state.seed);
         initial_parameters(device, world, parameters);
         const auto& spawn = state.spawn;
         for(TI dim = 0; dim < 3; dim++) {
@@ -196,24 +204,76 @@ namespace rl_tools {
         parameters.scene_yaw_cos = math::cos(device.math, (T)spawn.yaw);
         parameters.scene_yaw_sin = math::sin(device.math, (T)spawn.yaw);
         parameters.shutter_fraction = CONFIG::SHUTTER_FRACTION_MIN;
-        initial_state(device, world.dynamics, parameters.agents[0].dynamics, get_ref(device, state.states, (TI)0));
+        for(TI agent_i = 0; agent_i < CONFIG::N_AGENTS; agent_i++) {
+            auto& agent = parameters.agents[agent_i];
+            agent.drone = agent_i == 0 ? 0 : random::uniform_int_distribution(device.random, (TI)0, world.num_drones - 1, state.rng);
+            static_cast<rl::environments::hyperdrone::DroneParameters<CONFIG>&>(agent) = state.environment.shared.drones[agent.drone].parameters;
+            auto& agent_state = rl::environments::hyperdrone::_agent_state<CONFIG>(physical, agent_i);
+            initial_state(device, world.dynamics, agent.dynamics, agent_state);
+            auto& target = state.targets[agent_i];
+            target = {};
+            if(agent_i > 0) {
+                bool found = false;
+                for(TI attempt = 0; attempt < SPAWN_ATTEMPTS && !found; attempt++) {
+                    const auto candidate = rendering::datasets::annotations::sample_free_position(device, world.slots[world.active_slot].annotations, state.rng);
+                    T offset[3];
+                    for(TI dim = 0; dim < 3; dim++) {
+                        offset[dim] = candidate.position[dim] - spawn.position[dim];
+                    }
+                    rl::environments::hyperdrone::rotate_scene_yaw(offset, target.position, parameters.scene_yaw_cos, -parameters.scene_yaw_sin);
+                    found = true;
+                    for(TI previous = 0; previous < agent_i; previous++) {
+                        T distance_squared = 0;
+                        for(TI dim = 0; dim < 3; dim++) {
+                            const T delta = target.position[dim] - state.targets[previous].position[dim];
+                            distance_squared += delta * delta;
+                        }
+                        if(distance_squared < DRONE_SEPARATION * DRONE_SEPARATION) {
+                            found = false;
+                        }
+                    }
+                    target.yaw = candidate.yaw - spawn.yaw;
+                }
+                if(!found) {
+                    return false;
+                }
+                for(TI dim = 0; dim < 3; dim++) {
+                    agent_state.position[dim] = target.position[dim];
+                }
+                agent_state.orientation[0] = math::cos(device.math, target.yaw / (T)2);
+                agent_state.orientation[1] = 0;
+                agent_state.orientation[2] = 0;
+                agent_state.orientation[3] = math::sin(device.math, target.yaw / (T)2);
+            }
+            const auto& dynamics = agent.dynamics.dynamics;
+            for(TI motor = 0; motor < 4; motor++) {
+                TI policy_motor = 0;
+                for(; policy_motor < 4; policy_motor++) {
+                    if((dynamics.rotor_positions[motor][0] > 0) == (policy_dynamics.rotor_positions[policy_motor][0] > 0)
+                        && (dynamics.rotor_positions[motor][1] > 0) == (policy_dynamics.rotor_positions[policy_motor][1] > 0)) {
+                        break;
+                    }
+                }
+                utils::assert_exit(device, policy_motor < 4, "HyperDrone: unsupported rotor layout");
+                state.motor_order[agent_i][motor] = policy_motor;
+                state.previous_actions[agent_i][motor] = 0;
+            }
+        }
         reset(device, state.pilot, state.rng);
-        state.target = {};
         state.moving = false;
         state.moving_vertical = false;
-        for(TI motor = 0; motor < 4; motor++) {
-            state.previous_actions[motor] = 0;
-        }
         set_all(device, state.reset_mask, true);
         set_all(device, state.actions, (T)0);
         request_render(device, world, state.reset_mask);
+        return true;
     }
     template <typename CONFIG>
     void control(web::DEVICE& device, web::State<CONFIG>& state, web::T forward, web::T left, web::T up, web::T yaw_delta, web::T yaw_axis) {
         using namespace web;
-        auto& physical = get_ref(device, state.states, (TI)0);
+        auto& physical = rl::environments::hyperdrone::_agent_state<CONFIG>(get_ref(device, state.states, (TI)0), (TI)0);
+        auto& target = state.targets[0];
         const T dt = get_ref(device, state.parameters, (TI)0).agents[0].dynamics.integration.dt;
-        update_yaw_target(device, state.pilot, physical, state.target, yaw_delta + yaw_axis * state.yaw_rate_limit * dt, dt, state.yaw_rate_limit, state.yaw_error_limit);
+        update_yaw_target(device, state.pilot, physical, target, yaw_delta + yaw_axis * state.yaw_rate_limit * dt, dt, state.yaw_rate_limit, state.yaw_error_limit);
         const T norm = math::sqrt(device.math, forward * forward + left * left + up * up);
         const T scale = norm > 1 ? 1 / norm : 1;
         const bool moving = forward != 0 || left != 0;
@@ -223,35 +283,40 @@ namespace rl_tools {
             const T c = math::cos(device.math, heading), s = math::sin(device.math, heading);
             const T direction[2] = {(c * forward - s * left) * scale, (s * forward + c * left) * scale};
             for(TI dim = 0; dim < 2; dim++) {
-                state.target.position[dim] = physical.position[dim] + state.position_offset * direction[dim];
-                state.target.linear_velocity[dim] = state.velocity_target * direction[dim];
+                target.position[dim] = physical.position[dim] + state.position_offset * direction[dim];
+                target.linear_velocity[dim] = state.velocity_target * direction[dim];
             }
         } else {
             for(TI dim = 0; dim < 2; dim++) {
                 if(state.moving) {
-                    state.target.position[dim] = physical.position[dim];
+                    target.position[dim] = physical.position[dim];
                 }
-                state.target.linear_velocity[dim] = 0;
+                target.linear_velocity[dim] = 0;
             }
         }
         state.moving = moving;
         if(up != 0) {
-            state.target.position[2] = physical.position[2] + state.position_offset * up * scale;
-            state.target.linear_velocity[2] = state.velocity_target * up * scale;
+            target.position[2] = physical.position[2] + state.position_offset * up * scale;
+            target.linear_velocity[2] = state.velocity_target * up * scale;
         } else {
             if(state.moving_vertical) {
-                state.target.position[2] = physical.position[2];
+                target.position[2] = physical.position[2];
             }
-            state.target.linear_velocity[2] = 0;
+            target.linear_velocity[2] = 0;
         }
         state.moving_vertical = up != 0;
-        observe(device, state.pilot, physical, state.target, state.previous_actions, (TI)0);
-        evaluate_step(device, state.pilot, state.rng);
-        for(TI motor = 0; motor < 4; motor++) {
-            state.previous_actions[motor] = get(device, state.pilot.actions, (TI)0, motor);
+        for(TI agent_i = 0; agent_i < CONFIG::N_AGENTS; agent_i++) {
+            const auto& agent_state = rl::environments::hyperdrone::_agent_state<CONFIG>(get_ref(device, state.states, (TI)0), agent_i);
+            observe(device, state.pilot, agent_state, state.targets[agent_i], state.previous_actions[agent_i], agent_i);
         }
-        for(TI motor = 0; motor < 4; motor++) {
-            set(device, state.actions, state.previous_actions[state.motor_order[motor]], (TI)0, motor);
+        evaluate_step(device, state.pilot, state.rng);
+        for(TI agent_i = 0; agent_i < CONFIG::N_AGENTS; agent_i++) {
+            for(TI motor = 0; motor < 4; motor++) {
+                state.previous_actions[agent_i][motor] = get(device, state.pilot.actions, agent_i, motor);
+            }
+            for(TI motor = 0; motor < 4; motor++) {
+                set(device, state.actions, state.previous_actions[agent_i][state.motor_order[agent_i][motor]], (TI)0, agent_i * 4 + motor);
+            }
         }
     }
     template <typename CONFIG>
@@ -327,7 +392,7 @@ static void present(web::DEVICE& device, const web::State<CONFIG>& state, const 
     using namespace rl_tools;
     using rl::environments::hyperdrone::rotate_scene_yaw;
     using rl::environments::l2f::quaternion_multiplication;
-    const auto& physical = get_ref(device, state.states, (web::TI)0);
+    const auto& physical = rl::environments::hyperdrone::_agent_state<CONFIG>(get_ref(device, state.states, (web::TI)0), (web::TI)0);
     const auto& parameters = get_ref(device, state.parameters, (web::TI)0);
     web::T position[3], orientation[4];
     rotate_scene_yaw(physical.position, position, parameters.scene_yaw_cos, parameters.scene_yaw_sin);
@@ -361,13 +426,14 @@ static std::string configuration_catalog(web::Configurations<CONFIGS...>) {
         {"motion_blur", CONFIGS::ENABLE_MOTION_BLUR},
         {"antialiasing", CONFIGS::ENABLE_ANTI_ALIASING},
         {"width", CONFIGS::CAM_WIDTH},
-        {"height", CONFIGS::CAM_HEIGHT}
+        {"height", CONFIGS::CAM_HEIGHT},
+        {"num_agents", CONFIGS::N_AGENTS}
     }), ...);
     return catalog.dump();
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE int demo_api_version() {
-    return 5;
+    return 6;
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE const char* demo_configurations() {
@@ -387,21 +453,8 @@ extern "C" EMSCRIPTEN_KEEPALIVE const char* demo_scenes() {
 }
 
 template <typename CONFIG>
-static int run(const char* scene_path, const char* drone_path, const char* policy_path, int drone_index, int max_frames, const char* pose_json) {
+static int run(const char* scene_path, const char* policy_path, int max_frames, const std::vector<web::Drone>& drones, uint32_t seed, const nlohmann::json& placement) {
     using namespace rl_tools;
-    const auto placement = nlohmann::json::parse(pose_json, nullptr, false);
-    if(!placement.is_object() || !placement.contains("fpv_position") || !placement.at("fpv_position").is_array() || placement.at("fpv_position").size() != 3) {
-        status("The airframe camera position is invalid");
-        return 1;
-    }
-    web::T fpv_position[3];
-    for(web::TI dim = 0; dim < 3; dim++) {
-        const auto& value = placement.at("fpv_position").at(dim);
-        if(!value.is_number() || !rendering::rig::detail::is_finite(fpv_position[dim] = value.get<web::T>())) {
-            status("The airframe camera position is invalid");
-            return 1;
-        }
-    }
     web::DEVICE device;
     init(device);
     web::State<CONFIG> state;
@@ -414,7 +467,8 @@ static int run(const char* scene_path, const char* drone_path, const char* polic
         return 1;
     }
     status("Loading the scene and finding a clear starting position ...");
-    init(device, state, scene_path, drone_path, drone_index, fpv_position);
+    state.seed = seed;
+    init(device, state, scene_path, drones);
     const auto& rig = state.environment.shared.drone_bodies[0].rig;
     EM_ASM({
         Module.rlt_motor_layout($0, $1, $2);
@@ -425,7 +479,11 @@ static int run(const char* scene_path, const char* drone_path, const char* polic
         }
         state.spawn.yaw = placement.at("yaw").get<web::T>();
     }
-    reset(device, state);
+    if(!reset(device, state)) {
+        status("Could not place seven separated drones in this scene");
+        free(device, state);
+        return 3;
+    }
     status("Simulation running — click a camera to take control");
     const double dt = get_ref(device, state.parameters, (web::TI)0).agents[0].dynamics.integration.dt;
     double previous_ms = emscripten_get_now();
@@ -441,19 +499,22 @@ static int run(const char* scene_path, const char* drone_path, const char* polic
         state.velocity_target = input[9];
         const bool active = max_frames > 0 || input[5] != 0;
         if(input[4] != 0) {
-            reset(device, state);
+            if(!reset(device, state)) {
+                free(device, state);
+                return 3;
+            }
             accumulator = 0;
         }
         const double now_ms = emscripten_get_now();
-        if(active && was_active) {
+        if(active && was_active && input[4] == 0) {
             accumulator += max_frames > 0 ? web::FRAME_PERIOD : std::min((now_ms - previous_ms) / 1000.0, 0.1);
         }
         previous_ms = now_ms;
         if(!active && was_active) {
-            const auto& physical = get_ref(device, state.states, (web::TI)0);
+            const auto& physical = rl::environments::hyperdrone::_agent_state<CONFIG>(get_ref(device, state.states, (web::TI)0), (web::TI)0);
             for(web::TI dim = 0; dim < 3; dim++) {
-                state.target.position[dim] = physical.position[dim];
-                state.target.linear_velocity[dim] = 0;
+                state.targets[0].position[dim] = physical.position[dim];
+                state.targets[0].linear_velocity[dim] = 0;
             }
             state.moving = false;
             state.moving_vertical = false;
@@ -487,20 +548,72 @@ static int run(const char* scene_path, const char* drone_path, const char* polic
 }
 
 template <typename... CONFIGS>
-static int dispatch_run(web::Configurations<CONFIGS...>, const std::string& selected, const char* scene_path, const char* drone_path, const char* policy_path, int drone_index, int max_frames, const char* pose_json) {
+static int dispatch_run(web::Configurations<CONFIGS...>, const std::string& selected, web::TI num_agents, const char* scene_path, const char* policy_path, int max_frames, const std::vector<web::Drone>& drones, uint32_t seed, const nlohmann::json& placement) {
     int result = 2;
-    const bool found = ((selected == configuration_id<CONFIGS>()
-        ? (result = run<CONFIGS>(scene_path, drone_path, policy_path, drone_index, max_frames, pose_json), true)
+    const bool found = ((selected == configuration_id<CONFIGS>() && num_agents == CONFIGS::N_AGENTS
+        ? (result = run<CONFIGS>(scene_path, policy_path, max_frames, drones, seed, placement), true)
         : false) || ...);
     if(!found) {
-        status("The selected rendering configuration is not included in this build");
+        status("The selected rendering and drone configuration is not included in this build");
     }
     return result;
 }
 
-extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char* drone_path, const char* policy_path, int drone_index, int max_frames, const char* pose_json, const char* selected_configuration) {
+extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char* policy_path, int max_frames, const char* session_json, const char* selected_configuration) {
+    const auto session = nlohmann::json::parse(session_json, nullptr, false);
+    if(!session.is_object() || !session.contains("num_agents") || !session.at("num_agents").is_number_integer()
+        || (session.at("num_agents") != 1 && session.at("num_agents") != 8)
+        || !session.contains("seed") || !session.at("seed").is_number_unsigned() || session.at("seed") > uint64_t{4294967295}
+        || !session.contains("drones") || !session.at("drones").is_array()) {
+        status("The flight settings are invalid");
+        return 1;
+    }
+    const auto num_agents = session.at("num_agents").get<web::TI>();
+    const auto& entries = session.at("drones");
+    if(entries.size() != (num_agents == 1 ? 1 : 6)) {
+        status("The flight needs one airframe alone, or all six airframes with other drones");
+        return 1;
+    }
+    bool models[6] = {};
+    std::vector<web::Drone> drones;
+    for(const auto& entry: entries) {
+        if(!entry.is_object() || !entry.contains("path") || !entry.at("path").is_string() || entry.at("path").get<std::string>().empty()
+            || !entry.contains("dynamics_index") || !entry.at("dynamics_index").is_number_integer() || entry.at("dynamics_index") < 0 || entry.at("dynamics_index") > 5
+            || !entry.contains("fpv_position") || !entry.at("fpv_position").is_array() || entry.at("fpv_position").size() != 3) {
+            status("The airframe registry is invalid");
+            return 1;
+        }
+        web::Drone drone{entry.at("path").get<std::string>(), entry.at("dynamics_index").get<int>(), {}};
+        if(models[drone.dynamics_index]) {
+            status("The airframe registry contains a repeated dynamics model");
+            return 1;
+        }
+        models[drone.dynamics_index] = true;
+        for(web::TI dim = 0; dim < 3; dim++) {
+            const auto& value = entry.at("fpv_position").at(dim);
+            if(!value.is_number() || !rl_tools::rendering::rig::detail::is_finite(drone.fpv_position[dim] = value.get<web::T>())) {
+                status("The airframe camera position is invalid");
+                return 1;
+            }
+        }
+        drones.push_back(drone);
+    }
+    if(session.contains("position")) {
+        if(!session.at("position").is_array() || session.at("position").size() != 3
+            || !session.contains("yaw") || !session.at("yaw").is_number()
+            || !rl_tools::rendering::rig::detail::is_finite(session.at("yaw").get<web::T>())) {
+            status("The starting pose is invalid");
+            return 1;
+        }
+        for(const auto& value: session.at("position")) {
+            if(!value.is_number() || !rl_tools::rendering::rig::detail::is_finite(value.get<web::T>())) {
+                status("The starting pose is invalid");
+                return 1;
+            }
+        }
+    }
     return dispatch_run(web::CompiledConfigurations{}, selected_configuration == nullptr ? "" : selected_configuration,
-        scene_path, drone_path, policy_path, drone_index, max_frames, pose_json);
+        num_agents, scene_path, policy_path, max_frames, drones, session.at("seed").get<uint32_t>(), session);
 }
 
 int main() {

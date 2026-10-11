@@ -10,6 +10,7 @@ namespace hyperdrone_env_user {
         using TI = std::size_t;
 
         struct BaseSpecification: rl_tools::rl::environments::hyperdrone::presets::X500FPV<T, TI> {
+            static constexpr TI N_CAMERA_AGENTS = 1;
             static constexpr TI INSTANCES_PER_ENVIRONMENT = 4;
             static constexpr TI CAM_WIDTH = 64;
             static constexpr TI CAM_HEIGHT = 64;

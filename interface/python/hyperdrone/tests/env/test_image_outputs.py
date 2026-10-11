@@ -5,7 +5,7 @@ import pytest
 
 from hyperdrone import render
 from hyperdrone.env import EnvConfig, MultiEnvironment
-from test_multi_environment import scene_directory
+from test_multi_environment import rigged_asset_path, scene_directory
 
 
 OUTPUTS = ("rgb", "depth", "segmentation", "normals", "flow")
@@ -126,11 +126,8 @@ def test_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, semanti
     if device == "cuda" and render._backend() != "optix":
         pytest.skip("CUDA Worlds require OptiX")
     from pathlib import Path
-    from hyperdrone._jit import source_root
 
-    asset = source_root() / "tests" / "data" / "x500.glb"
-    if not asset.exists():
-        pytest.skip("no x500 test asset")
+    asset = rigged_asset_path("x500")
     header = tmp_path / "outputs.h"
     source = (Path(__file__).parent / "user_spec_header.h").read_text()
     source = source.replace("        static constexpr TI MAX_DRONES = 3;", f"""
@@ -152,10 +149,13 @@ def test_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, semanti
     try:
         assert env.outputs == OUTPUTS
         assert env.segmentation_mode == ("semantic" if semantic else "instance")
-        assert (env.num_agents, env.num_cameras_per_agent, env.num_views) == (2, 2, 4)
+        assert (env.num_agents, env.num_camera_agents, env.num_cameras_per_agent, env.num_views) == (2, 1, 2, 2)
+        assert env.action_dim == 8
         env.reset()
         initial_spawns = env.spawn_points()
-        assert env.flow().shape == (2, 4, 16, 16, 2)
+        assert env.observe_privileged().shape == (2, 36)
+        assert all(len(point["poses"]) == 2 for point in initial_spawns)
+        assert env.flow().shape == (2, 2, 16, 16, 2)
         np.testing.assert_allclose(env.flow(), 0, atol=1e-3)
         for _ in range(5):
             env.step(np.ones((2, env.action_dim), dtype=np.float32))

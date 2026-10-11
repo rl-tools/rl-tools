@@ -154,6 +154,15 @@
                 <label for="render-resolution">Resolution</label>
                 <select id="render-resolution" disabled></select>
             </div>
+            <div class="tuning-control">
+                <label for="render-agents">Other drones</label>
+                <select id="render-agents" disabled></select>
+            </div>
+            <div class="tuning-control">
+                <label for="layout-seed">Layout seed</label>
+                <input id="layout-seed" type="number" min="0" max="4294967295" step="1" value="1337" required aria-describedby="layout-seed-help">
+                <p id="layout-seed-help">Sets the other drones’ airframes and positions.</p>
+            </div>
             <p id="render-availability" class="tuning-description" role="status"></p>
             <div class="tuning-actions">
                 <button id="render-defaults" type="button">Restore defaults</button>

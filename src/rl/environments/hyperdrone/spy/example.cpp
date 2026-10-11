@@ -18,6 +18,7 @@ using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 constexpr bool DYNAMIC_ALLOCATION = true;
 constexpr TI SEED = 0;
 struct WORLD_SPEC: hd::presets::X500FPV<T, TI> {
+    static constexpr TI N_CAMERA_AGENTS = 1;
     static constexpr TI INSTANCES_PER_ENVIRONMENT = 4;
     static constexpr TI CAM_WIDTH = 64;
     static constexpr TI CAM_HEIGHT = 64;

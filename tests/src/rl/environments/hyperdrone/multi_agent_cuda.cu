@@ -75,6 +75,7 @@ namespace test_multi_agent_cuda {
     struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS> {
         static constexpr TI INSTANCES_PER_ENVIRONMENT = 2;
         static constexpr TI N_AGENTS = 2;
+        static constexpr TI N_CAMERA_AGENTS = 2;
         static constexpr TI MAX_DRONES = 2;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
@@ -375,8 +376,25 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT_CUDA, MULTIPLE_CAMERAS) {
     auto& device = device_gpu.rendering;
     rlt::init(device);
     rlt::init(device_gpu);
-    using SINGLE_WORLD = rlt::rl::environments::hyperdrone::World<test_multicamera::Specification<WORLD_SPEC, 1>>;
-    using MULTI_WORLD = rlt::rl::environments::hyperdrone::World<test_multicamera::Specification<WORLD_SPEC, 2>>;
+    using SINGLE_WORLD = rlt::rl::environments::hyperdrone::World<test_multicamera::Specification<WORLD_SPEC, 1, 1>>;
+    using MULTI_WORLD = rlt::rl::environments::hyperdrone::World<test_multicamera::Specification<WORLD_SPEC, 2, 2>>;
     test_multicamera::run<SINGLE_WORLD>(device, device_gpu, SCENE_PATH, DRONE_PATH);
     test_multicamera::run<MULTI_WORLD>(device, device_gpu, SCENE_PATH, DRONE_PATH);
+}
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT_CUDA, CAMERA_AGENT_SUBSET) {
+    using rlt::init;
+    if (SCENE_PATH.empty()) {
+        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
+    }
+    if (!cuda_available()) {
+        GTEST_SKIP() << "no CUDA device available";
+    }
+    DEVICE_GPU device_gpu;
+    auto& device = device_gpu.rendering;
+    init(device);
+    init(device_gpu);
+    using SINGLE_CAMERA_WORLD = rlt::rl::environments::hyperdrone::World<test_multicamera::Specification<WORLD_SPEC, 2, 1>>;
+    using MULTI_CAMERA_WORLD = rlt::rl::environments::hyperdrone::World<test_multicamera::Specification<WORLD_SPEC, 3, 2>>;
+    test_multicamera::run<SINGLE_CAMERA_WORLD>(device, device_gpu, SCENE_PATH, DRONE_PATH);
+    test_multicamera::run<MULTI_CAMERA_WORLD>(device, device_gpu, SCENE_PATH, DRONE_PATH);
 }

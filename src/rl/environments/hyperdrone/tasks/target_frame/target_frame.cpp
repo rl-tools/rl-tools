@@ -16,6 +16,7 @@ using TI = typename DEVICE::index_t;
 
 using DYNAMICS_STATIC_PARAMETERS = hyperdrone_demo::DynamicsStaticParameters<T, TI>;
 struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS> {
+    static constexpr TI N_CAMERA_AGENTS = 1;
     static constexpr TI INSTANCES_PER_ENVIRONMENT = 2;
     static constexpr TI HISTORY_LENGTH = 4;
     static constexpr T BRIGHTNESS_RANDOMIZATION_RANGE = 0.25;
