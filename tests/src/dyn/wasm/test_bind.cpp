@@ -1,4 +1,4 @@
-#include <rl_tools/operations/cpu.h>
+#include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/persist/backends/hdf5/hdf5.h>
 #include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 #include <rl_tools/dyn/persist.h>
@@ -8,7 +8,7 @@
 #include <cstdio>
 
 namespace rlt = rl_tools;
-using DEVICE = rlt::devices::DefaultCPU;
+using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using TI = typename DEVICE::index_t;
 
 static DEVICE device;

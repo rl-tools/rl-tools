@@ -4,6 +4,9 @@
 #define RL_TOOLS_OPERATIONS_CPU_MUX_H
 
 #include "../rl_tools.h"
+#ifdef __EMSCRIPTEN__
+#include "../utils/assert/declarations_cpu_emscripten.h"
+#endif
 // ------------ Groups 1 ------------
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
 #ifdef RL_TOOLS_ENABLE_WARNINGS
@@ -108,6 +111,9 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 #if defined(RL_TOOLS_BACKEND_ENABLE_CUDA) && defined(RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA)
 #include "../operations/cuda/group_2.h"
 #endif
+#ifdef __EMSCRIPTEN__
+#include "../utils/assert/operations_cpu_emscripten.h"
+#endif
 // ------------ Groups 3 ------------
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
 #include "../operations/cpu_tensorboard/group_3.h"
@@ -132,7 +138,11 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
     template<typename DEV_SPEC=devices::cpu::Specification<devices::math::CPU, devices::random::CPU, LOGGER_FACTORY<>>>
+#ifdef __EMSCRIPTEN__
+    using DEVICE_FACTORY = CPU_EMSCRIPTEN<DEV_SPEC>;
+#else
     using DEVICE_FACTORY = DEVICE_FACTORY_INTERNAL<DEV_SPEC>;
+#endif
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
