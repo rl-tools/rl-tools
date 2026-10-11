@@ -7,6 +7,7 @@ import {create_touch_stick} from "../../../static/hyperdrone/touch-stick.js";
 const page = readFileSync(new URL("../../../static/hyperdrone/index.html", import.meta.url), "utf8");
 const source = readFileSync(new URL("../../../static/hyperdrone/main.js", import.meta.url), "utf8")
     .replace(/^import .*;\n/gm, "")
+    .replace('await import("./blob/build/hyperdrone_web.js")', "await import_module()")
     .replace(/main\(\)\.catch\(show_error\);\s*$/, "");
 
 function send(target, type, fields = {}){
@@ -32,6 +33,8 @@ function fixture(defer_mouse_lock = false){
         send(document, "pointerlockchange");
     };
     window.location = {search: ""};
+    window.isSecureContext = true;
+    document.createElement = () => ({});
     const elements = new Map();
     const pending_locks = [];
     for(const match of page.matchAll(/<[^>]*\bid="([^"]+)"[^>]*>/g)){
@@ -43,6 +46,12 @@ function fixture(defer_mouse_lock = false){
         element.open = false;
         element.attributes = new Map();
         element.setAttribute = (name, value) => element.attributes.set(name, value);
+        element.removeAttribute = name => element.attributes.delete(name);
+        element.appendChild = option => {
+            if(option.selected){
+                element.value = option.value;
+            }
+        };
         element.showModal = () => { element.open = true; };
         element.close = () => { element.open = false; send(element, "close"); };
         element.getContext = () => ({});
@@ -77,8 +86,38 @@ function fixture(defer_mouse_lock = false){
         assert.ok(elements.has(id), `Missing page element: ${id}`);
         return elements.get(id);
     };
-    const context = vm.createContext({document, window, navigator: {maxTouchPoints: 2}, performance, URLSearchParams, create_touch_stick, Conta: class {}, console});
-    vm.runInContext(`${source}\nglobalThis.controls = {poll_input, start(){ ready = true; update_flight_state(); }};`, context);
+    let module_options;
+    let abort_reason;
+    const errors = [];
+    const scenes = [106, 107].map(id => ({name: `ProcTHOR-Train-${id}`, reference: `scene-${id}`}));
+    const module = {
+        _demo_api_version: () => 1,
+        FS: {writeFile(){}},
+        ccall(name){
+            if(name === "demo_scenes"){
+                return JSON.stringify(scenes);
+            }
+            assert.equal(name, "demo_run");
+            if(abort_reason !== undefined){
+                module_options.onAbort(abort_reason);
+                throw new WebAssembly.RuntimeError("Aborted(). Build with -sASSERTIONS for more info.");
+            }
+            return 0;
+        },
+    };
+    const context = vm.createContext({
+        document, window, navigator: {maxTouchPoints: 2, gpu: {}}, performance, URLSearchParams, create_touch_stick,
+        Conta: class {async load(){ return new Uint8Array(); }},
+        console: {...console, error: error => errors.push(error)},
+        import_module: async () => ({default: async options => {
+            module_options = options;
+            return module;
+        }}),
+        fetch: async path => ({ok: true, json: async () => path === "registry.json"
+            ? {drones: [{name: "ARPL", reference: "drone", dynamics_index: 3}], policy: {reference: "policy"}}
+            : {scene: scenes[0].name, reference: scenes[0].reference, position: [0, 0, 1], yaw_degrees: 0}}),
+    });
+    vm.runInContext(`${source}\nglobalThis.controls = {poll_input, main: () => main().catch(show_error), start(){ ready = true; update_flight_state(); }};`, context);
     const element = id => document.getElementById(id);
     const click = (id, pointerType = "touch") => send(element(id), "click", {pointerType});
     const poll = () => Array.from(context.controls.poll_input(), value => value || 0);
@@ -87,7 +126,12 @@ function fixture(defer_mouse_lock = false){
         assert.ok(pending_locks.length > 0, "A mouse capture request must be pending");
         pending_locks.shift()();
     };
-    return {document, window, classes, element, click, poll, axes, grant_mouse_lock, start: context.controls.start};
+    return {
+        document, window, classes, element, click, poll, axes, grant_mouse_lock, errors,
+        start: context.controls.start,
+        load(reason){ abort_reason = reason; return context.controls.main(); },
+        abort: reason => module_options.onAbort(reason),
+    };
 }
 
 function touch_flight(f){
@@ -96,6 +140,53 @@ function touch_flight(f){
     send(f.element("left-stick"), "pointerdown", {pointerId: 1, clientX: 110});
     send(f.element("right-stick"), "pointerdown", {pointerId: 2, clientY: 10});
 }
+
+test("an empty spawn search keeps its scene-specific error after the runtime rejection and input events", async () => {
+    const f = fixture();
+    const reason = "annotations::free_space: no valid positions found";
+    await f.load(reason);
+    const message = "Could not find a suitable starting position in ProcTHOR-Train-106. Choose another scene.";
+    assert.equal(f.element("error").textContent, message);
+    assert.equal(f.element("error").hidden, false);
+    assert.equal(f.errors[0], reason);
+    assert.match(f.errors[1].message, /Build with -sASSERTIONS/);
+    for(const [target, type] of [[f.window, "blur"], [f.document, "visibilitychange"], [f.document, "pointerlockerror"]]){
+        send(target, type);
+    }
+    f.click("camera0", "mouse");
+    f.click("camera1");
+    send(f.document, "keydown", {code: "KeyW"});
+    assert.equal(f.element("error").textContent, message);
+    assert.equal(f.element("flight-state").textContent, "Unavailable");
+    assert.equal(f.element("status").textContent, "The simulation could not start.");
+    assert.equal(f.element("reset").disabled, true);
+    assert.equal(f.element("fps").hidden, true);
+    assert.equal(f.document.pointerLockElement, null);
+    assert.deepEqual(f.axes(), [0, 0, 0, 0, 0]);
+});
+
+test("scene selection reloads the page after an empty spawn search", async () => {
+    const f = fixture();
+    await f.load("annotations::free_space: no valid positions found");
+    assert.equal(f.element("scene").disabled, false);
+    assert.equal(f.element("drone").disabled, false);
+    f.element("scene").value = "ProcTHOR-Train-107";
+    send(f.element("scene"), "change");
+    assert.equal(new URLSearchParams(f.window.location.search).get("scene"), "ProcTHOR-Train-107");
+    assert.equal(f.element("flight-state").textContent, "Unavailable");
+});
+
+test("fatal errors retain other diagnostics and handle an unavailable scene name", async () => {
+    const generic = fixture();
+    await generic.load("WebGPU: staging buffer map failed");
+    assert.equal(generic.element("error").textContent, "Renderer stopped: WebGPU: staging buffer map failed");
+
+    const unnamed = fixture();
+    await unnamed.load();
+    unnamed.element("scene").value = "";
+    unnamed.abort("annotations::free_space: no valid positions found");
+    assert.equal(unnamed.element("error").textContent, "Could not find a suitable starting position in this scene. Choose another scene.");
+});
 
 test("loading rejects control and desktop capture polls held keys with one-shot mouse motion", () => {
     const f = fixture();
