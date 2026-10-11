@@ -15,6 +15,7 @@ namespace {
     namespace hd = rl::environments::hyperdrone;
     namespace rt = rendering::raytracing;
     struct WorldConfig: hd::presets::X500FPV<float, size_t> {
+        static constexpr size_t N_CAMERA_AGENTS = 1;
         using SHADING = rt::Low;
         static constexpr size_t INSTANCES_PER_ENVIRONMENT = 3;
         static constexpr size_t N_CAMERAS_PER_AGENT = 2;

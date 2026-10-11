@@ -4,13 +4,16 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
+#include "multi_agent_test.h"
 
 namespace test_multicamera {
     using namespace rl_tools;
+    using rl::environments::hyperdrone::_agent_state;
 
-    template <typename BASE, typename BASE::TI AGENTS>
+    template <typename BASE, typename BASE::TI AGENTS, typename BASE::TI CAMERA_AGENTS>
     struct Specification: BASE {
         static constexpr typename BASE::TI N_AGENTS = AGENTS;
+        static constexpr typename BASE::TI N_CAMERA_AGENTS = CAMERA_AGENTS;
         static constexpr typename BASE::TI N_CAMERAS_PER_AGENT = 2;
         static constexpr typename BASE::TI HISTORY_LENGTH = 2;
         static constexpr bool ENABLE_MOTION_BLUR = true;
@@ -28,6 +31,9 @@ namespace test_multicamera {
         Tensor<tensor::Specification<float, TI, tensor::Shape<TI, WORLD::INSTANCES, WORLD::ACTION_DIM>>> actions;
         Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, WORLD::INSTANCES>>> reset;
         Tensor<tensor::Specification<float, TI, tensor::Shape<TI, WORLD::INSTANCES, WORLD::OBSERVATION_DIM>>> observations;
+        Tensor<tensor::Specification<float, TI, tensor::Shape<TI, WORLD::INSTANCES, WORLD::OBSERVATION_DIM_PRIVILEGED>>> observations_privileged;
+        Tensor<tensor::Specification<float, TI, tensor::Shape<TI, WORLD::INSTANCES>>> rewards;
+        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, WORLD::INSTANCES>>> terminated_flags;
         template <typename DEVICE>
         void allocate(DEVICE& device) {
             malloc(device, parameters);
@@ -37,6 +43,9 @@ namespace test_multicamera {
             set_all(device, actions, 0);
             malloc(device, reset);
             malloc(device, observations);
+            malloc(device, observations_privileged);
+            malloc(device, rewards);
+            malloc(device, terminated_flags);
         }
         template <typename DEVICE>
         void deallocate(DEVICE& device) {
@@ -46,6 +55,9 @@ namespace test_multicamera {
             free(device, actions);
             free(device, reset);
             free(device, observations);
+            free(device, observations_privileged);
+            free(device, rewards);
+            free(device, terminated_flags);
         }
     };
 
@@ -66,9 +78,10 @@ namespace test_multicamera {
         using SPEC = typename WORLD::SPEC;
         constexpr TI NUM_CAMERAS = WORLD::INSTANCES * WORLD::N_VIEWS;
         constexpr TI PIXELS = SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT;
-        static_assert(WORLD::N_VIEWS == WORLD::N_AGENTS * 2);
+        static_assert(WORLD::N_VIEWS == WORLD::N_CAMERA_AGENTS * 2);
         static_assert(WORLD::OBSERVATION_DIM == WORLD::N_VIEWS * WORLD::FRAME_DIM);
         static_assert(WORLD::ACTION_DIM == WORLD::N_AGENTS * WORLD::DYNAMICS_ENV::ACTION_DIM);
+        static_assert(WORLD::OBSERVATION_DIM_PRIVILEGED == WORLD::N_AGENTS * WORLD::DYNAMICS_ENV::ObservationPrivileged::DIM);
         WORLD world;
         typename WORLD::SharedContext shared;
         malloc(host, shared.library);
@@ -85,9 +98,20 @@ namespace test_multicamera {
         typename DEVICE::SPEC::RANDOM::template ENGINE<> rng;
         malloc(device, rng);
         init(device, rng, 211);
+        typename HOST::SPEC::RANDOM::template ENGINE<> reference_rng;
+        malloc(host, reference_rng);
+        init(host, reference_rng, 211);
         Tensors<WORLD> resident, staging;
         resident.allocate(device);
         staging.allocate(host);
+        for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
+            for (TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++) {
+                for (TI motor_i = 0; motor_i < WORLD::DYNAMICS_ENV::ACTION_DIM; motor_i++) {
+                    set(host, staging.actions, (T)0.2 * agent_i, instance_i, agent_i * WORLD::DYNAMICS_ENV::ACTION_DIM + motor_i);
+                }
+            }
+        }
+        copy(host, device, staging.actions, resident.actions);
         set_all(device, resident.reset, true);
         sample_initial_parameters(device, world, resident.parameters, resident.reset, rng);
         sample_initial_state(device, world, resident.parameters, resident.states, resident.reset, rng);
@@ -104,12 +128,16 @@ namespace test_multicamera {
             parameters.scene_yaw_sin = 0;
             parameters.shutter_fraction = (T)0.5;
             for (TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++) {
-                auto& agent = rl::environments::hyperdrone::_agent_state<SPEC>(state, agent_i);
+                auto& agent = _agent_state<SPEC>(state, agent_i);
+                parameters.agents[agent_i].dynamics.mdp.reward.constant = (T)(agent_i + 1);
                 for (TI dim = 0; dim < 3; dim++) {
                     agent.position[dim] = dim == 0 ? (T)0.7 * agent_i : (T)0;
                     agent.orientation[dim + 1] = 0;
                 }
                 agent.orientation[0] = 1;
+                if (agent_i > 0 && agent_i + 1 < WORLD::N_AGENTS) {
+                    agent.position[1] = (T)-0.8;
+                }
                 for (TI camera_i = 0; camera_i < WORLD::N_CAMERAS_PER_AGENT; camera_i++) {
                     auto& camera = parameters.agents[agent_i].cameras[camera_i];
                     const auto& nominal = shared.drones[0].parameters.cameras[camera_i];
@@ -153,6 +181,32 @@ namespace test_multicamera {
         for (TI frame = 0; frame < 3; frame++) {
             if (frame > 0) {
                 step(device, world, resident.parameters, resident.states, resident.actions, resident.next_states, rng);
+                reward(device, world, resident.parameters, resident.states, resident.actions, resident.next_states, resident.rewards, rng);
+                copy(device, host, resident.next_states, staging.next_states);
+                copy(device, host, resident.rewards, staging.rewards);
+                for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
+                    const auto& parameters = get_ref(host, staging.parameters, instance_i);
+                    EXPECT_NEAR(get(host, staging.rewards, instance_i), (T)(WORLD::N_AGENTS + 1) / 2, 1e-6);
+                    for (TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++) {
+                        const auto& before = _agent_state<SPEC>(get_ref(host, staging.states, instance_i), agent_i);
+                        const auto& actual = _agent_state<SPEC>(get_ref(host, staging.next_states, instance_i), agent_i);
+                        auto expected = before;
+                        Matrix<matrix::Specification<T, TI, 1, WORLD::DYNAMICS_ENV::ACTION_DIM, false>> action;
+                        for (TI motor_i = 0; motor_i < WORLD::DYNAMICS_ENV::ACTION_DIM; motor_i++) {
+                            set(action, 0, motor_i, get(host, staging.actions, instance_i, agent_i * WORLD::DYNAMICS_ENV::ACTION_DIM + motor_i));
+                        }
+                        step(host, world.dynamics, parameters.agents[agent_i].dynamics, before, action, expected, reference_rng);
+                        for (TI dim = 0; dim < 3; dim++) {
+                            EXPECT_NEAR(actual.position[dim], expected.position[dim], 1e-5);
+                            EXPECT_NEAR(actual.linear_velocity[dim], expected.linear_velocity[dim], 1e-5);
+                            EXPECT_NEAR(actual.angular_velocity[dim], expected.angular_velocity[dim], 1e-4);
+                        }
+                        for (TI motor_i = 0; motor_i < WORLD::DYNAMICS_ENV::ACTION_DIM; motor_i++) {
+                            EXPECT_NEAR(actual.rpm[motor_i], expected.rpm[motor_i], 1e-3);
+                            EXPECT_NEAR(actual.rotor_phase[motor_i], expected.rotor_phase[motor_i], 1e-4);
+                        }
+                    }
+                }
             }
             set_all(host, staging.reset, frame != 1);
             if (frame == 1) {
@@ -165,7 +219,7 @@ namespace test_multicamera {
                 if (frame > 0) {
                     auto& state = get_ref(host, staging.states, instance_i);
                     for (TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++) {
-                        auto& agent = rl::environments::hyperdrone::_agent_state<SPEC>(state, agent_i);
+                        auto& agent = _agent_state<SPEC>(state, agent_i);
                         agent.position[1] += (T)0.06;
                     }
                 }
@@ -175,18 +229,27 @@ namespace test_multicamera {
             copy(host, device, staging.reset, resident.reset);
             render(device, world, resident.parameters, resident.states, resident.reset);
             observe(device, world, resident.parameters, resident.states, typename WORLD::Observation{}, resident.observations, rng);
+            observe(device, world, resident.parameters, resident.states, typename WORLD::ObservationPrivileged{}, resident.observations_privileged, rng);
             copy(device, host, resident.observations, staging.observations);
+            copy(device, host, resident.observations_privileged, staging.observations_privileged);
             copy(renderer.device, host, cameras(device, renderer), current_alias);
             copy(renderer.device, host, cameras_open(device, renderer), opened_alias);
             copy(renderer.device, host, renderer.observation, rgb_alias);
             copy(device, host, world.history, history_alias);
             copy(renderer.device, host, flow_buffer(device, renderer), flow_alias);
             copy(renderer.device, host, segmentation_buffer(device, renderer), segmentation_alias);
+            test_agent_parameters::check_rigs(host, device, world, shared, staging);
             for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
                 const auto& parameters = get_ref(host, staging.parameters, instance_i);
                 const auto& state = get_ref(host, staging.states, instance_i);
                 for (TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++) {
-                    const auto& agent = rl::environments::hyperdrone::_agent_state<SPEC>(state, agent_i);
+                    const auto& agent = _agent_state<SPEC>(state, agent_i);
+                    for (TI dim = 0; dim < 3; dim++) {
+                        EXPECT_NEAR(get(host, staging.observations_privileged, instance_i, agent_i * WORLD::DYNAMICS_ENV::ObservationPrivileged::DIM + dim), agent.position[dim], 1e-6);
+                    }
+                }
+                for (TI agent_i = 0; agent_i < WORLD::N_CAMERA_AGENTS; agent_i++) {
+                    const auto& agent = _agent_state<SPEC>(state, agent_i);
                     for (TI camera_i = 0; camera_i < WORLD::N_CAMERAS_PER_AGENT; camera_i++) {
                         const TI view = agent_i * WORLD::N_CAMERAS_PER_AGENT + camera_i;
                         const TI index = instance_i * WORLD::N_VIEWS + view;
@@ -232,9 +295,41 @@ namespace test_multicamera {
             }
             previous = current;
         }
+        if constexpr (WORLD::N_CAMERA_AGENTS < WORLD::N_AGENTS) {
+            terminated(device, world, resident.parameters, resident.states, resident.terminated_flags, rng);
+            copy(device, host, resident.terminated_flags, staging.terminated_flags);
+            for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
+                EXPECT_FALSE(get(host, staging.terminated_flags, instance_i));
+            }
+            auto& state = get_ref(host, staging.states, (TI)0);
+            auto& last_agent = _agent_state<SPEC>(state, WORLD::N_AGENTS - 1);
+            auto& termination = get_ref(host, staging.parameters, (TI)0).agents[WORLD::N_AGENTS - 1].dynamics.mdp.termination;
+            termination.enabled = true;
+            termination.position_threshold = 100;
+            termination.linear_velocity_threshold = 1;
+            termination.angular_velocity_threshold = 100;
+            last_agent.linear_velocity[0] = 2;
+            copy(host, device, staging.parameters, resident.parameters);
+            copy(host, device, staging.states, resident.states);
+            terminated(device, world, resident.parameters, resident.states, resident.terminated_flags, rng);
+            copy(device, host, resident.terminated_flags, staging.terminated_flags);
+            EXPECT_TRUE(get(host, staging.terminated_flags, (TI)0));
+            EXPECT_FALSE(get(host, staging.terminated_flags, (TI)1));
+            termination.enabled = false;
+            for (TI dim = 0; dim < 3; dim++) {
+                last_agent.position[dim] = _agent_state<SPEC>(state, (TI)0).position[dim];
+            }
+            copy(host, device, staging.parameters, resident.parameters);
+            copy(host, device, staging.states, resident.states);
+            terminated(device, world, resident.parameters, resident.states, resident.terminated_flags, rng);
+            copy(device, host, resident.terminated_flags, staging.terminated_flags);
+            EXPECT_TRUE(get(host, staging.terminated_flags, (TI)0));
+            EXPECT_FALSE(get(host, staging.terminated_flags, (TI)1));
+        }
         resident.deallocate(device);
         staging.deallocate(host);
         free(device, rng);
+        free(host, reference_rng);
         free(device, world);
         free(host, shared.library);
     }

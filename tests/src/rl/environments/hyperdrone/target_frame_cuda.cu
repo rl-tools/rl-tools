@@ -65,6 +65,7 @@ namespace test_target_frame_cuda {
         static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
     };
     struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS> {
+        static constexpr TI N_CAMERA_AGENTS = 1;
         static constexpr TI INSTANCES_PER_ENVIRONMENT = 4;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;

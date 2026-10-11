@@ -87,7 +87,7 @@ namespace rl_tools::rl::environments::hyperdrone {
             using TI = typename SPEC::TI;
             static constexpr TI CAM_WIDTH = SPEC::CAM_WIDTH;
             static constexpr TI CAM_HEIGHT = SPEC::CAM_HEIGHT;
-            static constexpr TI NUM_CAMERAS = SPEC::INSTANCES_PER_ENVIRONMENT * SPEC::N_AGENTS * SPEC::N_CAMERAS_PER_AGENT;
+            static constexpr TI NUM_CAMERAS = SPEC::INSTANCES_PER_ENVIRONMENT * SPEC::N_CAMERA_AGENTS * SPEC::N_CAMERAS_PER_AGENT;
             static constexpr TI NUM_PROBES = SPEC::NUM_PROBES;
             using SHADING = typename SPEC::SHADING;
             static constexpr bool OUTPUT_RGB = SPEC::OUTPUT_RGB;
@@ -192,6 +192,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         using TI = typename SPEC::TI;
         static_assert(SPEC::MAX_DRONES > 0, "MAX_DRONES must be positive");
         static_assert(SPEC::HISTORY_LENGTH > 0, "HISTORY_LENGTH must be positive");
+        static_assert(SPEC::N_CAMERA_AGENTS > 0 && SPEC::N_CAMERA_AGENTS <= SPEC::N_AGENTS, "N_CAMERA_AGENTS must be positive and no greater than N_AGENTS");
         static_assert(SPEC::N_CAMERAS_PER_AGENT > 0, "N_CAMERAS_PER_AGENT must be positive");
         static_assert(!SPEC::SELF_VISIBLE || SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE > 0, "SELF_VISIBLE needs entity slots: set MAX_ENTITY_SLOTS_PER_INSTANCE");
         static_assert(SPEC::N_AGENTS == 1 || SPEC::SELF_VISIBLE, "multi-agent Worlds require SELF_VISIBLE: agents seeing each other needs geometry to see");
@@ -202,8 +203,9 @@ namespace rl_tools::rl::environments::hyperdrone {
 
         static constexpr TI INSTANCES = SPEC::INSTANCES_PER_ENVIRONMENT;
         static constexpr TI N_AGENTS = SPEC::N_AGENTS;
+        static constexpr TI N_CAMERA_AGENTS = SPEC::N_CAMERA_AGENTS;
         static constexpr TI N_CAMERAS_PER_AGENT = SPEC::N_CAMERAS_PER_AGENT;
-        static constexpr TI N_VIEWS = N_AGENTS * N_CAMERAS_PER_AGENT;
+        static constexpr TI N_VIEWS = N_CAMERA_AGENTS * N_CAMERAS_PER_AGENT;
         static constexpr TI ACTION_DIM = N_AGENTS * DYNAMICS_ENV::ACTION_DIM;
         static constexpr TI EPISODE_STEP_LIMIT = DYNAMICS_ENV::EPISODE_STEP_LIMIT;
         static constexpr TI IMAGE_CHANNELS = 3;
@@ -317,6 +319,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         using Observation = typename ENVIRONMENT::Observation;
         using ObservationPrivileged = typename ENVIRONMENT::ObservationPrivileged;
         static constexpr TI N_AGENTS = ENVIRONMENT::N_AGENTS;
+        static constexpr TI N_CAMERA_AGENTS = ENVIRONMENT::N_CAMERA_AGENTS;
         static constexpr TI N_CAMERAS_PER_AGENT = ENVIRONMENT::N_CAMERAS_PER_AGENT;
         static constexpr TI ACTION_DIM = ENVIRONMENT::ACTION_DIM;
         static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT::EPISODE_STEP_LIMIT;

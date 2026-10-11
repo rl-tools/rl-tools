@@ -75,6 +75,7 @@ namespace benchmark_hyperdrone {
 
     // training_cuda.cu's configuration: 2 active scenes x 64 envs, 80x50, High shading, AA 2
     struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS> {
+        static constexpr TI N_CAMERA_AGENTS = 1;
         static constexpr TI INSTANCES_PER_ENVIRONMENT = 64;
         static constexpr TI CAM_WIDTH = 80;
         static constexpr TI CAM_HEIGHT = 50;
@@ -97,6 +98,7 @@ namespace benchmark_self_visible {
     using PRESET = rlt::rl::environments::hyperdrone::presets::X500FPV<T, TI>;
     using PARAMETERS_SPEC = typename PRESET::DYNAMICS_STATIC_PARAMETERS::PARAMETERS_SPEC;
     struct WORLD_SPEC: PRESET {
+        static constexpr TI N_CAMERA_AGENTS = 1;
         static constexpr TI INSTANCES_PER_ENVIRONMENT = 64;
         static constexpr TI CAM_WIDTH = 80;
         static constexpr TI CAM_HEIGHT = 50;

@@ -71,6 +71,7 @@ namespace test_multi_agent {
     struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS> {
         static constexpr TI INSTANCES_PER_ENVIRONMENT = 2;
         static constexpr TI N_AGENTS = 2;
+        static constexpr TI N_CAMERA_AGENTS = 2;
         static constexpr TI MAX_DRONES = 2;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
@@ -309,8 +310,20 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT, MULTIPLE_CAMERAS) {
     }
     DEVICE device;
     rlt::init(device);
-    using SINGLE_WORLD = rlt::rl::environments::hyperdrone::World<test_multicamera::Specification<WORLD_SPEC, 1>>;
-    using MULTI_WORLD = rlt::rl::environments::hyperdrone::World<test_multicamera::Specification<WORLD_SPEC, 2>>;
+    using SINGLE_WORLD = rlt::rl::environments::hyperdrone::World<test_multicamera::Specification<WORLD_SPEC, 1, 1>>;
+    using MULTI_WORLD = rlt::rl::environments::hyperdrone::World<test_multicamera::Specification<WORLD_SPEC, 2, 2>>;
     test_multicamera::run<SINGLE_WORLD>(device, device, SCENE_PATH, DRONE_PATH);
     test_multicamera::run<MULTI_WORLD>(device, device, SCENE_PATH, DRONE_PATH);
+}
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT, CAMERA_AGENT_SUBSET) {
+    using rlt::init;
+    if (SCENE_PATH.empty()) {
+        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
+    }
+    DEVICE device;
+    init(device);
+    using SINGLE_CAMERA_WORLD = rlt::rl::environments::hyperdrone::World<test_multicamera::Specification<WORLD_SPEC, 2, 1>>;
+    using MULTI_CAMERA_WORLD = rlt::rl::environments::hyperdrone::World<test_multicamera::Specification<WORLD_SPEC, 3, 2>>;
+    test_multicamera::run<SINGLE_CAMERA_WORLD>(device, device, SCENE_PATH, DRONE_PATH);
+    test_multicamera::run<MULTI_CAMERA_WORLD>(device, device, SCENE_PATH, DRONE_PATH);
 }

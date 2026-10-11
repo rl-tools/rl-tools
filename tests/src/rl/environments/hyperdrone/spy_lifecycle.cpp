@@ -9,6 +9,8 @@
 namespace rl_tools::rl::environments::hyperdrone::spy::ui {
     struct Window {
         Input input;
+        size_t camera_agents;
+        size_t cameras_per_agent;
         size_t atlas_size;
         size_t spectator_size;
         std::vector<uint32_t> atlas;
@@ -21,11 +23,13 @@ namespace rl_tools::rl::environments::hyperdrone::spy::ui {
     size_t created = 0;
     size_t destroyed = 0;
 
-    Window* create(size_t, size_t, size_t, size_t, int atlas_width, int atlas_height, int, int, int spectator_width, int spectator_height) {
+    Window* create(size_t, size_t, size_t camera_agents, size_t cameras_per_agent, int atlas_width, int atlas_height, int, int, int spectator_width, int spectator_height) {
         if(fail_create) {
             throw std::runtime_error("Simulated window creation failure");
         }
         auto* window = new Window;
+        window->camera_agents = camera_agents;
+        window->cameras_per_agent = cameras_per_agent;
         window->atlas_size = static_cast<size_t>(atlas_width) * atlas_height;
         window->spectator_size = static_cast<size_t>(spectator_width) * spectator_height;
         created++;
@@ -64,13 +68,15 @@ namespace {
     struct WorldConfig: hd::presets::X500FPV<float, size_t> {
         using SHADING = rt::Low;
         static constexpr size_t INSTANCES_PER_ENVIRONMENT = 2;
+        static constexpr size_t N_AGENTS = 2;
+        static constexpr size_t N_CAMERA_AGENTS = 1;
         static constexpr size_t N_CAMERAS_PER_AGENT = 2;
         static constexpr size_t CAM_WIDTH = 4;
         static constexpr size_t CAM_HEIGHT = 3;
         static constexpr size_t HISTORY_LENGTH = 1;
-        static constexpr size_t MAX_ENTITY_SLOTS_PER_INSTANCE = 0;
+        static constexpr size_t MAX_ENTITY_SLOTS_PER_INSTANCE = 16;
         static constexpr size_t NUM_PROBES = 0;
-        static constexpr bool SELF_VISIBLE = false;
+        static constexpr bool SELF_VISIBLE = true;
         static constexpr bool ENABLE_MOTION_BLUR = false;
     };
     using World = hd::World<WorldConfig>;
@@ -175,6 +181,8 @@ namespace {
         malloc(device, viewer);
         init(device, viewer, environment);
         auto* window = viewer.state->window;
+        EXPECT_EQ(window->camera_agents, World::N_CAMERA_AGENTS);
+        EXPECT_EQ(window->cameras_per_agent, World::N_CAMERAS_PER_AGENT);
         await_image(0, 1);
         ASSERT_EQ(window->atlas.size(), Config::ATLAS_WIDTH * Config::ATLAS_HEIGHT);
         ASSERT_EQ(window->spectator.size(), Config::SPECTATOR_CONFIG::CAM_WIDTH * Config::SPECTATOR_CONFIG::CAM_HEIGHT);

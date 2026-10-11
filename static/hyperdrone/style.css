@@ -88,6 +88,7 @@ kbd { display: inline-block; min-width: 18px; padding: 1px 4px; border: 1px soli
 .tuning-control { margin: 16px 0; }
 .tuning-control output { color: var(--accent); font: 12px var(--mono); font-variant-numeric: tabular-nums; }
 .tuning-control input { width: 100%; margin: 6px 0 0; accent-color: var(--accent); cursor: pointer; }
+.tuning-control input[type="number"] { padding: 6px 8px; border: 1px solid #9da59b; font: inherit; cursor: text; }
 .tuning-control select { width: 100%; margin-top: 6px; }
 .tuning-control p { margin: 3px 0 0; }
 #render-availability { margin-bottom: 12px; }

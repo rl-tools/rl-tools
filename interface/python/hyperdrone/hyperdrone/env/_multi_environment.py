@@ -10,7 +10,7 @@ Configuration follows the C++ extension ladder: a preset names the platform
 universal knobs (instances_per_environment, camera resolution, fidelity, motion blur) complete the picture. Arbitrary
 C++ specifications are reached through `spec_header=`: a path to a C++ header defining
 `hyperdrone_env_user::WORLD` (including any rl_tools headers it needs); the header's
-content hash is part of the JIT key, and preset/task/num_agents/num_cameras_per_agent must stay at their
+content hash is part of the JIT key, and preset/task/num_agents/num_camera_agents/num_cameras_per_agent must stay at their
 defaults since the user type supersedes them.
 """
 import hashlib
@@ -62,6 +62,7 @@ class EnvConfig:
     preset: str = "crazyflie"
     task: str = None
     num_agents: int = 1
+    num_camera_agents: int = 1
     num_cameras_per_agent: int = 1
     spec_header: str = None
     device: str = None
@@ -71,9 +72,11 @@ class EnvConfig:
     dataset: str = "glb"
 
     def __post_init__(self):
-        for name in ("num_environments", "instances_per_environment", "width", "height", "num_agents", "num_cameras_per_agent"):
+        for name in ("num_environments", "instances_per_environment", "width", "height", "num_agents", "num_camera_agents", "num_cameras_per_agent"):
             if type(getattr(self, name)) is not int or getattr(self, name) < 1:
                 raise ValueError(f"hyperdrone: {name} must be a positive integer")
+        if self.num_camera_agents > self.num_agents:
+            raise ValueError("hyperdrone: num_camera_agents must not exceed num_agents")
         object.__setattr__(self, "output", normalize_outputs(self.output))
         if "rgb" not in self.output:
             raise ValueError("hyperdrone: environment observations require rgb output")
@@ -145,6 +148,7 @@ class EnvConfig:
             "HYPERDRONE_ENV_PRESET": PRESETS[self.preset],
             "HYPERDRONE_ENV_TASK": TASKS[self.task],
             "HYPERDRONE_ENV_N_AGENTS": self.num_agents,
+            "HYPERDRONE_ENV_N_CAMERA_AGENTS": self.num_camera_agents,
             "HYPERDRONE_ENV_N_CAMERAS_PER_AGENT": self.num_cameras_per_agent,
             "HYPERDRONE_ENV_DEVICE_CUDA": 1 if self.world_device == "cuda" else 0,
         }

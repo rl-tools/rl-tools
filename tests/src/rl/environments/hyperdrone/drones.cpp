@@ -16,6 +16,7 @@ namespace test_drones {
     struct BLUR_SPEC: WORLD_SPEC {
         static constexpr TI INSTANCES_PER_ENVIRONMENT = 1;
         static constexpr TI N_AGENTS = 2;
+        static constexpr TI N_CAMERA_AGENTS = 2;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 13;
         static constexpr bool ENABLE_MOTION_BLUR = true;
         static constexpr TI MOTION_BLUR_SAMPLES = 4;

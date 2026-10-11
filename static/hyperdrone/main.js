@@ -36,6 +36,8 @@ const render_fidelity = document.getElementById("render-fidelity");
 const render_motion_blur = document.getElementById("render-motion-blur");
 const render_antialiasing = document.getElementById("render-antialiasing");
 const render_resolution = document.getElementById("render-resolution");
+const render_agents = document.getElementById("render-agents");
+const layout_seed = document.getElementById("layout-seed");
 const render_apply = document.getElementById("render-apply");
 const render_availability = document.getElementById("render-availability");
 const canvases = ["camera0", "camera1", "depth", "segmentation", "normals", "flow"].map(id => document.getElementById(id));
@@ -81,14 +83,18 @@ function find_configuration(){
         configuration.fidelity === render_fidelity.value &&
         String(configuration.motion_blur) === render_motion_blur.value &&
         String(configuration.antialiasing) === render_antialiasing.value &&
-        `${configuration.width}x${configuration.height}` === render_resolution.value);
+        `${configuration.width}x${configuration.height}` === render_resolution.value &&
+        String(configuration.num_agents) === render_agents.value);
 }
 
 function update_rendering(){
     const available = Boolean(find_configuration());
-    render_apply.disabled = !available;
-    render_availability.textContent = available
-        ? "Changing fidelity, motion blur, antialiasing, or resolution restarts the flight."
+    const valid_seed = layout_seed.checkValidity();
+    render_apply.disabled = !available || !valid_seed;
+    render_availability.textContent = !valid_seed
+        ? "Use a whole-number seed from 0 to 4294967295."
+        : available
+        ? "Applying scene or rendering settings restarts the flight. Reset flight repeats the same drone layout."
         : "This combination is unavailable. Change a rendering option.";
 }
 
@@ -97,6 +103,7 @@ function select_configuration(configuration){
     render_motion_blur.value = String(configuration.motion_blur);
     render_antialiasing.value = String(configuration.antialiasing);
     render_resolution.value = `${configuration.width}x${configuration.height}`;
+    render_agents.value = String(configuration.num_agents);
     update_rendering();
 }
 
@@ -105,15 +112,18 @@ function setup_rendering(configurations){
         throw new Error("No rendering configurations are available in this simulation bundle.");
     }
     render_configurations = configurations;
-    default_render_configuration = configurations.find(configuration => configuration.id === "high-mb4-aa1-480x270") || configurations[0];
+    default_render_configuration = configurations.find(configuration => configuration.id === "high-mb4-aa1-480x270" && configuration.num_agents === 1) || configurations[0];
     const requested = params.get("render");
-    const selected = requested === null ? default_render_configuration : configurations.find(configuration => configuration.id === requested);
+    const agents = params.has("agents") ? Number(params.get("agents")) : default_render_configuration.num_agents;
+    const selected = configurations.find(configuration => configuration.id === (requested || default_render_configuration.id) && configuration.num_agents === agents);
+    layout_seed.value = params.get("seed") ?? layout_seed.defaultValue;
     const fidelity_labels = {low: "Low", medium: "Medium", high: "High", "very-high": "Very high"};
     const fields = [
         [render_fidelity, configuration => configuration.fidelity, configuration => fidelity_labels[configuration.fidelity]],
         [render_motion_blur, configuration => String(configuration.motion_blur), configuration => configuration.motion_blur ? "On" : "Off"],
         [render_antialiasing, configuration => String(configuration.antialiasing), configuration => configuration.antialiasing ? "On" : "Off"],
         [render_resolution, configuration => `${configuration.width}x${configuration.height}`, configuration => `${configuration.width} × ${configuration.height}`],
+        [render_agents, configuration => String(configuration.num_agents), configuration => configuration.num_agents === 1 ? "None" : "7 hovering drones"],
     ];
     for(const [select, value, label] of fields){
         const entries = [...new Map(configurations.map(configuration => [value(configuration), {
@@ -125,15 +135,20 @@ function setup_rendering(configurations){
     rendering_button.disabled = false;
     update_rendering();
     if(!selected){
-        throw new Error(`Requested rendering configuration "${requested}" is unavailable. Open Rendering to choose available settings.`);
+        throw new Error(`Requested rendering and drone configuration is unavailable. Open Rendering to choose available settings.`);
+    }
+    if(!layout_seed.checkValidity()){
+        throw new Error("The layout seed must be a whole number from 0 to 4294967295. Open Rendering to change it.");
     }
     return selected;
 }
 
-for(const select of [render_fidelity, render_motion_blur, render_antialiasing, render_resolution]){
+for(const select of [render_fidelity, render_motion_blur, render_antialiasing, render_resolution, render_agents]){
     select.addEventListener("change", update_rendering);
 }
+layout_seed.addEventListener("input", update_rendering);
 document.getElementById("render-defaults").addEventListener("click", () => {
+    layout_seed.value = layout_seed.defaultValue;
     for(const control of [onboard_fov, external_fov]){
         control.value = control.defaultValue;
         update_fov(control);
@@ -144,9 +159,11 @@ document.getElementById("render-defaults").addEventListener("click", () => {
 });
 render_apply.addEventListener("click", () => {
     const configuration = find_configuration();
-    if(configuration){
+    if(configuration && layout_seed.reportValidity()){
         release_controls();
         params.set("render", configuration.id);
+        params.set("agents", configuration.num_agents);
+        params.set("seed", layout_seed.value);
         window.location.search = params.toString();
     }
 });
@@ -541,10 +558,11 @@ async function main(){
             }
         },
     });
-    if(module._demo_api_version?.() !== 5){
+    if(module._demo_api_version?.() !== 6){
         throw new Error("The page and simulation bundle are incompatible. Deploy the matching blob/build files and update the pinned revision in download_blob.sh.");
     }
     const configuration = setup_rendering(JSON.parse(module.ccall("demo_configurations", "string", [], [])));
+    const seed = Number(layout_seed.value);
     const [registry, pose] = await Promise.all([read_json("registry.json"), read_json("pose.json")]);
     const scenes = JSON.parse(module.ccall("demo_scenes", "string", [], []));
     const scene = scenes.find(scene => scene.name === (params.get("scene") || pose.scene));
@@ -556,17 +574,30 @@ async function main(){
     if(default_scene?.reference !== pose.reference || pose.position?.length !== 3 || !pose.position.every(Number.isFinite) || !Number.isFinite(pose.yaw_degrees)){
         throw new Error("pose.json must pin a Train200 scene and a finite FLU position and yaw.");
     }
-    if(!Array.isArray(drone.fpv_position) || drone.fpv_position.length !== 3 || !drone.fpv_position.every(Number.isFinite)){
-        throw new Error("The airframe registry must supply a finite FLU camera position in metres.");
+    const drones = configuration.num_agents === 1 ? [drone] : [drone, ...registry.drones.filter(entry => entry !== drone)];
+    for(const entry of drones){
+        if(!Array.isArray(entry.fpv_position) || entry.fpv_position.length !== 3 || !entry.fpv_position.every(Number.isFinite)
+            || !Number.isInteger(entry.dynamics_index) || entry.dynamics_index < 0 || entry.dynamics_index > 5){
+            throw new Error("The airframe registry must supply a dynamics model and a finite FLU camera position in metres.");
+        }
     }
     populate(scene_select, scenes, scene);
     populate(drone_select, registry.drones, drone);
     module.FS.writeFile("/scene.glb", await fetch_asset(scene));
-    module.FS.writeFile("/drone.glb", await fetch_asset(drone));
+    const airframes = [];
+    for(const [index, entry] of drones.entries()){
+        const path = `/drone-${index}.glb`;
+        module.FS.writeFile(path, await fetch_asset(entry));
+        airframes.push({path, dynamics_index: entry.dynamics_index, fpv_position: entry.fpv_position});
+    }
     module.FS.writeFile("/policy.tar", await fetch_asset(registry.policy));
-    const placement = JSON.stringify({fpv_position: drone.fpv_position, ...(scene.reference === pose.reference ? {position: pose.position, yaw: pose.yaw_degrees * Math.PI / 180} : {})});
+    const session = JSON.stringify({num_agents: configuration.num_agents, seed, drones: airframes,
+        ...(scene.reference === pose.reference ? {position: pose.position, yaw: pose.yaw_degrees * Math.PI / 180} : {})});
     set_status("Preparing the scene and cameras…");
-    const result = await module.ccall("demo_run", "number", ["string", "string", "string", "number", "number", "string", "string"], ["/scene.glb", "/drone.glb", "/policy.tar", drone.dynamics_index, max_frames, placement, configuration.id], {async: true});
+    const result = await module.ccall("demo_run", "number", ["string", "string", "number", "string", "string"], ["/scene.glb", "/policy.tar", max_frames, session, configuration.id], {async: true});
+    if(result === 3){
+        throw new Error("Could not place seven separated drones in this scene. Choose another scene or seed, or set Other drones to None in Rendering.");
+    }
     if(result !== 0){
         throw new Error(`The renderer exited with status ${result}.`);
     }

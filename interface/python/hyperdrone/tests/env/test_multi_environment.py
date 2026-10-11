@@ -28,11 +28,23 @@ def scene_directory(tmp_path_factory):
 CONFIG = EnvConfig(num_environments=1, instances_per_environment=2, width=32, height=32, fidelity="low")
 
 
-@pytest.mark.parametrize("name", ["num_environments", "instances_per_environment", "width", "height", "num_agents"])
+@pytest.mark.parametrize("name", ["num_environments", "instances_per_environment", "width", "height", "num_agents", "num_camera_agents"])
 @pytest.mark.parametrize("value", [0, -1, 2.5, True])
 def test_positive_integer_configuration(name, value):
     with pytest.raises(ValueError, match=f"{name} must be a positive integer"):
         EnvConfig(**{name: value})
+
+
+def test_camera_agent_configuration():
+    config = EnvConfig(preset="x500_fpv", num_agents=2)
+    assert config.num_camera_agents == 1
+    assert config.defines()["HYPERDRONE_ENV_N_CAMERA_AGENTS"] == 1
+    assert config.key() == replace(config, num_camera_agents=1).key()
+    assert config.key() != replace(config, num_camera_agents=2).key()
+    with pytest.raises(ValueError, match="num_camera_agents must not exceed num_agents"):
+        replace(config, num_camera_agents=3)
+    with pytest.raises(ValueError, match="spec_header supersedes.*num_camera_agents"):
+        replace(config, num_camera_agents=2, spec_header=__file__)
 
 
 @pytest.mark.parametrize("task", ["target_frame", "moving_gate", "visual_inertial_localization"])
@@ -426,11 +438,12 @@ def drone_asset_path():
 
 
 CONFIG_DRONES = EnvConfig(instances_per_environment=4, width=16, height=16, preset="x500_fpv")
-CONFIG_MULTI_AGENT = EnvConfig(instances_per_environment=2, num_agents=7, width=16, height=16, fidelity="low", preset="x500_fpv")
+CONFIG_MULTI_AGENT = EnvConfig(instances_per_environment=2, num_agents=7, num_camera_agents=7, width=16, height=16, fidelity="low", preset="x500_fpv")
 
 
-def test_multi_camera_model_parameters_and_replay(scene_directory):
-    config = replace(CONFIG_MULTI_AGENT, num_environments=2, num_agents=2, num_cameras_per_agent=2)
+@pytest.mark.parametrize("camera_agents", [1, 2])
+def test_multi_camera_model_parameters_and_replay(scene_directory, camera_agents):
+    config = replace(CONFIG_MULTI_AGENT, num_environments=2, num_agents=2, num_camera_agents=camera_agents, num_cameras_per_agent=2)
     drones = [{"asset": rigged_asset_path(name), "parameters": {
         "dynamics": {"dynamics": {"model": name}},
         "cameras": [{"fov": fov}, {"fov": fov + 10, "mount": {"pose": {"position": [-1, 0, 0.5]}}}],
@@ -438,7 +451,8 @@ def test_multi_camera_model_parameters_and_replay(scene_directory):
     initial = {"dynamics": {"mdp": {"init": {"max_linear_velocity": 0, "max_angular_velocity": 0, "min_rpm": 0, "max_rpm": 0}}}}
     env = MultiEnvironment([scene_directory / "ProcTHOR-Train-1.glb"] * 2, config=config, drones=drones, parameters=initial, seed=7)
     try:
-        assert (env.num_agents, env.num_cameras_per_agent, env.num_views) == (2, 2, 4)
+        assert (env.num_agents, env.num_camera_agents, env.num_cameras_per_agent, env.num_views) == (2, camera_agents, 2, camera_agents * 2)
+        assert env.action_dim == 8
         env.reset()
         points = env.spawn_points()
         for index, point in enumerate(points):
@@ -449,8 +463,8 @@ def test_multi_camera_model_parameters_and_replay(scene_directory):
             for agent, drone in zip(instance["agents"], point["drone"]):
                 assert agent == {**env.drones[drone]["parameters"], "drone": drone}
         frames = env.frames().copy()
-        assert frames.shape == (4, 4 * 16, 16, 3)
-        views = frames.reshape(4, 2, 2, 16, 16, 3)
+        assert frames.shape == (4, camera_agents * 2 * 16, 16, 3)
+        views = frames.reshape(4, camera_agents, 2, 16, 16, 3)
         assert all(not np.array_equal(agent[0], agent[1]) for instance in views for agent in instance)
         mask = np.array([False, False, False, True])
         env.set_instance_parameters({"agents": [{}, {"drone": 0, "cameras": [{}, {"fov": 40}]}]}, mask)
@@ -476,6 +490,7 @@ def test_multi_camera_model_parameters_and_replay(scene_directory):
         for _ in range(3):
             env.step(np.zeros((env.total_instances, env.action_dim), dtype=np.float32))
         state = env.observe_privileged().copy()
+        assert state.shape == (4, 36)
         env.reset(mask, spawn_points=[points[3]])
         np.testing.assert_array_equal(env.observe_privileged()[:3], state[:3])
         assert env.instance_parameters()[3] == baseline[3]
@@ -957,6 +972,7 @@ def test_step_clock_is_independent_of_image_reads(scene_directory, history_lengt
 #include <cstddef>
 namespace hyperdrone_env_user {
     struct SPEC: rl_tools::rl::environments::hyperdrone::presets::X500FPV<float, std::size_t> {
+        static constexpr std::size_t N_CAMERA_AGENTS = 1;
         static constexpr std::size_t INSTANCES_PER_ENVIRONMENT = 2;
         static constexpr std::size_t CAM_WIDTH = 16;
         static constexpr std::size_t CAM_HEIGHT = 16;
@@ -1013,6 +1029,7 @@ def test_custom_vil_rejects_partial_reset_before_sampling(scene_directory, tmp_p
 #include <cstddef>
 namespace hyperdrone_env_user {
     struct SPEC: rl_tools::rl::environments::hyperdrone::presets::X500FPVIMU<float, std::size_t> {
+        static constexpr std::size_t N_CAMERA_AGENTS = 1;
         static constexpr std::size_t INSTANCES_PER_ENVIRONMENT = 2;
         static constexpr std::size_t CAM_WIDTH = 16;
         static constexpr std::size_t CAM_HEIGHT = 16;

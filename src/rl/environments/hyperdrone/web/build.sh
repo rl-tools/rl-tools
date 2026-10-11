@@ -15,7 +15,9 @@ for fidelity in low medium high very-high; do
     for motion_samples in 1 4; do
         for aa_grid in 1 2; do
             for resolution in 480x270 960x540; do
-                ALL_CONFIGURATIONS+=("$fidelity-mb$motion_samples-aa$aa_grid-$resolution")
+                for agents in 1 8; do
+                    ALL_CONFIGURATIONS+=("$fidelity-mb$motion_samples-aa$aa_grid-$resolution-agents$agents")
+                done
             done
         done
     done
@@ -29,10 +31,10 @@ while [[ "$#" -gt 0 ]]; do
             cat <<'USAGE'
 Usage: build.sh [-jN | -j N] [CONFIGURATION ...]
 
-Build all 32 rendering configurations, or only the named configurations:
-  build.sh -j12
-  build.sh high-mb4-aa1-480x270
-  build.sh -j12 low-mb1-aa1-480x270 very-high-mb4-aa2-960x540
+Build all 64 rendering/drone configurations, or only the named configurations:
+  build.sh -j5
+  build.sh high-mb4-aa1-480x270-agents1
+  build.sh -j5 low-mb1-aa1-480x270-agents1 very-high-mb4-aa2-960x540-agents8
 
 Parallel jobs default to 5 and apply to CMake, Emscripten and Binaryen.
 Use --list-configurations to list the supported IDs. Each build replaces the
@@ -92,11 +94,12 @@ mkdir -p "$DEPS_DIR" "$BUILD_DIR"
     printf '%s\n' 'namespace rl_tools::rl::environments::hyperdrone::web {' '    using CompiledConfigurations = Configurations<'
     separator=''
     for configuration in "${CONFIGURATIONS[@]}"; do
-        [[ "$configuration" =~ ^(.+)-mb([14])-aa([12])-(480x270|960x540)$ ]]
+        [[ "$configuration" =~ ^(.+)-mb([14])-aa([12])-(480x270|960x540)-agents([18])$ ]]
         fidelity="${BASH_REMATCH[1]}"
         motion_samples="${BASH_REMATCH[2]}"
         aa_grid="${BASH_REMATCH[3]}"
         resolution="${BASH_REMATCH[4]}"
+        agents="${BASH_REMATCH[5]}"
         case "$fidelity" in
             low) shading=Low ;;
             medium) shading=Medium ;;
@@ -107,7 +110,7 @@ mkdir -p "$DEPS_DIR" "$BUILD_DIR"
         if [[ "$resolution" == 960x540 ]]; then
             scale=2
         fi
-        printf '%s        Config<rendering::raytracing::%s, %s, %s, %s>' "$separator" "$shading" "$motion_samples" "$aa_grid" "$scale"
+        printf '%s        Config<rendering::raytracing::%s, %s, %s, %s, %s>' "$separator" "$shading" "$motion_samples" "$aa_grid" "$scale" "$agents"
         separator=$',\n'
     done
     printf '\n%s\n' '    >;' '}'

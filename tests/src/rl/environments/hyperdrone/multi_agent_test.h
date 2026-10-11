@@ -61,6 +61,7 @@ namespace test_agent_parameters {
 
     template <typename DEVICE, typename RENDER_DEVICE, typename WORLD, typename TENSORS>
     void check_rigs(DEVICE& device, RENDER_DEVICE& render_device, WORLD& world, const typename WORLD::SharedContext& shared, TENSORS& tensors){
+        using rlt::rl::environments::hyperdrone::_agent_state;
         using TI = typename WORLD::TI;
         using SPEC = typename WORLD::SPEC;
         auto& renderer = rlt::get_renderer(render_device, world);
@@ -68,7 +69,7 @@ namespace test_agent_parameters {
         rlt::Tensor<typename decltype(renderer.transforms)::SPEC> alias;
         alias._data = rows.data();
         rlt::copy(renderer.device, device, rlt::transforms(render_device, renderer), alias);
-        std::vector<rlt::rendering::Camera<typename WORLD::T>> cameras(WORLD::INSTANCES * WORLD::N_AGENTS);
+        std::vector<rlt::rendering::Camera<typename WORLD::T>> cameras(WORLD::INSTANCES * WORLD::N_VIEWS);
         rlt::Tensor<typename decltype(renderer.cameras)::SPEC> camera_alias;
         camera_alias._data = cameras.data();
         rlt::copy(renderer.device, device, rlt::cameras(render_device, renderer), camera_alias);
@@ -77,9 +78,14 @@ namespace test_agent_parameters {
             const auto& state = rlt::get_ref(device, tensors.states, instance_i);
             for(TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++){
                 const auto& body = shared.drone_bodies[parameters.agents[agent_i].drone];
-                const auto& agent = state.agent_states[agent_i];
-                for(TI dim = 0; dim < 3; dim++){
-                    EXPECT_NEAR(cameras[instance_i * WORLD::N_AGENTS + agent_i].pos[dim], parameters.scene_translation[dim] + agent.position[dim] + parameters.agents[agent_i].cameras[0].mount.pose.position[dim], 1e-5);
+                const auto& agent = _agent_state<SPEC>(state, agent_i);
+                if(agent_i < WORLD::N_CAMERA_AGENTS){
+                    for(TI camera_i = 0; camera_i < WORLD::N_CAMERAS_PER_AGENT; camera_i++){
+                        for(TI dim = 0; dim < 3; dim++){
+                            const TI index = instance_i * WORLD::N_VIEWS + agent_i * WORLD::N_CAMERAS_PER_AGENT + camera_i;
+                            EXPECT_NEAR(cameras[index].pos[dim], parameters.scene_translation[dim] + agent.position[dim] + parameters.agents[agent_i].cameras[camera_i].mount.pose.position[dim], 1e-5);
+                        }
+                    }
                 }
                 using RIG_SPEC = typename decltype(body.rig)::SPEC;
                 float base[12];

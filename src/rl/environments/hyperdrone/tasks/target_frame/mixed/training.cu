@@ -136,6 +136,7 @@ static_assert(CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_X == CAMERA_MOUNT_OFFSET_R
 static_assert(CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_X == CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_Y && CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_X == CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_Z, "The Hyperdrone World randomizes all mount rotation axes with one range");
 static_assert(CAMERA_PITCH == static_cast<T>(0), "The Hyperdrone World uses the default forward camera mount");
 struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, STATIC_PARAMETERS>{
+    static constexpr TI N_CAMERA_AGENTS = 1;
     static constexpr TI INSTANCES_PER_ENVIRONMENT = N_ENVIRONMENTS_PER_SCENE;
     static constexpr TI CAM_WIDTH = training_mixed::CAM_WIDTH;
     static constexpr TI CAM_HEIGHT = training_mixed::CAM_HEIGHT;

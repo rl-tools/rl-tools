@@ -232,7 +232,7 @@ namespace rl_tools{
                     const auto& instance_parameters = get_ref(device, parameters, instance_i);
                     const auto& state = get_ref(device, states, instance_i);
                     const typename SPEC::T aspect = static_cast<typename SPEC::T>(SPEC::CAM_WIDTH) / static_cast<typename SPEC::T>(SPEC::CAM_HEIGHT);
-                    for(TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++){
+                    for(TI agent_i = 0; agent_i < WORLD::N_CAMERA_AGENTS; agent_i++){
                         const auto& agent = _agent_state<SPEC>(state, agent_i);
                         for(TI camera_i = 0; camera_i < WORLD::N_CAMERAS_PER_AGENT; camera_i++){
                             const TI view_i = agent_i * WORLD::N_CAMERAS_PER_AGENT + camera_i;

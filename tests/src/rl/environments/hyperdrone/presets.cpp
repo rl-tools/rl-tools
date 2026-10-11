@@ -25,6 +25,7 @@ static const std::string DRONE_PATH = "";
 
 namespace test_presets {
     struct WORLD_SPEC: rlt::rl::environments::hyperdrone::presets::X500FPV<T, TI> {
+        static constexpr TI N_CAMERA_AGENTS = 1;
         static constexpr TI INSTANCES_PER_ENVIRONMENT = 2;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;

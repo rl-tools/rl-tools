@@ -143,7 +143,7 @@ namespace rl_tools {
             throw std::logic_error("HyperDrone spy must be initialized on its creating thread");
         }
         state.environment = &environment;
-        state.window = rl::environments::hyperdrone::spy::ui::create(CONFIG::ENVIRONMENT::NUMBER_OF_ENVIRONMENTS, CONFIG::WORLD::INSTANCES, CONFIG::WORLD::N_AGENTS, CONFIG::WORLD::N_CAMERAS_PER_AGENT, CONFIG::ATLAS_WIDTH, CONFIG::ATLAS_HEIGHT, state.columns, state.rows, CONFIG::SPECTATOR_CONFIG::CAM_WIDTH, CONFIG::SPECTATOR_CONFIG::CAM_HEIGHT);
+        state.window = rl::environments::hyperdrone::spy::ui::create(CONFIG::ENVIRONMENT::NUMBER_OF_ENVIRONMENTS, CONFIG::WORLD::INSTANCES, CONFIG::WORLD::N_CAMERA_AGENTS, CONFIG::WORLD::N_CAMERAS_PER_AGENT, CONFIG::ATLAS_WIDTH, CONFIG::ATLAS_HEIGHT, state.columns, state.rows, CONFIG::SPECTATOR_CONFIG::CAM_WIDTH, CONFIG::SPECTATOR_CONFIG::CAM_HEIGHT);
         start_spy_spectator(device, state.spectator);
         state.open = true;
     }

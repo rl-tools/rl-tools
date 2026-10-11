@@ -9,6 +9,7 @@ namespace {
     using namespace rl_tools;
     namespace hd = rl::environments::hyperdrone;
     struct WorldConfig: hd::presets::X500FPV<float, size_t> {
+        static constexpr size_t N_CAMERA_AGENTS = 1;
         static constexpr size_t INSTANCES_PER_ENVIRONMENT = 3;
         static constexpr size_t CAM_WIDTH = 2;
         static constexpr size_t CAM_HEIGHT = 2;

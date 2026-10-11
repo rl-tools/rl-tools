@@ -100,6 +100,7 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     dimensions["instances_per_environment"] = WORLD::INSTANCES;
     dimensions["total_instances"] = TOTAL;
     dimensions["num_agents"] = WORLD::N_AGENTS;
+    dimensions["num_camera_agents"] = WORLD::N_CAMERA_AGENTS;
     dimensions["num_cameras_per_agent"] = WORLD::N_CAMERAS_PER_AGENT;
     dimensions["num_views"] = WORLD::N_VIEWS;
     dimensions["width"] = WORLD::SPEC::CAM_WIDTH;
