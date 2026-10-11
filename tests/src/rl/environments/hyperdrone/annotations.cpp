@@ -197,9 +197,11 @@ TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, PROBE_BATCH_INDEPENDENCE) {
     DEVICE device;
     rlt::init(device);
     // the scan is candidate-exact: the probe vehicle's batch width must not affect the table
-    ANNOTATIONS narrow, wide;
+    ANNOTATIONS single, narrow, wide;
+    annotate_standalone<1>(device, single);
     annotate_standalone<2>(device, narrow);
     annotate_standalone<7>(device, wide);
     EXPECT_GT(narrow.num_positions, (TI)0);
+    EXPECT_TRUE(annotations_equal(single, narrow));
     EXPECT_TRUE(annotations_equal(narrow, wide));
 }

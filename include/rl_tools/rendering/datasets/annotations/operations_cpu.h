@@ -40,7 +40,7 @@ namespace rl_tools::rendering::datasets::annotations {
     namespace free_space {
         // bump on any output-affecting change (candidate sequence, probe camera construction,
         // probe-direction assumptions, scoring, SceneMetadata consumption) — cache keys include it
-        constexpr std::uint32_t VERSION = 2;
+        constexpr std::uint32_t VERSION = 3;
 
         namespace detail {
             inline void append_u32(std::string& out, std::uint32_t value) {
@@ -257,9 +257,9 @@ namespace rl_tools::rendering::datasets::annotations {
                     const T yaw = static_cast<T>(2) * PI * hw;
 
                     auto& pos = batch_positions[camera_i];
-                    pos.position[0] = center[0] + (hx * static_cast<T>(2) - static_cast<T>(1)) * search_half_extent[0];
-                    pos.position[1] = center[1] + (hy * static_cast<T>(2) - static_cast<T>(1)) * search_half_extent[1];
-                    pos.position[2] = center[2] + (hz * static_cast<T>(2) - static_cast<T>(1)) * search_half_extent[2];
+                    pos.position[0] = std::fma(hx * static_cast<T>(2) - static_cast<T>(1), search_half_extent[0], center[0]);
+                    pos.position[1] = std::fma(hy * static_cast<T>(2) - static_cast<T>(1), search_half_extent[1], center[1]);
+                    pos.position[2] = std::fma(hz * static_cast<T>(2) - static_cast<T>(1), search_half_extent[2], center[2]);
                     pos.yaw = yaw;
                     pos.score = static_cast<T>(0);
 
