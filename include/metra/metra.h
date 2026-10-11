@@ -16,6 +16,9 @@
 #include <filesystem>
 #include <random>
 #include <system_error>
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
 #if defined(_WIN32)
 #include <process.h>
 #else
@@ -135,6 +138,9 @@ namespace metra{
             return std::string(timestamp) + "_" + hostname() + "_" + std::to_string(process_id()) + "_" + random_hex(8);
         }
         inline std::string command_output(const char* command){
+#if defined(__APPLE__) && TARGET_OS_IOS
+            return "";
+#else
 #if defined(_WIN32)
             FILE* pipe = _popen(command, "r");
 #else
@@ -157,6 +163,7 @@ namespace metra{
                 output.pop_back();
             }
             return output;
+#endif
         }
         inline bool is_commit_hash(const std::string& value){
             if(value.size() != 40){
@@ -230,6 +237,10 @@ namespace metra{
             return payload;
         }
         inline bool post_json(const Config& config, const std::string& payload, std::string& error_output){
+#if defined(__APPLE__) && TARGET_OS_IOS
+            error_output = "metra: metric posting is unavailable on iOS";
+            return false;
+#else
             std::error_code error_code;
             std::filesystem::path temporary_directory = std::filesystem::temp_directory_path(error_code);
             if(error_code){
@@ -280,10 +291,12 @@ namespace metra{
                 return false;
             }
             return true;
+#endif
         }
     }
     inline Config config_from_environment(){
         Config config;
+#if !defined(__APPLE__) || !TARGET_OS_IOS
         const char* url = std::getenv("METRA_URL");
         if(url != nullptr && url[0] != '\0'){
             config.url = url;
@@ -291,6 +304,7 @@ namespace metra{
                 config.url.pop_back();
             }
         }
+#endif
         config.commit = detail::detect_commit();
         const char* environment_commit = std::getenv("METRA_COMMIT");
         const char* environment_commit_time = std::getenv("METRA_COMMIT_TIME");
@@ -326,7 +340,11 @@ namespace metra{
             const Config& config = global_config();
             if(config.url.empty()){
                 static const bool notified = []{
+#if defined(__APPLE__) && TARGET_OS_IOS
+                    std::cerr << "metra: metric logging disabled on iOS" << std::endl;
+#else
                     std::cerr << "metra: METRA_URL not set, metric logging disabled" << std::endl;
+#endif
                     return true;
                 }();
                 (void)notified;

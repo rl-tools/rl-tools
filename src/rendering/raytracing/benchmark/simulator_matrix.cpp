@@ -9,6 +9,7 @@
 #include <nlohmann/json.hpp>
 
 #include "simulator_matrix_config.h"
+#include "simulator_matrix.h"
 #include "simulator_matrix_physics.h"
 
 #include <algorithm>
@@ -1341,7 +1342,7 @@ static bool run(DEVICE& device, RUNTIME& runtime, const std::vector<SceneAxis>& 
     }
 }
 
-int main(int argc, char** argv) {
+int rl_tools::rendering::raytracing::benchmark::benchmark_main(int argc, char** argv) {
     Options options;
     std::vector<SceneAxis> scenes;
     std::vector<OutputAxis> outputs;

@@ -83,6 +83,19 @@ Paper results are written to stdout and one `rendering_raytracing_paper_benchmar
 
 Consumers considered: the published throughput table constrains paper scene, spawn, dynamics, camera-coupling, timing, and separate depth measurements for all three fidelities; the benchmark CLI and contract tests require three complete matrix passes to separate repeated cells in time; JSONL analysis and image inspection require repeat identifiers and distinct PNGs. Metal/Vulkan/WebGPU require CPU stepping and synchronized host camera transfer; OptiX retains its CUDA stream producer. Headless WebGPU result labels identify the selected native adapter. The later H200/5090 runs determine the default physics-camera contract, while the mixed 4090 results retain explicit coupled-camera selection. The current simulator benchmark, Python benchmark, sweep, and frame tools constrain keeping their target names, defaults, and `render-v1` output contract.
 
+## iPhone
+
+The native app in `ios_app/` runs the same paper benchmark with Metal and CPU physics. Build its Xcode project on a Mac:
+
+```bash
+bash src/rendering/raytracing/benchmark/ios_app/build.sh
+open build/ios-paper-benchmark/RLtoolsBenchmark.xcodeproj
+```
+
+Select the `RLtoolsBenchmark` scheme, your signing team, and a physical iPhone with Developer Mode enabled. The scheme uses Release with Metal validation off. The renderer requires iOS 16 or later and a device supporting Metal raytracing and tier-2 argument buffers. The app bundles the pinned scene and needs no network connection.
+
+Run **Quick check** first: it runs all 24 cases once at 4096 cameras with ten warmup iterations and one measured iteration per case. **Run benchmark** runs the normal 72 measurements, taking at least 26.4 minutes plus loading and image export. Keep the app foreground; interruptions are marked in `device.json`. For correctness checks, enable Metal validation in the scheme, then disable it before measuring. Results, PNGs, `benchmark.log`, `build.json`, and `device.json` are saved under **Files → On My iPhone → RLtools Benchmark** and are also accessible through Finder file sharing. Runs need several hundred MiB of working memory plus space for 72 PNGs; a successful device quick check is required before assuming the full workload fits.
+
 ## Measurement and results
 
 Warmup completes before timing. With `--warmup-seconds 0`, general targets prime once and the paper target retains the historical ten warmup iterations. `--iterations N` selects a fixed count instead of duration; the final batch is drained even when it is shorter than `--sync-interval`. Scene loading, image saving, and reporting are outside the measured interval. Vulkan and WebGPU currently wait for the previous submission in each `render_launch`; WebGPU also copies every frame through staging buffers into host tensors, including mapping waits and readback in elapsed time. Equal sync intervals do not imply equal queue depth across backends.
