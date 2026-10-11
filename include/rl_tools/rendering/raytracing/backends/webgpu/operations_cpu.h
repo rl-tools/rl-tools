@@ -1303,6 +1303,16 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
+    std::string device_name(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
+        WGPUAdapterInfo info{};
+        utils::assert_exit(device, wgpuAdapterGetInfo(renderer.backend->adapter, &info) == WGPUStatus_Success, "WebGPU: cannot query renderer device");
+        const size_t length = info.device.data == nullptr ? 0 : (info.device.length == WGPU_STRLEN ? std::strlen(info.device.data) : info.device.length);
+        const std::string name(info.device.data == nullptr ? "" : info.device.data, length);
+        wgpuAdapterInfoFreeMembers(info);
+        return name;
+    }
+
+    template <typename DEVICE, typename SPEC>
     void synchronize(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
         rendering::raytracing::backends::webgpu::wait_in_flight(device, rendering::raytracing::backends::webgpu::context(renderer));
     }
