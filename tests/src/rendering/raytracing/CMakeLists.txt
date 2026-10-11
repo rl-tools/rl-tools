@@ -146,3 +146,17 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
         )
     endif()
 endif()
+
+add_executable(test_rendering_raytracing_paper_physics paper_physics.cpp)
+target_link_libraries(test_rendering_raytracing_paper_physics PRIVATE RLtools::RLtools GTest::gtest_main)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    set_source_files_properties(paper_physics.cpp PROPERTIES COMPILE_OPTIONS "-fno-fast-math;-ffp-contract=off")
+endif()
+gtest_discover_tests(test_rendering_raytracing_paper_physics PROPERTIES TIMEOUT 20 LABELS "paper-benchmark")
+
+add_executable(test_rendering_raytracing_paper_physics_cpu
+    paper_physics_cpu.cpp
+    ../../../../src/rendering/raytracing/benchmark/simulator_matrix_physics_cpu.cpp
+)
+target_link_libraries(test_rendering_raytracing_paper_physics_cpu PRIVATE RLtools::RLtools GTest::gtest_main)
+gtest_discover_tests(test_rendering_raytracing_paper_physics_cpu PROPERTIES TIMEOUT 20 LABELS "paper-benchmark")
