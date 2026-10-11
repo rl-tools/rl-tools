@@ -129,6 +129,16 @@
                 <button autofocus>Close</button>
             </div>
             <div class="tuning-control">
+                <label for="onboard-fov">Onboard FOV <output id="onboard-fov-value" for="onboard-fov"></output></label>
+                <input id="onboard-fov" type="range" min="30" max="140" step="1" value="80" aria-describedby="onboard-fov-help">
+                <p id="onboard-fov-help">Horizontal field of view for the onboard camera and sensor views. Applies immediately.</p>
+            </div>
+            <div class="tuning-control">
+                <label for="external-fov">External FOV <output id="external-fov-value" for="external-fov"></output></label>
+                <input id="external-fov" type="range" min="30" max="140" step="1" value="50" aria-describedby="external-fov-help">
+                <p id="external-fov-help">Horizontal field of view for the external camera. Applies immediately.</p>
+            </div>
+            <div class="tuning-control">
                 <label for="render-fidelity">Rendering fidelity</label>
                 <select id="render-fidelity" disabled></select>
             </div>

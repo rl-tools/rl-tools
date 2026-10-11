@@ -29,7 +29,7 @@ for(const fidelity of ["low", "medium", "high", "very-high"]){
     }
 }
 
-function fixture({defer_mouse_lock = false, search = "", catalog = configurations, api_version = 4, fpv_position = [0.08, 0, 0.08]} = {}){
+function fixture({defer_mouse_lock = false, search = "", catalog = configurations, api_version = 5, fpv_position = [0.08, 0, 0.08]} = {}){
     const document = new EventTarget();
     const window = new EventTarget();
     const classes = new Set();
@@ -53,6 +53,8 @@ function fixture({defer_mouse_lock = false, search = "", catalog = configuration
         const element = new EventTarget();
         element.id = match[1];
         element.value = element.defaultValue = match[0].match(/\bvalue="([^"]+)"/)?.[1] || "";
+        element.min = match[0].match(/\bmin="([^"]+)"/)?.[1] || "";
+        element.max = match[0].match(/\bmax="([^"]+)"/)?.[1] || "";
         element.disabled = /\bdisabled\b/.test(match[0]);
         element.hidden = /\bhidden\b/.test(match[0]);
         element.open = false;
@@ -301,13 +303,72 @@ test("an unavailable URL rendering choice can be corrected before downloading sc
 });
 
 test("empty or incompatible bundles fail before fetching scene assets", async () => {
-    for(const options of [{catalog: []}, {api_version: 1}, {api_version: 2}, {api_version: 3}]){
+    for(const options of [{catalog: []}, {api_version: 1}, {api_version: 2}, {api_version: 3}, {api_version: 4}]){
         const f = fixture(options);
         await f.load();
         assert.equal(f.element("error").hidden, false);
         assert.equal(f.element("rendering").disabled, true);
         assert.equal(f.events.some(event => event.startsWith("asset:")), false);
         assert.equal(f.calls.some(call => call.name === "demo_run"), false);
+    }
+});
+
+test("camera FOV sliders update independently at runtime and survive a flight reset", async () => {
+    const f = fixture({catalog: [default_configuration]});
+    await f.load();
+    f.start();
+    f.click("rendering");
+    assert.deepEqual(f.poll().slice(12), [80, 50]);
+    assert.equal(f.element("onboard-fov-value").textContent, "80°");
+    assert.equal(f.element("external-fov-value").textContent, "50°");
+    for(const [id, value, expected] of [["onboard-fov", "110", [110, 50]], ["external-fov", "30", [110, 30]]]){
+        assert.equal(f.element(id).disabled, false);
+        f.element(id).value = value;
+        send(f.element(id), "input");
+        assert.equal(f.element(`${id}-value`).textContent, `${value}°`);
+        const input = f.poll();
+        assert.deepEqual(input.slice(12), expected);
+        assert.equal(input[4], 0);
+        assert.equal(input[5], 1);
+        assert.equal(f.window.location.search, "");
+        assert.equal(f.calls.filter(call => call.name === "demo_run").length, 1);
+    }
+    f.click("reset");
+    const reset_input = f.poll();
+    assert.equal(reset_input[4], 1);
+    assert.deepEqual(reset_input.slice(12), [110, 30]);
+    f.click("render-defaults");
+    assert.deepEqual(f.poll().slice(12), [80, 50]);
+    assert.equal(f.element("onboard-fov-value").textContent, "80°");
+    assert.equal(f.element("external-fov-value").textContent, "50°");
+});
+
+test("FOV choices survive renderer, scene, and airframe changes", async () => {
+    const f = fixture({search: "?onboard-fov=95&external-fov=60"});
+    await f.load();
+    assert.deepEqual(f.poll().slice(12), [95, 60]);
+    f.element("onboard-fov").value = "140";
+    send(f.element("onboard-fov"), "input");
+    for(const id of ["scene", "drone"]){
+        send(f.element(id), "change");
+        const params = new URLSearchParams(f.window.location.search);
+        assert.equal(params.get("onboard-fov"), "140");
+        assert.equal(params.get("external-fov"), "60");
+    }
+    f.click("render-apply");
+    const restored = fixture({search: f.window.location.search});
+    assert.deepEqual(restored.poll().slice(12), [140, 60]);
+    f.click("render-defaults");
+    f.click("render-apply");
+    const defaults = new URLSearchParams(f.window.location.search);
+    assert.equal(defaults.has("onboard-fov"), false);
+    assert.equal(defaults.has("external-fov"), false);
+});
+
+test("invalid FOV URL values restore safe camera defaults", () => {
+    for(const value of ["", "NaN", "Infinity", "-1", "0", "29", "141", "180", "wide"]){
+        const f = fixture({search: `?onboard-fov=${value}&external-fov=${value}`});
+        assert.deepEqual(f.poll().slice(12), [80, 50], value);
     }
 });
 
