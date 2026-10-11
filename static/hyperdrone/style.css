@@ -64,12 +64,12 @@ canvas { display: block; flex-shrink: 0; width: 100%; height: auto; aspect-ratio
 .camera-frame { position: relative; }
 .camera-frame canvas { cursor: pointer; outline: none; }
 body.mouse-controlling .camera-frame canvas { cursor: none; }
-.control-hint { display: none; position: absolute; top: 14px; left: 50%; transform: translateX(-50%); flex-direction: column; gap: 5px; width: max-content; max-width: calc(100% - 24px); padding: 11px 13px; border: 1px solid var(--ink); background: #fff; pointer-events: none; user-select: none; }
+.control-hint { display: none; position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); flex-direction: column; gap: 5px; width: max-content; max-width: calc(100% - 24px); padding: 11px 13px; border: 1px solid var(--ink); background: rgb(255 255 255 / 75%); pointer-events: none; user-select: none; }
 body.ready:not(.controlling) .control-hint { display: flex; }
 .hint-action { display: flex; align-items: center; justify-content: space-between; gap: 20px; color: var(--accent); font-size: 14px; font-weight: 600; }
 .hint-action > span:last-child { font-size: 18px; line-height: 1; }
 .hint-keys { color: var(--muted); font: 10px var(--mono); }
-.camera-frame:hover .control-hint { border-color: var(--accent); background: #f0f4ff; }
+.camera-frame:hover .control-hint { border-color: var(--accent); background: rgb(240 244 255 / 75%); }
 .flight-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 7px 16px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--ink); }
 .instructions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 12px; color: var(--muted); font-size: 10px; }
 .instructions > span { display: inline-flex; align-items: center; gap: 4px; }
@@ -119,7 +119,7 @@ kbd { display: inline-block; min-width: 18px; padding: 1px 4px; border: 1px soli
 }
 @media (max-width: 799px) {
     .sensor-views { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .control-hint { top: 10px; padding: 9px 10px; }
+    .control-hint { bottom: 10px; padding: 9px 10px; }
     .hint-action { font-size: 12px; gap: 10px; }
     .hint-keys { font-size: 9px; }
 }

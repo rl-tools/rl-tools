@@ -112,7 +112,7 @@ function setup_rendering(configurations){
         throw new Error("No rendering configurations are available in this simulation bundle.");
     }
     render_configurations = configurations;
-    default_render_configuration = configurations.find(configuration => configuration.id === "high-mb4-aa1-480x270" && configuration.num_agents === 1) || configurations[0];
+    default_render_configuration = configurations.find(configuration => configuration.id === "high-mb4-aa1-480x270" && configuration.num_agents === 8) || configurations[0];
     const requested = params.get("render");
     const agents = params.has("agents") ? Number(params.get("agents")) : default_render_configuration.num_agents;
     const selected = configurations.find(configuration => configuration.id === (requested || default_render_configuration.id) && configuration.num_agents === agents);
@@ -558,7 +558,7 @@ async function main(){
             }
         },
     });
-    if(module._demo_api_version?.() !== 6){
+    if(module._demo_api_version?.() !== 7){
         throw new Error("The page and simulation bundle are incompatible. Deploy the matching blob/build files and update the pinned revision in download_blob.sh.");
     }
     const configuration = setup_rendering(JSON.parse(module.ccall("demo_configurations", "string", [], [])));
@@ -573,6 +573,10 @@ async function main(){
     const default_scene = scenes.find(scene => scene.name === pose.scene);
     if(default_scene?.reference !== pose.reference || pose.position?.length !== 3 || !pose.position.every(Number.isFinite) || !Number.isFinite(pose.yaw_degrees)){
         throw new Error("pose.json must pin a Train200 scene and a finite FLU position and yaw.");
+    }
+    if(!Array.isArray(pose.other_positions) || pose.other_positions.length !== 7
+        || !pose.other_positions.every(position => Array.isArray(position) && position.length === 3 && position.every(Number.isFinite))){
+        throw new Error("pose.json must supply seven finite FLU positions for the other drones.");
     }
     const drones = configuration.num_agents === 1 ? [drone] : [drone, ...registry.drones.filter(entry => entry !== drone)];
     for(const entry of drones){
@@ -592,7 +596,10 @@ async function main(){
     }
     module.FS.writeFile("/policy.tar", await fetch_asset(registry.policy));
     const session = JSON.stringify({num_agents: configuration.num_agents, seed, drones: airframes,
-        ...(scene.reference === pose.reference ? {position: pose.position, yaw: pose.yaw_degrees * Math.PI / 180} : {})});
+        ...(scene.reference === pose.reference ? {
+            position: pose.position, yaw: pose.yaw_degrees * Math.PI / 180,
+            ...(configuration.num_agents > 1 ? {other_positions: pose.other_positions} : {}),
+        } : {})});
     set_status("Preparing the scene and cameras…");
     const result = await module.ccall("demo_run", "number", ["string", "string", "number", "string", "string"], ["/scene.glb", "/policy.tar", max_frames, session, configuration.id], {async: true});
     if(result === 3){
