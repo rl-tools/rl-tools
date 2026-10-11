@@ -8,9 +8,9 @@
         {
             "name": "arpl",
             "label": "ARPL",
-            "description": "rigged/arpl.glb",
-            "reference": "conta:8398a239fd1cd80df8adab67497baf7be3d8cda4",
-            "sha256": "54e403e38a686cbe2c4fe960a9bb546de2832a25202296a3ce89a57695009880",
+            "description": "rigged/arpl-80k.glb",
+            "reference": "conta:fa15fad57229f0e7e3ff159fd5828f083dddb932",
+            "sha256": "638712170c034f7bed6d7bae30bf69b9dbd36bf1ebd0493d4cd6b8c0ba4ee6fa",
             "dynamics_index": 3
         },
         {
