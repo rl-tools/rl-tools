@@ -1,4 +1,5 @@
 #include <rl_tools/operations/cpu_mux.h>
+#include "../../../../../src/rl/environments/hyperdrone/tasks/target_frame/yaw/scenes.h"
 #include <rl_tools/rl/environments/hyperdrone/operations_cpu.h>
 
 #include "../../../utils/utils.h"
@@ -134,6 +135,63 @@ TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, CACHE_IDENTITY) {
     EXPECT_GT(uncached.num_positions, (TI)0);
     EXPECT_TRUE(annotations_equal(uncached, cold));
     EXPECT_TRUE(annotations_equal(cold, warm));
+}
+
+TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, YAW_SCENE_LIGHTING_ADAPTER) {
+    using namespace rl_tools;
+    namespace yaw = rl::environments::hyperdrone::tasks::target_frame::yaw;
+    DEVICE device;
+    init(device);
+    yaw::Scenes dataset;
+    dataset.references.push_back(SCENE_PATH);
+    yaw::Scenes::Corpus corpus;
+    enumerate(device, dataset, corpus);
+    rendering::Bundle<T> normal, adapted;
+    ASSERT_TRUE((load<rendering::High, true>(device, static_cast<const GLB&>(dataset), corpus, 0, normal)));
+    ASSERT_EQ(normal.scene.lights.size(), (size_t)5);
+    size_t normal_unlit = 0;
+    for(const auto& object: normal.scene.objects){
+        for(const auto& mesh: object.meshes){
+            normal_unlit += mesh.unlit;
+        }
+    }
+    ASSERT_GT(normal_unlit, (size_t)0);
+    ASSERT_TRUE((load<rendering::High, true>(device, dataset, corpus, 0, adapted)));
+    ASSERT_EQ(adapted.scene.lights.size(), normal.scene.lights.size() + 3);
+    const float directions[3][3] = {{-0.70710678f, 0, 0.70710678f}, {0, -0.70710678f, 0.70710678f}, {0, 0.70710678f, 0.70710678f}};
+    const float intensities[3] = {0.4f, 0.3f, 0.2f};
+    for(size_t light = 0; light < 3; light++){
+        EXPECT_EQ(adapted.scene.lights[light].type, 0);
+        for(size_t axis = 0; axis < 3; axis++){
+            EXPECT_FLOAT_EQ(adapted.scene.lights[light].direction[axis], directions[light][axis]);
+            EXPECT_FLOAT_EQ(adapted.scene.lights[light].color[axis], intensities[light]);
+        }
+    }
+    for(size_t light = 0; light < normal.scene.lights.size(); light++){
+        EXPECT_EQ(std::memcmp(&normal.scene.lights[light], &adapted.scene.lights[light + 3], sizeof(rendering::SceneLight)), 0);
+    }
+    EXPECT_EQ(normal.scene.environment.mode, rendering::Scene::Environment::Mode::DEFAULT);
+    EXPECT_EQ(adapted.scene.environment.mode, rendering::Scene::Environment::Mode::SOLID);
+    for(size_t axis = 0; axis < 3; axis++){
+        EXPECT_FLOAT_EQ(adapted.scene.environment.ambient[axis], 0.5f);
+        EXPECT_FLOAT_EQ(adapted.scene.environment.horizon[axis], 0.0f);
+        EXPECT_EQ(adapted.metadata.center[axis], normal.metadata.center[axis]);
+        EXPECT_EQ(adapted.metadata.half_extent[axis], normal.metadata.half_extent[axis]);
+    }
+    EXPECT_EQ(adapted.metadata.max_ray_length, normal.metadata.max_ray_length);
+    EXPECT_EQ(adapted.metadata.content_hash, normal.metadata.content_hash);
+    for(const auto& object: adapted.scene.objects){
+        for(const auto& mesh: object.meshes){
+            EXPECT_FALSE(mesh.unlit);
+        }
+    }
+    size_t normal_unlit_after = 0;
+    for(const auto& object: normal.scene.objects){
+        for(const auto& mesh: object.meshes){
+            normal_unlit_after += mesh.unlit;
+        }
+    }
+    EXPECT_EQ(normal_unlit_after, normal_unlit);
 }
 
 TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, PARAMETER_KEYING) {
