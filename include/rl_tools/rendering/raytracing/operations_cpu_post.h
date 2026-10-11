@@ -12,6 +12,19 @@
 // which argument-dependent lookup at the point of instantiation never associates)
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
+    template <typename DEVICE, typename BACKEND>
+    void malloc(DEVICE&, rendering::raytracing::Runtime<BACKEND>&){
+    }
+
+    template <typename DEVICE, typename BACKEND>
+    void free(DEVICE&, rendering::raytracing::Runtime<BACKEND>&){
+    }
+
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::Runtime<BACKEND>&){
+        malloc(device, renderer);
+    }
+
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::AssetLibrary<SPEC, BACKEND>& library, typename SPEC::TI scene_id){
         init(device, renderer, library.scenes[scene_id], library.pool, library.metadata[scene_id]);

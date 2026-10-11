@@ -10,7 +10,8 @@
 //   verbs on Renderer<SPEC, BACKEND>: malloc, init(device, renderer, scene, pool, metadata), free,
 //          synchronize, generate_probe_directions, {render, probe, update, advance_flow}_{launch, sync}
 //   copy(...) with backends::Device<BACKEND> as source or destination
-//   optional: device_name; AssetLibrary malloc/free/init overloads for cross-renderer sharing (OptiX)
+//   optional: device_name; Runtime malloc/free and renderer malloc for shared driver lifetime (Vulkan);
+//             AssetLibrary malloc/free/init overloads for cross-renderer sharing (OptiX)
 // It includes operations_cpu_common.h (backend-independent host verbs) first and
 // operations_cpu_post.h last, which derives the blocking composites (render = render_launch +
 // render_sync, ...), the library/Bundle init overloads and the non-sharing library fallbacks.

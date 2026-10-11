@@ -39,6 +39,7 @@ using BenchmarkMode = rlt::rendering::raytracing::benchmark::Mode;
 using T = float;
 using TI = int;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
+using RUNTIME = rlt::rendering::raytracing::Runtime<>;
 using ShadingProfile = CONFIG::SHADING;
 static constexpr T FOV = 80;
 static constexpr const char* BACKEND_NAME = rlt::rendering::raytracing::backends::Name<rlt::rendering::raytracing::backends::Default>::VALUE;
@@ -1119,13 +1120,13 @@ static bool report(SceneAxis scene, const Options& options, const std::string& d
 }
 
 template <typename SPEC, typename DEVICE>
-static bool run_case(DEVICE& device, SceneAxis scene, const Options& options) {
+static bool run_case(DEVICE& device, RUNTIME& runtime, SceneAxis scene, const Options& options) {
     rlt::rendering::Bundle<T> bundle;
     if(!setup_scene<SPEC>(device, bundle, scene, options)) {
         return false;
     }
     rlt::rendering::raytracing::Renderer<SPEC> renderer;
-    malloc(device, renderer);
+    malloc(device, renderer, runtime);
     init(device, renderer, bundle);
     const std::string device_label = device_name(device, renderer);
     rlt::log(device, device.logger, "Rendering ", scene_name(scene), " on ", BACKEND_NAME, " / ", device_label);
@@ -1215,19 +1216,19 @@ static bool run_case(DEVICE& device, SceneAxis scene, const Options& options) {
 }
 
 template <typename SPEC, typename DEVICE>
-static bool run_scenes(DEVICE& device, const std::vector<SceneAxis>& scenes, const Options& options) {
+static bool run_scenes(DEVICE& device, RUNTIME& runtime, const std::vector<SceneAxis>& scenes, const Options& options) {
     for(SceneAxis scene : scenes) {
         if(options.workload == "all") {
             for(const char* workload : {"render_only", "render_physics_static"}) {
                 auto selected = options;
                 selected.workload = workload;
-                if(!run_case<SPEC>(device, scene, selected)) {
+                if(!run_case<SPEC>(device, runtime, scene, selected)) {
                     return false;
                 }
             }
         }
         else {
-            if(!run_case<SPEC>(device, scene, options)) {
+            if(!run_case<SPEC>(device, runtime, scene, options)) {
                 return false;
             }
         }
@@ -1236,7 +1237,7 @@ static bool run_scenes(DEVICE& device, const std::vector<SceneAxis>& scenes, con
 }
 
 template <typename SPEC, typename DEVICE>
-static bool run_sweep_spec(DEVICE& device, const std::vector<SceneAxis>& scenes,
+static bool run_sweep_spec(DEVICE& device, RUNTIME& runtime, const std::vector<SceneAxis>& scenes,
                            const Options& options, bool& first, int& index) {
     const int current = index++;
     if(current < options.sweep_config_start || (options.sweep_config_count > 0
@@ -1248,11 +1249,11 @@ static bool run_sweep_spec(DEVICE& device, const std::vector<SceneAxis>& scenes,
     }
     first = false;
     rlt::log(device, device.logger, "Sweep configuration ", current);
-    return run_scenes<SPEC>(device, scenes, options);
+    return run_scenes<SPEC>(device, runtime, scenes, options);
 }
 
 template <TI RESOLUTION, bool AA, typename DEVICE>
-static bool run_sweep_resolution(DEVICE& device, const std::vector<SceneAxis>& scenes,
+static bool run_sweep_resolution(DEVICE& device, RUNTIME& runtime, const std::vector<SceneAxis>& scenes,
                                 const std::vector<OutputAxis>& outputs, const Options& options, bool& first, int& index) {
     constexpr TI COUNT = SweepCameraCount<RESOLUTION>::VALUE;
     constexpr TI GRID = AA ? 2 : 1;
@@ -1261,15 +1262,15 @@ static bool run_sweep_resolution(DEVICE& device, const std::vector<SceneAxis>& s
             using MEDIUM = SweepBenchmarkSpec<true, false, RESOLUTION, RESOLUTION, COUNT, rlt::rendering::raytracing::Medium, AA, GRID>;
             using HIGH = SweepBenchmarkSpec<true, false, RESOLUTION, RESOLUTION, COUNT, rlt::rendering::raytracing::High, AA, GRID>;
             using LOW = SweepBenchmarkSpec<true, false, RESOLUTION, RESOLUTION, COUNT, rlt::rendering::raytracing::Low, AA, GRID>;
-            if(!run_sweep_spec<MEDIUM>(device, scenes, options, first, index)
-               || !run_sweep_spec<HIGH>(device, scenes, options, first, index)
-               || !run_sweep_spec<LOW>(device, scenes, options, first, index)) {
+            if(!run_sweep_spec<MEDIUM>(device, runtime, scenes, options, first, index)
+               || !run_sweep_spec<HIGH>(device, runtime, scenes, options, first, index)
+               || !run_sweep_spec<LOW>(device, runtime, scenes, options, first, index)) {
                 return false;
             }
         }
         else {
             using DEPTH = SweepBenchmarkSpec<false, true, RESOLUTION, RESOLUTION, COUNT, rlt::rendering::raytracing::Medium, AA, GRID>;
-            if(!run_sweep_spec<DEPTH>(device, scenes, options, first, index)) {
+            if(!run_sweep_spec<DEPTH>(device, runtime, scenes, options, first, index)) {
                 return false;
             }
         }
@@ -1278,14 +1279,14 @@ static bool run_sweep_resolution(DEVICE& device, const std::vector<SceneAxis>& s
 }
 
 template <TI RESOLUTION = 64, typename DEVICE>
-static bool run_sweep(DEVICE& device, const std::vector<SceneAxis>& scenes,
+static bool run_sweep(DEVICE& device, RUNTIME& runtime, const std::vector<SceneAxis>& scenes,
                       const std::vector<OutputAxis>& outputs, const Options& options, bool& first, int& index) {
-    if(!run_sweep_resolution<RESOLUTION, false>(device, scenes, outputs, options, first, index)
-       || !run_sweep_resolution<RESOLUTION, true>(device, scenes, outputs, options, first, index)) {
+    if(!run_sweep_resolution<RESOLUTION, false>(device, runtime, scenes, outputs, options, first, index)
+       || !run_sweep_resolution<RESOLUTION, true>(device, runtime, scenes, outputs, options, first, index)) {
         return false;
     }
     if constexpr (RESOLUTION < 2048) {
-        return run_sweep<RESOLUTION * 2>(device, scenes, outputs, options, first, index);
+        return run_sweep<RESOLUTION * 2>(device, runtime, scenes, outputs, options, first, index);
     }
     if(first) {
         std::cerr << "Sweep selection contains no configurations (available: " << index << ")." << std::endl;
@@ -1295,16 +1296,16 @@ static bool run_sweep(DEVICE& device, const std::vector<SceneAxis>& scenes,
 }
 
 template <typename SHADING, typename DEVICE>
-static bool run_profile(DEVICE& device, const std::vector<SceneAxis>& scenes,
+static bool run_profile(DEVICE& device, RUNTIME& runtime, const std::vector<SceneAxis>& scenes,
                         const std::vector<OutputAxis>& outputs, const Options& options) {
     for(OutputAxis output : outputs) {
         if(output == OutputAxis::RGB) {
-            if(!run_scenes<BenchmarkSpec<true, false, SHADING>>(device, scenes, options)) {
+            if(!run_scenes<BenchmarkSpec<true, false, SHADING>>(device, runtime, scenes, options)) {
                 return false;
             }
         }
         else {
-            if(!run_scenes<BenchmarkSpec<false, true, SHADING>>(device, scenes, options)) {
+            if(!run_scenes<BenchmarkSpec<false, true, SHADING>>(device, runtime, scenes, options)) {
                 return false;
             }
         }
@@ -1313,30 +1314,30 @@ static bool run_profile(DEVICE& device, const std::vector<SceneAxis>& scenes,
 }
 
 template <typename CONFIG, typename DEVICE>
-static bool run(DEVICE& device, const std::vector<SceneAxis>& scenes,
+static bool run(DEVICE& device, RUNTIME& runtime, const std::vector<SceneAxis>& scenes,
                 const std::vector<OutputAxis>& outputs, const Options& options) {
     if constexpr (CONFIG::MODE == BenchmarkMode::sweep) {
         bool first = true;
         int index = 0;
-        return run_sweep(device, scenes, outputs, options, first, index);
+        return run_sweep(device, runtime, scenes, outputs, options, first, index);
     }
     else if constexpr (CONFIG::PAPER) {
         if((options.fidelity == "low" || options.fidelity == "all")
-           && !run_profile<paper::PaperLow>(device, scenes, outputs, options)) {
+           && !run_profile<paper::PaperLow>(device, runtime, scenes, outputs, options)) {
             return false;
         }
         if((options.fidelity == "medium" || options.fidelity == "all")
-           && !run_profile<rlt::rendering::raytracing::Medium>(device, scenes, outputs, options)) {
+           && !run_profile<rlt::rendering::raytracing::Medium>(device, runtime, scenes, outputs, options)) {
             return false;
         }
         if((options.fidelity == "high" || options.fidelity == "all")
-           && !run_profile<paper::PaperHigh>(device, scenes, outputs, options)) {
+           && !run_profile<paper::PaperHigh>(device, runtime, scenes, outputs, options)) {
             return false;
         }
         return true;
     }
     else {
-        return run_profile<ShadingProfile>(device, scenes, outputs, options);
+        return run_profile<ShadingProfile>(device, runtime, scenes, outputs, options);
     }
 }
 
@@ -1365,11 +1366,16 @@ int main(int argc, char** argv) {
     }
     DEVICE device;
     init(device);
+    RUNTIME runtime;
+    malloc(device, runtime);
+    int exit_code = 0;
     for(int repeat = 0; repeat < options.repeats; repeat++) {
         options.repeat = repeat + 1;
-        if(!run<CONFIG>(device, scenes, outputs, options)) {
-            return 1;
+        if(!run<CONFIG>(device, runtime, scenes, outputs, options)) {
+            exit_code = 1;
+            break;
         }
     }
-    return 0;
+    free(device, runtime);
+    return exit_code;
 }
