@@ -12,7 +12,7 @@ import unittest
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--build-dir", type=Path, required=True)
-parser.add_argument("--backend", choices=("metal", "vulkan", "optix"), required=True)
+parser.add_argument("--backend", choices=("metal", "vulkan", "optix", "webgpu"), required=True)
 parser.add_argument("--with-procthor", action="store_true")
 parser.add_argument("--timeout", type=float, default=20)
 arguments = parser.parse_args()

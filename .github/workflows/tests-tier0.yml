@@ -113,6 +113,10 @@ jobs:
             benchmark_config: -DRL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS=16
             packages: libvulkan-dev glslang-tools mesa-vulkan-drivers git-lfs cmake python3-venv
             backend_targets: test_rendering_raytracing_overlay_scenarios_vulkan test_rendering_raytracing_golden_comparison_vulkan
+          - backend: webgpu
+            cmake_backend: WEBGPU
+            benchmark_config: -DRL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS=16
+            packages: libvulkan1 mesa-vulkan-drivers cmake python3-venv
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: "5"
       CTEST_PARALLEL_LEVEL: "5"
@@ -126,10 +130,11 @@ jobs:
           sudo apt-get install -y ${{ matrix.packages }}
 
       - name: Download raytracing golden data
+        if: matrix.backend != 'webgpu'
         run: ./tests/src/rendering/raytracing/download_data.sh
 
       - name: Select Lavapipe driver
-        if: matrix.backend == 'vulkan'
+        if: matrix.backend != 'generic'
         run: |
           lavapipe_manifest="$(find /usr/share/vulkan/icd.d -maxdepth 1 -name 'lvp_icd*.json' -print -quit)"
           test -n "$lavapipe_manifest"
@@ -143,9 +148,10 @@ jobs:
           -DRL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO=ON
           -DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=${{ matrix.cmake_backend }}
           ${{ matrix.benchmark_config }}
-          -DRL_TOOLS_REQUIRE_RAYTRACING_GOLDENS=ON
+          -DRL_TOOLS_REQUIRE_RAYTRACING_GOLDENS=${{ matrix.backend != 'webgpu' }}
 
       - name: Build raytracing tests
+        if: matrix.backend != 'webgpu'
         run: >
           cmake --build build-raytracing-${{ matrix.backend }}
           --target
@@ -154,10 +160,10 @@ jobs:
           ${{ matrix.backend_targets }}
           --parallel 5
 
-      - name: Build Vulkan render benchmarks
-        if: matrix.backend == 'vulkan'
+      - name: Build render benchmarks
+        if: matrix.backend != 'generic'
         run: >
-          cmake --build build-raytracing-vulkan --parallel 5 --target
+          cmake --build build-raytracing-${{ matrix.backend }} --parallel 5 --target
           rendering_raytracing_sim_benchmark_medium
           rendering_raytracing_sim_benchmark_high
           rendering_raytracing_sim_benchmark_low
@@ -171,46 +177,49 @@ jobs:
           test_rendering_raytracing_paper_physics
           test_rendering_raytracing_paper_physics_cpu
 
-      - name: Test Vulkan render benchmark contract
-        if: matrix.backend == 'vulkan'
+      - name: Test headless render benchmark contract
+        if: matrix.backend != 'generic'
         run: |
           python3 -m venv .venv
-          .venv/bin/python tests/src/rendering/raytracing/benchmark.py --build-dir build-raytracing-vulkan --backend vulkan
+          env -u DISPLAY -u WAYLAND_DISPLAY .venv/bin/python tests/src/rendering/raytracing/benchmark.py --build-dir build-raytracing-${{ matrix.backend }} --backend ${{ matrix.backend }}
 
       - name: Test golden I/O
+        if: matrix.backend != 'webgpu'
         working-directory: build-raytracing-${{ matrix.backend }}
         run: ctest -L '^golden-io$' --no-tests=error --output-on-failure --timeout 20 -j5
 
       - name: Test overlay scenarios
+        if: matrix.backend != 'webgpu'
         working-directory: build-raytracing-${{ matrix.backend }}
         run: ctest -L '^overlay$' --no-tests=error --output-on-failure --timeout 20 -j5
 
       - name: Test paper physics contract and CPU driver
-        if: matrix.backend == 'vulkan'
-        working-directory: build-raytracing-vulkan
+        if: matrix.backend != 'generic'
+        working-directory: build-raytracing-${{ matrix.backend }}
         run: ctest -L '^paper-benchmark$' --no-tests=error --output-on-failure --timeout 20 -j5
 
       - name: Download pinned May paper scene
-        if: matrix.backend == 'vulkan'
+        if: matrix.backend != 'generic'
         run: >
           .venv/bin/python src/rendering/raytracing/benchmark/download_paper_scene.py
-          --destination build-raytracing-vulkan/paper-benchmark/ProcTHOR-Train-1.glb
+          --destination build-raytracing-${{ matrix.backend }}/paper-benchmark/ProcTHOR-Train-1.glb
 
-      - name: Test Vulkan paper benchmark contract
-        if: matrix.backend == 'vulkan'
+      - name: Test headless paper benchmark contract
+        if: matrix.backend != 'generic'
         run: >
-          .venv/bin/python tests/src/rendering/raytracing/paper_benchmark.py
-          --build-dir build-raytracing-vulkan --backend vulkan --with-procthor --timeout 120
+          env -u DISPLAY -u WAYLAND_DISPLAY .venv/bin/python tests/src/rendering/raytracing/paper_benchmark.py
+          --build-dir build-raytracing-${{ matrix.backend }} --backend ${{ matrix.backend }} --with-procthor --timeout 120
 
       # ProcTHOR corpus (tests/src/rendering/raytracing/GOLDEN_LEDGER.md): cross-backend tier on
       # generic CPU reference and lavapipe; OptiX comparisons require an OptiX host
       - name: Test ProcTHOR goldens
+        if: matrix.backend != 'webgpu'
         working-directory: build-raytracing-${{ matrix.backend }}
         run: ctest -L '^procthor-golden$' --no-tests=error --output-on-failure --timeout 300 -j5
 
       # the comparators write render-<backend>.png and diff-*.png next to the goldens
       - name: Upload golden renders and heatmaps
-        if: always()
+        if: always() && matrix.backend != 'webgpu'
         uses: actions/upload-artifact@v4
         with:
           name: raytracing-golden-artifacts-${{ matrix.backend }}
