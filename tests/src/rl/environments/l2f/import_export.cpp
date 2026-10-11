@@ -4,7 +4,10 @@
 #include <rl_tools/rl/environments/l2f/operations_multitask_generic.h>
 
 #include <nlohmann/json.hpp>
+#include <algorithm>
+#include <cmath>
 #include <fstream>
+#include <limits>
 
 #include <gtest/gtest.h>
 
@@ -197,4 +200,97 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, FROM_JSON_REJECTS_ROTOR_COUNT_MISMATCH){
         }
     }
     free(device, environment);
+}
+
+namespace {
+    namespace l2f = rlt::rl::environments::l2f;
+
+    template <typename SCALAR, l2f::parameters::dynamics::REGISTRY MODEL>
+    void check_estimated_brushless_dynamics(SCALAR mass, SCALAR wheelbase){
+        using rlt::abs_diff;
+        using rlt::from_json;
+        using rlt::init;
+        using rlt::json;
+        using l2f::multirotor_dynamics;
+        using SPEC = l2f::Specification<SCALAR, TI>;
+        using STATE = l2f::StateBase<l2f::StateSpecification<SCALAR, TI>>;
+        DEVICE device;
+        init(device);
+        rlt::rl::environments::Multirotor<SPEC> environment;
+        auto parameters = environment.parameters;
+        parameters.dynamics = l2f::parameters::dynamics::registry<MODEL, SPEC>;
+        const auto& dynamics = parameters.dynamics;
+        constexpr SCALAR tolerance = 32 * std::numeric_limits<SCALAR>::epsilon();
+        EXPECT_NEAR(dynamics.mass, mass, tolerance * mass);
+        EXPECT_EQ(dynamics.action_limit.min, SCALAR(0));
+        EXPECT_EQ(dynamics.action_limit.max, SCALAR(1));
+        SCALAR max_diagonal = 0;
+        SCALAR centroid[3] = {};
+        for(TI rotor = 0; rotor < 4; rotor++){
+            const auto& position = dynamics.rotor_positions[rotor];
+            EXPECT_EQ(position[2], SCALAR(0));
+            for(TI axis = 0; axis < 3; axis++){
+                centroid[axis] += position[axis] / 4;
+            }
+            for(TI other = 0; other < rotor; other++){
+                const SCALAR dx = position[0] - dynamics.rotor_positions[other][0];
+                const SCALAR dy = position[1] - dynamics.rotor_positions[other][1];
+                max_diagonal = std::max(max_diagonal, std::sqrt(dx * dx + dy * dy));
+            }
+            EXPECT_EQ(dynamics.rotor_thrust_coefficients[rotor][0], SCALAR(0));
+            EXPECT_EQ(dynamics.rotor_thrust_coefficients[rotor][1], SCALAR(0));
+            EXPECT_NEAR(dynamics.rotor_torque_constants[rotor], SCALAR(0.004665) * wheelbase / SCALAR(0.08), tolerance);
+            EXPECT_NEAR(dynamics.rotor_time_constants_rising[rotor], SCALAR(0.033), tolerance);
+            EXPECT_EQ(dynamics.rotor_time_constants_falling[rotor], dynamics.rotor_time_constants_rising[rotor]);
+        }
+        EXPECT_NEAR(max_diagonal, wheelbase, tolerance * wheelbase);
+        for(TI axis = 0; axis < 3; axis++){
+            EXPECT_NEAR(centroid[axis], SCALAR(0), tolerance * wheelbase);
+        }
+        for(TI row = 0; row < 3; row++){
+            ASSERT_GT(dynamics.J[row][row], SCALAR(0));
+            for(TI column = 0; column < 3; column++){
+                EXPECT_EQ(dynamics.J[row][column], dynamics.J[column][row]);
+                if(row != column){
+                    EXPECT_EQ(dynamics.J[row][column], SCALAR(0));
+                }
+                SCALAR product = 0;
+                for(TI inner = 0; inner < 3; inner++){
+                    product += dynamics.J[row][inner] * dynamics.J_inv[inner][column];
+                }
+                EXPECT_NEAR(product, row == column ? SCALAR(1) : SCALAR(0), tolerance);
+            }
+        }
+        EXPECT_NEAR(2 * dynamics.J[2][2] / (dynamics.J[0][0] + dynamics.J[1][1]), SCALAR(1.832), tolerance);
+        l2f::parameters::Dynamics<SCALAR, TI, 4> restored{};
+        from_json(device, environment, nlohmann::json::parse(json(device, environment, dynamics)), restored);
+        EXPECT_EQ(abs_diff(device, dynamics, restored), SCALAR(0));
+
+        STATE state{};
+        state.orientation[0] = 1;
+        const SCALAR gravity = SCALAR(9.81);
+        const SCALAR hover = SCALAR(1) / std::sqrt(SCALAR(3.5));
+        EXPECT_NEAR(dynamics.hovering_throttle_relative, hover, tolerance);
+        for(SCALAR throttle : {SCALAR(0), hover, SCALAR(1)}){
+            SCOPED_TRACE(throttle);
+            SCALAR commands[4] = {throttle, throttle, throttle, throttle};
+            STATE derivative{};
+            multirotor_dynamics(device, parameters, state, commands, derivative);
+            const SCALAR expected_acceleration = throttle == SCALAR(0) ? -gravity : throttle == SCALAR(1) ? SCALAR(2.5) * gravity : SCALAR(0);
+            for(TI axis = 0; axis < 3; axis++){
+                EXPECT_NEAR(derivative.linear_velocity[axis], axis == 2 ? expected_acceleration : SCALAR(0), 4 * tolerance * gravity);
+                EXPECT_NEAR(derivative.angular_velocity[axis], SCALAR(0), 4 * tolerance * gravity);
+            }
+        }
+    }
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, ESTIMATED_BRUSHLESS_DYNAMICS_FLOAT){
+    check_estimated_brushless_dynamics<float, l2f::parameters::dynamics::REGISTRY::crazyflie_brushless>(0.0423f, 0.1f);
+    check_estimated_brushless_dynamics<float, l2f::parameters::dynamics::REGISTRY::savagebee_pusher>(0.1554f, 0.12f);
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, ESTIMATED_BRUSHLESS_DYNAMICS_DOUBLE){
+    check_estimated_brushless_dynamics<double, l2f::parameters::dynamics::REGISTRY::crazyflie_brushless>(0.0423, 0.1);
+    check_estimated_brushless_dynamics<double, l2f::parameters::dynamics::REGISTRY::savagebee_pusher>(0.1554, 0.12);
 }

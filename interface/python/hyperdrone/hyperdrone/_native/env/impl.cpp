@@ -425,6 +425,7 @@ namespace HYPERDRONE_MODULE_NAME {
         return value;
     }
     void Environment::set_instance_parameters(const bool* mask, const std::string& parameters_json_array){
+        using rlt::rotor_wheelbase;
         impl->require_sampled("set_instance_parameters");
         const CurrentDevice current(impl->device_id);
         auto& parameters = impl->parameters_on_host();
@@ -452,6 +453,13 @@ namespace HYPERDRONE_MODULE_NAME {
                             throw std::invalid_argument("hyperdrone: drone must index the drone table");
                         }
                         agent.drone = (TI)drone;
+                    }
+                    if constexpr (WORLD::SPEC::SELF_VISIBLE){
+                        const T wheelbase = rotor_wheelbase(impl->host(), agent.dynamics.dynamics.rotor_positions, (TI)WORLD::DYNAMICS_ENV::ACTION_DIM);
+                        const float scale = (float)(wheelbase / impl->env.shared.drone_bodies[agent.drone].rig.wheelbase);
+                        if(wheelbase <= 0 || !rlt::rendering::rig::detail::is_finite(scale) || scale <= 0){
+                            throw std::invalid_argument("hyperdrone: rotor_positions must define a finite positive wheelbase and visual scale");
+                        }
                     }
                 }
             }

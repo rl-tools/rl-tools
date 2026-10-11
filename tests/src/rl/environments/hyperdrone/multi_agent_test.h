@@ -90,7 +90,9 @@ namespace test_agent_parameters {
                 }
                 rlt::rendering::rig::Buffer<RIG_SPEC> buffer;
                 float poses[RIG_SPEC::MAX_PARTS][12];
-                rlt::evaluate(device, body.rig, base, coordinates, buffer, &poses[0][0]);
+                using rlt::rotor_scale;
+                const float scale = rotor_scale(device, body.rig, parameters.agents[agent_i].dynamics.dynamics.rotor_positions, (TI)WORLD::DYNAMICS_ENV::ACTION_DIM);
+                rlt::evaluate(device, body.rig, base, coordinates, buffer, &poses[0][0], scale);
                 for(TI part_i = 0; part_i < body.rig.num_parts; part_i++){
                     const TI slot = instance_i * SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE + world.drone_slot_offset + agent_i * world.drone_parts + part_i;
                     for(TI element = 0; element < 12; element++){

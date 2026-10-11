@@ -6,33 +6,10 @@
 #include "operations_generic.h"
 #include "../scene.h"
 
-#include <cstdint>
 #include <cstring>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
-    namespace rendering::rig::detail {
-        // exponent-bit inspection: survives fast-math, which may fold arithmetic finiteness tests
-        template <typename T>
-        bool is_finite(T value){
-            static_assert(sizeof(T) == 4 || sizeof(T) == 8, "is_finite expects an IEEE-754 single or double");
-            using BITS = utils::typing::conditional_t<sizeof(T) == 4, uint32_t, uint64_t>;
-            BITS bits;
-            std::memcpy(&bits, &value, sizeof(bits));
-            constexpr BITS EXPONENT = sizeof(T) == 4 ? (BITS)0x7f800000u : (BITS)0x7ff0000000000000ull;
-            return (bits & EXPONENT) != EXPONENT;
-        }
-        template <typename T>
-        bool is_finite(const T* values, unsigned count){
-            for(unsigned i = 0; i < count; i++){
-                if(!is_finite(values[i])){
-                    return false;
-                }
-            }
-            return true;
-        }
-    }
-
     // validates the declaration (parents before children, finite frames, nonzero axes),
     // normalizes the axes and assigns the coordinate offsets
     template <typename DEVICE, typename SPEC>

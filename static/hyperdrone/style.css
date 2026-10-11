@@ -53,6 +53,7 @@ body.controlling #flight-state::before { background: var(--accent); }
 progress { display: block; width: 100%; height: 4px; margin-top: 6px; accent-color: var(--accent); }
 [hidden] { display: none !important; }
 #error { padding: 10px; border: 1px solid #b86a62; color: #8a2920; white-space: pre-wrap; overflow-wrap: anywhere; }
+#motor-layout-warning { padding: 10px; border: 1px solid #b58b35; background: #fff9e9; color: #735114; font-size: 12px; }
 .views { display: grid; gap: 10px; }
 .rgb-views { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .sensor-views { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 10px; }

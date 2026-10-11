@@ -14,6 +14,8 @@ MODELS = (
     "flightmare",
     "soft",
     "soft_rigid",
+    "crazyflie_brushless",
+    "savagebee_pusher",
 )
 
 STATE_COMPONENTS = {
