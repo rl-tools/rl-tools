@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -90,16 +91,19 @@ static CameraOffset camera_offset(SceneAxis scene) {
 struct Options {
     std::string scene = CONFIG::PAPER ? "all" : "procthor";
     std::string output = CONFIG::PAPER ? "all" : "rgb";
-    std::string workload = "render_only";
-    std::string fidelity = "medium";
+    std::string workload = CONFIG::PAPER ? "all" : "render_only";
+    std::string fidelity = CONFIG::PAPER ? "all" : "medium";
     std::string orientation_mode = "uniform_so3";
     std::string output_dir = ".";
     std::string output_png;
+    std::string output_jsonl;
     std::string procthor_path = CONFIG::PAPER ? CONFIG::PAPER_SCENE : "conta:75d1d67a17ecd16bc3a214baa895240da8060df7";
     double seconds = CONFIG::PAPER ? 20.0 : 10.0;
     double warmup_seconds = 2.0;
     double cooldown_seconds = 10.0;
     int iterations = 0;
+    int repeats = CONFIG::PAPER ? 3 : 1;
+    int repeat = 1;
     int sync_interval = 10;
     int sweep_config_start = 0;
     int sweep_config_count = -1;
@@ -170,9 +174,12 @@ static void print_help(const char* argv0) {
             << "  --sweep-config-count <count>     <=0 selects all remaining configurations\n";
     }
     if constexpr (CONFIG::PAPER) {
-        std::cout << "  --fidelity <low|medium|high|all>  Default: medium\n"
+        std::cout << "  --fidelity <low|medium|high|all>  Default: all\n"
             << "  --workload <render_only|render_physics_static|render_physics_coupled|all>\n"
-            << "  Physics requires an OptiX/CUDA build. Default: render_only\n"
+            << "    Default: all = render_only + render_physics_static (24 cells across all axes)\n"
+            << "    Physics requires OptiX/CUDA; use --workload render_only on other backends.\n"
+            << "  --repeats <count>                Complete matrix passes (default: 3, 72 measurements)\n"
+            << "  Results are also saved to a timestamped .jsonl file in --output-dir.\n"
             << "  ProcTHOR must match the May asset; download_paper_scene.py fetches it.\n";
     }
 }
@@ -277,6 +284,12 @@ static bool parse_options(int argc, char** argv, Options& options) {
         else if(CONFIG::PAPER && get_option_value(i, argc, argv, arg, "--fidelity", value)) {
             options.fidelity = value;
         }
+        else if(CONFIG::PAPER && get_option_value(i, argc, argv, arg, "--repeats", value)) {
+            if(!parse_int(value, options.repeats) || options.repeats <= 0) {
+                std::cerr << "Invalid --repeats (must be > 0): " << value << std::endl;
+                return false;
+            }
+        }
         else if(CONFIG::MODE != BenchmarkMode::frame && get_option_value(i, argc, argv, arg, "--orientation-mode", value)) {
             options.orientation_mode = value;
         }
@@ -365,7 +378,7 @@ static bool parse_options(int argc, char** argv, Options& options) {
         return false;
     }
     if(!CONFIG::PHYSICS_AVAILABLE && options.workload != "render_only") {
-        std::cerr << "Paper physics workloads require the OptiX backend and CUDA." << std::endl;
+        std::cerr << "Paper physics workloads require the OptiX backend and CUDA; use --workload render_only for the 12 rendering cells." << std::endl;
         return false;
     }
     if(CONFIG::PAPER && options.orientation_mode != "uniform_so3") {
@@ -1000,7 +1013,7 @@ static std::string case_name(SceneAxis scene, const Options& options, const std:
 }
 
 template <typename SPEC>
-static void report(SceneAxis scene, const Options& options, const std::string& device,
+static bool report(SceneAxis scene, const Options& options, const std::string& device,
                    const BenchmarkResult& result, const std::string& image, const std::string& scene_id,
                    const std::string& identity, const CameraPose* pose) {
     const auto offset = camera_offset(scene);
@@ -1042,6 +1055,8 @@ static void report(SceneAxis scene, const Options& options, const std::string& d
     };
     if constexpr (CONFIG::PAPER) {
         record["benchmark_contract"] = "hyperdrone-paper-may2026";
+        record["repeat"] = options.repeat;
+        record["repeats"] = options.repeats;
         record["rltools_commit"] = RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH);
         record["workload_source_sha256"] = CONFIG::WORKLOAD_SOURCE_SHA256;
 #ifdef RL_TOOLS_EXTRACK_GIT_DIFF
@@ -1062,13 +1077,24 @@ static void report(SceneAxis scene, const Options& options, const std::string& d
             {"camera_coupled", options.workload == "render_physics_coupled"}, {"collision_response", false}
         };
     }
-    std::cout << record.dump() << '\n';
+    const std::string line = record.dump();
+    std::cout << line << '\n';
+    if constexpr (CONFIG::PAPER) {
+        std::ofstream results(options.output_jsonl, std::ios::app);
+        results << line << '\n';
+        results.close();
+        if(!results) {
+            std::cerr << "Cannot write benchmark results to '" << options.output_jsonl << "'" << std::endl;
+            return false;
+        }
+    }
 
     const std::string prefix = "raytracing/benchmark/render-v1/" + identity + "/sync" + std::to_string(frame ? 1 : options.sync_interval);
     metra::log(prefix + "/elapsed_s", result.elapsed_s);
     metra::log(prefix + "/frames_per_s", result.frames_per_s);
     metra::log(prefix + "/pixels_per_s", result.pixels_per_s);
     metra::log(prefix + "/primary_mrays_per_s", result.primary_mrays_per_s);
+    return true;
 }
 
 template <typename SPEC, typename DEVICE>
@@ -1136,8 +1162,9 @@ static bool run_case(DEVICE& device, SceneAxis scene, const Options& options) {
     const auto* frame_pose = CONFIG::MODE == BenchmarkMode::frame ? &pose : nullptr;
     const std::string scene_id = scene == SceneAxis::PROCTHOR ? bundle.metadata.content_hash : OBJECTS20_LAYOUT_NAME;
     const std::string identity = case_name<SPEC>(scene, options, device_label, scene_id, frame_pose);
+    const std::string image_name = identity + (CONFIG::PAPER ? "_repeat" + std::to_string(options.repeat) : "") + ".png";
     const std::string image = options.output_png.empty()
-        ? join_path(options.output_dir, identity + ".png")
+        ? join_path(options.output_dir, image_name)
         : options.output_png;
     const auto parent = std::filesystem::path(image).parent_path();
     if(!parent.empty() && !ensure_output_dir(parent.string())) {
@@ -1145,16 +1172,16 @@ static bool run_case(DEVICE& device, SceneAxis scene, const Options& options) {
         return false;
     }
     save_verification_image(device, renderer, image);
-    report<SPEC>(scene, options, device_label, result, image, scene_id, identity, frame_pose);
+    const bool reported = report<SPEC>(scene, options, device_label, result, image, scene_id, identity, frame_pose);
     free(device, renderer);
-    return true;
+    return reported;
 }
 
 template <typename SPEC, typename DEVICE>
 static bool run_scenes(DEVICE& device, const std::vector<SceneAxis>& scenes, const Options& options) {
     for(SceneAxis scene : scenes) {
         if(options.workload == "all") {
-            for(const char* workload : {"render_only", "render_physics_static", "render_physics_coupled"}) {
+            for(const char* workload : {"render_only", "render_physics_static"}) {
                 auto selected = options;
                 selected.workload = workload;
                 if(!run_case<SPEC>(device, scene, selected)) {
@@ -1284,7 +1311,28 @@ int main(int argc, char** argv) {
        || !select_outputs(options.output, outputs) || !ensure_output_dir(options.output_dir)) {
         return 1;
     }
+    if constexpr (CONFIG::PAPER) {
+        const auto microseconds = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count() % 1000000;
+        std::ostringstream filename;
+        filename << "rendering_raytracing_paper_benchmark_results_"
+                 << rlt::utils::extrack::get_timestamp_string() << '_'
+                 << std::setfill('0') << std::setw(6) << microseconds << ".jsonl";
+        options.output_jsonl = join_path(options.output_dir, filename.str());
+        std::ofstream results(options.output_jsonl, std::ios::app);
+        if(!results) {
+            std::cerr << "Cannot open benchmark results file '" << options.output_jsonl << "'" << std::endl;
+            return 1;
+        }
+        std::cout << "Benchmark results: " << options.output_jsonl << std::endl;
+    }
     DEVICE device;
     init(device);
-    return run<CONFIG>(device, scenes, outputs, options) ? 0 : 1;
+    for(int repeat = 0; repeat < options.repeats; repeat++) {
+        options.repeat = repeat + 1;
+        if(!run<CONFIG>(device, scenes, outputs, options)) {
+            return 1;
+        }
+    }
+    return 0;
 }

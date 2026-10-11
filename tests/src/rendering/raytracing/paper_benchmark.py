@@ -34,28 +34,44 @@ class PaperBenchmarkTest(unittest.TestCase):
         self.root = Path(self.directory.name)
         self.invocations = 0
 
-    def invoke(self, *options, profile=None, success=True, target=None):
+    def invoke(self, *options, profile=None, repeats=1, success=True, target=None):
         self.invocations += 1
         environment = dict(os.environ)
         environment.pop("METRA_URL", None)
         target = target or "rendering_raytracing_paper_benchmark"
         fidelity_options = [] if profile is None else ["--fidelity", profile]
+        repeat_options = ([] if repeats is None or target != "rendering_raytracing_paper_benchmark"
+                          else ["--repeats", str(repeats)])
+        expected_repeats = 3 if repeats is None else repeats
         result = subprocess.run(
             [str(binaries / target), "--output-dir", str(self.root / str(self.invocations)),
-             "--iterations", "3", "--warmup-seconds", "0", *fidelity_options, *options],
-            text=True, capture_output=True, timeout=arguments.timeout, env=environment,
+             "--iterations", "3", "--warmup-seconds", "0", *fidelity_options, *repeat_options, *options],
+            text=True, capture_output=True, timeout=arguments.timeout * expected_repeats, env=environment,
         )
         if not success:
             self.assertNotEqual(result.returncode, 0, result.stdout)
             self.assertFalse(any(line.startswith("{") for line in result.stdout.splitlines()))
             return []
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        rows = [json.loads(line) for line in result.stdout.splitlines() if line.startswith("{")]
+        json_lines = [line for line in result.stdout.splitlines() if line.startswith("{")]
+        rows = [json.loads(line) for line in json_lines]
         self.assertTrue(rows, result.stdout)
+        results_files = list((self.root / str(self.invocations)).glob(
+            "rendering_raytracing_paper_benchmark_results_*.jsonl"))
+        self.assertEqual(len(results_files), 1)
+        self.assertEqual(results_files[0].read_text(), "\n".join(json_lines) + "\n")
         self.assertEqual(len({row["verification_png"] for row in rows}), len(rows))
+        cells = [(row["shading_profile"], row["scene"], row["output"], row["workload"]) for row in rows]
+        cells_per_repeat = len(set(cells))
+        first_pass = cells[:cells_per_repeat]
+        self.assertEqual(len(set(first_pass)), cells_per_repeat)
+        self.assertEqual(cells, first_pass * expected_repeats)
+        self.assertEqual([row["repeat"] for row in rows],
+                         [repeat for repeat in range(1, expected_repeats + 1) for _ in first_pass])
         for row in rows:
             self.assertEqual(row["schema"], "render-v1")
             self.assertEqual(row["benchmark_contract"], "hyperdrone-paper-may2026")
+            self.assertEqual(row["repeats"], expected_repeats)
             self.assertRegex(row["workload_source_sha256"], r"^[0-9a-f]{64}$")
             self.assertEqual(row["historical_commit_attribution"], "inferred_from_paper_runs_and_history")
             self.assertTrue(row["rltools_commit"])
@@ -77,7 +93,7 @@ class PaperBenchmarkTest(unittest.TestCase):
             self.assertEqual((row["width"], row["height"]), (64, 64))
             self.assertEqual(row["fov_degrees"], 80)
             self.assertEqual(row["orientation_mode"], "uniform_so3")
-            expected_profiles = ("low", "medium", "high") if profile == "all" else (profile or "medium",)
+            expected_profiles = ("low", "medium", "high") if profile in (None, "all") else (profile,)
             self.assertIn(row["shading_profile"], expected_profiles)
             self.assertEqual(row["num_probes"], 0)
             self.assertEqual(row["aa_grid_size"], 1)
@@ -111,12 +127,15 @@ class PaperBenchmarkTest(unittest.TestCase):
         return rows
 
     def test_profiles_and_default_outputs(self):
-        combined = self.invoke("--scene", "20_objects", profile="all")
-        self.assertEqual(len(combined), 6)
-        indexed = {(row["shading_profile"], row["output"]): row for row in combined}
+        combined = self.invoke("--scene", "20_objects", "--workload", "render_only", profile="all", repeats=None)
+        self.assertEqual(len(combined), 18)
+        indexed = {(row["shading_profile"], row["output"]): row for row in combined[:6]}
         self.assertEqual(set(indexed), {
             (profile, output) for profile in ("low", "medium", "high") for output in ("rgb", "depth")
         })
+        for row in combined:
+            self.assertEqual(Path(row["verification_png"]).read_bytes(),
+                             Path(indexed[(row["shading_profile"], row["output"])]["verification_png"]).read_bytes())
         for profile in ("medium", "high", "low"):
             with self.subTest(profile=profile):
                 rows = self.invoke("--scene", "20_objects", "--workload", "render_only", profile=profile)
@@ -133,7 +152,7 @@ class PaperBenchmarkTest(unittest.TestCase):
         images = []
         for seed, interval in ((0, 1), (0, 10), (1, 10), (1, 1)):
             row = self.invoke("--scene", "20_objects", "--output", "rgb", "--workload", "render_only",
-                              "--seed", str(seed), "--sync-interval", str(interval))[0]
+                              "--seed", str(seed), "--sync-interval", str(interval), profile="medium")[0]
             self.assertEqual(row["seed"], seed)
             self.assertEqual(row["sync_interval"], interval)
             images.append(Path(row["verification_png"]).read_bytes())
@@ -150,9 +169,19 @@ class PaperBenchmarkTest(unittest.TestCase):
                     target="rendering_raytracing_sim_benchmark_medium", success=False)
         self.invoke("--scene", "20_objects", "--fidelity", "low",
                     target="rendering_raytracing_sim_benchmark_medium", success=False)
+        self.invoke("--repeats", "3", target="rendering_raytracing_sim_benchmark_medium", success=False)
+
+    def test_repeat_count_override_and_validation(self):
+        rows = self.invoke("--scene", "20_objects", "--workload", "render_only", profile="medium", repeats=2)
+        self.assertEqual(len(rows), 4)
+        for value in ("0", "-1", "invalid", "1.5", "2147483648"):
+            with self.subTest(value=value):
+                self.invoke("--workload", "render_only", "--repeats", value, success=False)
+        self.invoke("--workload", "render_only", "--repeats", success=False)
 
     @unittest.skipIf(arguments.backend == "optix", "OptiX supports the CUDA physics workloads")
     def test_other_backends_reject_physics_workloads(self):
+        self.invoke(success=False)
         for workload in ("render_physics_static", "render_physics_coupled", "all"):
             with self.subTest(workload=workload):
                 self.invoke("--scene", "20_objects", "--workload", workload, success=False)
@@ -160,30 +189,39 @@ class PaperBenchmarkTest(unittest.TestCase):
     @unittest.skipUnless(arguments.backend == "optix", "requires CUDA physics and OptiX")
     def test_physics_static_keeps_the_rendered_cameras_unchanged(self):
         rows = self.invoke("--scene", "20_objects", "--workload", "all", profile="all")
-        self.assertEqual(len(rows), 18)
+        self.assertEqual(len(rows), 12)
         indexed = {(row["shading_profile"], row["workload"], row["output"]): row for row in rows}
+        coupled_rows = self.invoke("--scene", "20_objects", "--workload", "render_physics_coupled")
+        self.assertEqual(len(coupled_rows), 6)
+        coupled_indexed = {(row["shading_profile"], row["output"]): row for row in coupled_rows}
         for profile in ("low", "medium", "high"):
             for output in ("rgb", "depth"):
                 reference = indexed[(profile, "render_only", output)]
                 static = indexed[(profile, "render_physics_static", output)]
                 self.assertEqual(Path(reference["verification_png"]).read_bytes(),
                                  Path(static["verification_png"]).read_bytes())
-                coupled = indexed[(profile, "render_physics_coupled", output)]
+                coupled = coupled_indexed[(profile, output)]
                 self.assertNotEqual(Path(reference["verification_png"]).read_bytes(),
                                     Path(coupled["verification_png"]).read_bytes())
 
     @unittest.skipUnless(arguments.with_procthor, "requires the pinned May ProcTHOR asset")
     def test_default_scenes_and_outputs_use_the_may_asset(self):
-        rows = self.invoke("--workload", "render_only")
-        self.assertEqual({(row["scene"], row["output"]) for row in rows}, {
-            (scene, output) for scene in ("20_objects", "procthor") for output in ("rgb", "depth")
-        })
-        self.assertEqual(len(rows), 4)
-        combined = self.invoke("--workload", "render_only", profile="all")
-        self.assertEqual(len(combined), 12)
-        self.assertEqual({(row["shading_profile"], row["scene"], row["output"]) for row in combined}, {
+        rows = self.invoke("--workload", "render_only", repeats=None)
+        self.assertEqual(len(rows), 36)
+        self.assertEqual({(row["shading_profile"], row["scene"], row["output"]) for row in rows}, {
             (profile, scene, output) for profile in ("low", "medium", "high")
             for scene in ("20_objects", "procthor") for output in ("rgb", "depth")
+        })
+
+    @unittest.skipUnless(arguments.backend == "optix" and arguments.with_procthor,
+                         "requires CUDA physics, OptiX and the pinned May ProcTHOR asset")
+    def test_defaults_repeat_all_24_cells_three_times_in_order(self):
+        rows = self.invoke(repeats=None)
+        self.assertEqual(len(rows), 72)
+        self.assertEqual({(row["shading_profile"], row["scene"], row["output"], row["workload"]) for row in rows}, {
+            (profile, scene, output, workload) for profile in ("low", "medium", "high")
+            for scene in ("20_objects", "procthor") for output in ("rgb", "depth")
+            for workload in ("render_only", "render_physics_static")
         })
 
     @unittest.skipUnless(arguments.with_procthor, "requires the pinned May ProcTHOR asset")
