@@ -181,7 +181,7 @@ namespace rl_tools {
 
         auto compile_options = NS::TransferPtr(MTL::CompileOptions::alloc()->init());
         compile_options->setLanguageVersion(MTL::LanguageVersion3_0);
-        auto source = NS::TransferPtr(NS::String::string(rendering::raytracing::backends::metal::device_source(), NS::UTF8StringEncoding));
+        auto source = NS::RetainPtr(NS::String::string(rendering::raytracing::backends::metal::device_source(), NS::UTF8StringEncoding));
         NS::Error* error = nullptr;
         ctx->library = NS::TransferPtr(ctx->device->newLibrary(source.get(), compile_options.get(), &error));
         if(ctx->library.get() == nullptr){
@@ -552,6 +552,9 @@ namespace rl_tools {
         const auto scene_lights = rendering::raytracing::detail::effective_scene_lights<SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING>(device, scene);
         if(!scene_lights.empty()){
             ctx.scene_lights = NS::TransferPtr(ctx.device->newBuffer(scene_lights.data(), scene_lights.size() * sizeof(rendering::raytracing::SceneLight), MTL::ResourceStorageModeShared));
+        }
+        else{
+            ctx.scene_lights = NS::TransferPtr(ctx.device->newBuffer(sizeof(rendering::raytracing::SceneLight), MTL::ResourceStorageModeShared));
         }
 
         auto* params = (metal::LaunchParams*)ctx.launch_params->contents();

@@ -21,6 +21,9 @@
 #include <string>
 #include <system_error>
 #include <vector>
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
 #if defined(RL_TOOLS_ENABLE_ZLIB) || defined(CONTA_ENABLE_ZLIB)
 #include <zlib.h>
 #endif
@@ -840,6 +843,10 @@ namespace conta{
             return described;
         }
         inline bool run_curl(const std::string& url, const std::filesystem::path& output, bool quiet, std::string& failure_output){
+#if defined(__APPLE__) && TARGET_OS_IOS
+            failure_output = "downloads are unavailable on iOS; bundle the asset in CONTA_ROOT";
+            return false;
+#else
             std::string quoted_url, quoted_output;
             if(!shell_quote(url, quoted_url)){
                 failure_output = "unsupported character in the URL";
@@ -856,6 +863,7 @@ namespace conta{
                 return false;
             }
             return true;
+#endif
         }
         constexpr bool gzip_supported(){
 #if defined(RL_TOOLS_ENABLE_ZLIB) || defined(CONTA_ENABLE_ZLIB)

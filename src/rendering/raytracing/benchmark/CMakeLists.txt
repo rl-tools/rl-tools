@@ -90,15 +90,7 @@ if(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED MATCHES "^(OPTIX|METAL|VULKAN|
             if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "OPTIX")
                 set(SIM_PHYSICS_BACKEND cuda)
             endif()
-            set(SIM_SOURCE_IDENTITY "")
-            foreach(SOURCE CMakeLists.txt simulator_matrix_config.h.in simulator_matrix.cpp
-                    simulator_matrix_physics.h simulator_matrix_physics_contract.h simulator_matrix_physics.cu
-                    simulator_matrix_physics_cpu.cpp)
-                set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${SOURCE}")
-                file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/${SOURCE}" SOURCE_HASH)
-                string(APPEND SIM_SOURCE_IDENTITY "${SOURCE}:${SOURCE_HASH}\n")
-            endforeach()
-            string(SHA256 SIM_SOURCE_HASH "${SIM_SOURCE_IDENTITY}")
+            include(${CMAKE_CURRENT_SOURCE_DIR}/simulator_matrix_identity.cmake)
         endif()
         if(mode STREQUAL "frame")
             set(SIM_NUM_CAMERAS 1)
@@ -109,7 +101,7 @@ if(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED MATCHES "^(OPTIX|METAL|VULKAN|
         endif()
         set(CONFIG_DIR "${CMAKE_CURRENT_BINARY_DIR}/${target_name}_config")
         configure_file(simulator_matrix_config.h.in "${CONFIG_DIR}/simulator_matrix_config.h" @ONLY)
-        add_executable(${target_name} EXCLUDE_FROM_ALL simulator_matrix.cpp)
+        add_executable(${target_name} EXCLUDE_FROM_ALL simulator_matrix.cpp simulator_matrix_main.cpp)
         target_include_directories(${target_name} PRIVATE "${CONFIG_DIR}")
         target_link_libraries(${target_name} PRIVATE RLtools::RLtools
             rendering_raytracing_backend rendering_raytracing_backend_depth rendering_raytracing_stb)
