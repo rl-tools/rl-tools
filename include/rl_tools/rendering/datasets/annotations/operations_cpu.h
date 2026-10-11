@@ -40,7 +40,7 @@ namespace rl_tools::rendering::datasets::annotations {
     namespace free_space {
         // bump on any output-affecting change (candidate sequence, probe camera construction,
         // probe-direction assumptions, scoring, SceneMetadata consumption) — cache keys include it
-        constexpr std::uint32_t VERSION = 1;
+        constexpr std::uint32_t VERSION = 2;
 
         namespace detail {
             inline void append_u32(std::string& out, std::uint32_t value) {
@@ -204,9 +204,9 @@ namespace rl_tools::rendering::datasets::annotations {
         // probe-capable renderer — injected so the datasets layer stays independent of the
         // raytracing implementation; its batch width is pure transport (results are processed
         // candidate-by-candidate in index order, stopping exactly at the requested count). The
-        // probe results depend only on candidate position and yaw: the probe set is the fixed
-        // world-frame direction spiral plus the camera-forward ray, so the staged cameras use
-        // pinned internal fov/aspect. Consumes the probe target's camera tensor — producers that
+        // probe results depend only on candidate position and yaw: the probe set is the
+        // camera-relative direction spiral (turned by the candidate's yaw) plus the camera-forward
+        // ray, so the staged cameras use pinned internal fov/aspect. Consumes the probe target's camera tensor — producers that
         // rely on persistent cameras must rewrite them after annotation
         template <typename T, typename DEVICE, typename METADATA_T, typename PROBE, typename PARAMETERS_T, typename PARAMETERS_TI>
         void scan(DEVICE& device, std::vector<FreeSpacePosition<T>>& table, const rendering::SceneMetadata<METADATA_T>& metadata, PROBE& probe_target, const FreeSpaceParameters<PARAMETERS_T, PARAMETERS_TI>& parameters) {

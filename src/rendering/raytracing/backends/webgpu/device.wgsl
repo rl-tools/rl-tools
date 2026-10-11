@@ -1200,15 +1200,19 @@ fn main_collision(@builtin(global_invocation_id) global_id: vec3<u32>){
 
     let cam = camera_close(cam_idx);
 
+    let forward = normalize(camera_dir_00(cam) + 0.5 * camera_dir_du(cam) + 0.5 * camera_dir_dv(cam));
     var dir: vec3<f32>;
     if(probe_idx == 0){
-        dir = normalize(camera_dir_00(cam) + 0.5 * camera_dir_du(cam) + 0.5 * camera_dir_dv(cam));
+        dir = forward;
     }
     else{
-        dir = vec3<f32>(
+        let local = vec3<f32>(
             frame_f32(params.probe_directions_offset + u32(3 * probe_idx)),
             frame_f32(params.probe_directions_offset + u32(3 * probe_idx + 1)),
             frame_f32(params.probe_directions_offset + u32(3 * probe_idx + 2)));
+        let left = -normalize(camera_dir_du(cam));
+        let up = -normalize(camera_dir_dv(cam));
+        dir = normalize(local.x * forward + local.y * left + local.z * up);
     }
 
     let hit = trace_closest_composed_region(0u, cam_idx, camera_pos(cam), dir, 1e-3, params.max_dist);

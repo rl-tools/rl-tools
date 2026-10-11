@@ -770,12 +770,16 @@ void main(){
 
     Camera cam = cameras_close[cam_idx];
 
+    const vec3 forward = normalize(camera_dir_00(cam) + 0.5 * camera_dir_du(cam) + 0.5 * camera_dir_dv(cam));
     vec3 dir;
     if(probe_idx == 0){
-        dir = normalize(camera_dir_00(cam) + 0.5 * camera_dir_du(cam) + 0.5 * camera_dir_dv(cam));
+        dir = forward;
     }
     else{
-        dir = vec3(probe_directions[3 * probe_idx], probe_directions[3 * probe_idx + 1], probe_directions[3 * probe_idx + 2]);
+        const vec3 local = vec3(probe_directions[3 * probe_idx], probe_directions[3 * probe_idx + 1], probe_directions[3 * probe_idx + 2]);
+        const vec3 left = -normalize(camera_dir_du(cam));
+        const vec3 up = -normalize(camera_dir_dv(cam));
+        dir = normalize(local.x * forward + local.y * left + local.z * up);
     }
 
     Hit hit = intersect_composed(cam_idx, camera_pos(cam), dir, 1e-3, params.max_dist, false);

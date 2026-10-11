@@ -40,7 +40,10 @@ class ClearanceSampler:
             chunk = positions[start:start + self._batch]
             cameras = np.zeros((self._batch, 12), dtype=np.float32)
             cameras[:len(chunk), 0:3] = chunk
-            cameras[:, 3] = 1.0  # arbitrary forward; probe directions are pre-generated
+            # a full +x camera basis: the probe set is camera-relative, so a fixed orientation keeps the sampler deterministic
+            cameras[:, 3:6] = (1.0, 0.5, 0.5)
+            cameras[:, 6:9] = (0.0, -1.0, 0.0)
+            cameras[:, 9:12] = (0.0, 0.0, -1.0)
             self._renderer.set_cameras(cameras)
             self._renderer.probe()
             distances, hits = self._renderer.collisions()

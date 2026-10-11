@@ -117,7 +117,7 @@ objects or assemblies leaves the parent environment alone. Ambient affects `high
 and `veryhigh`, approximating indirect illumination without light bounces. Override
 imported settings with `scene.set_environment(...)` before `renderer.init(scene)`.
 
-`render()` produces all image outputs selected at construction; `render_launch()` and `render_sync()` split submission from waiting. Collision probes run separately through `probe()` or `probe_launch()` / `probe_sync()`, after `generate_probe_directions()`, and are read with `collisions()`. `num_probes` sets their count per camera (default 1); zero compiles the probe pass out and makes probe operations raise.
+`render()` produces all image outputs selected at construction; `render_launch()` and `render_sync()` split submission from waiting. Collision probes run separately through `probe()` or `probe_launch()` / `probe_sync()`, after `generate_probe_directions()`, and are read with `collisions()`. `num_probes` sets their count per camera (default 1); zero compiles the probe pass out and makes probe operations raise. Probe 0 follows the camera's principal axis; the remaining directions are a fixed Fibonacci set in the camera's FLU frame (x forward, y image left, z image up), so the pattern turns with the camera.
 
 ### Zero-copy I/O (DLPack)
 

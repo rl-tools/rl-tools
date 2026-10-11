@@ -852,6 +852,8 @@ namespace rl_tools {
 
 
     namespace rendering::raytracing::detail{
+        // probe directions are camera-relative FLU (x = principal axis, y = image left, z = image
+        // up): every backend rotates them per camera and replaces probe 0 by the principal axis
         template <typename SPEC, typename DEVICE>
         std::vector<float> generate_probe_direction_vectors(DEVICE& device){
             std::vector<float> dirs;

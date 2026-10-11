@@ -1254,13 +1254,17 @@ namespace rl_tools {
             const auto& math_device = device.math;
             for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
                 const Camera<T>& cam = scene.cameras_close[camera_i];
+                const Vec3<T> forward = normalize(math_device, to_vec3(cam.dir_00) + (T)0.5 * to_vec3(cam.dir_du) + (T)0.5 * to_vec3(cam.dir_dv));
+                const Vec3<T> left = -normalize(math_device, to_vec3(cam.dir_du));
+                const Vec3<T> up = -normalize(math_device, to_vec3(cam.dir_dv));
                 for(TI probe_i = 0; probe_i < SPEC::NUM_PROBES; probe_i++){
                     Vec3<T> direction;
                     if(probe_i == 0){
-                        direction = normalize(math_device, to_vec3(cam.dir_00) + (T)0.5 * to_vec3(cam.dir_du) + (T)0.5 * to_vec3(cam.dir_dv));
+                        direction = forward;
                     }
                     else{
-                        direction = to_vec3(&scene.probe_directions[3 * probe_i]);
+                        const Vec3<T> local = to_vec3(&scene.probe_directions[3 * probe_i]);
+                        direction = normalize(math_device, local.x * forward + local.y * left + local.z * up);
                     }
                     const Hit<T, TI> hit = trace_closest_composed<SPEC>(scene, camera_i, to_vec3(cam.pos), direction, (T)1e-3, scene.max_dist);
                     CollisionResult result;
