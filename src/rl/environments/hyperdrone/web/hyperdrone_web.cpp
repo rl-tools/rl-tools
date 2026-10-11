@@ -171,7 +171,7 @@ namespace rl_tools {
         }
         drone.cameras[0].mount.pose.orientation[0] = math::cos(device.math, (T)0.15);
         drone.cameras[0].mount.pose.orientation[2] = math::sin(device.math, (T)0.15);
-        drone.cameras[1].fov = 75;
+        drone.cameras[1].fov = 50;
         drone.cameras[1].mount.pose.position[0] = -1.2;
         drone.cameras[1].mount.pose.position[2] = 0.4;
         const T half_pitch = math::atan2(device.math, (T)0.4, (T)1.2) / 2;
@@ -314,10 +314,10 @@ static void status(const char* message) {
         }
     }, message);
 }
-static void read_input(float input[12]) {
+static void read_input(float input[14]) {
     EM_ASM({
         const input = Module.rlt_input();
-        for(let i = 0; i < 12; i++) {
+        for(let i = 0; i < 14; i++) {
             HEAPF32[($0 >> 2) + i] = input[i];
         }
     }, input);
@@ -367,7 +367,7 @@ static std::string configuration_catalog(web::Configurations<CONFIGS...>) {
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE int demo_api_version() {
-    return 4;
+    return 5;
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE const char* demo_configurations() {
@@ -432,7 +432,7 @@ static int run(const char* scene_path, const char* drone_path, const char* polic
     double accumulator = 0;
     bool was_active = false;
     for(int frame = 0; max_frames <= 0 || frame < max_frames;) {
-        float input[12] = {};
+        float input[14] = {};
         read_input(input);
         const double frame_period = max_frames > 0 ? web::FRAME_PERIOD : 1.0 / std::clamp((double)input[10], 10.0, 240.0);
         state.yaw_rate_limit = input[6];
@@ -466,6 +466,14 @@ static int run(const char* scene_path, const char* drone_path, const char* polic
             accumulator -= steps * dt;
         }
         if(frame == 0 || active || input[4] != 0) {
+            auto& cameras = get_ref(device, state.parameters, (web::TI)0).agents[0].cameras;
+            for(web::TI camera_i = 0; camera_i < 2; camera_i++) {
+                const web::T fov = std::clamp((web::T)input[12 + camera_i], (web::T)30, (web::T)140);
+                if(cameras[camera_i].fov != fov) {
+                    cameras[camera_i].fov = fov;
+                    request_render(device, state.environment.environments[0]);
+                }
+            }
             render(device, state, buffer);
             present(device, state, buffer);
             frame++;

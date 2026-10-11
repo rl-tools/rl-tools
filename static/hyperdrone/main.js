@@ -30,6 +30,8 @@ const release_button = document.getElementById("release-control");
 const tuning_button = document.getElementById("touch-tuning");
 const rendering_button = document.getElementById("rendering");
 const rendering_panel = document.getElementById("rendering-settings");
+const onboard_fov = document.getElementById("onboard-fov");
+const external_fov = document.getElementById("external-fov");
 const render_fidelity = document.getElementById("render-fidelity");
 const render_motion_blur = document.getElementById("render-motion-blur");
 const render_antialiasing = document.getElementById("render-antialiasing");
@@ -86,7 +88,7 @@ function update_rendering(){
     const available = Boolean(find_configuration());
     render_apply.disabled = !available;
     render_availability.textContent = available
-        ? "Applying settings restarts the flight."
+        ? "Changing fidelity, motion blur, antialiasing, or resolution restarts the flight."
         : "This combination is unavailable. Change a rendering option.";
 }
 
@@ -132,6 +134,10 @@ for(const select of [render_fidelity, render_motion_blur, render_antialiasing, r
     select.addEventListener("change", update_rendering);
 }
 document.getElementById("render-defaults").addEventListener("click", () => {
+    for(const control of [onboard_fov, external_fov]){
+        control.value = control.defaultValue;
+        update_fov(control);
+    }
     if(default_render_configuration){
         select_configuration(default_render_configuration);
     }
@@ -144,6 +150,24 @@ render_apply.addEventListener("click", () => {
         window.location.search = params.toString();
     }
 });
+
+function update_fov(control){
+    document.getElementById(`${control.id}-value`).textContent = `${control.value}°`;
+    if(control.value === control.defaultValue){
+        params.delete(control.id);
+    }
+    else{
+        params.set(control.id, control.value);
+    }
+}
+for(const control of [onboard_fov, external_fov]){
+    const requested = Number(params.get(control.id));
+    if(params.has(control.id) && Number.isFinite(requested) && requested >= Number(control.min) && requested <= Number(control.max)){
+        control.value = String(requested);
+    }
+    control.addEventListener("input", () => update_fov(control));
+    update_fov(control);
+}
 
 function set_status(text){
     if(!failed){
@@ -206,6 +230,8 @@ function poll_input(){
         Number(velocity_target.value),
         Number(target_fps.value),
         controlling && touch_control ? -left_stick.x * 0.5 : 0,
+        Number(onboard_fov.value),
+        Number(external_fov.value),
     ];
     yaw_delta = 0;
     reset_requested = false;
@@ -515,7 +541,7 @@ async function main(){
             }
         },
     });
-    if(module._demo_api_version?.() !== 4){
+    if(module._demo_api_version?.() !== 5){
         throw new Error("The page and simulation bundle are incompatible. Deploy the matching blob/build files and update the pinned revision in download_blob.sh.");
     }
     const configuration = setup_rendering(JSON.parse(module.ccall("demo_configurations", "string", [], [])));
