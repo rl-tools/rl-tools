@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Browser (WASM/WebGPU) build of HyperDrone. Requires an activated emsdk
-# (source ~/git/emsdk/emsdk_env.sh); emcc 4.0.17 is the pinned toolchain (see
+# Browser (WASM/WebGPU) build of HyperDrone. Requires an activated emsdk (source
+# emsdk_env.sh from your SDK installation); emcc 4.0.17 is the pinned toolchain (see
 # src/rl/environments/pendulum/sac/wasm/README.MD). The WebGPU raytracing backend codes
 # against the standard webgpu.h, provided in the browser by the emdawnwebgpu port.
 set -euo pipefail
@@ -10,7 +10,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
 DEPS_DIR="${RL_TOOLS_WASM_DEPS_DIR:-$REPO_ROOT/.dependencies/wasm}"
 BUILD_DIR="${RL_TOOLS_WASM_BUILD_DIR:-$REPO_ROOT/static/hyperdrone/blob/build}"
 
-command -v em++ >/dev/null || { echo "em++ not found: source ~/git/emsdk/emsdk_env.sh" >&2; exit 1; }
+command -v em++ >/dev/null || { echo "em++ not found: source emsdk_env.sh from your Emscripten SDK installation" >&2; exit 1; }
 mkdir -p "$DEPS_DIR" "$BUILD_DIR"
 
 ASSIMP_BUILD="$DEPS_DIR/assimp-archive-build"
