@@ -33,6 +33,7 @@ const keys = new Set();
 let yaw_delta = 0;
 let reset_requested = false;
 let ready = false;
+let failed = false;
 let touch_control = false;
 let mouse_control_requested = false;
 let images = null;
@@ -63,7 +64,9 @@ function populate(select, entries, selected){
 }
 
 function set_status(text){
-    status_element.textContent = text;
+    if(!failed){
+        status_element.textContent = text;
+    }
 }
 
 function format_pose(values, digits){
@@ -96,7 +99,7 @@ function update_flight_state(){
     for(const id of ["left-stick", "right-stick"]){
         document.getElementById(id).setAttribute("aria-disabled", String(!controlling || !touch_control));
     }
-    flight_state.textContent = !ready ? "Loading" : document.hidden ? "Paused" : controlling ? "User control" : "Position hold";
+    flight_state.textContent = failed ? "Unavailable" : !ready ? "Loading" : document.hidden ? "Paused" : controlling ? "User control" : "Position hold";
     if(ready && max_frames === 0){
         set_status(document.hidden ? "Simulation paused while this tab is hidden" : controlling ? (touch_control ? "Control active · Lift thumbs to hold position" : "Control active · Click or Esc to release") : "Simulation running · RAPTOR position hold");
     }
@@ -289,18 +292,21 @@ document.getElementById("tuning-defaults").addEventListener("click", () => {
 });
 update_tuning_values();
 
-function show_error(error){
+function show_error(error, message){
+    console.error(error);
+    if(failed){
+        return;
+    }
+    set_status("The simulation could not start.");
+    failed = true;
     ready = false;
     release_controls();
     reset_button.disabled = true;
     fps_element.hidden = true;
-    flight_state.textContent = "Unavailable";
     progress_element.hidden = true;
     progress_percent.hidden = true;
-    error_element.textContent = error instanceof Error ? error.message : String(error);
+    error_element.textContent = message ?? (error instanceof Error ? error.message : String(error));
     error_element.hidden = false;
-    set_status("The simulation could not start.");
-    console.error(error);
 }
 
 async function fetch_asset(asset){
@@ -358,7 +364,13 @@ async function main(){
     const module = await createModule({
         print: text => console.log(text),
         printErr: text => console.error(text),
-        onAbort: reason => show_error(`Renderer stopped: ${reason}`),
+        onAbort: reason => {
+            const scene = scene_select.value || params.get("scene") || "this scene";
+            const message = reason === "annotations::free_space: no valid positions found"
+                ? `Could not find a suitable starting position in ${scene}. Choose another scene.`
+                : `Renderer stopped: ${reason || "an unexpected error occurred"}`;
+            show_error(reason, message);
+        },
         rlt_status: set_status,
         rlt_input: poll_input,
         rlt_present: (pointer, width, height, num_views, x, y, z, qw, qx, qy, qz) => {
