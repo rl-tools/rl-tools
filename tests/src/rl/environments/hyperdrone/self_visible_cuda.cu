@@ -203,7 +203,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, OWN_DRONE_AND_ARTICU
             rlt::rl::environments::hyperdrone::_drone_coordinates<DEVICE, WORLD_SPEC>(device, instance_parameters, (TI)0, state, coordinates_open, coordinates_close);
             rlt::rendering::rig::Buffer<DRONE_RIG_SPEC> buffer;
             float poses[DRONE_RIG_SPEC::MAX_PARTS][12];
-            rlt::evaluate(device, body.rig, base, coordinates_close, buffer, &poses[0][0]);
+            using rlt::rotor_scale;
+            const float scale = rotor_scale(device, body.rig, instance_parameters.agents[0].dynamics.dynamics.rotor_positions, (TI)WORLD::DYNAMICS_ENV::ACTION_DIM);
+            rlt::evaluate(device, body.rig, base, coordinates_close, buffer, &poses[0][0], scale);
             for(TI part = 0; part < body.rig.num_parts; part++){
                 for(TI element = 0; element < 12; element++){
                     EXPECT_NEAR(rows[(instance_i * MAX_SLOTS + world.drone_slot_offset + part) * 12 + element], poses[part][element], 1e-4) << "instance " << instance_i << " part " << part << " element " << element;

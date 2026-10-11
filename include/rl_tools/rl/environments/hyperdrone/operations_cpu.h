@@ -443,14 +443,14 @@ namespace rl_tools {
         // the host counterpart of the device drone rows: swaps the agent's region to the body of
         // the instance's drone entry (a no-op when it already holds it) and poses it
         template <typename DEVICE, typename SPEC, typename RENDERER>
-        void _drone_rows(DEVICE& device, const World<SPEC>& world, RENDERER& renderer, typename SPEC::TI instance_i, typename SPEC::TI agent_i, const DroneBody<SPEC>& body, const float base_open[12], const float base_close[12], const float coordinates_open[], const float coordinates_close[]) {
+        void _drone_rows(DEVICE& device, const World<SPEC>& world, RENDERER& renderer, typename SPEC::TI instance_i, typename SPEC::TI agent_i, const DroneBody<SPEC>& body, const float base_open[12], const float base_close[12], const float coordinates_open[], const float coordinates_close[], float placement_scale) {
             const rendering::raytracing::OverlayIndex overlay{instance_i};
             const rendering::raytracing::OverlayPlacement region{world.drone_slot_offset + agent_i * world.drone_parts, world.drone_parts, 0};
             const auto placement = replace(device, renderer, overlay, region, world.drone_meshes[body.mesh]);
             if constexpr (World<SPEC>::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR) {
-                set_transform_pair(device, renderer, overlay, placement, body.rig, base_open, base_close, coordinates_open, coordinates_close);
+                set_transform_pair(device, renderer, overlay, placement, body.rig, base_open, base_close, coordinates_open, coordinates_close, placement_scale);
             } else {
-                set_transform(device, renderer, overlay, placement, body.rig, base_close, coordinates_close);
+                set_transform(device, renderer, overlay, placement, body.rig, base_close, coordinates_close, placement_scale);
             }
         }
         // scene-under-drone: the dynamics state stays near the origin; the sampled indoor
@@ -740,7 +740,8 @@ namespace rl_tools {
                     float coordinates_open[WORLD::DYNAMICS_ENV::ACTION_DIM], coordinates_close[WORLD::DYNAMICS_ENV::ACTION_DIM];
                     rl::environments::hyperdrone::_drone_coordinates<DEVICE, SPEC>(device, instance_parameters, agent_i, agent_state, coordinates_open, coordinates_close);
                     // the body is posed at shutter close; only the props blur
-                    rl::environments::hyperdrone::_drone_rows(device, world, renderer, instance_i, agent_i, body, base, base, coordinates_open, coordinates_close);
+                    const float placement_scale = rotor_scale(device, body.rig, instance_parameters.agents[agent_i].dynamics.dynamics.rotor_positions, (TI)WORLD::DYNAMICS_ENV::ACTION_DIM);
+                    rl::environments::hyperdrone::_drone_rows(device, world, renderer, instance_i, agent_i, body, base, base, coordinates_open, coordinates_close, placement_scale);
                 }
             }
         }

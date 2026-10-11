@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <cstring>
 #include <string>
 
 #ifdef RL_TOOLS_TEST_DATA_PATH
@@ -55,6 +56,195 @@ namespace {
         const float pivot[3] = {-rig.parts[part_i].offset[3], -rig.parts[part_i].offset[7], -rig.parts[part_i].offset[11]};
         rlt::rendering::transform_point(assembly.parts[part_i].transform, pivot, hub);
     }
+
+    rlt::rendering::ObjectAssembly transformed_quadrotor(DEVICE& device){
+        using rlt::add;
+        rlt::rendering::ObjectAssembly assembly;
+        const float body[12] = {1,0,0,0.03f, 0,1,0,-0.02f, 0,0,1,0.01f};
+        add(device, assembly, quad("body", 0, 0, 0.1f), body);
+        const float hubs[4][2] = {{0.2f,-0.2f}, {-0.2f,-0.2f}, {-0.2f,0.2f}, {0.2f,0.2f}};
+        for(TI rotor = 0; rotor < 4; rotor++){
+            const float transform[12] = {0,-2,0,hubs[rotor][0] - 0.05f, 2,0,0,hubs[rotor][1] - 0.03f, 0,0,2,0.04f};
+            add(device, assembly, quad(("prop_" + std::to_string(rotor)).c_str(), 0.015f, -0.025f, 0.025f), transform);
+        }
+        return assembly;
+    }
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, AUTHORED_TRANSFORMS_AND_NOMINAL_WHEELBASE){
+    using rlt::evaluate;
+    using rlt::init;
+    DEVICE device;
+    const auto assembly = transformed_quadrotor(device);
+    RIG physical, fitted;
+    ASSERT_TRUE(init(device, physical, assembly));
+    EXPECT_EQ(physical.wheelbase, 0);
+    const T rotors[4][3] = {{0.1f,-0.1f,0}, {-0.1f,-0.1f,0}, {-0.1f,0.1f,0}, {0.1f,0.1f,0}};
+    const T torques[4][3] = {{0,0,-1}, {0,0,1}, {0,0,-1}, {0,0,1}};
+    ASSERT_TRUE(init(device, fitted, assembly, rotors, torques, TI(4)));
+    EXPECT_NEAR(fitted.wheelbase, std::sqrt(0.08f), 1e-6f);
+    const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
+    const float phases[4] = {};
+    rlt::rendering::rig::Buffer<RIG::SPEC> buffer;
+    float poses[5][12];
+    evaluate(device, physical, identity, phases, buffer, &poses[0][0]);
+    for(TI part = 0; part < 5; part++){
+        for(TI element = 0; element < 12; element++){
+            EXPECT_NEAR(poses[part][element], assembly.parts[part].transform[element], 1e-6f);
+        }
+    }
+    evaluate(device, fitted, identity, phases, buffer, &poses[0][0]);
+    const float pivot[3] = {0.015f,-0.025f,0};
+    for(TI rotor = 0; rotor < 4; rotor++){
+        EXPECT_EQ(fitted.parts[rotor + 1].link, rotor + 1);
+        float hub[3];
+        rlt::rendering::transform_point(poses[rotor + 1], pivot, hub);
+        EXPECT_NEAR(hub[0], rotors[rotor][0], 1e-6f);
+        EXPECT_NEAR(hub[1], rotors[rotor][1], 1e-6f);
+        EXPECT_NEAR(hub[2], 0.02f, 1e-6f);
+    }
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, PLACEMENT_SCALE_PRESERVES_BODY_POSE_AND_SPIN_PIVOTS){
+    using rlt::evaluate;
+    using rlt::init;
+    using rlt::rotor_scale;
+    using rlt::sample;
+    DEVICE device;
+    const auto assembly = transformed_quadrotor(device);
+    const T rotors[4][3] = {{0.1f,-0.1f,0}, {-0.1f,-0.1f,0}, {-0.1f,0.1f,0}, {0.1f,0.1f,0}};
+    const T torques[4][3] = {{0,0,-1}, {0,0,1}, {0,0,-1}, {0,0,1}};
+    RIG rig;
+    ASSERT_TRUE(init(device, rig, assembly, rotors, torques, TI(4)));
+    const auto original = rig;
+    const float base_open[12] = {1,0,0,1, 0,1,0,2, 0,0,1,3};
+    const float base_close[12] = {0,-1,0,2, 1,0,0,3, 0,0,1,4};
+    const float phases_open[4] = {};
+    const float phases_close[4] = {0.7f,1.1f,-0.4f,2.2f};
+    const float pivot[3] = {0.015f,-0.025f,0};
+    rlt::rendering::rig::Buffer<RIG::SPEC> buffer;
+    for(T factor : {0.5f,1.5f}){
+        T current_rotors[4][3];
+        for(TI rotor = 0; rotor < 4; rotor++){
+            for(TI axis = 0; axis < 3; axis++){
+                current_rotors[rotor][axis] = factor * rotors[rotor][axis];
+            }
+        }
+        const float scale = rotor_scale(device, rig, current_rotors, TI(4));
+        EXPECT_NEAR(scale, factor, 1e-6f);
+        float poses[5][12], samples[4][5][12];
+        sample(device, rig, base_open, base_close, phases_open, phases_close, TI(4), buffer, &samples[0][0][0], TI(5 * 12), &poses[0][0], scale);
+        for(TI sample_i = 0; sample_i <= 4; sample_i++){
+            const float* transforms = sample_i == 4 ? &poses[0][0] : &samples[sample_i][0][0];
+            float base[12];
+            const float time = sample_i == 4 ? 1.0f : (float(sample_i) + 0.5f) / 4;
+            rlt::rendering::screw_interpolate(base_open, base_close, time, base);
+            const float body_origin[3] = {factor * 0.015f, factor * -0.01f, factor * 0.005f};
+            float expected_body[3];
+            rlt::rendering::transform_point(base, body_origin, expected_body);
+            for(TI axis = 0; axis < 3; axis++){
+                EXPECT_NEAR(transforms[axis * 4 + 3], expected_body[axis], 1e-5f);
+                float squared_norm = 0;
+                for(TI row = 0; row < 3; row++){
+                    squared_norm += transforms[row * 4 + axis] * transforms[row * 4 + axis];
+                }
+                EXPECT_NEAR(std::sqrt(squared_norm), factor * 0.5f, 1e-6f);
+            }
+            for(TI rotor = 0; rotor < 4; rotor++){
+                const float local_hub[3] = {current_rotors[rotor][0], current_rotors[rotor][1], factor * 0.02f};
+                float expected_hub[3], actual_hub[3];
+                rlt::rendering::transform_point(base, local_hub, expected_hub);
+                rlt::rendering::transform_point(transforms + (rotor + 1) * 12, pivot, actual_hub);
+                for(TI axis = 0; axis < 3; axis++){
+                    EXPECT_NEAR(actual_hub[axis], expected_hub[axis], 1e-5f);
+                }
+            }
+        }
+    }
+    float original_poses[5][12], final_poses[5][12];
+    evaluate(device, original, base_close, phases_close, buffer, &original_poses[0][0]);
+    evaluate(device, rig, base_close, phases_close, buffer, &final_poses[0][0]);
+    for(TI part = 0; part < 5; part++){
+        for(TI element = 0; element < 12; element++){
+            EXPECT_EQ(original_poses[part][element], final_poses[part][element]);
+        }
+    }
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, MOTOR_LAYOUT_WARNING_AFTER_WHEELBASE_FIT){
+    using rlt::init;
+    DEVICE device;
+    const T square[4][3] = {{0.1f,-0.1f,0}, {-0.1f,-0.1f,0}, {-0.1f,0.1f,0}, {0.1f,0.1f,0}};
+    const TI permutation[4] = {2,0,3,1};
+    const T torques[4][3] = {{0,0,-1}, {0,0,1}, {0,0,-1}, {0,0,1}};
+    for(T deviation : {0.0f, 0.0499f, 0.0501f}){
+        auto assembly = transformed_quadrotor(device);
+        const T angle = std::atan(T(1)) + 2 * std::asin(deviation);
+        const T x = std::sqrt(T(0.08)) * std::cos(angle);
+        const T y = std::sqrt(T(0.08)) * std::sin(angle);
+        for(TI rotor = 0; rotor < 4; rotor++){
+            assembly.parts[rotor + 1].transform[3] += std::copysign(x, square[rotor][0]) - 2 * square[rotor][0];
+            assembly.parts[rotor + 1].transform[7] += std::copysign(y, square[rotor][1]) - 2 * square[rotor][1];
+        }
+        for(T factor : {0.25f, 2.0f}){
+            T rotors[4][3];
+            for(TI rotor = 0; rotor < 4; rotor++){
+                for(TI axis = 0; axis < 3; axis++){
+                    rotors[rotor][axis] = factor * square[permutation[rotor]][axis];
+                }
+            }
+            RIG rig;
+            testing::internal::CaptureStderr();
+            const bool initialized = init(device, rig, assembly, rotors, torques, TI(4));
+            const auto warning = testing::internal::GetCapturedStderr();
+            ASSERT_TRUE(initialized);
+            EXPECT_NEAR(rig.rotor_position_deviation, deviation, 1e-6f);
+            EXPECT_EQ(warning.empty(), deviation <= rlt::rl::environments::hyperdrone::rig::ROTOR_POSITION_WARNING_THRESHOLD);
+            if(deviation > 0.05f){
+                EXPECT_NE(warning.find("% of wheelbase"), std::string::npos);
+                EXPECT_NE(warning.find("warning threshold 5%"), std::string::npos);
+            }
+            for(TI rotor = 0; rotor < 4; rotor++){
+                EXPECT_EQ(rig.parts[permutation[rotor] + 1].link, rotor + 1);
+            }
+            ASSERT_TRUE(init(device, rig, assembly));
+            EXPECT_EQ(rig.rotor_position_deviation, 0);
+        }
+    }
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, REJECTS_INVALID_WHEELBASE_GEOMETRY){
+    using rlt::init;
+    using rlt::rotor_wheelbase;
+    DEVICE device;
+    const auto assembly = transformed_quadrotor(device);
+    const T rotors[4][3] = {{0.1f,-0.1f,0}, {-0.1f,-0.1f,0}, {-0.1f,0.1f,0}, {0.1f,0.1f,0}};
+    const T torques[4][3] = {{0,0,-1}, {0,0,1}, {0,0,-1}, {0,0,1}};
+    RIG rig;
+    T invalid_rotors[4][3] = {};
+    EXPECT_EQ(rotor_wheelbase(device, invalid_rotors, TI(4)), 0);
+    EXPECT_FALSE(init(device, rig, assembly, invalid_rotors, torques, TI(4)));
+    const unsigned int infinity_bits = 0x7f800000u;
+    const unsigned int nan_bits = 0x7fc00000u;
+    static_assert(sizeof(T) == sizeof(infinity_bits));
+    std::memcpy(&invalid_rotors[0][0], &infinity_bits, sizeof(T));
+    EXPECT_EQ(rotor_wheelbase(device, invalid_rotors, TI(4)), 0);
+    EXPECT_FALSE(init(device, rig, assembly, invalid_rotors, torques, TI(4)));
+    auto invalid = assembly;
+    std::memcpy(&invalid.objects[1].meshes[0].vertices[0], &nan_bits, sizeof(float));
+    EXPECT_FALSE(rlt::rendering::rig::detail::is_finite(invalid.objects[1].meshes[0].vertices[0]));
+    EXPECT_FALSE(init(device, rig, invalid));
+    EXPECT_FALSE(init(device, rig, invalid, rotors, torques, TI(4)));
+    invalid = assembly;
+    std::memcpy(&invalid.parts[1].transform[3], &infinity_bits, sizeof(float));
+    EXPECT_FALSE(rlt::rendering::rig::detail::is_finite(invalid.parts[1].transform[3]));
+    EXPECT_FALSE(init(device, rig, invalid));
+    EXPECT_FALSE(init(device, rig, invalid, rotors, torques, TI(4)));
+    invalid = assembly;
+    for(TI part = 2; part < 5; part++){
+        invalid.parts[part] = invalid.parts[1];
+    }
+    EXPECT_FALSE(init(device, rig, invalid, rotors, torques, TI(4)));
 }
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, INIT_X500){

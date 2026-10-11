@@ -30,15 +30,15 @@ namespace rl_tools{
         // the device counterpart of the rig verbs: one entity's part rows (and motion samples)
         // written straight into the renderer's resident tensors at row (overlay-major slot index)
         template <typename DEVICE, typename RENDERER_SPEC, typename RIG_SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT void entity_rows(DEVICE& device, const rendering::rig::Model<RIG_SPEC>& rig, const float base_open[12], const float base_close[12], const float* coordinates_open, const float* coordinates_close, float* transforms, float* transforms_motion, typename RIG_SPEC::TI row){
+        RL_TOOLS_FUNCTION_PLACEMENT void entity_rows(DEVICE& device, const rendering::rig::Model<RIG_SPEC>& rig, const float base_open[12], const float base_close[12], const float* coordinates_open, const float* coordinates_close, float* transforms, float* transforms_motion, typename RIG_SPEC::TI row, float placement_scale = 1){
             using TI = typename RIG_SPEC::TI;
             rendering::rig::Buffer<RIG_SPEC> buffer;
             if constexpr (RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
                 constexpr TI SAMPLE_STRIDE = (TI)RENDERER_SPEC::NUM_OVERLAYS * (TI)RENDERER_SPEC::MAX_OVERLAY_INSTANCES * 12;
-                sample(device, rig, base_open, base_close, coordinates_open, coordinates_close, (TI)RENDERER_SPEC::MOTION_BLUR_SAMPLES, buffer, transforms_motion + row * 12, SAMPLE_STRIDE, transforms + row * 12);
+                sample(device, rig, base_open, base_close, coordinates_open, coordinates_close, (TI)RENDERER_SPEC::MOTION_BLUR_SAMPLES, buffer, transforms_motion + row * 12, SAMPLE_STRIDE, transforms + row * 12, placement_scale);
             }
             else{
-                evaluate(device, rig, base_close, coordinates_close, buffer, transforms + row * 12);
+                evaluate(device, rig, base_close, coordinates_close, buffer, transforms + row * 12, placement_scale);
             }
         }
 
@@ -130,9 +130,9 @@ namespace rl_tools{
         // one agent's drone region at row: the rows from the entry's rig and, with several meshes,
         // the object column (host truth keeps the init mesh, see overlay_structure)
         template <typename DEVICE, typename SPEC, typename STRUCTURE>
-        RL_TOOLS_FUNCTION_PLACEMENT void drone_entity_rows(DEVICE& device, const DroneBody<SPEC>& body, const float base_open[12], const float base_close[12], const float* coordinates_open, const float* coordinates_close, float* transforms, float* transforms_motion, const DroneMeshes<SPEC, STRUCTURE>& meshes, typename SPEC::TI parts, typename SPEC::TI row){
+        RL_TOOLS_FUNCTION_PLACEMENT void drone_entity_rows(DEVICE& device, const DroneBody<SPEC>& body, const float base_open[12], const float base_close[12], const float* coordinates_open, const float* coordinates_close, float* transforms, float* transforms_motion, const DroneMeshes<SPEC, STRUCTURE>& meshes, typename SPEC::TI parts, typename SPEC::TI row, float placement_scale){
             using TI = typename SPEC::TI;
-            entity_rows<DEVICE, typename World<SPEC>::RENDERER_SPEC>(device, body.rig, base_open, base_close, coordinates_open, coordinates_close, transforms, transforms_motion, row);
+            entity_rows<DEVICE, typename World<SPEC>::RENDERER_SPEC>(device, body.rig, base_open, base_close, coordinates_open, coordinates_close, transforms, transforms_motion, row, placement_scale);
             if(meshes.structure != nullptr){
                 for(TI part_i = 0; part_i < parts; part_i++){
                     meshes.structure[row + part_i].object = meshes.objects[body.mesh][part_i];
@@ -157,7 +157,9 @@ namespace rl_tools{
                 float coordinates_open[WORLD::DYNAMICS_ENV::ACTION_DIM], coordinates_close[WORLD::DYNAMICS_ENV::ACTION_DIM];
                 _drone_coordinates<DEVICE, SPEC>(device, instance_parameters, agent_i, agent_state, coordinates_open, coordinates_close);
                 const TI row = instance_i * WORLD::RENDERER_CONFIG::MAX_OVERLAY_INSTANCES + slot_offset + agent_i * parts;
-                drone_entity_rows<DEVICE, SPEC>(device, get_ref(device, bodies, instance_parameters.agents[agent_i].drone), base, base, coordinates_open, coordinates_close, transforms, transforms_motion, meshes, parts, row);
+                const auto& body = get_ref(device, bodies, instance_parameters.agents[agent_i].drone);
+                const float placement_scale = rotor_scale(device, body.rig, instance_parameters.agents[agent_i].dynamics.dynamics.rotor_positions, (TI)WORLD::DYNAMICS_ENV::ACTION_DIM);
+                drone_entity_rows<DEVICE, SPEC>(device, body, base, base, coordinates_open, coordinates_close, transforms, transforms_motion, meshes, parts, row, placement_scale);
             }
         }
         // Fuse no-flow episode bookkeeping into scatter or step to avoid a separate kernel launch.

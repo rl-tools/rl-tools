@@ -677,6 +677,11 @@ def test_drones_table(scene_directory):
         positions = np.array(table[0]["parameters"]["dynamics"]["dynamics"]["rotor_positions"])
         with pytest.raises(ValueError, match="quadrant"):
             env.set_instance_parameters({"drone": 0, "dynamics": {"dynamics": {"rotor_positions": positions[[1, 0, 2, 3]].tolist()}}}, mask=switched)
+        before_invalid_geometry = env.instance_parameters()
+        for scale in (1e-200, 1e200):
+            with pytest.raises(ValueError, match="finite positive wheelbase"):
+                env.set_instance_parameters({"drone": 0, "dynamics": {"dynamics": {"rotor_positions": (positions * scale).tolist()}}}, mask=switched)
+            assert env.instance_parameters() == before_invalid_geometry
         with pytest.raises(ValueError, match="sampled at reset"):
             MultiEnvironment(scene_directory, config=CONFIG_DRONES, seed=0, drones=[{"asset": drones[0]["asset"], "parameters": {"drone": 1}}])
     finally:

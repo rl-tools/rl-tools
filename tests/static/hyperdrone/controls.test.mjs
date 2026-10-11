@@ -29,7 +29,7 @@ for(const fidelity of ["low", "medium", "high", "very-high"]){
     }
 }
 
-function fixture({defer_mouse_lock = false, search = "", catalog = configurations, api_version = 2} = {}){
+function fixture({defer_mouse_lock = false, search = "", catalog = configurations, api_version = 4, fpv_position = [0.08, 0, 0.08]} = {}){
     const document = new EventTarget();
     const window = new EventTarget();
     const classes = new Set();
@@ -143,7 +143,7 @@ function fixture({defer_mouse_lock = false, search = "", catalog = configuration
         fetch: async path => {
             events.push(path);
             return {ok: true, json: async () => path === "registry.json"
-                ? {drones: [{name: "ARPL", reference: "drone", dynamics_index: 3}], policy: {reference: "policy"}}
+                ? {drones: [{name: "ARPL", reference: "drone", dynamics_index: 3, fpv_position}], policy: {reference: "policy"}}
                 : {scene: scenes[0].name, reference: scenes[0].reference, position: [0, 0, 1], yaw_degrees: 0}};
         },
     });
@@ -162,6 +162,7 @@ function fixture({defer_mouse_lock = false, search = "", catalog = configuration
         start: context.controls.start,
         load(reason){ abort_reason = reason; return context.controls.main(); },
         abort: reason => module_options.onAbort(reason),
+        motor_layout: (deviation, wheelbase, threshold) => module_options.rlt_motor_layout(deviation, wheelbase, threshold),
         present(width, height, num_views = 6){
             const pointer = 32;
             const image_bytes = width * height * 4;
@@ -200,7 +201,7 @@ test("the full rendering catalog supplies the existing default and every compile
     assert.deepEqual(f.calls.find(call => call.name === "demo_run"), {
         name: "demo_run", return_type: "number",
         argument_types: ["string", "string", "string", "number", "number", "string", "string"],
-        args: ["/scene.glb", "/drone.glb", "/policy.tar", 3, 0, JSON.stringify({position: [0, 0, 1], yaw: 0}), default_configuration.id],
+        args: ["/scene.glb", "/drone.glb", "/policy.tar", 3, 0, JSON.stringify({fpv_position: [0.08, 0, 0.08], position: [0, 0, 1], yaw: 0}), default_configuration.id],
     });
     assert.ok(f.events.indexOf("demo_configurations") < f.events.findIndex(event => event.startsWith("asset:")));
     assert.deepEqual(f.element("render-fidelity").options.map(option => option.value), ["low", "medium", "high", "very-high"]);
@@ -300,11 +301,49 @@ test("an unavailable URL rendering choice can be corrected before downloading sc
 });
 
 test("empty or incompatible bundles fail before fetching scene assets", async () => {
-    for(const options of [{catalog: []}, {api_version: 1}]){
+    for(const options of [{catalog: []}, {api_version: 1}, {api_version: 2}, {api_version: 3}]){
         const f = fixture(options);
         await f.load();
         assert.equal(f.element("error").hidden, false);
         assert.equal(f.element("rendering").disabled, true);
+        assert.equal(f.events.some(event => event.startsWith("asset:")), false);
+        assert.equal(f.calls.some(call => call.name === "demo_run"), false);
+    }
+});
+
+test("motor layout warnings use the native threshold and allow rendering to continue", async () => {
+    const f = fixture();
+    await f.load();
+    const warning = f.element("motor-layout-warning");
+    assert.equal(warning.hidden, true);
+    f.motor_layout(0.068, 0.25, 0.05);
+    assert.equal(warning.hidden, false);
+    assert.match(warning.textContent, /6\.8% of wheelbase \(17\.0 mm horizontally after scaling; threshold 5%\)/);
+    f.present(480, 270);
+    assert.equal(warning.hidden, false);
+    assert.equal(f.element("reset").disabled, false);
+    assert.equal(f.element("error").hidden, true);
+    assert.deepEqual(f.errors, []);
+    for(const deviation of [0, 0.02755, 0.05]){
+        f.motor_layout(deviation, 0.08, 0.05);
+        assert.equal(warning.hidden, true);
+        assert.equal(warning.textContent, "");
+    }
+});
+
+test("each airframe mount reaches a sampled scene without overriding its spawn", async () => {
+    const fpv_position = [0.016, 0, 0.026];
+    const f = fixture({search: "?scene=ProcTHOR-Train-107", fpv_position});
+    await f.load();
+    assert.deepEqual(f.errors, []);
+    assert.deepEqual(JSON.parse(f.calls.find(call => call.name === "demo_run").args[5]), {fpv_position});
+});
+
+test("invalid airframe mounts fail before fetching assets", async () => {
+    for(const fpv_position of [null, [0, 0], [0, 0, NaN], [0, 0, "0.1"]]){
+        const f = fixture({fpv_position});
+        await f.load();
+        assert.match(f.element("error").textContent, /camera position/);
         assert.equal(f.events.some(event => event.startsWith("asset:")), false);
         assert.equal(f.calls.some(call => call.name === "demo_run"), false);
     }

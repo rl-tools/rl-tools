@@ -8,6 +8,32 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
+    namespace rendering::rig::detail {
+        // Read exponent bits through a reference: fast-math may assume a floating-point value parameter is finite before inspecting its bits.
+        template <typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT bool is_finite(const T& value){
+            static_assert(sizeof(T) == 4 || sizeof(T) == 8, "is_finite expects an IEEE-754 single or double");
+            using BITS = utils::typing::conditional_t<sizeof(T) == 4, unsigned int, unsigned long long>;
+            static_assert(sizeof(BITS) == sizeof(T));
+            BITS bits;
+            auto* destination = reinterpret_cast<unsigned char*>(&bits);
+            const auto* source = reinterpret_cast<const unsigned char*>(&value);
+            for(unsigned byte = 0; byte < sizeof(T); byte++){
+                destination[byte] = source[byte];
+            }
+            constexpr BITS EXPONENT = sizeof(T) == 4 ? (BITS)0x7f800000u : (BITS)0x7ff0000000000000ull;
+            return (bits & EXPONENT) != EXPONENT;
+        }
+        template <typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT bool is_finite(const T* values, unsigned count){
+            for(unsigned i = 0; i < count; i++){
+                if(!is_finite(values[i])){
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
     namespace rendering::rig {
         template <typename DEVICE, typename SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT void joint_transform(DEVICE& device, const Link<SPEC>& link, const typename SPEC::T* coordinates, typename SPEC::T out[12]){
@@ -45,12 +71,19 @@ namespace rl_tools {
 
     // poses: num_parts geometry-to-world transforms, 12 values each, in part order
     template <typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void evaluate(DEVICE& device, const rendering::rig::Model<SPEC>& model, const typename SPEC::T base[12], const typename SPEC::T* coordinates, rendering::rig::Buffer<SPEC>& buffer, typename SPEC::T* poses){
+    RL_TOOLS_FUNCTION_PLACEMENT void evaluate(DEVICE& device, const rendering::rig::Model<SPEC>& model, const typename SPEC::T base[12], const typename SPEC::T* coordinates, rendering::rig::Buffer<SPEC>& buffer, typename SPEC::T* poses, typename SPEC::T placement_scale = 1){
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
+        T placement[12];
+        for(unsigned row = 0; row < 3; row++){
+            for(unsigned column = 0; column < 3; column++){
+                placement[row * 4 + column] = base[row * 4 + column] * placement_scale;
+            }
+            placement[row * 4 + 3] = base[row * 4 + 3];
+        }
         for(TI link_i = 0; link_i < model.num_links; link_i++){
             const auto& link = model.links[link_i];
-            const T* parent = link.parent == SPEC::BASE ? base : buffer.link_poses[link.parent];
+            const T* parent = link.parent == SPEC::BASE ? placement : buffer.link_poses[link.parent];
             T joint[12], frame[12];
             rendering::rig::joint_transform(device, link, coordinates, joint);
             rendering::compose_transforms(parent, link.origin, frame);
@@ -100,9 +133,9 @@ namespace rl_tools {
     // num_samples poses per part at the shutter times (sample + 0.5) / num_samples, sample s at
     // samples + s * sample_stride (12 values per part), plus the poses at t = 1 in close; the
     // base follows the constant-twist screw between base_open and base_close, the coordinates
-    // interpolate before the kinematics
+    // interpolate before the kinematics; placement scale is applied after rigid-base interpolation
     template <typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void sample(DEVICE& device, const rendering::rig::Model<SPEC>& model, const typename SPEC::T base_open[12], const typename SPEC::T base_close[12], const typename SPEC::T* coordinates_open, const typename SPEC::T* coordinates_close, typename SPEC::TI num_samples, rendering::rig::Buffer<SPEC>& buffer, typename SPEC::T* samples, typename SPEC::TI sample_stride, typename SPEC::T* close){
+    RL_TOOLS_FUNCTION_PLACEMENT void sample(DEVICE& device, const rendering::rig::Model<SPEC>& model, const typename SPEC::T base_open[12], const typename SPEC::T base_close[12], const typename SPEC::T* coordinates_open, const typename SPEC::T* coordinates_close, typename SPEC::TI num_samples, rendering::rig::Buffer<SPEC>& buffer, typename SPEC::T* samples, typename SPEC::TI sample_stride, typename SPEC::T* close, typename SPEC::T placement_scale = 1){
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static_assert(utils::typing::is_same_v<T, float>, "rig::sample interpolates the base with the float transform helpers");
@@ -111,9 +144,9 @@ namespace rl_tools {
             T base[12];
             rendering::screw_interpolate(base_open, base_close, t, base);
             interpolate(device, model, coordinates_open, coordinates_close, t, buffer.coordinates);
-            evaluate(device, model, base, buffer.coordinates, buffer, samples + sample_i * sample_stride);
+            evaluate(device, model, base, buffer.coordinates, buffer, samples + sample_i * sample_stride, placement_scale);
         }
-        evaluate(device, model, base_close, coordinates_close, buffer, close);
+        evaluate(device, model, base_close, coordinates_close, buffer, close, placement_scale);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

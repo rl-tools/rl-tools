@@ -10,6 +10,36 @@
 
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools {
+    template <typename DEVICE, typename T, typename TI>
+    RL_TOOLS_FUNCTION_PLACEMENT T rotor_wheelbase(DEVICE& device, const T positions[][3], TI count){
+        T maximum_squared = 0;
+        for(TI rotor_i = 0; rotor_i < count; rotor_i++){
+            if(!rendering::rig::detail::is_finite(positions[rotor_i], 3)){
+                return 0;
+            }
+            for(TI other_i = 0; other_i < rotor_i; other_i++){
+                const T dx = positions[rotor_i][0] - positions[other_i][0];
+                const T dy = positions[rotor_i][1] - positions[other_i][1];
+                const T squared = dx * dx + dy * dy;
+                if(!rendering::rig::detail::is_finite(squared)){
+                    return 0;
+                }
+                maximum_squared = squared > maximum_squared ? squared : maximum_squared;
+            }
+        }
+        return math::sqrt(device.math, maximum_squared);
+    }
+
+    template <typename DEVICE, typename TI, TI MAX_PROPS, TI MAX_PARTS, typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT float rotor_scale(DEVICE& device, const rl::environments::hyperdrone::rig::Rotorcraft<TI, MAX_PROPS, MAX_PARTS>& rig, const T positions[][3], TI count){
+        const T wheelbase = rotor_wheelbase(device, positions, count);
+        utils::assert_exit(device, wheelbase > 0 && rendering::rig::detail::is_finite(rig.wheelbase) && rig.wheelbase > 0, "hyperdrone::rotor_scale: finite positive wheelbases required");
+        const float scale = (float)(wheelbase / (T)rig.wheelbase);
+        utils::assert_exit(device, rendering::rig::detail::is_finite(scale) && scale > 0, "hyperdrone::rotor_scale: finite positive scale required");
+        return scale;
+    }
+}
 namespace rl_tools::rl::environments::hyperdrone::rig {
     template <typename DEVICE, typename T>
     RL_TOOLS_FUNCTION_PLACEMENT void make_body_transform(DEVICE&, const T orientation[4], const T position[3], const T scene_translation[3], T scene_yaw_cos, T scene_yaw_sin, float out[12]){

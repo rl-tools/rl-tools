@@ -6,7 +6,10 @@
 
 #include "drones_test.h"
 
+#include <algorithm>
+#include <array>
 #include <filesystem>
+#include <limits>
 #include <utility>
 
 namespace test_drones {
@@ -81,6 +84,47 @@ namespace test_drones {
         }
     };
 
+    template <typename TEST_WORLD>
+    float rendered_rotor_span(const TEST_WORLD& world, const typename TEST_WORLD::SharedContext& shared, TI instance_i, TI drone_i){
+        const auto& renderer = world.slots[world.active_slot].renderer;
+        const auto& body = shared.drone_bodies[drone_i];
+        const auto& assembly = shared.library.pool.assemblies[world.drone_meshes[body.mesh].index];
+        std::vector<std::array<float, 3>> hubs;
+        for(TI part_i = 0; part_i < assembly.parts.size(); part_i++){
+            const auto& object = assembly.objects[assembly.parts[part_i].object];
+            if(object.name.rfind("prop_", 0) != 0){
+                continue;
+            }
+            const float limit = std::numeric_limits<float>::max();
+            float low[2] = {limit, limit}, high[2] = {-limit, -limit};
+            for(const auto& mesh : object.meshes){
+                for(TI vertex_i = 0; vertex_i < mesh.vertices.size(); vertex_i += 3){
+                    for(TI axis = 0; axis < 2; axis++){
+                        low[axis] = std::min(low[axis], mesh.vertices[vertex_i + axis]);
+                        high[axis] = std::max(high[axis], mesh.vertices[vertex_i + axis]);
+                    }
+                }
+            }
+            const float pivot[3] = {(low[0] + high[0]) / 2, (low[1] + high[1]) / 2, 0};
+            std::array<float, 3> hub;
+            const TI slot_i = instance_i * TEST_WORLD::SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE + world.drone_slot_offset + part_i;
+            rlt::rendering::transform_point(renderer.transforms_staging.data() + slot_i * 12, pivot, hub.data());
+            hubs.push_back(hub);
+        }
+        EXPECT_EQ(hubs.size(), 4);
+        float span_squared = 0;
+        for(TI first = 0; first < hubs.size(); first++){
+            for(TI second = first + 1; second < hubs.size(); second++){
+                float distance_squared = 0;
+                for(TI axis = 0; axis < 3; axis++){
+                    const float delta = hubs[first][axis] - hubs[second][axis];
+                    distance_squared += delta * delta;
+                }
+                span_squared = std::max(span_squared, distance_squared);
+            }
+        }
+        return std::sqrt(span_squared);
+    }
 }
 
 using namespace test_drones;
@@ -165,7 +209,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, BODY_SWAP_PRESERVES_WRAPPER_AND
             rlt::rl::environments::hyperdrone::rig::make_body_transform(device, state.orientation, state.position, parameters.scene_translation, parameters.scene_yaw_cos, parameters.scene_yaw_sin, base);
             float open[4], close[4];
             rlt::rl::environments::hyperdrone::_drone_coordinates<DEVICE, BLUR_SPEC>(device, parameters, agent_i, state, open, close);
-            rlt::rl::environments::hyperdrone::_drone_rows(device, world, renderer, (TI)0, agent_i, bodies[mesh_i], base, base, open, close);
+            rlt::rl::environments::hyperdrone::_drone_rows(device, world, renderer, (TI)0, agent_i, bodies[mesh_i], base, base, open, close, 1.0f);
         }
         EXPECT_EQ(renderer.overlays[0].dirty, mesh_i != held);
         held = mesh_i;
@@ -177,9 +221,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, BODY_SWAP_PRESERVES_WRAPPER_AND
                 EXPECT_EQ(renderer.overlays[0].slots[first_slot + part_i].object, renderer.asset_part_objects[record.first_part + part_i]);
             }
             const TI prop_slot = first_slot + 1;
-            EXPECT_NEAR(renderer.transforms_staging[prop_slot * 12], std::cos(state.rotor_phase[0]), 1e-6);
+            const T scale = mesh_i == 0 ? 1.0f : 0.1f / 0.12f;
+            EXPECT_NEAR(renderer.transforms_staging[prop_slot * 12], scale * std::cos(state.rotor_phase[0]), 1e-6);
             const T spin = mesh_i == 0 ? (T)-1 : (T)1;
-            EXPECT_NEAR(renderer.transforms_staging[prop_slot * 12 + 4], spin * std::sin(state.rotor_phase[0]), 1e-6);
+            EXPECT_NEAR(renderer.transforms_staging[prop_slot * 12 + 4], scale * spin * std::sin(state.rotor_phase[0]), 1e-6);
             const TI last_sample = BLUR_SPEC::MOTION_BLUR_SAMPLES - 1;
             EXPECT_NE(renderer.transforms_motion_staging[prop_slot * 12], renderer.transforms_motion_staging[(last_sample * BLUR_SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE + prop_slot) * 12]);
         }
@@ -301,6 +346,37 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, TARGET_FRAME_BANK_CARRIES_THE_D
     }
     for(TI count : counts){
         EXPECT_GT(count, 0);
+    }
+    for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
+        auto& setup = rlt::get_ref(device, world.setups, instance_i);
+        setup.agents[0].drone = 0;
+        setup.agents[0].dynamics.dynamics = table.drones[0].parameters.dynamics.dynamics;
+        const T factor = T(instance_i + 1) / 2;
+        for(auto& rotor : setup.agents[0].dynamics.dynamics.rotor_positions){
+            for(auto& coordinate : rotor){
+                coordinate *= factor;
+            }
+        }
+        setup.target_roll = T(0.2);
+        setup.target_pitch = T(-0.3);
+    }
+    rlt::render_target_bank(device, world);
+    for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
+        const T factor = T(instance_i + 1) / 2;
+        EXPECT_NEAR(rendered_rotor_span(world, shared, instance_i, 0), factor * std::sqrt(2.0f) * 0.056f, 2e-5f);
+        auto& instance_parameters = rlt::get_ref(device, parameters, instance_i);
+        instance_parameters = rlt::get_ref(device, world.setups, instance_i);
+        for(auto& rotor : instance_parameters.agents[0].dynamics.dynamics.rotor_positions){
+            for(auto& coordinate : rotor){
+                coordinate *= T(0.75);
+            }
+        }
+    }
+    rlt::set_all(device, mask, true);
+    rlt::render_target_frames(device, world, parameters, mask);
+    for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
+        const T factor = T(instance_i + 1) / 2;
+        EXPECT_NEAR(rendered_rotor_span(world, shared, instance_i, 0), factor * 0.75f * std::sqrt(2.0f) * 0.056f, 2e-5f);
     }
     rlt::free(device, rng);
     rlt::free(device, mask);
@@ -447,6 +523,73 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, RENDER_SWAPS_BODIES_PER_INSTANC
     const auto masks_back = harness.own_masks();
     for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
         EXPECT_EQ(masks_back[instance_i], masks_distinct[instance_i]) << "instance " << instance_i;
+    }
+    harness.free();
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, CURRENT_WHEELBASE_SCALES_EACH_INSTANCE_WITH_SHARED_GEOMETRY){
+    using rlt::evaluate;
+    using rlt::get_ref;
+    using rlt::request_render;
+    if(SCENE_PATH.empty()){
+        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
+    }
+    Harness harness;
+    harness.init({drone<REGISTRY::crazyflie>("crazyflie.glb", 60)});
+    harness.reset();
+    harness.arrange({0,0,0,0});
+    const auto original_rig = get_ref(harness.device, harness.world.drone_bodies, TI(0)).rig;
+    const auto original_assembly = harness.shared.library.pool.assemblies.front();
+    for(TI iteration = 0; iteration < 2; iteration++){
+        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
+            auto& parameters = get_ref(harness.device, harness.parameters, instance_i);
+            auto& state = get_ref(harness.device, harness.states, instance_i);
+            parameters.agents[0].dynamics.dynamics = harness.shared.drones[0].parameters.dynamics.dynamics;
+            const T factor = T(iteration == 0 ? instance_i + 1 : INSTANCES - instance_i) / 2;
+            for(auto& rotor : parameters.agents[0].dynamics.dynamics.rotor_positions){
+                for(auto& coordinate : rotor){
+                    coordinate *= factor;
+                }
+            }
+            parameters.scene_yaw_cos = 0;
+            parameters.scene_yaw_sin = 1;
+            state.orientation[0] = std::cos(T(0.2));
+            state.orientation[1] = std::sin(T(0.2));
+            state.position[0] = T(0.5);
+            state.position[1] = T(-0.25);
+            state.position[2] = T(0.2);
+            for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
+                state.rotor_phase[rotor_i] = T(iteration + 1) * T(rotor_i + 1) * T(0.3);
+            }
+        }
+        request_render(harness.device, harness.world);
+        harness.render(iteration == 0);
+        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
+            const T factor = T(iteration == 0 ? instance_i + 1 : INSTANCES - instance_i) / 2;
+            EXPECT_NEAR(rendered_rotor_span(harness.world, harness.shared, instance_i, 0), factor * std::sqrt(2.0f) * 0.056f, 2e-5f);
+        }
+        harness.check_placements({0,0,0,0});
+    }
+    EXPECT_EQ(harness.shared.drone_meshes.size(), 1);
+    EXPECT_EQ(harness.shared.library.pool.assemblies.size(), 1);
+    const auto& assembly = harness.shared.library.pool.assemblies.front();
+    for(TI object_i = 0; object_i < assembly.objects.size(); object_i++){
+        for(TI mesh_i = 0; mesh_i < assembly.objects[object_i].meshes.size(); mesh_i++){
+            EXPECT_EQ(assembly.objects[object_i].meshes[mesh_i].vertices, original_assembly.objects[object_i].meshes[mesh_i].vertices);
+        }
+    }
+    const auto& current_rig = get_ref(harness.device, harness.world.drone_bodies, TI(0)).rig;
+    using RIG = decltype(original_rig);
+    rlt::rendering::rig::Buffer<typename RIG::SPEC> buffer;
+    const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
+    const float phases[4] = {0.2f,0.4f,0.6f,0.8f};
+    float before[5][12], after[5][12];
+    evaluate(harness.device, original_rig, identity, phases, buffer, &before[0][0]);
+    evaluate(harness.device, current_rig, identity, phases, buffer, &after[0][0]);
+    for(TI part_i = 0; part_i < 5; part_i++){
+        for(TI element_i = 0; element_i < 12; element_i++){
+            EXPECT_EQ(after[part_i][element_i], before[part_i][element_i]);
+        }
     }
     harness.free();
 }

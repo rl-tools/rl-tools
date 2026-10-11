@@ -8,50 +8,56 @@
         {
             "name": "arpl",
             "label": "ARPL",
-            "description": "rigged/arpl-80k.glb",
-            "reference": "conta:fa15fad57229f0e7e3ff159fd5828f083dddb932",
-            "sha256": "638712170c034f7bed6d7bae30bf69b9dbd36bf1ebd0493d4cd6b8c0ba4ee6fa",
-            "dynamics_index": 3
+            "description": "rigged/arpl_optimized_scaled.glb",
+            "reference": "conta:25401d66376e927dd71ca7cd9527a22c867eede6",
+            "sha256": "5effcbd84845e6bc3cc8abbd0dfd2ce877a1114ba012db702032268832f41809",
+            "dynamics_index": 3,
+            "fpv_position": [0.08, 0, 0.08]
         },
         {
             "name": "crazyflie",
             "label": "Crazyflie",
-            "description": "rigged/crazyflie.glb",
-            "reference": "conta:87d2b8b1d518445872d34906320a76656731902f",
-            "sha256": "55091646d31a27e3fe5ffb142c02426e1ac6dc31f5280c9609493c29f32c36fe",
-            "dynamics_index": 0
+            "description": "rigged/crazyflie_optimized_scaled.glb",
+            "reference": "conta:41b0e8a02d13d1e82014cb3136a616d50c2d214e",
+            "sha256": "c47bf3394e5493555b2f56ec67f4270112a478cbf6b96ffa04afdc34a5487f97",
+            "dynamics_index": 0,
+            "fpv_position": [0.012, 0, 0.022]
         },
         {
             "name": "crazyflie_brushless",
             "label": "Crazyflie Brushless",
-            "description": "rigged/crazyflie_brushless.glb",
-            "reference": "conta:eedb897237c1d77ed8ef0681554d92d06a7c27ca",
-            "sha256": "20e87d657d2901fddd899cf949c48ac1732f0ef4cc998154010f72ac685c57ff",
-            "dynamics_index": 0
+            "description": "rigged/crazyflie_brushless_optimized_scaled.glb",
+            "reference": "conta:b22399b2103e0e4559c7c14239e148f963817d77",
+            "sha256": "7a634d5d79b228358ed83e39961c32976339de8ed3d14bd450092fde75d164f9",
+            "dynamics_index": 1,
+            "fpv_position": [0.016, 0, 0.026]
         },
         {
             "name": "savagebee_pusher",
             "label": "SavageBee Pusher",
-            "description": "rigged/savagebee_pusher.glb",
-            "reference": "conta:fd4eddc7c4a3f74e51823a2fa392bb96e095e53e",
-            "sha256": "04f36a664390a8ceb576f4a2afd437a75f5a894d742c3f5f6d0171a3da97c99f",
-            "dynamics_index": 0
+            "description": "rigged/savagebee_pusher_optimized_scaled.glb",
+            "reference": "conta:02e91faf581ba36d9befbf3dcb03da8340fbbd46",
+            "sha256": "23c8644e572e3c4f3769f59a2dd81c3e164837c178054d5b951b97b086f8b674",
+            "dynamics_index": 2,
+            "fpv_position": [0.035, 0, 0.035]
         },
         {
             "name": "x500",
             "label": "X500",
-            "description": "rigged/x500.glb",
-            "reference": "conta:f6681e7a8b7fa7ef023bedcd795981becb731d0e",
-            "sha256": "e5f7dbb10221afde827ce1004bb84d6324e3c5ed54344189f3579e066021b14e",
-            "dynamics_index": 4
+            "description": "rigged/x500_optimized_scaled.glb",
+            "reference": "conta:c0fda2143b7a2f0422148aa8f6c4e24db3f8a6e6",
+            "sha256": "116a362405a7f790b33585d2fd663d84ee15ed53161209c3ac862af7266bab31",
+            "dynamics_index": 4,
+            "fpv_position": [0.1, 0, 0.19]
         },
         {
             "name": "soft",
             "label": "Soft",
-            "description": "rigged/soft.glb",
-            "reference": "conta:fcdf53a791f313b9bb07f775b10b9e4c2bfa0ae9",
-            "sha256": "03f2b2caf0d492d6bb7115d293c40740b6a72ec0556a084e54def94e5775b2c3",
-            "dynamics_index": 5
+            "description": "rigged/soft_optimized_scaled.glb",
+            "reference": "conta:d72a5b9f8d048846c660008daed65733c6003555",
+            "sha256": "2643cf7a56252d099569f2aac289c2c4707ea17472e3b10d025985b444133358",
+            "dynamics_index": 5,
+            "fpv_position": [0.1, 0, 0.105]
         }
     ]
 }

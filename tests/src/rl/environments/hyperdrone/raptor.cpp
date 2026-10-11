@@ -332,6 +332,14 @@ TEST(RL_ENVIRONMENTS_HYPERDRONE_RAPTOR, CheckpointFlightAcrossDroneModels) {
                 fly<l2f::parameters::dynamics::REGISTRY::crazyflie>(device, policy, rng, direction, scenario.input);
             }
             {
+                SCOPED_TRACE("crazyflie_brushless");
+                fly<l2f::parameters::dynamics::REGISTRY::crazyflie_brushless>(device, policy, rng, direction, scenario.input);
+            }
+            {
+                SCOPED_TRACE("savagebee_pusher");
+                fly<l2f::parameters::dynamics::REGISTRY::savagebee_pusher>(device, policy, rng, direction, scenario.input);
+            }
+            {
                 SCOPED_TRACE("arpl");
                 fly<l2f::parameters::dynamics::REGISTRY::arpl>(device, policy, rng, direction, scenario.input);
             }

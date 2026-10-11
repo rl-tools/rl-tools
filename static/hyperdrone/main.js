@@ -8,6 +8,7 @@ const conta = new Conta();
 
 const status_element = document.getElementById("status");
 const error_element = document.getElementById("error");
+const motor_layout_warning = document.getElementById("motor-layout-warning");
 const fps_element = document.getElementById("fps");
 const frame_rate_panel = document.getElementById("frame-rate-tuning");
 const target_fps = document.getElementById("target-fps");
@@ -466,6 +467,12 @@ async function main(){
             show_error(reason, message);
         },
         rlt_status: set_status,
+        rlt_motor_layout: (deviation, wheelbase, threshold) => {
+            motor_layout_warning.hidden = deviation <= threshold;
+            motor_layout_warning.textContent = deviation > threshold
+                ? `Motor layout warning: visual motor positions differ from the dynamics by up to ${(100 * deviation).toFixed(1)}% of wheelbase (${(1000 * deviation * wheelbase).toFixed(1)} mm horizontally after scaling; threshold ${(100 * threshold).toFixed(0)}%).`
+                : "";
+        },
         rlt_input: poll_input,
         rlt_present: (pointer, width, height, num_views, x, y, z, qw, qx, qy, qz) => {
             if(num_views !== canvases.length){
@@ -508,7 +515,7 @@ async function main(){
             }
         },
     });
-    if(module._demo_api_version?.() !== 2){
+    if(module._demo_api_version?.() !== 4){
         throw new Error("The page and simulation bundle are incompatible. Deploy the matching blob/build files and update the pinned revision in download_blob.sh.");
     }
     const configuration = setup_rendering(JSON.parse(module.ccall("demo_configurations", "string", [], [])));
@@ -523,14 +530,17 @@ async function main(){
     if(default_scene?.reference !== pose.reference || pose.position?.length !== 3 || !pose.position.every(Number.isFinite) || !Number.isFinite(pose.yaw_degrees)){
         throw new Error("pose.json must pin a Train200 scene and a finite FLU position and yaw.");
     }
+    if(!Array.isArray(drone.fpv_position) || drone.fpv_position.length !== 3 || !drone.fpv_position.every(Number.isFinite)){
+        throw new Error("The airframe registry must supply a finite FLU camera position in metres.");
+    }
     populate(scene_select, scenes, scene);
     populate(drone_select, registry.drones, drone);
     module.FS.writeFile("/scene.glb", await fetch_asset(scene));
     module.FS.writeFile("/drone.glb", await fetch_asset(drone));
     module.FS.writeFile("/policy.tar", await fetch_asset(registry.policy));
-    const spawn = scene.reference === pose.reference ? JSON.stringify({position: pose.position, yaw: pose.yaw_degrees * Math.PI / 180}) : "";
+    const placement = JSON.stringify({fpv_position: drone.fpv_position, ...(scene.reference === pose.reference ? {position: pose.position, yaw: pose.yaw_degrees * Math.PI / 180} : {})});
     set_status("Preparing the scene and cameras…");
-    const result = await module.ccall("demo_run", "number", ["string", "string", "string", "number", "number", "string", "string"], ["/scene.glb", "/drone.glb", "/policy.tar", drone.dynamics_index, max_frames, spawn, configuration.id], {async: true});
+    const result = await module.ccall("demo_run", "number", ["string", "string", "string", "number", "number", "string", "string"], ["/scene.glb", "/drone.glb", "/policy.tar", drone.dynamics_index, max_frames, placement, configuration.id], {async: true});
     if(result !== 0){
         throw new Error(`The renderer exited with status ${result}.`);
     }

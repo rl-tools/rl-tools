@@ -19,6 +19,8 @@ namespace hyperdrone {
         if(name == "flightmare"){ out = pd::registry<pd::REGISTRY::flightmare, PARAMETERS_SPEC>; return true; }
         if(name == "soft"){ out = pd::registry<pd::REGISTRY::soft, PARAMETERS_SPEC>; return true; }
         if(name == "soft_rigid"){ out = pd::registry<pd::REGISTRY::soft_rigid, PARAMETERS_SPEC>; return true; }
+        if(name == "crazyflie_brushless"){ out = pd::registry<pd::REGISTRY::crazyflie_brushless, PARAMETERS_SPEC>; return true; }
+        if(name == "savagebee_pusher"){ out = pd::registry<pd::REGISTRY::savagebee_pusher, PARAMETERS_SPEC>; return true; }
         return false;
     }
 }

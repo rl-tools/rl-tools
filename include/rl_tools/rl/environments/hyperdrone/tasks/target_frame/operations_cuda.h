@@ -51,7 +51,9 @@ namespace rl_tools{
                 rig::make_body_transform(device, orientation, position, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, base);
                 const float coordinates[NEXT_WORLD::DYNAMICS_ENV::ACTION_DIM] = {};
                 const TI row = setup_i * NEXT_WORLD::RENDERER_CONFIG::MAX_OVERLAY_INSTANCES + slot_offset;
-                hyperdrone::cuda::drone_entity_rows<DEVICE, typename NEXT_WORLD::SPEC>(device, get_ref(device, bodies, setup.agents[0].drone), base, base, coordinates, coordinates, transforms, transforms_motion, meshes, parts, row);
+                const auto& body = get_ref(device, bodies, setup.agents[0].drone);
+                const float placement_scale = rotor_scale(device, body.rig, setup.agents[0].dynamics.dynamics.rotor_positions, (TI)NEXT_WORLD::DYNAMICS_ENV::ACTION_DIM);
+                hyperdrone::cuda::drone_entity_rows<DEVICE, typename NEXT_WORLD::SPEC>(device, body, base, base, coordinates, coordinates, transforms, transforms_motion, meshes, parts, row, placement_scale);
             }
         }
         template <typename DEVICE, typename TASK_SPEC, typename SETUPS_SPEC>

@@ -14,6 +14,8 @@
 #include "dynamics/flightmare.h"
 #include "dynamics/soft.h"
 #include "dynamics/soft_rigid.h"
+#include "dynamics/crazyflie_brushless.h"
+#include "dynamics/savagebee_pusher.h"
 
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -31,6 +33,8 @@ namespace rl_tools::rl::environments::l2f::parameters{
             flightmare,
             soft,
             soft_rigid,
+            crazyflie_brushless,
+            savagebee_pusher,
         };
         template <REGISTRY MODEL, typename SPEC>
         constexpr auto registry = [](){
@@ -56,6 +60,10 @@ namespace rl_tools::rl::environments::l2f::parameters{
                 return dynamics::soft<typename SPEC::T, typename SPEC::TI>;
             }else if constexpr (MODEL == REGISTRY::soft_rigid){
                 return dynamics::soft_rigid<typename SPEC::T, typename SPEC::TI>;
+            }else if constexpr (MODEL == REGISTRY::crazyflie_brushless){
+                return dynamics::crazyflie_brushless<typename SPEC::T, typename SPEC::TI>;
+            }else if constexpr (MODEL == REGISTRY::savagebee_pusher){
+                return dynamics::savagebee_pusher<typename SPEC::T, typename SPEC::TI>;
             }else{
                 static_assert(rl_tools::utils::typing::dependent_false<SPEC>, "Unknown model");
             }
@@ -86,6 +94,10 @@ namespace rl_tools::rl::environments::l2f::parameters{
                 return "soft";
             }else if constexpr (MODEL == REGISTRY::soft_rigid){
                 return "soft_rigid";
+            }else if constexpr (MODEL == REGISTRY::crazyflie_brushless){
+                return "crazyflie_brushless";
+            }else if constexpr (MODEL == REGISTRY::savagebee_pusher){
+                return "savagebee_pusher";
             }else{
                 static_assert(rl_tools::utils::typing::dependent_false<Dependent<MODEL>>, "Unknown model");
             }

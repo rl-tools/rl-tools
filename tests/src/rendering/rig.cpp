@@ -6,7 +6,7 @@
 
 #include <cmath>
 #include <cstring>
-#include <limits>
+#include <cstdint>
 
 namespace rlt = rl_tools;
 
@@ -225,7 +225,9 @@ TEST(RL_TOOLS_RENDERING_RIG, REJECTS_INVALID_MODELS){
     EXPECT_FALSE(rlt::init(device, dangling_part));
 
     Model non_finite = chain(device);
-    non_finite.links[2].origin[3] = std::numeric_limits<float>::infinity();
+    const std::uint32_t infinity_bits = 0x7f800000u;
+    std::memcpy(&non_finite.links[2].origin[3], &infinity_bits, sizeof(infinity_bits));
+    EXPECT_FALSE(rlt::rendering::rig::detail::is_finite(non_finite.links[2].origin[3]));
     EXPECT_FALSE(rlt::init(device, non_finite));
 
     Model too_many = chain(device);

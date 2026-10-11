@@ -88,10 +88,12 @@ namespace test_drones {
             instance_parameters.scene_translation[0] = 0;
             instance_parameters.scene_translation[1] = 0;
             instance_parameters.scene_translation[2] = 100;
-            instance_parameters.agents[0].cameras[0].mount.pose.position[0] = (T)-1.2;
+            using rlt::rotor_wheelbase;
+            const T wheelbase = rotor_wheelbase(device, instance_parameters.agents[0].dynamics.dynamics.rotor_positions, TI(4));
+            instance_parameters.agents[0].cameras[0].mount.pose.position[0] = (T)-2 * wheelbase;
             instance_parameters.agents[0].cameras[0].mount.pose.position[1] = 0;
-            instance_parameters.agents[0].cameras[0].mount.pose.position[2] = (T)0.4;
-            const T half_pitch = std::atan2((T)0.3, (T)1) / 2;
+            instance_parameters.agents[0].cameras[0].mount.pose.position[2] = (T)0.75 * wheelbase;
+            const T half_pitch = std::atan2((T)0.75, (T)2) / 2;
             instance_parameters.agents[0].cameras[0].mount.pose.orientation[0] = std::cos(half_pitch);
             instance_parameters.agents[0].cameras[0].mount.pose.orientation[1] = 0;
             instance_parameters.agents[0].cameras[0].mount.pose.orientation[2] = std::sin(half_pitch);

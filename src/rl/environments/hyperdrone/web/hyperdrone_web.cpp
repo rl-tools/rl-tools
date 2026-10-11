@@ -119,7 +119,7 @@ namespace rl_tools {
         free(device, state.environment);
     }
     template <typename CONFIG>
-    void init(web::DEVICE& device, web::State<CONFIG>& state, const std::string& scene_path, const std::string& drone_path, int drone_index) {
+    void init(web::DEVICE& device, web::State<CONFIG>& state, const std::string& scene_path, const std::string& drone_path, int drone_index, const web::T fpv_position[3]) {
         using namespace web;
         using PARAMETER_SPEC = typename CONFIG::DYNAMICS_STATIC_PARAMETERS::PARAMETERS_SPEC;
         namespace models = rl::environments::l2f::parameters::dynamics;
@@ -127,6 +127,12 @@ namespace rl_tools {
         auto& drone = state.environment.shared.drones[0].parameters;
         auto& dynamics = drone.dynamics.dynamics;
         switch(drone_index) {
+            case 1:
+                dynamics = models::registry<models::REGISTRY::crazyflie_brushless, PARAMETER_SPEC>;
+                break;
+            case 2:
+                dynamics = models::registry<models::REGISTRY::savagebee_pusher, PARAMETER_SPEC>;
+                break;
             case 3:
                 dynamics = models::registry<models::REGISTRY::arpl, PARAMETER_SPEC>;
                 break;
@@ -160,8 +166,9 @@ namespace rl_tools {
             dynamics.rotor_thrust_coefficients[motor][2] /= RPM_SCALE * RPM_SCALE;
         }
         drone.cameras[0].fov = 80;
-        drone.cameras[0].mount.pose.position[0] = 0.10;
-        drone.cameras[0].mount.pose.position[2] = 0.32;
+        for(TI dim = 0; dim < 3; dim++) {
+            drone.cameras[0].mount.pose.position[dim] = fpv_position[dim];
+        }
         drone.cameras[0].mount.pose.orientation[0] = math::cos(device.math, (T)0.15);
         drone.cameras[0].mount.pose.orientation[2] = math::sin(device.math, (T)0.15);
         drone.cameras[1].fov = 75;
@@ -360,7 +367,7 @@ static std::string configuration_catalog(web::Configurations<CONFIGS...>) {
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE int demo_api_version() {
-    return 2;
+    return 4;
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE const char* demo_configurations() {
@@ -382,6 +389,19 @@ extern "C" EMSCRIPTEN_KEEPALIVE const char* demo_scenes() {
 template <typename CONFIG>
 static int run(const char* scene_path, const char* drone_path, const char* policy_path, int drone_index, int max_frames, const char* pose_json) {
     using namespace rl_tools;
+    const auto placement = nlohmann::json::parse(pose_json, nullptr, false);
+    if(!placement.is_object() || !placement.contains("fpv_position") || !placement.at("fpv_position").is_array() || placement.at("fpv_position").size() != 3) {
+        status("The airframe camera position is invalid");
+        return 1;
+    }
+    web::T fpv_position[3];
+    for(web::TI dim = 0; dim < 3; dim++) {
+        const auto& value = placement.at("fpv_position").at(dim);
+        if(!value.is_number() || !rendering::rig::detail::is_finite(fpv_position[dim] = value.get<web::T>())) {
+            status("The airframe camera position is invalid");
+            return 1;
+        }
+    }
     web::DEVICE device;
     init(device);
     web::State<CONFIG> state;
@@ -394,13 +414,16 @@ static int run(const char* scene_path, const char* drone_path, const char* polic
         return 1;
     }
     status("Loading the scene and finding a clear starting position ...");
-    init(device, state, scene_path, drone_path, drone_index);
-    if(pose_json[0] != '\0') {
-        const auto pose = nlohmann::json::parse(pose_json);
+    init(device, state, scene_path, drone_path, drone_index, fpv_position);
+    const auto& rig = state.environment.shared.drone_bodies[0].rig;
+    EM_ASM({
+        Module.rlt_motor_layout($0, $1, $2);
+    }, rig.rotor_position_deviation, rig.wheelbase, rl::environments::hyperdrone::rig::ROTOR_POSITION_WARNING_THRESHOLD);
+    if(placement.contains("position")) {
         for(web::TI dim = 0; dim < 3; dim++) {
-            state.spawn.position[dim] = pose.at("position").at(dim).get<web::T>();
+            state.spawn.position[dim] = placement.at("position").at(dim).get<web::T>();
         }
-        state.spawn.yaw = pose.at("yaw").get<web::T>();
+        state.spawn.yaw = placement.at("yaw").get<web::T>();
     }
     reset(device, state);
     status("Simulation running — click a camera to take control");

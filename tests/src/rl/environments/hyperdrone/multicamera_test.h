@@ -74,6 +74,8 @@ namespace test_multicamera {
         malloc(host, shared.library);
         malloc(device, world);
         shared.drones.push_back({drone_path, {}});
+        using PARAMETERS_SPEC = typename WORLD::DYNAMICS_ENV::Parameters::BASE_SPEC;
+        shared.drones[0].parameters.dynamics.dynamics = rl::environments::l2f::parameters::dynamics::registry<rl::environments::l2f::parameters::dynamics::REGISTRY::x500, PARAMETERS_SPEC>;
         shared.drones[0].parameters.cameras[0].fov = 60;
         shared.drones[0].parameters.cameras[1].fov = 85;
         rendering::datasets::procthor::GLB dataset{{}, {scene_path}};
@@ -94,6 +96,10 @@ namespace test_multicamera {
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             auto& parameters = get_ref(host, staging.parameters, instance_i);
             auto& state = get_ref(host, staging.states, instance_i);
+            // ProcTHOR-Train-1 living-room free space used by the raytracing overlay goldens.
+            parameters.scene_translation[0] = (T)-5.7;
+            parameters.scene_translation[1] = (T)-5.2;
+            parameters.scene_translation[2] = (T)1.5;
             parameters.scene_yaw_cos = 1;
             parameters.scene_yaw_sin = 0;
             parameters.shutter_fraction = (T)0.5;
@@ -112,7 +118,7 @@ namespace test_multicamera {
                     EXPECT_EQ(world.parameters.agents[agent_i].cameras[camera_i].fov, nominal.fov);
                     camera.mount.pose.position[0] = camera_i == 0 ? (T)0.2 : (T)-0.6;
                     camera.mount.pose.position[1] = camera_i == 0 ? (T)0 : (T)0.12;
-                    camera.mount.pose.position[2] = camera_i == 0 ? (T)0.05 : (T)0.3;
+                    camera.mount.pose.position[2] = camera_i == 0 ? (T)0.2 : (T)0.3;
                 }
             }
         }
@@ -189,6 +195,7 @@ namespace test_multicamera {
                         const bool reset = get(host, staging.reset, instance_i);
                         check_camera(opened[index], reset ? expected : rl::environments::hyperdrone::interpolate_camera(expected, previous[index], parameters.shutter_fraction));
                         T max_flow = 0;
+                        TI max_flow_pixel = 0;
                         bool drone_seen = false;
                         for (TI pixel = 0; pixel < PIXELS; pixel++) {
                             const uint32_t id = segmentation[index * PIXELS + pixel];
@@ -199,14 +206,18 @@ namespace test_multicamera {
                                 drone_seen = drone_seen || id >= first + (WORLD::N_AGENTS - 1) * world.drone_parts;
                             }
                             for (TI axis = 0; axis < 2; axis++) {
-                                max_flow = std::max(max_flow, std::abs(flow[(index * PIXELS + pixel) * 2 + axis]));
+                                const T magnitude = std::abs(flow[(index * PIXELS + pixel) * 2 + axis]);
+                                if (magnitude > max_flow) {
+                                    max_flow = magnitude;
+                                    max_flow_pixel = pixel;
+                                }
                             }
                         }
                         if (WORLD::N_AGENTS > 1 && agent_i == 0 && camera_i == 0) {
                             EXPECT_TRUE(drone_seen);
                         }
                         if (reset) {
-                            EXPECT_LT(max_flow, (T)0.001);
+                            EXPECT_LT(max_flow, (T)0.001) << "agents=" << WORLD::N_AGENTS << " frame=" << frame << " instance=" << instance_i << " agent=" << agent_i << " camera=" << camera_i << " pixel=" << max_flow_pixel << " object=" << segmentation[index * PIXELS + max_flow_pixel] << " scene_instances=" << scene_instances << " camera_position=" << current[index].pos[0] << "," << current[index].pos[1] << "," << current[index].pos[2];
                         } else {
                             EXPECT_GT(max_flow, (T)0.01);
                         }
