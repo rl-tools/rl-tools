@@ -88,7 +88,7 @@ namespace rl_tools{
     template<typename OBSERVATION_SPEC>
     yaw_checkpoint::T save_checkpoint(yaw_checkpoint::DEVICE& host, yaw_checkpoint::DEVICE_COMPUTE& device, const yaw_checkpoint::STUDENT_TYPE& student, Tensor<OBSERVATION_SPEC>& observations, const std::filesystem::path& directory){
         using namespace yaw_checkpoint;
-        static_assert(get<0>(typename OBSERVATION_SPEC::SHAPE{}) >= N_EXAMPLES);
+        static_assert(get<0>(typename OBSERVATION_SPEC::SHAPE{}) >= STEPS_TOTAL);
         static_assert(get<1>(typename OBSERVATION_SPEC::SHAPE{}) == COMBINED_OBS_DIM);
         static_assert(BATCH_SIZE == N_EXAMPLES);
         CPU_STUDENT_TYPE model;
@@ -103,14 +103,14 @@ namespace rl_tools{
         malloc(host, rng);
         init(host, rng, 0);
         copy(device, host, student, model);
-        auto source = view_range(device, observations, (TI)0, tensor::ViewSpec<0, N_EXAMPLES>{});
+        auto source = view_range(device, observations, (TI)(STEPS_TOTAL - N_EXAMPLES), tensor::ViewSpec<0, N_EXAMPLES>{});
         auto destination = reshape_row_major(host, examples, tensor::Shape<TI, N_EXAMPLES, COMBINED_OBS_DIM>{});
         copy(device, host, source, destination);
         auto inputs = nn_models::parallel::pack_inputs(examples);
         evaluate(host, model, inputs, predictions, buffer, rng, Mode<mode::Evaluation<>>{});
         std::filesystem::create_directories(directory);
         const std::string observation = "CameraRGBStackedWithTarget(" + std::to_string(CAMERA_FOV) + ", " + std::to_string(CAM_HEIGHT) + ", " + std::to_string(CAM_WIDTH) + ", " + std::to_string(FRAME_STACK_STRIDE) + ", " + std::to_string(FRAME_STACK_N) + ")";
-        const std::string rendering = "{\"anti_aliasing\":true,\"anti_aliasing_grid_size\":" + std::to_string(RENDER_ANTI_ALIASING_GRID_SIZE) + ",\"motion_blur\":true,\"motion_blur_samples\":" + std::to_string(RENDER_MOTION_BLUR_SAMPLES) + ",\"shutter_fraction_min\":" + std::to_string(RENDER_SHUTTER_FRACTION_MIN) + ",\"shutter_fraction_max\":" + std::to_string(RENDER_SHUTTER_FRACTION_MAX) + ",\"target_frame_roll_pitch_randomization_range\":" + std::to_string(TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE) + ",\"target_frame_brightness_mismatch_range\":" + std::to_string(TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE) + "}";
+        const std::string rendering = "{\"rgb_encoding\":\"float before brightness\",\"anti_aliasing\":true,\"anti_aliasing_grid_size\":" + std::to_string(RENDER_ANTI_ALIASING_GRID_SIZE) + ",\"motion_blur\":true,\"motion_blur_samples\":" + std::to_string(RENDER_MOTION_BLUR_SAMPLES) + ",\"shutter_fraction_min\":" + std::to_string(RENDER_SHUTTER_FRACTION_MIN) + ",\"shutter_fraction_max\":" + std::to_string(RENDER_SHUTTER_FRACTION_MAX) + ",\"target_frame_roll_pitch_randomization_range\":" + std::to_string(TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE) + ",\"target_frame_brightness_mismatch_range\":" + std::to_string(TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE) + "}";
         const std::string metadata = "{\"environment\":{\"name\":\"hyperdrone\",\"observation\":\"" + observation + "\",\"output\":\"YawOffsetCosSin\",\"rendering\":" + rendering + "},\"task\":\"target_frame_yaw\",\"baseline_commit\":\"c0c7c31d95e9be0a1e5e926e3b419fe54e0fb164\",\"run_manifest\":\"../../run.json\"}";
         T max_error = save_yaw_checkpoint<REDUCED_BATCH_SIZE>(host, model, examples, predictions, rng, directory, metadata);
         max_error = std::max(max_error, save_yaw_checkpoint<N_EXAMPLES>(host, model, examples, predictions, rng, directory, metadata));

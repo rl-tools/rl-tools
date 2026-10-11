@@ -178,7 +178,8 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::yaw{
         static constexpr TI PAD_CHANNELS_TO = 8;
         static constexpr T TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE = yaw::TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE;
         static constexpr T TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE = yaw::TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE;
-        static constexpr TI TARGET_BANK_REFRESH_STEPS = STEPS_PER_ENV + 1;
+        // The initial render and final unused next observation must stay inside this epoch's bank.
+        static constexpr TI TARGET_BANK_REFRESH_STEPS = STEPS_PER_ENV + 2;
     };
     using TASK_WORLD = rlt::rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
     using MULTI_ENVIRONMENT = rlt::rl::environments::hyperdrone::MultiEnvironment<TASK_WORLD, N_ACTIVE_SCENES>;

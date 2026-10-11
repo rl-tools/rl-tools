@@ -153,13 +153,14 @@ namespace rl_tools{
                     const T scene_yaw = 2 * math::PI<T> * (T)scene_yaw_index / (T)VALIDATION_BATCH_SIZE;
                     parameters.scene_yaw_cos = std::cos(scene_yaw);
                     parameters.scene_yaw_sin = std::sin(scene_yaw);
-                    T angle_deg = yaw_degrees[frontier ? 0 : bin];
+                    T angle = yaw_degrees[frontier ? 0 : bin] * math::PI<T> / (T)180;
                     if(frontier){
                         const T alpha = ((T)(sample / 2) + (T)0.5) / (T)(VALIDATION_BATCH_SIZE / 2);
-                        angle_deg = frontier_min_deg + (frontier_max_deg - frontier_min_deg) * alpha;
-                        angle_deg *= sample % 2 == 0 ? (T)-1 : (T)1;
+                        const T frontier_min_rad = frontier_min_deg / (T)180 * math::PI<T>;
+                        const T frontier_max_rad = frontier_max_deg / (T)180 * math::PI<T>;
+                        const T angle_abs = frontier_min_rad + (frontier_max_rad - frontier_min_rad) * alpha;
+                        angle = sample % 2 == 0 ? -angle_abs : angle_abs;
                     }
-                    const T angle = angle_deg / (T)180 * math::PI<T>;
                     state.target_yaw[sample] = angle;
                     auto& fixture_state = get_ref(host, state.states_host, sample);
                     fixture_state = {};

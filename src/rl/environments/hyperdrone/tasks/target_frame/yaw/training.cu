@@ -16,6 +16,7 @@
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_cuda.h>
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
+#include "scenes.h"
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cuda.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/yaw/operations_cuda.h>
@@ -37,6 +38,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -72,9 +74,9 @@ namespace rl_tools{
         return loss;
     }
 
-    inline rendering::datasets::procthor::GLB yaw_scenes(const std::filesystem::path& path){
+    inline yaw_training::Scenes yaw_scenes(const std::filesystem::path& path){
         using namespace yaw_training;
-        rendering::datasets::procthor::GLB scenes{{}, {}};
+        Scenes scenes;
         if(std::filesystem::is_directory(path)){
             for(const auto& entry: std::filesystem::directory_iterator(path)){
                 if(entry.is_regular_file() && entry.path().extension() == ".glb"){
@@ -94,7 +96,7 @@ namespace rl_tools{
         return scenes;
     }
 
-    inline void yaw_manifest(yaw_training::DEVICE& host, const rendering::datasets::procthor::GLB& scenes, const utils::extrack::Paths& paths, yaw_training::TI seed){
+    inline void yaw_manifest(yaw_training::DEVICE& host, const yaw_training::Scenes& scenes, const yaw_training::MULTI_ENVIRONMENT& environment, const yaw_training::TASK_WORLD& validation_world, const utils::extrack::Paths& paths, yaw_training::TI seed){
         using namespace yaw_training;
         nlohmann::json manifest = {
             {"target", RL_TOOLS_HYPERDRONE_TARGET_NAME}, {"seed", seed}, {"profile", SMOKE ? "smoke" : "production"},
@@ -103,10 +105,10 @@ namespace rl_tools{
             {"training", {{"epochs", NUM_EPOCHS}, {"train_scenes", N_TRAIN_SCENES}, {"validation_scenes", N_VALIDATION_SCENES}, {"active_scenes", N_ACTIVE_SCENES}, {"instances_per_scene", N_ENVIRONMENTS_PER_SCENE}, {"steps_per_epoch", STEPS_TOTAL}, {"steps_per_instance", STEPS_PER_ENV}, {"episode_limit", EPISODE_STEP_LIMIT}, {"batch_size", BATCH_SIZE}, {"batches_per_pass", N_BATCHES}, {"passes", N_TRAIN_PASSES}, {"trained_rows_per_pass", TRAINED_ROWS_PER_PASS}, {"shuffle", "batch order only"}, {"optimizer", "Adam"}, {"learning_rate", 0.001}, {"beta1", 0.9}, {"beta2", 0.999}, {"epsilon", 1e-8}, {"epsilon_sqrt", 1e-8}, {"loss", "0.5*MSE(cos,sin)"}, {"precision", "BF16 parameters/activations/gradients/labels; float masters and teacher"}}},
             {"model", {{"input", {1, BATCH_SIZE, IMG_H, IMG_W, COMBINED_IMG_C}}, {"channels", "current RGB,target RGB,0,0"}, {"convolutions", {32, 64, 128, 256}}, {"kernel", 3}, {"stride", 2}, {"padding", 1}, {"dense", {64, 64, 64, 2}}, {"hidden_activation", "ReLU"}, {"output_activation", "identity"}}},
             {"environment", {{"dynamics", "crazyflie_openmv"}, {"frequency_hz", SIMULATION_FREQUENCY}, {"action_interface", "direct motor"}, {"substeps", 1}, {"guidance", 0}, {"initial_position", 0}, {"initial_linear_velocity", 0}, {"initial_angular_velocity", 1}, {"gyro_bias", 0.02}, {"thrust_to_weight", {1.7, 2.0}}, {"other_physical_randomization", false}, {"disturbances", 0}}},
-            {"rendering", {{"backend", "OptiX"}, {"shading", "High/PBR"}, {"camera_fov_deg", CAMERA_FOV}, {"fov_randomization_deg", CAMERA_FOV_RANDOMIZATION_RANGE}, {"mount_translation_range_m", CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE}, {"mount_rotation_range_rad", CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE}, {"target_roll_pitch_range_rad", TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE}, {"brightness_range", {0.5, 1.5}}, {"target_brightness_multiplier", {0.75, 1.25}}, {"aa_grid", RENDER_ANTI_ALIASING_GRID_SIZE}, {"motion_blur_samples", RENDER_MOTION_BLUR_SAMPLES}, {"shutter_fraction", {RENDER_SHUTTER_FRACTION_MIN, RENDER_SHUTTER_FRACTION_MAX}}, {"target_bank_refresh_steps", TASK_SPEC::TARGET_BANK_REFRESH_STEPS}}},
+            {"rendering", {{"backend", "OptiX"}, {"shading", "High/PBR"}, {"rgb_encoding", "float before brightness"}, {"ambient", {0.5, 0.5, 0.5}}, {"directional_fill_lights", 3}, {"honor_unlit_materials", false}, {"background", "solid black"}, {"camera_fov_deg", CAMERA_FOV}, {"fov_randomization_deg", CAMERA_FOV_RANDOMIZATION_RANGE}, {"mount_translation_range_m", CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE}, {"mount_rotation_range_rad", CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE}, {"target_roll_pitch_range_rad", TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE}, {"brightness_range", {0.5, 1.5}}, {"target_brightness_multiplier", {0.75, 1.25}}, {"aa_grid", RENDER_ANTI_ALIASING_GRID_SIZE}, {"motion_blur_samples", RENDER_MOTION_BLUR_SAMPLES}, {"shutter_fraction", {RENDER_SHUTTER_FRACTION_MIN, RENDER_SHUTTER_FRACTION_MAX}}, {"target_bank_refresh_steps", TASK_SPEC::TARGET_BANK_REFRESH_STEPS}}},
             {"curriculum", {{"orientation_sampler", "uniform 3D axis and angle"}, {"start_deg", INIT_ORIENTATION_CURRICULUM_START_DEG}, {"full_deg", INIT_ORIENTATION_CURRICULUM_FULL_DEG}, {"increment_deg", INIT_ORIENTATION_CURRICULUM_STEP_DEG}, {"frontier_ratio", INIT_ORIENTATION_CURRICULUM_FRONTIER_RATIO}, {"threshold_min_deg", INIT_ORIENTATION_CURRICULUM_FRONTIER_MIN_DEG}, {"threshold_max_deg", INIT_ORIENTATION_CURRICULUM_FRONTIER_MAX_DEG}, {"validation_cadence", VALIDATION_CADENCE}, {"fixed_bins_deg", {-2, -4, -8, -16, -32, 0, 2, 4, 8, 16, 32}}}},
-            {"checkpoint", {{"cadence", CHECKPOINT_CADENCE}, {"examples", {REDUCED_BATCH_SIZE, N_EXAMPLES}}, {"optimizer_state", false}}},
-            {"accepted_differences", {"Current renderer, GLB loading, indoor annotations and random-number draw order", "Float rendered images instead of RGB8 quantization before brightness", "Early resets reuse the epoch target bank setup while resampling dynamics", "Same-step autoreset and a final untrained next-observation row", "Current HDF5 model format; no legacy OpenMV serialization or exact optimizer resume"}}
+            {"checkpoint", {{"cadence", CHECKPOINT_CADENCE}, {"examples", {REDUCED_BATCH_SIZE, N_EXAMPLES}}, {"example_row_offset", STEPS_TOTAL - N_EXAMPLES}, {"optimizer_state", false}}},
+            {"accepted_differences", {"Float RGB instead of RGB8 before brightness; exact-count free-space stopping instead of completing 64-candidate blocks; native validation batch 64 instead of padded 512", "Current metallic ambient shading, black instead of checkerboard background, GLB loading and random-number draw order", "Early resets reuse the epoch target bank setup while resampling dynamics", "Same-step autoreset and a final untrained next-observation row", "Current HDF5 model format; no legacy OpenMV serialization or exact optimizer resume"}}
         };
         manifest["scenes"] = nlohmann::json::array();
         for(TI scene = 0; scene < N_TOTAL_SCENES; scene++){
@@ -115,6 +117,13 @@ namespace rl_tools{
                 throw std::runtime_error("Could not hash scene: " + scenes.references[scene]);
             }
             manifest["scenes"].push_back({{"path", scenes.references[scene]}, {"sha1", hash}, {"split", scene < N_TRAIN_SCENES ? "train" : "validation"}});
+            const auto& annotations = scene < N_TRAIN_SCENES ? environment.environments[0].slots[scene].annotations : validation_world.slots[scene - N_TRAIN_SCENES].annotations;
+            auto& positions = manifest["scenes"].back()["free_positions"];
+            positions = nlohmann::json::array();
+            for(TI index = 0; index < annotations.num_positions; index++){
+                const auto& position = annotations.positions[index];
+                positions.push_back({{"position", position.position}, {"yaw", position.yaw}, {"score", position.score}});
+            }
         }
         bool held_out = true;
         for(TI train = 0; train < N_TRAIN_SCENES; train++){
@@ -129,7 +138,7 @@ namespace rl_tools{
         output << manifest.dump(2) << '\n';
     }
 
-    inline int train_yaw(const rendering::datasets::procthor::GLB& scenes, yaw_training::TI seed){
+    inline int train_yaw(const yaw_training::Scenes& scenes, yaw_training::TI seed){
         using namespace yaw_training;
         DEVICE_COMPUTE compute;
         auto& host = compute.rendering;
@@ -142,19 +151,19 @@ namespace rl_tools{
         extrack_config.population_variates = "profile";
         extrack_config.population_values = SMOKE ? "smoke" : "production";
         init(host, extrack_config, paths, seed);
-        yaw_manifest(host, scenes, paths, seed);
         std::ofstream metrics(paths.seed / "metrics.jsonl");
         metrics.exceptions(std::ios::failbit | std::ios::badbit);
 
-        RNG rng, scene_rng, batch_rng;
+        RNG rng;
+        std::mt19937 scene_rng(seed);
+        std::array<TI, N_TRAIN_SCENES> scene_permutation;
+        for(TI scene = 0; scene < N_TRAIN_SCENES; scene++){
+            scene_permutation[scene] = scene;
+        }
         RNG_COMPUTE compute_rng;
         malloc(host, rng);
-        malloc(host, scene_rng);
-        malloc(host, batch_rng);
         malloc(compute, compute_rng);
         init(host, rng, seed);
-        init(host, scene_rng, seed);
-        init(host, batch_rng, seed);
         init(compute, compute_rng, seed);
 
         RAPTOR_MODEL teacher_host, teacher;
@@ -190,8 +199,8 @@ namespace rl_tools{
         auto& validation_world = *validation_world_storage;
         malloc(compute, environment);
         malloc(compute, validation_world);
-        rendering::datasets::procthor::GLB::Corpus corpus;
-        rendering::datasets::procthor::enumerate(host, scenes, corpus);
+        Scenes::Corpus corpus;
+        enumerate(host, scenes, corpus);
         for(TI member = 0; member < N_ACTIVE_SCENES; member++){
             auto& world = environment.environments[member];
             world.parameters.agents[0].cameras[0].fov = CAMERA_FOV;
@@ -200,6 +209,7 @@ namespace rl_tools{
         }
         validation_world.parameters.agents[0].cameras[0].fov = CAMERA_FOV;
         rl_tools::init(compute, validation_world, environment.shared, scenes, corpus, N_TRAIN_SCENES, N_VALIDATION_SCENES, N_ACTIVE_SCENES);
+        yaw_manifest(host, scenes, environment, validation_world, paths, seed);
         Tensor<typename BASE_WORLD::DRONE_PARAMETERS_SPEC> nominal_host;
         malloc(host, nominal_host);
         copy(compute, host, environment.environments[0].drone_parameters, nominal_host);
@@ -226,12 +236,11 @@ namespace rl_tools{
         TI global_step = 0;
         for(TI epoch = 0; epoch < NUM_EPOCHS; epoch++){
             const auto epoch_start = std::chrono::steady_clock::now();
-            const TI first_scene = random::uniform_int_distribution(host.random, (TI)0, N_TRAIN_SCENES - 1, scene_rng);
-            TI second_scene = random::uniform_int_distribution(host.random, (TI)0, N_TRAIN_SCENES - 2, scene_rng);
-            if(second_scene >= first_scene){
-                second_scene++;
+            std::shuffle(scene_permutation.begin(), scene_permutation.end(), scene_rng);
+            std::array<TI, N_ACTIVE_SCENES> selected;
+            for(TI member = 0; member < N_ACTIVE_SCENES; member++){
+                selected[member] = scene_permutation[member];
             }
-            const std::array<TI, N_ACTIVE_SCENES> selected = {first_scene, second_scene};
             get_ref(host, nominal_host, 0).dynamics.mdp.init.max_angle = orientation_bound / (T)180 * math::PI<T>;
             for(TI member = 0; member < N_ACTIVE_SCENES; member++){
                 auto& world = environment.environments[member];
@@ -242,6 +251,10 @@ namespace rl_tools{
                 init(compute, runner, environment, compute_rng);
             } else {
                 reset(compute, runner, environment, compute_rng);
+            }
+            std::array<TI, N_ACTIVE_SCENES> bank_steps;
+            for(TI member = 0; member < N_ACTIVE_SCENES; member++){
+                bank_steps[member] = environment.environments[member].bank_step;
             }
             prologue(compute, dataset, runner, environment, compute_rng);
             for(TI time = 0; time < STEPS_PER_ENV; time++){
@@ -255,6 +268,11 @@ namespace rl_tools{
                 yaw_targets(compute, runner.states, target_row);
                 epilogue(compute, dataset, runner, runner_buffer, environment, compute_rng, time);
                 global_step += N_ENVIRONMENTS;
+            }
+            for(TI member = 0; member < N_ACTIVE_SCENES; member++){
+                if(environment.environments[member].bank_step != bank_steps[member]){
+                    throw std::runtime_error("Yaw target bank refreshed inside an epoch");
+                }
             }
             yaw_synchronize(compute);
             const auto collection_end = std::chrono::steady_clock::now();
@@ -279,13 +297,15 @@ namespace rl_tools{
                 fixed_loss_before = fixed_batch_loss();
             }
             T loss_sum = 0;
+            T yaw_squared_error = 0;
+            T yaw_null_squared_error = 0;
             for(TI pass = 0; pass < N_TRAIN_PASSES; pass++){
                 std::array<TI, N_BATCHES> order;
                 for(TI batch = 0; batch < N_BATCHES; batch++){
                     order[batch] = batch;
                 }
                 for(TI i = N_BATCHES - 1; i > 0; i--){
-                    const TI j = random::uniform_int_distribution(host.random, (TI)0, i, batch_rng);
+                    const TI j = random::uniform_int_distribution(host.random, (TI)0, i, rng);
                     std::swap(order[i], order[j]);
                 }
                 for(const TI batch: order){
@@ -303,6 +323,14 @@ namespace rl_tools{
                         copy(compute, host, output, output_host);
                         copy(compute, host, target_batch, targets_host);
                         loss_sum += yaw_batch_mse(host, output_host, targets_host) / (T)N_BATCHES;
+                        for(TI sample = 0; sample < BATCH_SIZE; sample++){
+                            const T cosine = get(host, targets_host, sample, 0);
+                            const T sine = get(host, targets_host, sample, 1);
+                            const T error = yaw_error(host, get(host, output_host, 0, sample, 0), get(host, output_host, 0, sample, 1), cosine, sine);
+                            const T null_error = yaw_error(host, (T)1, (T)0, cosine, sine);
+                            yaw_squared_error += error * error / (T)(BATCH_SIZE * N_BATCHES);
+                            yaw_null_squared_error += null_error * null_error / (T)(BATCH_SIZE * N_BATCHES);
+                        }
                     }
                     auto gradient_tensor = to_tensor(compute, d_output);
                     auto gradient = reshape_row_major(compute, gradient_tensor, tensor::Shape<TI, 1, BATCH_SIZE, TARGET_DIM>{});
@@ -325,6 +353,9 @@ namespace rl_tools{
                 }
             }
             metra::log("hyperdrone/yaw/training/mse", loss_sum);
+            record["yaw_rmse_deg"] = std::sqrt(yaw_squared_error) * (T)180 / math::PI<T>;
+            record["label_yaw_rms_deg"] = std::sqrt(yaw_null_squared_error) * (T)180 / math::PI<T>;
+            metra::log("hyperdrone/yaw/training/rmse_deg", record["yaw_rmse_deg"].get<double>());
             metra::log("hyperdrone/yaw/training/reused_setup_fraction", record["reused_setup_fraction"].get<double>());
             metra::log("hyperdrone/yaw/training/collection_seconds", record["collection_seconds"].get<double>());
             metra::log("hyperdrone/yaw/training/training_seconds", record["training_seconds"].get<double>());
@@ -348,7 +379,7 @@ namespace rl_tools{
                 add_scalar(host, host.logger, "yaw/orientation_bound_deg", orientation_bound);
             }
             record["next_orientation_bound_deg"] = orientation_bound;
-            if(epoch % CHECKPOINT_CADENCE == 0){
+            if(epoch % CHECKPOINT_CADENCE == 0 || epoch + 1 == NUM_EPOCHS){
                 const auto directory = get_step_folder(host, extrack_config, paths, global_step);
                 const T reload_error = save_checkpoint(host, compute, student, dataset.all_observations, directory);
                 record["checkpoint_reload_max_error"] = reload_error;
@@ -388,8 +419,6 @@ namespace rl_tools{
         free(compute, teacher);
         free(compute, teacher_buffer);
         free(host, rng);
-        free(host, scene_rng);
-        free(host, batch_rng);
         free(compute, compute_rng);
         free(compute);
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
