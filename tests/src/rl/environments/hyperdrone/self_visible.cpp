@@ -83,8 +83,6 @@ namespace test_self_visible {
 
 using namespace test_self_visible;
 
-// external third-person mount 1.2m behind and slightly above the body, pitched down onto it —
-// guarantees the drone geometry is in frame regardless of the sampled scene placement
 static void arrange(DEVICE& device,
         rlt::Tensor<rlt::tensor::Specification<typename WORLD::Parameters, TI, rlt::tensor::Shape<TI, INSTANCES>>>& parameters,
         rlt::Tensor<rlt::tensor::Specification<typename WORLD::State, TI, rlt::tensor::Shape<TI, INSTANCES>>>& states, T rotor_phase){
@@ -93,11 +91,15 @@ static void arrange(DEVICE& device,
         typename WORLD::State state = rlt::get(device, states, instance_i);
         instance_parameters.scene_yaw_cos = 1;
         instance_parameters.scene_yaw_sin = 0;
-        instance_parameters.agents[0].cameras[0].mount.pose.position[0] = (T)-1.2;
+        instance_parameters.scene_translation[0] = 0;
+        instance_parameters.scene_translation[1] = 0;
+        instance_parameters.scene_translation[2] = 100;
+        using rlt::rotor_wheelbase;
+        const T wheelbase = rotor_wheelbase(device, instance_parameters.agents[0].dynamics.dynamics.rotor_positions, WORLD::DYNAMICS_ENV::ACTION_DIM);
+        instance_parameters.agents[0].cameras[0].mount.pose.position[0] = (T)-2 * wheelbase;
         instance_parameters.agents[0].cameras[0].mount.pose.position[1] = 0;
-        instance_parameters.agents[0].cameras[0].mount.pose.position[2] = (T)0.4;
-        // pitched down so the camera looks along (1, 0, -0.3) in the body frame
-        const T half_pitch = std::atan2((T)0.3, (T)1) / 2;
+        instance_parameters.agents[0].cameras[0].mount.pose.position[2] = (T)0.75 * wheelbase;
+        const T half_pitch = std::atan2((T)0.75, (T)2) / 2;
         instance_parameters.agents[0].cameras[0].mount.pose.orientation[0] = std::cos(half_pitch);
         instance_parameters.agents[0].cameras[0].mount.pose.orientation[1] = 0;
         instance_parameters.agents[0].cameras[0].mount.pose.orientation[2] = std::sin(half_pitch);

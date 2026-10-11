@@ -52,7 +52,7 @@ namespace rl_tools{
                 const float coordinates[NEXT_WORLD::DYNAMICS_ENV::ACTION_DIM] = {};
                 const TI row = setup_i * NEXT_WORLD::RENDERER_CONFIG::MAX_OVERLAY_INSTANCES + slot_offset;
                 const auto& body = get_ref(device, bodies, setup.agents[0].drone);
-                const float placement_scale = rotor_scale(device, body.rig, setup.agents[0].dynamics.dynamics.rotor_positions, (TI)NEXT_WORLD::DYNAMICS_ENV::ACTION_DIM);
+                const float placement_scale = rotor_scale(device, body.rig, setup.agents[0].dynamics.dynamics.rotor_positions, NEXT_WORLD::DYNAMICS_ENV::ACTION_DIM);
                 hyperdrone::cuda::drone_entity_rows<DEVICE, typename NEXT_WORLD::SPEC>(device, body, base, base, coordinates, coordinates, transforms, transforms_motion, meshes, parts, row, placement_scale);
             }
         }
