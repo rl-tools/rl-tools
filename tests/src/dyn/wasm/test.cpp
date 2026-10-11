@@ -1,4 +1,4 @@
-#include <rl_tools/operations/cpu.h>
+#include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/persist/backends/hdf5/hdf5.h>
 #include <rl_tools/persist/backends/hdf5/operations_cpu.h>
 #include <rl_tools/dyn/persist.h>
@@ -20,7 +20,7 @@ int main(int argc, char** argv){
     const char* path = (argc > 1) ? argv[1] : "tests/data/test_dyn_wasm_checkpoint.h5";
 #endif
 
-    using DEVICE = rlt::devices::DefaultCPU;
+    using DEVICE = rlt::devices::DEVICE_FACTORY<>;
     using TI = typename DEVICE::index_t;
     DEVICE device;
 
