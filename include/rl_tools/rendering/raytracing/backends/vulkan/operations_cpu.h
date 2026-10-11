@@ -29,6 +29,12 @@ namespace rl_tools {
     }
 
     namespace rendering::raytracing::backends::vulkan{
+        constexpr const char* REQUIRED_EXTENSIONS[] = {
+            VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+            VK_KHR_RAY_QUERY_EXTENSION_NAME,
+            VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME
+        };
+
         template <typename SPEC>
         Context& context(rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
             return *renderer.backend;
@@ -353,29 +359,10 @@ namespace rl_tools {
         }
     }
 
-    template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
+    template <typename DEVICE>
+    void malloc(DEVICE& device, rendering::raytracing::Runtime<rendering::raytracing::backends::Vulkan>& runtime){
         namespace vk = rendering::raytracing::backends::vulkan;
-        using TI = typename SPEC::TI;
-        static_assert(utils::typing::is_same_v<typename SPEC::T, float>, "The Vulkan raytracing backend requires T = float");
-
-        if constexpr (SPEC::ENABLE_OVERLAYS) {
-            malloc(device, renderer.transforms);
-            rendering::raytracing::detail::malloc_overlay_staging(renderer);
-        }
-        if constexpr (SPEC::HAS_FLOW_OVERLAYS) {
-            malloc(device, renderer.transforms_previous);
-            std::memset(data(renderer.transforms_previous), 0, decltype(renderer.transforms_previous)::SPEC::SIZE_BYTES);
-        }
-        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
-            malloc(device, renderer.transforms_motion);
-            std::memset(data(renderer.transforms_motion), 0, decltype(renderer.transforms_motion)::SPEC::SIZE_BYTES);
-        }
-
-        renderer.backend = new rendering::raytracing::backends::RendererState<rendering::raytracing::backends::Vulkan, SPEC>{};
-        renderer.device.context = renderer.backend;
-        auto* ctx = renderer.backend;
-
+        auto& state = runtime.state;
         VkApplicationInfo application_info{};
         application_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
         application_info.pApplicationName = "rl_tools";
@@ -383,19 +370,14 @@ namespace rl_tools {
         VkInstanceCreateInfo instance_info{};
         instance_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         instance_info.pApplicationInfo = &application_info;
-        vk::check(device, vkCreateInstance(&instance_info, nullptr, &ctx->instance), "Vulkan: instance creation failed");
+        vk::check(device, vkCreateInstance(&instance_info, nullptr, &state.instance), "Vulkan: instance creation failed");
 
         uint32_t physical_device_count = 0;
-        vkEnumeratePhysicalDevices(ctx->instance, &physical_device_count, nullptr);
+        vk::check(device, vkEnumeratePhysicalDevices(state.instance, &physical_device_count, nullptr), "Vulkan: physical device enumeration failed");
         utils::assert_exit(device, physical_device_count > 0, "Vulkan: no devices available");
         std::vector<VkPhysicalDevice> physical_devices(physical_device_count);
-        vkEnumeratePhysicalDevices(ctx->instance, &physical_device_count, physical_devices.data());
+        vk::check(device, vkEnumeratePhysicalDevices(state.instance, &physical_device_count, physical_devices.data()), "Vulkan: physical device enumeration failed");
 
-        const char* required_extensions[] = {
-            VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
-            VK_KHR_RAY_QUERY_EXTENSION_NAME,
-            VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME
-        };
         const char* device_index_env = std::getenv("RL_TOOLS_VULKAN_DEVICE_INDEX");
         int64_t requested_device_index = device_index_env != nullptr ? std::atoll(device_index_env) : -1;
         int64_t selected = -1;
@@ -407,11 +389,11 @@ namespace rl_tools {
                 continue;
             }
             uint32_t extension_count = 0;
-            vkEnumerateDeviceExtensionProperties(physical_devices[physical_device_i], nullptr, &extension_count, nullptr);
+            vk::check(device, vkEnumerateDeviceExtensionProperties(physical_devices[physical_device_i], nullptr, &extension_count, nullptr), "Vulkan: device extension enumeration failed");
             std::vector<VkExtensionProperties> extensions(extension_count);
-            vkEnumerateDeviceExtensionProperties(physical_devices[physical_device_i], nullptr, &extension_count, extensions.data());
+            vk::check(device, vkEnumerateDeviceExtensionProperties(physical_devices[physical_device_i], nullptr, &extension_count, extensions.data()), "Vulkan: device extension enumeration failed");
             bool extensions_present = true;
-            for(const char* required : required_extensions){
+            for(const char* required : vk::REQUIRED_EXTENSIONS){
                 bool found = false;
                 for(const auto& extension : extensions){
                     if(std::strcmp(extension.extensionName, required) == 0){
@@ -457,7 +439,42 @@ namespace rl_tools {
             }
         }
         utils::assert_exit(device, selected >= 0, "Vulkan: no device with ray query support found");
-        ctx->physical_device = physical_devices[selected];
+        state.physical_device = physical_devices[selected];
+    }
+
+    template <typename DEVICE>
+    void free(DEVICE&, rendering::raytracing::Runtime<rendering::raytracing::backends::Vulkan>& runtime){
+        if(runtime.state.instance != VK_NULL_HANDLE){
+            vkDestroyInstance(runtime.state.instance, nullptr);
+            runtime.state = {};
+        }
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, rendering::raytracing::Runtime<rendering::raytracing::backends::Vulkan>& runtime){
+        namespace vk = rendering::raytracing::backends::vulkan;
+        using TI = typename SPEC::TI;
+        static_assert(utils::typing::is_same_v<typename SPEC::T, float>, "The Vulkan raytracing backend requires T = float");
+        utils::assert_exit(device, runtime.state.instance != VK_NULL_HANDLE && runtime.state.physical_device != VK_NULL_HANDLE, "Vulkan: renderer allocation requires an allocated runtime");
+
+        if constexpr (SPEC::ENABLE_OVERLAYS) {
+            malloc(device, renderer.transforms);
+            rendering::raytracing::detail::malloc_overlay_staging(renderer);
+        }
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS) {
+            malloc(device, renderer.transforms_previous);
+            std::memset(data(renderer.transforms_previous), 0, decltype(renderer.transforms_previous)::SPEC::SIZE_BYTES);
+        }
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+            malloc(device, renderer.transforms_motion);
+            std::memset(data(renderer.transforms_motion), 0, decltype(renderer.transforms_motion)::SPEC::SIZE_BYTES);
+        }
+
+        renderer.backend = new rendering::raytracing::backends::RendererState<rendering::raytracing::backends::Vulkan, SPEC>{};
+        renderer.device.context = renderer.backend;
+        auto* ctx = renderer.backend;
+
+        ctx->physical_device = runtime.state.physical_device;
         {
             VkPhysicalDeviceAccelerationStructurePropertiesKHR acceleration_structure_properties{};
             acceleration_structure_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR;
@@ -510,8 +527,8 @@ namespace rl_tools {
         device_info.pNext = &features_1_2;
         device_info.queueCreateInfoCount = 1;
         device_info.pQueueCreateInfos = &queue_info;
-        device_info.enabledExtensionCount = 3;
-        device_info.ppEnabledExtensionNames = required_extensions;
+        device_info.enabledExtensionCount = sizeof(vk::REQUIRED_EXTENSIONS) / sizeof(vk::REQUIRED_EXTENSIONS[0]);
+        device_info.ppEnabledExtensionNames = vk::REQUIRED_EXTENSIONS;
         vk::check(device, vkCreateDevice(ctx->physical_device, &device_info, nullptr, &ctx->device), "Vulkan: device creation failed");
         vkGetDeviceQueue(ctx->device, ctx->queue_family_index, 0, &ctx->queue);
 
@@ -713,6 +730,15 @@ namespace rl_tools {
 #endif
         ctx->dummy = vk::create_buffer(device, *ctx, 64, STORAGE, HOST_MEMORY, false);
         rendering::raytracing::detail::announce_backend(device, renderer);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
+        rendering::raytracing::Runtime<rendering::raytracing::backends::Vulkan> runtime;
+        malloc(device, runtime);
+        malloc(device, renderer, runtime);
+        renderer.backend->owned_runtime.state = runtime.state;
+        runtime.state = {};
     }
 
     template <typename DEVICE, typename SPEC, typename METADATA_T>
@@ -1983,7 +2009,7 @@ namespace rl_tools {
             vkDestroyFence(ctx.device, ctx.fence_update, nullptr);
             vkDestroyCommandPool(ctx.device, ctx.command_pool, nullptr);
             vkDestroyDevice(ctx.device, nullptr);
-            vkDestroyInstance(ctx.instance, nullptr);
+            free(device, ctx.owned_runtime);
             delete renderer.backend;
             renderer.backend = nullptr;
             renderer.device.context = nullptr;

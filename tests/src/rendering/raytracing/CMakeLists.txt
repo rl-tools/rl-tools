@@ -96,6 +96,22 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
     endif()
 endif()
 
+if(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "VULKAN")
+    add_executable(test_rendering_raytracing_runtime_vulkan runtime_vulkan.cpp)
+    target_link_libraries(test_rendering_raytracing_runtime_vulkan PRIVATE
+        RLtools::RLtools
+        rendering_raytracing_backend
+        rendering_raytracing_backend_depth
+        GTest::gtest_main
+    )
+    target_compile_definitions(test_rendering_raytracing_runtime_vulkan PRIVATE
+        RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1
+    )
+    gtest_discover_tests(test_rendering_raytracing_runtime_vulkan
+        PROPERTIES TIMEOUT 60 LABELS "raytracing-runtime"
+    )
+endif()
+
 # overlay pose ownership contract: producer-style tensor writes must render identically to the
 # set_transform* verbs on every backend; self-contained (no golden data)
 if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)

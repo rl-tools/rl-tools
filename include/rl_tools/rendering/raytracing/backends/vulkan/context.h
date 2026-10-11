@@ -4,7 +4,7 @@
 #pragma once
 #define RL_TOOLS_RENDERING_RAYTRACING_BACKENDS_VULKAN_CONTEXT_H
 
-#include "../../types.h"
+#include "../../renderer.h"
 
 #include <vulkan/vulkan.h>
 
@@ -12,6 +12,13 @@
 #include <cstdint>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools::rendering::raytracing::backends{
+    template <>
+    struct RuntimeState<Vulkan>{
+        VkInstance instance = VK_NULL_HANDLE;
+        VkPhysicalDevice physical_device = VK_NULL_HANDLE;
+    };
+}
 namespace rl_tools::rendering::raytracing::backends::vulkan{
     // Descriptor bindings shared between the host code and the GLSL kernels in device.comp
     namespace bindings{
@@ -136,7 +143,7 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
     };
 
     struct Context{
-        VkInstance instance = VK_NULL_HANDLE;
+        rendering::raytracing::Runtime<rendering::raytracing::backends::Vulkan> owned_runtime;
         VkPhysicalDevice physical_device = VK_NULL_HANDLE;
         VkDevice device = VK_NULL_HANDLE;
         uint32_t queue_family_index = 0;

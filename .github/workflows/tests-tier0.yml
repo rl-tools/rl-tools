@@ -112,7 +112,7 @@ jobs:
             cmake_backend: VULKAN
             benchmark_config: -DRL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS=16
             packages: libvulkan-dev glslang-tools mesa-vulkan-drivers git-lfs cmake python3-venv
-            backend_targets: test_rendering_raytracing_overlay_scenarios_vulkan test_rendering_raytracing_golden_comparison_vulkan
+            backend_targets: test_rendering_raytracing_overlay_scenarios_vulkan test_rendering_raytracing_golden_comparison_vulkan test_rendering_raytracing_runtime_vulkan
           - backend: webgpu
             cmake_backend: WEBGPU
             benchmark_config: -DRL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS=16
@@ -197,6 +197,11 @@ jobs:
         if: matrix.backend != 'generic'
         working-directory: build-raytracing-${{ matrix.backend }}
         run: ctest -L '^paper-benchmark$' --no-tests=error --output-on-failure --timeout 20 -j5
+
+      - name: Test headless Vulkan runtime lifetime
+        if: matrix.backend == 'vulkan'
+        working-directory: build-raytracing-${{ matrix.backend }}
+        run: env -u DISPLAY -u WAYLAND_DISPLAY ctest -L '^raytracing-runtime$' --no-tests=error --output-on-failure --timeout 60 -j1
 
       - name: Download pinned May paper scene
         if: matrix.backend != 'generic'

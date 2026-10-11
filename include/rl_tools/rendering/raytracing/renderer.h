@@ -163,6 +163,12 @@ namespace rl_tools {
             using Default = None;
 #endif
 
+            template <typename T_BACKEND>
+            struct RuntimeState {};
+
+            template <>
+            struct RuntimeState<Vulkan>;
+
             template <typename T_BACKEND, typename T_SPEC>
             struct RendererState;
 
@@ -205,6 +211,13 @@ namespace rl_tools {
                 webgpu::Context* context = nullptr;
             };
         }
+
+        // A shared runtime must outlive every renderer allocated against it, regardless of SPEC.
+        template <typename T_BACKEND = backends::Default>
+        struct Runtime {
+            using BACKEND = T_BACKEND;
+            backends::RuntimeState<BACKEND> state{};
+        };
 
         namespace device {
             template <typename T_RENDERING_DEVICE>
