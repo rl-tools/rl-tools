@@ -48,6 +48,11 @@ static constexpr TI CAM_HEIGHT = CONFIG::RESOLUTION;
 static constexpr const char* OBJECTS20_LAYOUT_NAME = "canonical_staggered_v1";
 static constexpr const char* PAPER_SCENE_SHA1 = "7f1c9129532798e0b63bc41edb6b4c09251cf8a0";
 namespace paper = rlt::rendering::raytracing::benchmark;
+static constexpr const char* PHYSICS_BACKEND_NAME = CONFIG::PHYSICS_BACKEND == paper::PhysicsBackend::cuda ? "cuda"
+    : (CONFIG::PHYSICS_BACKEND == paper::PhysicsBackend::cpu ? "cpu" : "none");
+
+template <typename SPEC>
+using CameraBuffer = rlt::Tensor<typename rlt::rendering::raytracing::Renderer<SPEC>::CAMERA_TENSOR_SPEC>;
 
 template <bool T_OUTPUT_RGB, bool T_OUTPUT_DEPTH, TI T_WIDTH = CAM_WIDTH, TI T_HEIGHT = CAM_HEIGHT, TI T_NUM_CAMERAS = NUM_ENVS, typename T_SHADING = ShadingProfile, bool T_ENABLE_AA = false, TI T_AA_GRID_SIZE = 1>
 struct BenchmarkConfig: rlt::rendering::raytracing::config::Default<T, TI>{
@@ -177,7 +182,7 @@ static void print_help(const char* argv0) {
         std::cout << "  --fidelity <low|medium|high|all>  Default: all\n"
             << "  --workload <render_only|render_physics_static|render_physics_coupled|all>\n"
             << "    Default: all = render_only + render_physics_static (24 cells across all axes)\n"
-            << "    Physics requires OptiX/CUDA; use --workload render_only on other backends.\n"
+            << "    Physics backend: " << PHYSICS_BACKEND_NAME << " (selected at build time).\n"
             << "  --repeats <count>                Complete matrix passes (default: 3, 72 measurements)\n"
             << "  Results are also saved to a timestamped .jsonl file in --output-dir.\n"
             << "  ProcTHOR must match the May asset; download_paper_scene.py fetches it.\n";
@@ -378,7 +383,7 @@ static bool parse_options(int argc, char** argv, Options& options) {
         return false;
     }
     if(!CONFIG::PHYSICS_AVAILABLE && options.workload != "render_only") {
-        std::cerr << "Paper physics workloads require the OptiX backend and CUDA; use --workload render_only for the 12 rendering cells." << std::endl;
+        std::cerr << "This target has no physics backend; use --workload render_only." << std::endl;
         return false;
     }
     if(CONFIG::PAPER && options.orientation_mode != "uniform_so3") {
@@ -886,12 +891,24 @@ static void write_single_camera(DEVICE& device, rlt::rendering::raytracing::Rend
 
 template <typename DEVICE, typename SPEC>
 static void step_paper_physics(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer,
-                               paper::PhysicsSimulation& physics, const Options& options, int iteration) {
+                               paper::PhysicsSimulation& physics, CameraBuffer<SPEC>& physics_cameras,
+                               const Options& options, int iteration) {
     if constexpr (CONFIG::PHYSICS_AVAILABLE) {
         if(options.workload != "render_only") {
-            void* destination = options.workload == "render_physics_coupled" ? data(cameras(device, renderer)) : nullptr;
-            if(!physics_step_cameras(device, physics, destination, stream(device, renderer), iteration)) {
-                throw std::runtime_error(physics_last_error(device, physics));
+            if constexpr (CONFIG::PHYSICS_BACKEND == paper::PhysicsBackend::cuda) {
+                void* destination = options.workload == "render_physics_coupled" ? data(cameras(device, renderer)) : nullptr;
+                if(!physics_step_cameras(device, physics, destination, stream(device, renderer), iteration)) {
+                    throw std::runtime_error(physics_last_error(device, physics));
+                }
+            }
+            else {
+                auto* destination = options.workload == "render_physics_coupled" ? data(physics_cameras) : nullptr;
+                if(!physics_step_cameras(device, physics, destination, iteration)) {
+                    throw std::runtime_error(physics_last_error(device, physics));
+                }
+                if(options.workload == "render_physics_coupled") {
+                    copy(device, renderer.device, physics_cameras, cameras(device, renderer));
+                }
             }
         }
     }
@@ -899,12 +916,13 @@ static void step_paper_physics(DEVICE& device, rlt::rendering::raytracing::Rende
 
 template <typename DEVICE, typename SPEC>
 static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer,
-                                     const Options& options, paper::PhysicsSimulation& physics) {
+                                     const Options& options, paper::PhysicsSimulation& physics,
+                                     CameraBuffer<SPEC>& physics_cameras) {
     using Clock = std::chrono::steady_clock;
     const auto warmup_start = Clock::now();
     int warmup_iterations = 0;
     do {
-        step_paper_physics(device, renderer, physics, options, warmup_iterations++);
+        step_paper_physics(device, renderer, physics, physics_cameras, options, warmup_iterations++);
         render(device, renderer);
     } while(options.warmup_seconds > 0
         ? std::chrono::duration<double>(Clock::now() - warmup_start).count() < options.warmup_seconds
@@ -919,7 +937,7 @@ static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing:
     const auto start = Clock::now();
     int iterations = 0;
     for(;;) {
-        step_paper_physics(device, renderer, physics, options, iterations);
+        step_paper_physics(device, renderer, physics, physics_cameras, options, iterations);
         render_launch(device, renderer);
         iterations++;
         if(iterations % options.sync_interval == 0) {
@@ -1057,6 +1075,7 @@ static bool report(SceneAxis scene, const Options& options, const std::string& d
         record["benchmark_contract"] = "hyperdrone-paper-may2026";
         record["repeat"] = options.repeat;
         record["repeats"] = options.repeats;
+        record["physics_backend"] = options.workload == "render_only" ? nlohmann::json(nullptr) : nlohmann::json(PHYSICS_BACKEND_NAME);
         record["rltools_commit"] = RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH);
         record["workload_source_sha256"] = CONFIG::WORKLOAD_SOURCE_SHA256;
 #ifdef RL_TOOLS_EXTRACK_GIT_DIFF
@@ -1089,7 +1108,9 @@ static bool report(SceneAxis scene, const Options& options, const std::string& d
         }
     }
 
-    const std::string prefix = "raytracing/benchmark/render-v1/" + identity + "/sync" + std::to_string(frame ? 1 : options.sync_interval);
+    const std::string physics_suffix = CONFIG::PAPER && options.workload != "render_only"
+        ? std::string("/physics-") + PHYSICS_BACKEND_NAME : "";
+    const std::string prefix = "raytracing/benchmark/render-v1/" + identity + physics_suffix + "/sync" + std::to_string(frame ? 1 : options.sync_interval);
     metra::log(prefix + "/elapsed_s", result.elapsed_s);
     metra::log(prefix + "/frames_per_s", result.frames_per_s);
     metra::log(prefix + "/pixels_per_s", result.pixels_per_s);
@@ -1112,6 +1133,7 @@ static bool run_case(DEVICE& device, SceneAxis scene, const Options& options) {
     CameraPose pose{};
     BenchmarkResult result{};
     paper::PhysicsSimulation physics;
+    CameraBuffer<SPEC> physics_cameras;
     if constexpr (CONFIG::MODE == BenchmarkMode::frame) {
         pose = make_single_frame_pose(bundle.metadata, options);
         write_single_camera(device, renderer, options.position, pose);
@@ -1143,19 +1165,34 @@ static bool run_case(DEVICE& device, SceneAxis scene, const Options& options) {
                 }
             }
         }
+        if constexpr (CONFIG::PHYSICS_BACKEND == paper::PhysicsBackend::cpu) {
+            if(options.workload == "render_physics_coupled") {
+                malloc(device, physics_cameras);
+            }
+        }
         try {
-            result = run_benchmark(device, renderer, options, physics);
+            result = run_benchmark(device, renderer, options, physics, physics_cameras);
         }
         catch(const std::runtime_error& error) {
             std::cerr << error.what() << std::endl;
             if constexpr (CONFIG::PHYSICS_AVAILABLE) {
                 free_physics_simulation(device, physics);
             }
+            if constexpr (CONFIG::PHYSICS_BACKEND == paper::PhysicsBackend::cpu) {
+                if(options.workload == "render_physics_coupled") {
+                    free(device, physics_cameras);
+                }
+            }
             free(device, renderer);
             return false;
         }
         if constexpr (CONFIG::PHYSICS_AVAILABLE) {
             free_physics_simulation(device, physics);
+        }
+        if constexpr (CONFIG::PHYSICS_BACKEND == paper::PhysicsBackend::cpu) {
+            if(options.workload == "render_physics_coupled") {
+                free(device, physics_cameras);
+            }
         }
     }
 

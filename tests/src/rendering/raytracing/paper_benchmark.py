@@ -34,7 +34,7 @@ class PaperBenchmarkTest(unittest.TestCase):
         self.root = Path(self.directory.name)
         self.invocations = 0
 
-    def invoke(self, *options, profile=None, repeats=1, success=True, target=None):
+    def invoke(self, *options, profile=None, repeats=1, iterations=3, success=True, target=None):
         self.invocations += 1
         environment = dict(os.environ)
         environment.pop("METRA_URL", None)
@@ -45,7 +45,7 @@ class PaperBenchmarkTest(unittest.TestCase):
         expected_repeats = 3 if repeats is None else repeats
         result = subprocess.run(
             [str(binaries / target), "--output-dir", str(self.root / str(self.invocations)),
-             "--iterations", "3", "--warmup-seconds", "0", *fidelity_options, *repeat_options, *options],
+             "--iterations", str(iterations), "--warmup-seconds", "0", *fidelity_options, *repeat_options, *options],
             text=True, capture_output=True, timeout=arguments.timeout * expected_repeats, env=environment,
         )
         if not success:
@@ -81,7 +81,9 @@ class PaperBenchmarkTest(unittest.TestCase):
             self.assertEqual(row["historical_source_commit"], expected_commit)
             if row["workload"] == "render_only":
                 self.assertIsNone(row["physics"])
+                self.assertIsNone(row["physics_backend"])
             else:
+                self.assertEqual(row["physics_backend"], "cuda" if arguments.backend == "optix" else "cpu")
                 self.assertEqual(row["physics"], {
                     "model": "crazyflie", "action_interface": "direct_motor", "integrator": "rk4",
                     "dt": 0.01, "substeps": 1, "reset_interval": 10, "action_amplitude": 0.01,
@@ -99,9 +101,9 @@ class PaperBenchmarkTest(unittest.TestCase):
             self.assertEqual(row["aa_grid_size"], 1)
             self.assertEqual(row["samples_per_pixel"], 1)
             self.assertIs(row["motion_blur"], False)
-            self.assertEqual(row["iterations"], 3)
+            self.assertEqual(row["iterations"], iterations)
             self.assertEqual(row["warmup_seconds"], 0)
-            self.assertAlmostEqual(row["frames_per_s"] * row["elapsed_s"], 3 * num_cameras, delta=1e-5)
+            self.assertAlmostEqual(row["frames_per_s"] * row["elapsed_s"], iterations * num_cameras, delta=1e-5)
             self.assertAlmostEqual(row["pixels_per_s"], row["frames_per_s"] * 64 * 64, delta=1e-3)
             for field in ("elapsed_s", "frames_per_s", "pixels_per_s", "primary_mrays_per_s"):
                 self.assertTrue(math.isfinite(row[field]), row)
@@ -179,14 +181,6 @@ class PaperBenchmarkTest(unittest.TestCase):
                 self.invoke("--workload", "render_only", "--repeats", value, success=False)
         self.invoke("--workload", "render_only", "--repeats", success=False)
 
-    @unittest.skipIf(arguments.backend == "optix", "OptiX supports the CUDA physics workloads")
-    def test_other_backends_reject_physics_workloads(self):
-        self.invoke(success=False)
-        for workload in ("render_physics_static", "render_physics_coupled", "all"):
-            with self.subTest(workload=workload):
-                self.invoke("--scene", "20_objects", "--workload", workload, success=False)
-
-    @unittest.skipUnless(arguments.backend == "optix", "requires CUDA physics and OptiX")
     def test_physics_static_keeps_the_rendered_cameras_unchanged(self):
         rows = self.invoke("--scene", "20_objects", "--workload", "all", profile="all")
         self.assertEqual(len(rows), 12)
@@ -204,6 +198,15 @@ class PaperBenchmarkTest(unittest.TestCase):
                 self.assertNotEqual(Path(reference["verification_png"]).read_bytes(),
                                     Path(coupled["verification_png"]).read_bytes())
 
+    def test_coupled_physics_across_reset_and_partial_sync_batch(self):
+        images = []
+        for interval in (1, 10):
+            row = self.invoke("--scene", "20_objects", "--output", "rgb", "--workload", "render_physics_coupled",
+                              "--sync-interval", str(interval), profile="medium", iterations=13)[0]
+            self.assertEqual(row["sync_interval"], interval)
+            images.append(Path(row["verification_png"]).read_bytes())
+        self.assertEqual(images[0], images[1])
+
     @unittest.skipUnless(arguments.with_procthor, "requires the pinned May ProcTHOR asset")
     def test_default_scenes_and_outputs_use_the_may_asset(self):
         rows = self.invoke("--workload", "render_only", repeats=None)
@@ -213,8 +216,7 @@ class PaperBenchmarkTest(unittest.TestCase):
             for scene in ("20_objects", "procthor") for output in ("rgb", "depth")
         })
 
-    @unittest.skipUnless(arguments.backend == "optix" and arguments.with_procthor,
-                         "requires CUDA physics, OptiX and the pinned May ProcTHOR asset")
+    @unittest.skipUnless(arguments.with_procthor, "requires the pinned May ProcTHOR asset")
     def test_defaults_repeat_all_24_cells_three_times_in_order(self):
         rows = self.invoke(repeats=None)
         self.assertEqual(len(rows), 72)
