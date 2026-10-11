@@ -167,6 +167,9 @@ jobs:
           rendering_raytracing_procthor_frame_high
           rendering_raytracing_procthor_frame_low
           rendering_raytracing_procthor_frame_very_high
+          rendering_raytracing_paper_benchmark
+          test_rendering_raytracing_paper_physics
+          test_rendering_raytracing_paper_physics_cpu
 
       - name: Test Vulkan render benchmark contract
         if: matrix.backend == 'vulkan'
@@ -181,6 +184,23 @@ jobs:
       - name: Test overlay scenarios
         working-directory: build-raytracing-${{ matrix.backend }}
         run: ctest -L '^overlay$' --no-tests=error --output-on-failure --timeout 20 -j5
+
+      - name: Test paper physics contract and CPU driver
+        if: matrix.backend == 'vulkan'
+        working-directory: build-raytracing-vulkan
+        run: ctest -L '^paper-benchmark$' --no-tests=error --output-on-failure --timeout 20 -j5
+
+      - name: Download pinned May paper scene
+        if: matrix.backend == 'vulkan'
+        run: >
+          .venv/bin/python src/rendering/raytracing/benchmark/download_paper_scene.py
+          --destination build-raytracing-vulkan/paper-benchmark/ProcTHOR-Train-1.glb
+
+      - name: Test Vulkan paper benchmark contract
+        if: matrix.backend == 'vulkan'
+        run: >
+          .venv/bin/python tests/src/rendering/raytracing/paper_benchmark.py
+          --build-dir build-raytracing-vulkan --backend vulkan --with-procthor --timeout 120
 
       # ProcTHOR corpus (tests/src/rendering/raytracing/GOLDEN_LEDGER.md): cross-backend tier on
       # generic CPU reference and lavapipe; OptiX comparisons require an OptiX host

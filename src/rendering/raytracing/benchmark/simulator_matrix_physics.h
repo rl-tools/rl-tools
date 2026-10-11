@@ -1,5 +1,7 @@
 #pragma once
 
+#include <rl_tools/rendering/camera.h>
+
 #include <cstdint>
 #include <string>
 
@@ -17,6 +19,7 @@ namespace rl_tools::rendering::raytracing::benchmark {
     namespace detail {
         bool init_physics_simulation(PhysicsSimulation&, int, const float[3], const PhysicsCameraPose*, float, float, std::uint32_t);
         bool physics_step_cameras(PhysicsSimulation&, void*, void*, int);
+        bool physics_step_cameras(PhysicsSimulation&, rendering::Camera<float>*, int);
         bool synchronize_physics(PhysicsSimulation&);
         void free_physics_simulation(PhysicsSimulation&);
     }
@@ -31,6 +34,11 @@ namespace rl_tools {
     template <typename DEVICE>
     bool physics_step_cameras(DEVICE&, rendering::raytracing::benchmark::PhysicsSimulation& simulation, void* destination, void* stream, int iteration) {
         return rendering::raytracing::benchmark::detail::physics_step_cameras(simulation, destination, stream, iteration);
+    }
+
+    template <typename DEVICE>
+    bool physics_step_cameras(DEVICE&, rendering::raytracing::benchmark::PhysicsSimulation& simulation, rendering::Camera<float>* destination, int iteration) {
+        return rendering::raytracing::benchmark::detail::physics_step_cameras(simulation, destination, iteration);
     }
 
     template <typename DEVICE>
