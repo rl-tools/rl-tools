@@ -95,6 +95,7 @@
 /**/*.csv
 raytracing_pose_trace*
 camera_poses.txt
+/visual_inertial_localization_openvins.tum
 /static/hyperdrone/blob
 !/static/hyperdrone/pose.json
 !/static/hyperdrone/registry.json
