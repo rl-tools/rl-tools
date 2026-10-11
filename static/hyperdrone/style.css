@@ -23,7 +23,7 @@ h1 img { display: block; width: 200px; height: auto; margin: auto; }
 .drone-control { flex-wrap: wrap; gap: 8px 20px; }
 .selector { gap: 8px; }
 .selector > span { color: var(--muted); font: 10px var(--mono); letter-spacing: .07em; text-transform: uppercase; }
-.session-controls { margin-left: auto; gap: 14px; }
+.session-controls { margin-left: auto; gap: 14px; flex-wrap: wrap; }
 select, button { font: inherit; color: inherit; background: #fff; border: 1px solid #9da59b; border-radius: 0; padding: 4px 8px; min-height: 28px; }
 select {
     max-width: 100%;
@@ -77,8 +77,8 @@ body.ready:not(.controlling) .control-hint { display: flex; }
 .pose-values { color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 kbd { display: inline-block; min-width: 18px; padding: 1px 4px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 10px/1.5 var(--mono); text-align: center; }
 .instructions kbd:last-of-type { margin-right: 3px; }
-#flight-tuning, #frame-rate-tuning { width: min(400px, calc(100% - 24px)); max-height: calc(100% - 24px); padding: 18px; border: 1px solid var(--ink); color: inherit; background: #fff; }
-#flight-tuning::backdrop, #frame-rate-tuning::backdrop { background: #17251940; }
+#flight-tuning, #frame-rate-tuning, #rendering-settings { width: min(400px, calc(100% - 24px)); max-height: calc(100% - 24px); padding: 18px; border: 1px solid var(--ink); color: inherit; background: #fff; }
+#flight-tuning::backdrop, #frame-rate-tuning::backdrop, #rendering-settings::backdrop { background: #17251940; }
 .tuning-heading, .tuning-actions, .tuning-control label { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .tuning-heading { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .tuning-heading h2 { margin: 0; font-size: 16px; }
@@ -87,7 +87,9 @@ kbd { display: inline-block; min-width: 18px; padding: 1px 4px; border: 1px soli
 .tuning-control { margin: 16px 0; }
 .tuning-control output { color: var(--accent); font: 12px var(--mono); font-variant-numeric: tabular-nums; }
 .tuning-control input { width: 100%; margin: 6px 0 0; accent-color: var(--accent); cursor: pointer; }
+.tuning-control select { width: 100%; margin-top: 6px; }
 .tuning-control p { margin: 3px 0 0; }
+#render-availability { margin-bottom: 12px; }
 .tuning-actions { flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--line); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .touch-controls, .touch-hint, #touch-tuning { display: none; }

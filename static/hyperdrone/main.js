@@ -27,6 +27,14 @@ const yaw_error_limit = document.getElementById("yaw-error-limit");
 const mouse_sensitivity = document.getElementById("mouse-sensitivity");
 const release_button = document.getElementById("release-control");
 const tuning_button = document.getElementById("touch-tuning");
+const rendering_button = document.getElementById("rendering");
+const rendering_panel = document.getElementById("rendering-settings");
+const render_fidelity = document.getElementById("render-fidelity");
+const render_motion_blur = document.getElementById("render-motion-blur");
+const render_antialiasing = document.getElementById("render-antialiasing");
+const render_resolution = document.getElementById("render-resolution");
+const render_apply = document.getElementById("render-apply");
+const render_availability = document.getElementById("render-availability");
 const canvases = ["camera0", "camera1", "depth", "segmentation", "normals", "flow"].map(id => document.getElementById(id));
 const contexts = canvases.map(canvas => canvas.getContext("2d"));
 const keys = new Set();
@@ -40,6 +48,8 @@ let images = null;
 let frame_count = 0;
 let fps_window_start = performance.now();
 let fps_window_frames = 0;
+let render_configurations = [];
+let default_render_configuration = null;
 const left_stick = create_touch_stick(document.getElementById("left-stick"), () => touch_control && has_control());
 const right_stick = create_touch_stick(document.getElementById("right-stick"), () => touch_control && has_control());
 document.body.classList.toggle("touch-ui", navigator.maxTouchPoints > 0);
@@ -63,6 +73,77 @@ function populate(select, entries, selected){
     select.disabled = false;
 }
 
+function find_configuration(){
+    return render_configurations.find(configuration =>
+        configuration.fidelity === render_fidelity.value &&
+        String(configuration.motion_blur) === render_motion_blur.value &&
+        String(configuration.antialiasing) === render_antialiasing.value &&
+        `${configuration.width}x${configuration.height}` === render_resolution.value);
+}
+
+function update_rendering(){
+    const available = Boolean(find_configuration());
+    render_apply.disabled = !available;
+    render_availability.textContent = available
+        ? "Applying settings restarts the flight."
+        : "This combination is unavailable. Change a rendering option.";
+}
+
+function select_configuration(configuration){
+    render_fidelity.value = configuration.fidelity;
+    render_motion_blur.value = String(configuration.motion_blur);
+    render_antialiasing.value = String(configuration.antialiasing);
+    render_resolution.value = `${configuration.width}x${configuration.height}`;
+    update_rendering();
+}
+
+function setup_rendering(configurations){
+    if(configurations.length === 0){
+        throw new Error("No rendering configurations are available in this simulation bundle.");
+    }
+    render_configurations = configurations;
+    default_render_configuration = configurations.find(configuration => configuration.id === "high-mb4-aa1-480x270") || configurations[0];
+    const requested = params.get("render");
+    const selected = requested === null ? default_render_configuration : configurations.find(configuration => configuration.id === requested);
+    const fidelity_labels = {low: "Low", medium: "Medium", high: "High", "very-high": "Very high"};
+    const fields = [
+        [render_fidelity, configuration => configuration.fidelity, configuration => fidelity_labels[configuration.fidelity]],
+        [render_motion_blur, configuration => String(configuration.motion_blur), configuration => configuration.motion_blur ? "On" : "Off"],
+        [render_antialiasing, configuration => String(configuration.antialiasing), configuration => configuration.antialiasing ? "On" : "Off"],
+        [render_resolution, configuration => `${configuration.width}x${configuration.height}`, configuration => `${configuration.width} × ${configuration.height}`],
+    ];
+    for(const [select, value, label] of fields){
+        const entries = [...new Map(configurations.map(configuration => [value(configuration), {
+            name: value(configuration), label: label(configuration),
+        }])).values()];
+        populate(select, entries, {name: value(selected || default_render_configuration)});
+        select.disabled = entries.length === 1;
+    }
+    rendering_button.disabled = false;
+    update_rendering();
+    if(!selected){
+        throw new Error(`Requested rendering configuration "${requested}" is unavailable. Open Rendering to choose available settings.`);
+    }
+    return selected;
+}
+
+for(const select of [render_fidelity, render_motion_blur, render_antialiasing, render_resolution]){
+    select.addEventListener("change", update_rendering);
+}
+document.getElementById("render-defaults").addEventListener("click", () => {
+    if(default_render_configuration){
+        select_configuration(default_render_configuration);
+    }
+});
+render_apply.addEventListener("click", () => {
+    const configuration = find_configuration();
+    if(configuration){
+        release_controls();
+        params.set("render", configuration.id);
+        window.location.search = params.toString();
+    }
+});
+
 function set_status(text){
     if(!failed){
         status_element.textContent = text;
@@ -73,8 +154,12 @@ function format_pose(values, digits){
     return `(${values.map(value => Number(value.toFixed(digits)).toFixed(digits)).join(", ")})`;
 }
 
+function settings_open(){
+    return tuning_panel.open || frame_rate_panel.open || rendering_panel.open;
+}
+
 function has_control(){
-    return ready && !document.hidden && !tuning_panel.open && !frame_rate_panel.open && (touch_control || mouse_has_control());
+    return ready && !document.hidden && !settings_open() && (touch_control || mouse_has_control());
 }
 
 function mouse_has_control(){
@@ -127,7 +212,7 @@ function poll_input(){
 }
 
 function take_touch_control(){
-    if(ready && !tuning_panel.open && !frame_rate_panel.open){
+    if(ready && !settings_open()){
         release_controls();
         document.body.classList.add("touch-ui");
         touch_control = true;
@@ -136,7 +221,7 @@ function take_touch_control(){
 }
 
 async function toggle_pointer_lock(canvas){
-    if(!ready){
+    if(!ready || settings_open()){
         return;
     }
     if(!canvas.requestPointerLock){
@@ -243,10 +328,17 @@ window.addEventListener("resize", () => {
 release_button.addEventListener("click", release_controls);
 function open_tuning(){
     frame_rate_panel.close();
+    rendering_panel.close();
     tuning_panel.showModal();
     release_controls();
 }
 tuning_button.addEventListener("click", open_tuning);
+rendering_button.addEventListener("click", () => {
+    tuning_panel.close();
+    frame_rate_panel.close();
+    rendering_panel.showModal();
+    release_controls();
+});
 document.addEventListener("visibilitychange", () => {
     if(document.hidden){
         release_controls();
@@ -262,6 +354,8 @@ reset_button.addEventListener("click", () => {
 });
 
 fps_element.addEventListener("click", () => {
+    tuning_panel.close();
+    rendering_panel.close();
     frame_rate_panel.showModal();
     release_controls();
 });
@@ -414,9 +508,10 @@ async function main(){
             }
         },
     });
-    if(module._demo_api_version?.() !== 1){
+    if(module._demo_api_version?.() !== 2){
         throw new Error("The page and simulation bundle are incompatible. Deploy the matching blob/build files and update the pinned revision in download_blob.sh.");
     }
+    const configuration = setup_rendering(JSON.parse(module.ccall("demo_configurations", "string", [], [])));
     const [registry, pose] = await Promise.all([read_json("registry.json"), read_json("pose.json")]);
     const scenes = JSON.parse(module.ccall("demo_scenes", "string", [], []));
     const scene = scenes.find(scene => scene.name === (params.get("scene") || pose.scene));
@@ -435,7 +530,7 @@ async function main(){
     module.FS.writeFile("/policy.tar", await fetch_asset(registry.policy));
     const spawn = scene.reference === pose.reference ? JSON.stringify({position: pose.position, yaw: pose.yaw_degrees * Math.PI / 180}) : "";
     set_status("Preparing the scene and cameras…");
-    const result = await module.ccall("demo_run", "number", ["string", "string", "string", "number", "number", "string"], ["/scene.glb", "/drone.glb", "/policy.tar", drone.dynamics_index, max_frames, spawn], {async: true});
+    const result = await module.ccall("demo_run", "number", ["string", "string", "string", "number", "number", "string", "string"], ["/scene.glb", "/drone.glb", "/policy.tar", drone.dynamics_index, max_frames, spawn, configuration.id], {async: true});
     if(result !== 0){
         throw new Error(`The renderer exited with status ${result}.`);
     }
