@@ -17,7 +17,19 @@ function send(target, type, fields = {}){
     return event;
 }
 
-function fixture(defer_mouse_lock = false){
+const default_configuration = {id: "high-mb4-aa1-480x270", fidelity: "high", motion_blur: true, antialiasing: false, width: 480, height: 270};
+const configurations = [];
+for(const fidelity of ["low", "medium", "high", "very-high"]){
+    for(const motion_blur of [false, true]){
+        for(const antialiasing of [false, true]){
+            for(const [width, height] of [[480, 270], [960, 540]]){
+                configurations.push({id: `${fidelity}-mb${motion_blur ? 4 : 1}-aa${antialiasing ? 2 : 1}-${width}x${height}`, fidelity, motion_blur, antialiasing, width, height});
+            }
+        }
+    }
+}
+
+function fixture({defer_mouse_lock = false, search = "", catalog = configurations, api_version = 2} = {}){
     const document = new EventTarget();
     const window = new EventTarget();
     const classes = new Set();
@@ -32,7 +44,7 @@ function fixture(defer_mouse_lock = false){
         document.pointerLockElement = null;
         send(document, "pointerlockchange");
     };
-    window.location = {search: ""};
+    window.location = {search};
     window.isSecureContext = true;
     document.createElement = () => ({});
     const elements = new Map();
@@ -45,16 +57,23 @@ function fixture(defer_mouse_lock = false){
         element.hidden = /\bhidden\b/.test(match[0]);
         element.open = false;
         element.attributes = new Map();
+        element.options = [];
         element.setAttribute = (name, value) => element.attributes.set(name, value);
         element.removeAttribute = name => element.attributes.delete(name);
         element.appendChild = option => {
-            if(option.selected){
+            element.options.push(option);
+            if(option.selected || element.options.length === 1){
                 element.value = option.value;
             }
         };
+        element.replaceChildren = () => { element.options = []; element.value = ""; };
         element.showModal = () => { element.open = true; };
         element.close = () => { element.open = false; send(element, "close"); };
-        element.getContext = () => ({});
+        const drawing = {
+            createImageData: (width, height) => ({width, height, data: new Uint8ClampedArray(width * height * 4)}),
+            putImageData: image => { element.image = image; },
+        };
+        element.getContext = () => drawing;
         element.captures = new Set();
         element.setPointerCapture = id => element.captures.add(id);
         element.hasPointerCapture = id => element.captures.has(id);
@@ -89,11 +108,19 @@ function fixture(defer_mouse_lock = false){
     let module_options;
     let abort_reason;
     const errors = [];
+    const calls = [];
+    const events = [];
     const scenes = [106, 107].map(id => ({name: `ProcTHOR-Train-${id}`, reference: `scene-${id}`}));
     const module = {
-        _demo_api_version: () => 1,
+        _demo_api_version: () => api_version,
+        HEAPU8: new Uint8Array(),
         FS: {writeFile(){}},
-        ccall(name){
+        ccall(name, return_type, argument_types, args){
+            calls.push({name, return_type, argument_types: Array.from(argument_types), args: Array.from(args)});
+            events.push(name);
+            if(name === "demo_configurations"){
+                return JSON.stringify(catalog);
+            }
             if(name === "demo_scenes"){
                 return JSON.stringify(scenes);
             }
@@ -107,15 +134,18 @@ function fixture(defer_mouse_lock = false){
     };
     const context = vm.createContext({
         document, window, navigator: {maxTouchPoints: 2, gpu: {}}, performance, URLSearchParams, create_touch_stick,
-        Conta: class {async load(){ return new Uint8Array(); }},
+        Conta: class {async load(reference){ events.push(`asset:${reference}`); return new Uint8Array(); }},
         console: {...console, error: error => errors.push(error)},
         import_module: async () => ({default: async options => {
             module_options = options;
             return module;
         }}),
-        fetch: async path => ({ok: true, json: async () => path === "registry.json"
-            ? {drones: [{name: "ARPL", reference: "drone", dynamics_index: 3}], policy: {reference: "policy"}}
-            : {scene: scenes[0].name, reference: scenes[0].reference, position: [0, 0, 1], yaw_degrees: 0}}),
+        fetch: async path => {
+            events.push(path);
+            return {ok: true, json: async () => path === "registry.json"
+                ? {drones: [{name: "ARPL", reference: "drone", dynamics_index: 3}], policy: {reference: "policy"}}
+                : {scene: scenes[0].name, reference: scenes[0].reference, position: [0, 0, 1], yaw_degrees: 0}};
+        },
     });
     vm.runInContext(`${source}\nglobalThis.controls = {poll_input, main: () => main().catch(show_error), start(){ ready = true; update_flight_state(); }};`, context);
     const element = id => document.getElementById(id);
@@ -127,10 +157,20 @@ function fixture(defer_mouse_lock = false){
         pending_locks.shift()();
     };
     return {
-        document, window, classes, element, click, poll, axes, grant_mouse_lock, errors,
+        document, window, classes, element, click, poll, axes, grant_mouse_lock, errors, calls, events,
+        pending_mouse_locks: () => pending_locks.length,
         start: context.controls.start,
         load(reason){ abort_reason = reason; return context.controls.main(); },
         abort: reason => module_options.onAbort(reason),
+        present(width, height, num_views = 6){
+            const pointer = 32;
+            const image_bytes = width * height * 4;
+            module.HEAPU8 = new Uint8Array(pointer + num_views * image_bytes);
+            for(let view = 0; view < num_views; view++){
+                module.HEAPU8.fill(view + 1, pointer + view * image_bytes, pointer + (view + 1) * image_bytes);
+            }
+            module_options.rlt_present(pointer, width, height, num_views, 0, 0, 1, 1, 0, 0, 0);
+        },
     };
 }
 
@@ -139,6 +179,193 @@ function touch_flight(f){
     f.click("camera0");
     send(f.element("left-stick"), "pointerdown", {pointerId: 1, clientX: 110});
     send(f.element("right-stick"), "pointerdown", {pointerId: 2, clientY: 10});
+}
+
+function select_rendering(f, configuration){
+    for(const [id, value] of [
+        ["render-fidelity", configuration.fidelity],
+        ["render-motion-blur", String(configuration.motion_blur)],
+        ["render-antialiasing", String(configuration.antialiasing)],
+        ["render-resolution", `${configuration.width}x${configuration.height}`],
+    ]){
+        f.element(id).value = value;
+        send(f.element(id), "change");
+    }
+}
+
+test("the full rendering catalog supplies the existing default and every compiled combination", async () => {
+    const f = fixture();
+    await f.load();
+    assert.deepEqual(f.errors, []);
+    assert.deepEqual(f.calls.find(call => call.name === "demo_run"), {
+        name: "demo_run", return_type: "number",
+        argument_types: ["string", "string", "string", "number", "number", "string", "string"],
+        args: ["/scene.glb", "/drone.glb", "/policy.tar", 3, 0, JSON.stringify({position: [0, 0, 1], yaw: 0}), default_configuration.id],
+    });
+    assert.ok(f.events.indexOf("demo_configurations") < f.events.findIndex(event => event.startsWith("asset:")));
+    assert.deepEqual(f.element("render-fidelity").options.map(option => option.value), ["low", "medium", "high", "very-high"]);
+    assert.deepEqual(f.element("render-resolution").options.map(option => option.value), ["480x270", "960x540"]);
+    for(const configuration of configurations){
+        select_rendering(f, configuration);
+        assert.equal(f.element("render-apply").disabled, false, configuration.id);
+        f.click("render-apply");
+        assert.equal(new URLSearchParams(f.window.location.search).get("render"), configuration.id);
+    }
+});
+
+test("a single-configuration build selects its only configuration and disables fixed settings", async () => {
+    const only = configurations[0];
+    const f = fixture({catalog: [only]});
+    await f.load();
+    assert.deepEqual(f.errors, []);
+    assert.equal(f.calls.find(call => call.name === "demo_run").args.at(-1), only.id);
+    assert.equal(f.element("rendering").disabled, false);
+    for(const id of ["render-fidelity", "render-motion-blur", "render-antialiasing", "render-resolution"]){
+        assert.equal(f.element(id).disabled, true, id);
+        assert.equal(f.element(id).options.length, 1, id);
+    }
+    f.click("rendering");
+    assert.equal(f.element("rendering-settings").open, true);
+    assert.equal(f.element("render-apply").disabled, false);
+});
+
+test("a sparse catalog validates complete tuples while leaving disconnected configurations reachable", async () => {
+    const other = configurations.find(configuration => configuration.id === "low-mb1-aa2-960x540");
+    const f = fixture({catalog: [other, default_configuration]});
+    await f.load();
+    assert.equal(f.calls.find(call => call.name === "demo_run").args.at(-1), default_configuration.id);
+    f.element("render-fidelity").value = other.fidelity;
+    send(f.element("render-fidelity"), "change");
+    assert.equal(f.element("render-apply").disabled, true);
+    assert.ok(f.element("render-availability").textContent.length > 0);
+    f.click("render-apply");
+    assert.equal(f.window.location.search, "");
+    for(const id of ["render-motion-blur", "render-antialiasing", "render-resolution"]){
+        assert.equal(f.element(id).disabled, false, id);
+        assert.ok(f.element(id).options.every(option => !option.disabled), id);
+    }
+    select_rendering(f, other);
+    assert.equal(f.element("render-apply").disabled, false);
+    f.click("render-apply");
+    assert.equal(new URLSearchParams(f.window.location.search).get("render"), other.id);
+    f.click("render-defaults");
+    assert.equal(f.element("render-fidelity").value, default_configuration.fidelity);
+    assert.equal(f.element("render-motion-blur").value, String(default_configuration.motion_blur));
+    assert.equal(f.element("render-antialiasing").value, String(default_configuration.antialiasing));
+    assert.equal(f.element("render-resolution").value, "480x270");
+    assert.equal(f.element("render-apply").disabled, false);
+});
+
+test("URL rendering choices reach WASM and survive scene and airframe changes", async () => {
+    const selected = configurations.at(-1);
+    const f = fixture({search: `?scene=ProcTHOR-Train-106&drone=ARPL&frames=2&render=${selected.id}`});
+    await f.load();
+    const run = f.calls.find(call => call.name === "demo_run");
+    assert.equal(run.args.at(-1), selected.id);
+    assert.equal(run.args[4], 2);
+    assert.equal(f.element("render-resolution").value, "960x540");
+    f.element("scene").value = "ProcTHOR-Train-107";
+    send(f.element("scene"), "change");
+    send(f.element("drone"), "change");
+    let params = new URLSearchParams(f.window.location.search);
+    assert.equal(params.get("render"), selected.id);
+    assert.equal(params.get("scene"), "ProcTHOR-Train-107");
+    assert.equal(params.get("drone"), "ARPL");
+    select_rendering(f, default_configuration);
+    f.click("render-apply");
+    params = new URLSearchParams(f.window.location.search);
+    assert.equal(params.get("render"), default_configuration.id);
+    assert.equal(params.get("scene"), "ProcTHOR-Train-107");
+    assert.equal(params.get("drone"), "ARPL");
+    assert.equal(params.get("frames"), "2");
+});
+
+test("an unavailable URL rendering choice can be corrected before downloading scene assets", async () => {
+    for(const requested of ["not-compiled", ""]){
+        const f = fixture({search: `?render=${requested}&frames=2`});
+        await f.load();
+        assert.equal(f.element("error").hidden, false);
+        assert.match(f.element("error").textContent, /render|configuration/i);
+        assert.equal(f.events.some(event => event.startsWith("asset:")), false);
+        assert.equal(f.calls.some(call => call.name === "demo_run"), false);
+        assert.equal(f.element("rendering").disabled, false);
+        f.click("rendering");
+        assert.equal(f.element("rendering-settings").open, true);
+        assert.equal(f.element("render-apply").disabled, false);
+        f.click("render-apply");
+        const params = new URLSearchParams(f.window.location.search);
+        assert.equal(params.get("render"), default_configuration.id);
+        assert.equal(params.get("frames"), "2");
+    }
+});
+
+test("empty or incompatible bundles fail before fetching scene assets", async () => {
+    for(const options of [{catalog: []}, {api_version: 1}]){
+        const f = fixture(options);
+        await f.load();
+        assert.equal(f.element("error").hidden, false);
+        assert.equal(f.element("rendering").disabled, true);
+        assert.equal(f.events.some(event => event.startsWith("asset:")), false);
+        assert.equal(f.calls.some(call => call.name === "demo_run"), false);
+    }
+});
+
+test("all six outputs resize and retain distinct image strides at both rendering resolutions", async () => {
+    const f = fixture();
+    await f.load();
+    const ids = ["camera0", "camera1", "depth", "segmentation", "normals", "flow"];
+    for(const [width, height] of [[480, 270], [960, 540], [480, 270]]){
+        f.present(width, height);
+        for(const [view, id] of ids.entries()){
+            const canvas = f.element(id);
+            assert.equal(canvas.width, width, id);
+            assert.equal(canvas.height, height, id);
+            assert.equal(canvas.image.data.length, width * height * 4, id);
+            assert.ok(canvas.image.data.every(value => value === view + 1), id);
+        }
+    }
+    assert.throws(() => f.present(480, 270, 5), /Expected 6 camera outputs/);
+});
+
+for(const mode of ["touch", "mouse", "pending mouse"]){
+    test(`Rendering releases ${mode} control and blocks recapture until dismissed`, async () => {
+        const f = fixture({defer_mouse_lock: mode === "pending mouse"});
+        await f.load();
+        f.start();
+        if(mode === "touch"){
+            touch_flight(f);
+        }
+        else{
+            f.click("camera0", "mouse");
+            send(f.document, "keydown", {code: "KeyW"});
+            send(f.document, "mousemove", {movementX: 100});
+        }
+        f.click("rendering");
+        assert.equal(f.element("rendering-settings").open, true);
+        assert.equal(f.document.pointerLockElement, null);
+        assert.equal(f.classes.has("controlling"), false);
+        assert.equal(f.element("left-stick").captures.size, 0);
+        assert.equal(f.element("right-stick").captures.size, 0);
+        assert.deepEqual(f.axes(), [0, 0, 0, 0, 0]);
+        if(mode === "pending mouse"){
+            f.grant_mouse_lock();
+            await Promise.resolve();
+            assert.equal(f.document.pointerLockElement, null);
+        }
+        for(const pointerType of ["touch", "mouse"]){
+            f.click("camera0", pointerType);
+        }
+        send(f.element("camera1"), "keydown", {code: "Enter"});
+        send(f.element("left-stick"), "pointerdown", {clientX: 110});
+        assert.equal(f.pending_mouse_locks(), 0);
+        assert.equal(f.document.pointerLockElement, null);
+        assert.deepEqual(f.axes(), [0, 0, 0, 0, 0]);
+        f.element("rendering-settings").close();
+        assert.equal(f.classes.has("controlling"), false);
+        f.click("camera0");
+        assert.equal(f.classes.has("touch-controlling"), true);
+        assert.deepEqual(f.axes(), [0, 0, 0, 0, 0]);
+    });
 }
 
 test("an empty spawn search keeps its scene-specific error after the runtime rejection and input events", async () => {
@@ -263,7 +490,7 @@ test("mouse and touch handoffs clear the previous input source", () => {
 });
 
 test("a delayed mouse grant cannot override newer touch activation", async () => {
-    const f = fixture(true);
+    const f = fixture({defer_mouse_lock: true});
     f.start();
     f.click("camera0", "mouse");
     assert.equal(f.document.pointerLockElement, null);
@@ -286,7 +513,7 @@ test("a delayed mouse grant cannot override newer touch activation", async () =>
 });
 
 test("a delayed mouse grant cannot reacquire control after release", async () => {
-    const f = fixture(true);
+    const f = fixture({defer_mouse_lock: true});
     f.start();
     f.click("camera0", "mouse");
     f.click("camera1");

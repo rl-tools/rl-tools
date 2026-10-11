@@ -10,8 +10,108 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
 DEPS_DIR="${RL_TOOLS_WASM_DEPS_DIR:-$REPO_ROOT/.dependencies/wasm}"
 BUILD_DIR="${RL_TOOLS_WASM_BUILD_DIR:-$REPO_ROOT/static/hyperdrone/blob/build}"
 
+ALL_CONFIGURATIONS=()
+for fidelity in low medium high very-high; do
+    for motion_samples in 1 4; do
+        for aa_grid in 1 2; do
+            for resolution in 480x270 960x540; do
+                ALL_CONFIGURATIONS+=("$fidelity-mb$motion_samples-aa$aa_grid-$resolution")
+            done
+        done
+    done
+done
+
+JOBS=5
+CONFIGURATIONS=()
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        --help)
+            cat <<'USAGE'
+Usage: build.sh [-jN | -j N] [CONFIGURATION ...]
+
+Build all 32 rendering configurations, or only the named configurations:
+  build.sh -j12
+  build.sh high-mb4-aa1-480x270
+  build.sh -j12 low-mb1-aa1-480x270 very-high-mb4-aa2-960x540
+
+Parallel jobs default to 5 and apply to CMake, Emscripten and Binaryen.
+Use --list-configurations to list the supported IDs. Each build replaces the
+bundle's configuration catalog; the frontend discovers it from the loaded WASM.
+USAGE
+            exit 0
+            ;;
+        --list-configurations)
+            printf '%s\n' "${ALL_CONFIGURATIONS[@]}"
+            exit 0
+            ;;
+        -j*)
+            if [[ "$1" == -j ]]; then
+                shift
+                JOBS="${1:-}"
+            else
+                JOBS="${1#-j}"
+            fi
+            if [[ ! "$JOBS" =~ ^[1-9][0-9]*$ ]]; then
+                echo "Job count must be a positive integer: use -jN or -j N." >&2
+                exit 1
+            fi
+            ;;
+        *)
+            requested="$1"
+            found=false
+            for supported in "${ALL_CONFIGURATIONS[@]}"; do
+                if [[ "$requested" == "$supported" ]]; then
+                    found=true
+                    break
+                fi
+            done
+            if [[ "$found" == false ]]; then
+                echo "Unknown configuration: $requested. Use --list-configurations for supported IDs." >&2
+                exit 1
+            fi
+            for selected in ${CONFIGURATIONS[@]+"${CONFIGURATIONS[@]}"}; do
+                if [[ "$requested" == "$selected" ]]; then
+                    echo "Duplicate configuration: $requested" >&2
+                    exit 1
+                fi
+            done
+            CONFIGURATIONS+=("$requested")
+            ;;
+    esac
+    shift
+done
+if [[ "${#CONFIGURATIONS[@]}" == 0 ]]; then
+    CONFIGURATIONS=("${ALL_CONFIGURATIONS[@]}")
+fi
+
+export EMCC_CORES="$JOBS" BINARYEN_CORES="$JOBS"
 command -v em++ >/dev/null || { echo "em++ not found: source emsdk_env.sh from your Emscripten SDK installation" >&2; exit 1; }
 mkdir -p "$DEPS_DIR" "$BUILD_DIR"
+
+{
+    printf '%s\n' 'namespace rl_tools::rl::environments::hyperdrone::web {' '    using CompiledConfigurations = Configurations<'
+    separator=''
+    for configuration in "${CONFIGURATIONS[@]}"; do
+        [[ "$configuration" =~ ^(.+)-mb([14])-aa([12])-(480x270|960x540)$ ]]
+        fidelity="${BASH_REMATCH[1]}"
+        motion_samples="${BASH_REMATCH[2]}"
+        aa_grid="${BASH_REMATCH[3]}"
+        resolution="${BASH_REMATCH[4]}"
+        case "$fidelity" in
+            low) shading=Low ;;
+            medium) shading=Medium ;;
+            high) shading=High ;;
+            very-high) shading=VeryHigh ;;
+        esac
+        scale=1
+        if [[ "$resolution" == 960x540 ]]; then
+            scale=2
+        fi
+        printf '%s        Config<rendering::raytracing::%s, %s, %s, %s>' "$separator" "$shading" "$motion_samples" "$aa_grid" "$scale"
+        separator=$',\n'
+    done
+    printf '\n%s\n' '    >;' '}'
+} > "$BUILD_DIR/hyperdrone_web_configurations.h"
 
 ASSIMP_BUILD="$DEPS_DIR/assimp-archive-build"
 ASSIMP_INSTALL="$DEPS_DIR/assimp-install"
@@ -29,7 +129,7 @@ emcmake cmake -S "$SCRIPT_DIR/assimp" -B "$ASSIMP_BUILD" -DCMAKE_BUILD_TYPE=Rele
         -DASSIMP_BUILD_GLTF_IMPORTER=ON \
         -DASSIMP_BUILD_ZLIB=ON \
         -DASSIMP_WARNINGS_AS_ERRORS=OFF
-cmake --build "$ASSIMP_BUILD" --target assimp -j5
+cmake --build "$ASSIMP_BUILD" --target assimp -j "$JOBS"
 cmake --install "$ASSIMP_BUILD/_deps/assimp-build"
 ASSIMP_ZLIB="$(ls "$ASSIMP_INSTALL"/lib/libzlibstatic*.a 2>/dev/null | head -1 || true)"
 
@@ -54,6 +154,7 @@ cmake -DINPUT_FILE="$REPO_ROOT/src/rendering/raytracing/backends/webgpu/device.w
 
 em++ --std=c++17 -O3 -fexceptions \
     -I "$REPO_ROOT/include" \
+    -I "$BUILD_DIR" \
     -I "$STB_DIR" \
     -I "$JSON_DIR/include" \
     -I "$ASSIMP_INSTALL/include" \
@@ -70,7 +171,7 @@ em++ --std=c++17 -O3 -fexceptions \
     -sEXPORT_ES6=1 \
     -sENVIRONMENT=web \
     -sEXPORTED_RUNTIME_METHODS=ccall,FS,HEAPU8 \
-    -sEXPORTED_FUNCTIONS=_demo_run,_demo_scenes,_demo_api_version,_main \
+    -sEXPORTED_FUNCTIONS=_demo_run,_demo_scenes,_demo_configurations,_demo_api_version,_main \
     "$SCRIPT_DIR/hyperdrone_web.cpp" \
     "$DEPS_DIR/device_wgsl.cpp" \
     "$ASSIMP_INSTALL/lib/libassimp.a" \

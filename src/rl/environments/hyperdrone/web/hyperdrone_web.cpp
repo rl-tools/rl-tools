@@ -17,37 +17,55 @@ namespace rl_tools::rl::environments::hyperdrone::web {
     using T = float;
     using TYPE_POLICY = numeric_types::Policy<T>;
     using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
+    template <typename T_SHADING, TI T_MOTION_BLUR_SAMPLES, TI T_ANTI_ALIASING_GRID_SIZE, TI T_RESOLUTION_SCALE>
     struct Config: presets::X500FPV<T, TI> {
+        using SHADING = T_SHADING;
+        static_assert(utils::typing::is_same_v<SHADING, rendering::raytracing::Low>
+            || utils::typing::is_same_v<SHADING, rendering::raytracing::Medium>
+            || utils::typing::is_same_v<SHADING, rendering::raytracing::High>
+            || utils::typing::is_same_v<SHADING, rendering::raytracing::VeryHigh>);
+        static_assert(T_MOTION_BLUR_SAMPLES == 1 || T_MOTION_BLUR_SAMPLES == 4);
+        static_assert(T_ANTI_ALIASING_GRID_SIZE == 1 || T_ANTI_ALIASING_GRID_SIZE == 2);
+        static_assert(T_RESOLUTION_SCALE == 1 || T_RESOLUTION_SCALE == 2);
+        static constexpr const char* FIDELITY = utils::typing::is_same_v<SHADING, rendering::raytracing::Low> ? "low"
+            : utils::typing::is_same_v<SHADING, rendering::raytracing::Medium> ? "medium"
+            : utils::typing::is_same_v<SHADING, rendering::raytracing::High> ? "high" : "very-high";
         static constexpr TI INSTANCES_PER_ENVIRONMENT = 1;
         static constexpr TI N_CAMERAS_PER_AGENT = 2;
-        static constexpr TI CAM_WIDTH = 480;
-        static constexpr TI CAM_HEIGHT = 270;
+        static constexpr TI CAM_WIDTH = 480 * T_RESOLUTION_SCALE;
+        static constexpr TI CAM_HEIGHT = 270 * T_RESOLUTION_SCALE;
         static constexpr TI NUM_PROBES = 64;
         static constexpr bool OUTPUT_DEPTH = true;
         static constexpr bool OUTPUT_SEGMENTATION = true;
         static constexpr bool SEMANTIC_SEGMENTATION = true;
         static constexpr bool OUTPUT_NORMALS = true;
         static constexpr bool OUTPUT_FLOW = true;
-        static constexpr bool ENABLE_MOTION_BLUR = true;
-        static constexpr TI MOTION_BLUR_SAMPLES = 4;
+        static constexpr bool ENABLE_MOTION_BLUR = T_MOTION_BLUR_SAMPLES > 1;
+        static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;
+        static constexpr bool ENABLE_ANTI_ALIASING = T_ANTI_ALIASING_GRID_SIZE > 1;
+        static constexpr TI ANTI_ALIASING_GRID_SIZE = T_ANTI_ALIASING_GRID_SIZE;
         static constexpr T SHUTTER_FRACTION_MIN = 0.5;
         static constexpr T SHUTTER_FRACTION_MAX = 0.5;
     };
-    using WORLD = World<Config>;
-    using ENVIRONMENT = MultiEnvironment<WORLD, 1>;
+    template <typename... CONFIGS>
+    struct Configurations {
+        static_assert(sizeof...(CONFIGS) > 0, "The web demo requires at least one compiled configuration");
+    };
     using PILOT = Raptor<raptor::Specification<TYPE_POLICY, TI, 1>>;
-    constexpr TI PIXELS = Config::CAM_WIDTH * Config::CAM_HEIGHT;
     constexpr TI VIEWS = 6;
     constexpr T DEPTH_DISPLAY_METERS = 10;
     constexpr T FLOW_DISPLAY_PIXELS = 20;
     constexpr double FRAME_PERIOD = 1.0 / 60.0;
 
+    template <typename CONFIG>
     struct State {
+        using WORLD = World<CONFIG>;
+        using ENVIRONMENT = MultiEnvironment<WORLD, 1>;
         ENVIRONMENT environment;
         PILOT pilot;
         RNG rng;
-        Tensor<tensor::Specification<WORLD::Parameters, TI, tensor::Shape<TI, 1>>> parameters;
-        Tensor<tensor::Specification<WORLD::State, TI, tensor::Shape<TI, 1>>> states, next_states;
+        Tensor<tensor::Specification<typename WORLD::Parameters, TI, tensor::Shape<TI, 1>>> parameters;
+        Tensor<tensor::Specification<typename WORLD::State, TI, tensor::Shape<TI, 1>>> states, next_states;
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1, 4>>> actions;
         Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, 1>>> reset_mask;
         raptor::Target<T> target;
@@ -61,7 +79,9 @@ namespace rl_tools::rl::environments::hyperdrone::web {
         bool moving = false;
         bool moving_vertical = false;
     };
+    template <typename CONFIG>
     struct Buffer {
+        static constexpr TI PIXELS = CONFIG::CAM_WIDTH * CONFIG::CAM_HEIGHT;
         std::vector<uint32_t> rgba = std::vector<uint32_t>(VIEWS * PIXELS);
         std::vector<float> depth = std::vector<float>(PIXELS);
         std::vector<uint32_t> segmentation = std::vector<uint32_t>(PIXELS);
@@ -71,10 +91,13 @@ namespace rl_tools::rl::environments::hyperdrone::web {
     };
 }
 
+#include <hyperdrone_web_configurations.h>
+
 namespace web = rl_tools::rl::environments::hyperdrone::web;
 
 namespace rl_tools {
-    void malloc(web::DEVICE& device, web::State& state) {
+    template <typename CONFIG>
+    void malloc(web::DEVICE& device, web::State<CONFIG>& state) {
         malloc(device, state.environment);
         malloc(device, state.pilot);
         malloc(device, state.rng);
@@ -84,7 +107,8 @@ namespace rl_tools {
         malloc(device, state.actions);
         malloc(device, state.reset_mask);
     }
-    void free(web::DEVICE& device, web::State& state) {
+    template <typename CONFIG>
+    void free(web::DEVICE& device, web::State<CONFIG>& state) {
         free(device, state.reset_mask);
         free(device, state.actions);
         free(device, state.next_states);
@@ -94,9 +118,10 @@ namespace rl_tools {
         free(device, state.pilot);
         free(device, state.environment);
     }
-    void init(web::DEVICE& device, web::State& state, const std::string& scene_path, const std::string& drone_path, int drone_index) {
+    template <typename CONFIG>
+    void init(web::DEVICE& device, web::State<CONFIG>& state, const std::string& scene_path, const std::string& drone_path, int drone_index) {
         using namespace web;
-        using PARAMETER_SPEC = Config::DYNAMICS_STATIC_PARAMETERS::PARAMETERS_SPEC;
+        using PARAMETER_SPEC = typename CONFIG::DYNAMICS_STATIC_PARAMETERS::PARAMETERS_SPEC;
         namespace models = rl::environments::l2f::parameters::dynamics;
         state.environment.shared.drones.push_back({drone_path, {}});
         auto& drone = state.environment.shared.drones[0].parameters;
@@ -151,7 +176,8 @@ namespace rl_tools {
         state.spawn = world.slots[world.active_slot].annotations.positions[0];
         init(device, state.rng, 1337);
     }
-    void reset(web::DEVICE& device, web::State& state) {
+    template <typename CONFIG>
+    void reset(web::DEVICE& device, web::State<CONFIG>& state) {
         using namespace web;
         auto& world = state.environment.environments[0];
         auto& parameters = get_ref(device, state.parameters, (TI)0);
@@ -162,7 +188,7 @@ namespace rl_tools {
         }
         parameters.scene_yaw_cos = math::cos(device.math, (T)spawn.yaw);
         parameters.scene_yaw_sin = math::sin(device.math, (T)spawn.yaw);
-        parameters.shutter_fraction = Config::SHUTTER_FRACTION_MIN;
+        parameters.shutter_fraction = CONFIG::SHUTTER_FRACTION_MIN;
         initial_state(device, world.dynamics, parameters.agents[0].dynamics, get_ref(device, state.states, (TI)0));
         reset(device, state.pilot, state.rng);
         state.target = {};
@@ -175,7 +201,8 @@ namespace rl_tools {
         set_all(device, state.actions, (T)0);
         request_render(device, world, state.reset_mask);
     }
-    void control(web::DEVICE& device, web::State& state, web::T forward, web::T left, web::T up, web::T yaw_delta, web::T yaw_axis) {
+    template <typename CONFIG>
+    void control(web::DEVICE& device, web::State<CONFIG>& state, web::T forward, web::T left, web::T up, web::T yaw_delta, web::T yaw_axis) {
         using namespace web;
         auto& physical = get_ref(device, state.states, (TI)0);
         const T dt = get_ref(device, state.parameters, (TI)0).agents[0].dynamics.integration.dt;
@@ -220,7 +247,8 @@ namespace rl_tools {
             set(device, state.actions, state.previous_actions[state.motor_order[motor]], (TI)0, motor);
         }
     }
-    void step(web::DEVICE& device, web::State& state, web::T forward, web::T left, web::T up, web::T yaw_delta, web::T yaw_axis, web::TI steps) {
+    template <typename CONFIG>
+    void step(web::DEVICE& device, web::State<CONFIG>& state, web::T forward, web::T left, web::T up, web::T yaw_delta, web::T yaw_axis, web::TI steps) {
         using namespace web;
         auto& world = state.environment.environments[0];
         auto actions = matrix_view(device, state.actions);
@@ -235,20 +263,23 @@ namespace rl_tools {
             copy(device, device, state.next_states, state.states);
         }
     }
-    template <typename TENSOR, typename T>
-    void copy_onboard(web::DEVICE& device, web::WORLD::RENDERER& renderer, TENSOR& source, T* destination) {
+    template <typename RENDERER, typename TENSOR, typename T>
+    void copy_onboard(web::DEVICE& device, RENDERER& renderer, TENSOR& source, T* destination) {
         auto onboard = view(device, source, (web::TI)0);
         Tensor<typename decltype(onboard)::SPEC> alias;
         alias._data = destination;
         copy(renderer.device, device, onboard, alias);
     }
-    void render(web::DEVICE& device, web::State& state, web::Buffer& buffer) {
+    template <typename CONFIG>
+    void render(web::DEVICE& device, web::State<CONFIG>& state, web::Buffer<CONFIG>& buffer) {
         using namespace web;
+        using WORLD = typename State<CONFIG>::WORLD;
+        constexpr TI PIXELS = Buffer<CONFIG>::PIXELS;
         render(device, state.environment, state.parameters, state.states, state.reset_mask);
         set_all(device, state.reset_mask, false);
         auto& renderer = get_renderer(device, state.environment.environments[0]);
         auto& rgb = frame_buffer(device, renderer);
-        Tensor<typename web::WORLD::RENDERER::FB_TENSOR_SPEC> alias;
+        Tensor<typename WORLD::RENDERER::FB_TENSOR_SPEC> alias;
         alias._data = buffer.rgba.data();
         copy(renderer.device, device, rgb, alias);
         copy_onboard(device, renderer, depth_buffer(device, renderer), buffer.depth.data());
@@ -284,7 +315,8 @@ static void read_input(float input[12]) {
         }
     }, input);
 }
-static void present(web::DEVICE& device, const web::State& state, const web::Buffer& buffer) {
+template <typename CONFIG>
+static void present(web::DEVICE& device, const web::State<CONFIG>& state, const web::Buffer<CONFIG>& buffer) {
     using namespace rl_tools;
     using rl::environments::hyperdrone::rotate_scene_yaw;
     using rl::environments::l2f::quaternion_multiplication;
@@ -302,12 +334,38 @@ static void present(web::DEVICE& device, const web::State& state, const web::Buf
         if(Module.rlt_present) {
             Module.rlt_present($0, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
         }
-    }, buffer.rgba.data(), (int)web::Config::CAM_WIDTH, (int)web::Config::CAM_HEIGHT, (int)web::VIEWS,
+    }, buffer.rgba.data(), (int)CONFIG::CAM_WIDTH, (int)CONFIG::CAM_HEIGHT, (int)web::VIEWS,
         position[0], position[1], position[2], orientation[0], orientation[1], orientation[2], orientation[3]);
 }
 
+template <typename CONFIG>
+static std::string configuration_id() {
+    return std::string(CONFIG::FIDELITY) + "-mb" + std::to_string(CONFIG::MOTION_BLUR_SAMPLES)
+        + "-aa" + std::to_string(CONFIG::ANTI_ALIASING_GRID_SIZE)
+        + "-" + std::to_string(CONFIG::CAM_WIDTH) + "x" + std::to_string(CONFIG::CAM_HEIGHT);
+}
+
+template <typename... CONFIGS>
+static std::string configuration_catalog(web::Configurations<CONFIGS...>) {
+    auto catalog = nlohmann::json::array();
+    (catalog.push_back({
+        {"id", configuration_id<CONFIGS>()},
+        {"fidelity", CONFIGS::FIDELITY},
+        {"motion_blur", CONFIGS::ENABLE_MOTION_BLUR},
+        {"antialiasing", CONFIGS::ENABLE_ANTI_ALIASING},
+        {"width", CONFIGS::CAM_WIDTH},
+        {"height", CONFIGS::CAM_HEIGHT}
+    }), ...);
+    return catalog.dump();
+}
+
 extern "C" EMSCRIPTEN_KEEPALIVE int demo_api_version() {
-    return 1;
+    return 2;
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE const char* demo_configurations() {
+    static const std::string catalog = configuration_catalog(web::CompiledConfigurations{});
+    return catalog.c_str();
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE const char* demo_scenes() {
@@ -321,12 +379,13 @@ extern "C" EMSCRIPTEN_KEEPALIVE const char* demo_scenes() {
     return catalog.c_str();
 }
 
-extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char* drone_path, const char* policy_path, int drone_index, int max_frames, const char* pose_json) {
+template <typename CONFIG>
+static int run(const char* scene_path, const char* drone_path, const char* policy_path, int drone_index, int max_frames, const char* pose_json) {
     using namespace rl_tools;
     web::DEVICE device;
     init(device);
-    web::State state;
-    web::Buffer buffer;
+    web::State<CONFIG> state;
+    web::Buffer<CONFIG> buffer;
     malloc(device, state);
     status("Loading RAPTOR ...");
     if(!load(device, state.pilot, std::string(policy_path))) {
@@ -394,6 +453,23 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
     }
     free(device, state);
     return 0;
+}
+
+template <typename... CONFIGS>
+static int dispatch_run(web::Configurations<CONFIGS...>, const std::string& selected, const char* scene_path, const char* drone_path, const char* policy_path, int drone_index, int max_frames, const char* pose_json) {
+    int result = 2;
+    const bool found = ((selected == configuration_id<CONFIGS>()
+        ? (result = run<CONFIGS>(scene_path, drone_path, policy_path, drone_index, max_frames, pose_json), true)
+        : false) || ...);
+    if(!found) {
+        status("The selected rendering configuration is not included in this build");
+    }
+    return result;
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char* drone_path, const char* policy_path, int drone_index, int max_frames, const char* pose_json, const char* selected_configuration) {
+    return dispatch_run(web::CompiledConfigurations{}, selected_configuration == nullptr ? "" : selected_configuration,
+        scene_path, drone_path, policy_path, drone_index, max_frames, pose_json);
 }
 
 int main() {

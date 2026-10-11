@@ -28,6 +28,7 @@
                     <span id="flight-state">Loading</span>
                     <button id="release-control" type="button" hidden>Release control</button>
                     <button id="touch-tuning" type="button" aria-haspopup="dialog" aria-controls="flight-tuning" disabled>Tuning</button>
+                    <button id="rendering" type="button" aria-haspopup="dialog" aria-controls="rendering-settings" disabled>Rendering</button>
                     <button id="reset" type="button" disabled>Reset flight</button>
                 </div>
             </div>
@@ -120,6 +121,35 @@
             </div>
         </section>
     </main>
+    <dialog id="rendering-settings" aria-labelledby="rendering-title">
+        <form method="dialog">
+            <div class="tuning-heading">
+                <h2 id="rendering-title">Rendering</h2>
+                <button autofocus>Close</button>
+            </div>
+            <div class="tuning-control">
+                <label for="render-fidelity">Rendering fidelity</label>
+                <select id="render-fidelity" disabled></select>
+            </div>
+            <div class="tuning-control">
+                <label for="render-motion-blur">Motion blur</label>
+                <select id="render-motion-blur" disabled></select>
+            </div>
+            <div class="tuning-control">
+                <label for="render-antialiasing">Antialiasing</label>
+                <select id="render-antialiasing" disabled></select>
+            </div>
+            <div class="tuning-control">
+                <label for="render-resolution">Resolution</label>
+                <select id="render-resolution" disabled></select>
+            </div>
+            <p id="render-availability" class="tuning-description" role="status"></p>
+            <div class="tuning-actions">
+                <button id="render-defaults" type="button">Restore defaults</button>
+                <button id="render-apply" type="button" disabled>Apply and restart flight</button>
+            </div>
+        </form>
+    </dialog>
     <dialog id="frame-rate-tuning" aria-labelledby="frame-rate-title">
         <form method="dialog">
             <div class="tuning-heading">
