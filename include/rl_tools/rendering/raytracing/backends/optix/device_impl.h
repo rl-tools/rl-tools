@@ -698,11 +698,15 @@ namespace rl_tools
 
     const OptixCameraData &cam = self.cameras[cam_idx];
 
+    const owl::vec3f forward = normalize(cam.dir_00 + 0.5f * cam.dir_du + 0.5f * cam.dir_dv);
     owl::vec3f dir;
     if (probe_idx == 0) {
-      dir = normalize(cam.dir_00 + 0.5f * cam.dir_du + 0.5f * cam.dir_dv);
+      dir = forward;
     } else {
-      dir = self.probe_directions[probe_idx];
+      const owl::vec3f local = self.probe_directions[probe_idx];
+      const owl::vec3f left = -normalize(cam.dir_du);
+      const owl::vec3f up = -normalize(cam.dir_dv);
+      dir = normalize(local.x * forward + local.y * left + local.z * up);
     }
 
     // Step B: raw optixTrace + CollisionResult PRD, no FIRST_HIT

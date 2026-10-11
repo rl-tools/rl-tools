@@ -1,5 +1,6 @@
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/rendering/raytracing/backends/generic/operations_generic.h>
+#include <rl_tools/rendering/camera.h>
 
 #include <gtest/gtest.h>
 
@@ -196,11 +197,11 @@ TEST(RENDERING_RAYTRACING_GENERIC, COLLISION_ANALYTIC){
         EXPECT_FLOAT_EQ(results[probe_i].distance, 1.0f) << "probe " << probe_i;
     }
 
-    // camera outside, looking away from the cube: forward probe misses, probe towards the cube hits at 4
+    // camera outside, looking away from the cube: forward probe misses, the camera-relative backward probe (world +x) hits at 4
     const rlt::rendering::raytracing::Camera<T> camera_away = {{-5, 0, 0}, {-1, 0.5f, 0.5f}, {0, -1, 0}, {0, 0, -1}};
     const T probe_directions_away[4 * 3] = {
         -1, 0, 0,
-        1, 0, 0,
+        -1, 0, 0,
         0, 1, 0,
         0, 0, 1
     };
@@ -211,6 +212,24 @@ TEST(RENDERING_RAYTRACING_GENERIC, COLLISION_ANALYTIC){
     EXPECT_TRUE(rlt::is_miss(results[0].distance));
     EXPECT_EQ(results[1].hit, 1);
     EXPECT_FLOAT_EQ(results[1].distance, 4.0f);
+    EXPECT_EQ(results[2].hit, 0);
+    EXPECT_EQ(results[3].hit, 0);
+
+    // probe directions are camera-relative FLU: for a camera looking +y, camera -y (image right) is world +x, towards the cube
+    const T position_side[3] = {-5, 0, 0}, look_at_side[3] = {-5, 1, 0}, up_side[3] = {0, 0, 1};
+    const rlt::rendering::raytracing::Camera<T> camera_side = rlt::make_camera_data(position_side, look_at_side, up_side, (T)90, (T)1);
+    const T probe_directions_side[4 * 3] = {
+        1, 0, 0,
+        0, -1, 0,
+        0, 1, 0,
+        0, 0, 1
+    };
+    cube.scene.cameras_close = &camera_side;
+    cube.scene.probe_directions = probe_directions_side;
+    generic::render_collision<DEVICE, SPEC>(device, cube.scene);
+    EXPECT_EQ(results[0].hit, 0);
+    EXPECT_EQ(results[1].hit, 1);
+    EXPECT_NEAR(results[1].distance, 4.0f, 1e-5f);
     EXPECT_EQ(results[2].hit, 0);
     EXPECT_EQ(results[3].hit, 0);
 }

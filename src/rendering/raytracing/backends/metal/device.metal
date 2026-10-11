@@ -890,11 +890,15 @@ kernel void render_collision(
 
     device const Camera& cam = cameras[cam_idx];
 
+    const float3 forward = normalize(float3(cam.dir_00) + 0.5f * float3(cam.dir_du) + 0.5f * float3(cam.dir_dv));
     float3 dir;
     if (probe_idx == 0) {
-        dir = normalize(float3(cam.dir_00) + 0.5f * float3(cam.dir_du) + 0.5f * float3(cam.dir_dv));
+        dir = forward;
     } else {
-        dir = float3(probe_directions[probe_idx]);
+        const float3 local = float3(probe_directions[probe_idx]);
+        const float3 left = -normalize(float3(cam.dir_du));
+        const float3 up = -normalize(float3(cam.dir_dv));
+        dir = normalize(local.x * forward + local.y * left + local.z * up);
     }
 
     ray r(float3(cam.pos), dir, 1e-3f, params.max_dist);
