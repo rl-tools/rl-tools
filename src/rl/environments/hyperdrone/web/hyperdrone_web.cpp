@@ -83,6 +83,7 @@ namespace rl_tools::rl::environments::hyperdrone::web {
         Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, 1>>> reset_mask;
         raptor::Target<T> targets[CONFIG::N_AGENTS];
         rendering::datasets::annotations::FreeSpacePosition<T> spawn;
+        std::vector<rendering::datasets::annotations::FreeSpacePosition<T>> other_spawns;
         uint32_t seed = 1337;
         T position_offset = 0.3;
         T velocity_target = 0.7;
@@ -176,7 +177,7 @@ namespace rl_tools {
             drone.cameras[0].mount.pose.orientation[2] = math::sin(device.math, (T)0.15);
             drone.cameras[1].fov = 50;
             drone.cameras[1].mount.pose.position[0] = -1.2;
-            drone.cameras[1].mount.pose.position[2] = 0.4;
+            drone.cameras[1].mount.pose.position[2] = 0.6;
             const T half_pitch = math::atan2(device.math, (T)0.4, (T)1.2) / 2;
             drone.cameras[1].mount.pose.orientation[0] = math::cos(device.math, half_pitch);
             drone.cameras[1].mount.pose.orientation[2] = math::sin(device.math, half_pitch);
@@ -214,8 +215,11 @@ namespace rl_tools {
             target = {};
             if(agent_i > 0) {
                 bool found = false;
-                for(TI attempt = 0; attempt < SPAWN_ATTEMPTS && !found; attempt++) {
-                    const auto candidate = rendering::datasets::annotations::sample_free_position(device, world.slots[world.active_slot].annotations, state.rng);
+                const TI attempts = state.other_spawns.empty() ? SPAWN_ATTEMPTS : 1;
+                for(TI attempt = 0; attempt < attempts && !found; attempt++) {
+                    const auto candidate = state.other_spawns.empty()
+                        ? rendering::datasets::annotations::sample_free_position(device, world.slots[world.active_slot].annotations, state.rng)
+                        : state.other_spawns[agent_i - 1];
                     T offset[3];
                     for(TI dim = 0; dim < 3; dim++) {
                         offset[dim] = candidate.position[dim] - spawn.position[dim];
@@ -433,7 +437,7 @@ static std::string configuration_catalog(web::Configurations<CONFIGS...>) {
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE int demo_api_version() {
-    return 6;
+    return 7;
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE const char* demo_configurations() {
@@ -478,6 +482,15 @@ static int run(const char* scene_path, const char* policy_path, int max_frames, 
             state.spawn.position[dim] = placement.at("position").at(dim).get<web::T>();
         }
         state.spawn.yaw = placement.at("yaw").get<web::T>();
+    }
+    if(placement.contains("other_positions")) {
+        for(const auto& position: placement.at("other_positions")) {
+            auto spawn = state.spawn;
+            for(web::TI dim = 0; dim < 3; dim++) {
+                spawn.position[dim] = position.at(dim).get<web::T>();
+            }
+            state.other_spawns.push_back(spawn);
+        }
     }
     if(!reset(device, state)) {
         status("Could not place seven separated drones in this scene");
@@ -609,6 +622,25 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
             if(!value.is_number() || !rl_tools::rendering::rig::detail::is_finite(value.get<web::T>())) {
                 status("The starting pose is invalid");
                 return 1;
+            }
+        }
+    }
+    if(session.contains("other_positions")) {
+        const auto& positions = session.at("other_positions");
+        if(!positions.is_array() || positions.size() != num_agents - 1) {
+            status("The flight needs one starting position per other drone");
+            return 1;
+        }
+        for(const auto& position: positions) {
+            if(!position.is_array() || position.size() != 3) {
+                status("The other drone starting positions are invalid");
+                return 1;
+            }
+            for(const auto& value: position) {
+                if(!value.is_number() || !rl_tools::rendering::rig::detail::is_finite(value.get<web::T>())) {
+                    status("The other drone starting positions are invalid");
+                    return 1;
+                }
             }
         }
     }
