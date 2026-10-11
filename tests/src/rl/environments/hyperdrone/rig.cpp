@@ -10,6 +10,7 @@
 
 #include <cmath>
 #include <cstring>
+#include <sstream>
 #include <string>
 
 #ifdef RL_TOOLS_TEST_DATA_PATH
@@ -116,11 +117,12 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, PLACEMENT_SCALE_PRESERVES_BODY_POS
     const T torques[4][3] = {{0,0,-1}, {0,0,1}, {0,0,-1}, {0,0,1}};
     RIG rig;
     ASSERT_TRUE(init(device, rig, assembly, rotors, torques, TI(4)));
+    ASSERT_EQ(rig.num_coordinates, 4);
     const auto original = rig;
     const float base_open[12] = {1,0,0,1, 0,1,0,2, 0,0,1,3};
     const float base_close[12] = {0,-1,0,2, 1,0,0,3, 0,0,1,4};
-    const float phases_open[4] = {};
-    const float phases_close[4] = {0.7f,1.1f,-0.4f,2.2f};
+    const float phases_open[RIG::SPEC::MAX_COORDINATES] = {};
+    const float phases_close[RIG::SPEC::MAX_COORDINATES] = {0.7f,1.1f,-0.4f,2.2f};
     const float pivot[3] = {0.015f,-0.025f,0};
     rlt::rendering::rig::Buffer<RIG::SPEC> buffer;
     for(T factor : {0.5f,1.5f}){
@@ -177,7 +179,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, MOTOR_LAYOUT_WARNING_AFTER_WHEELBA
     const T square[4][3] = {{0.1f,-0.1f,0}, {-0.1f,-0.1f,0}, {-0.1f,0.1f,0}, {0.1f,0.1f,0}};
     const TI permutation[4] = {2,0,3,1};
     const T torques[4][3] = {{0,0,-1}, {0,0,1}, {0,0,-1}, {0,0,1}};
-    for(T deviation : {0.0f, 0.0499f, 0.0501f}){
+    constexpr T threshold = rlt::rl::environments::hyperdrone::rig::ROTOR_POSITION_WARNING_THRESHOLD;
+    std::ostringstream threshold_message;
+    threshold_message << "warning threshold " << 100 * threshold << "%";
+    for(T deviation : {0.0f, threshold - 0.0001f, threshold + 0.0001f}){
         auto assembly = transformed_quadrotor(device);
         const T angle = std::atan(T(1)) + 2 * std::asin(deviation);
         const T x = std::sqrt(T(0.08)) * std::cos(angle);
@@ -199,10 +204,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, MOTOR_LAYOUT_WARNING_AFTER_WHEELBA
             const auto warning = testing::internal::GetCapturedStderr();
             ASSERT_TRUE(initialized);
             EXPECT_NEAR(rig.rotor_position_deviation, deviation, 1e-6f);
-            EXPECT_EQ(warning.empty(), deviation <= rlt::rl::environments::hyperdrone::rig::ROTOR_POSITION_WARNING_THRESHOLD);
-            if(deviation > 0.05f){
+            EXPECT_EQ(warning.empty(), deviation <= threshold);
+            if(deviation > threshold){
                 EXPECT_NE(warning.find("% of wheelbase"), std::string::npos);
-                EXPECT_NE(warning.find("warning threshold 5%"), std::string::npos);
+                EXPECT_NE(warning.find(threshold_message.str()), std::string::npos);
             }
             for(TI rotor = 0; rotor < 4; rotor++){
                 EXPECT_EQ(rig.parts[permutation[rotor] + 1].link, rotor + 1);

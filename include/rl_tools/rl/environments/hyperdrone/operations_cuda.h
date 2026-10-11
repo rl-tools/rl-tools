@@ -158,7 +158,7 @@ namespace rl_tools{
                 _drone_coordinates<DEVICE, SPEC>(device, instance_parameters, agent_i, agent_state, coordinates_open, coordinates_close);
                 const TI row = instance_i * WORLD::RENDERER_CONFIG::MAX_OVERLAY_INSTANCES + slot_offset + agent_i * parts;
                 const auto& body = get_ref(device, bodies, instance_parameters.agents[agent_i].drone);
-                const float placement_scale = rotor_scale(device, body.rig, instance_parameters.agents[agent_i].dynamics.dynamics.rotor_positions, (TI)WORLD::DYNAMICS_ENV::ACTION_DIM);
+                const float placement_scale = rotor_scale(device, body.rig, instance_parameters.agents[agent_i].dynamics.dynamics.rotor_positions, WORLD::DYNAMICS_ENV::ACTION_DIM);
                 drone_entity_rows<DEVICE, SPEC>(device, body, base, base, coordinates_open, coordinates_close, transforms, transforms_motion, meshes, parts, row, placement_scale);
             }
         }
