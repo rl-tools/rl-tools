@@ -202,8 +202,6 @@ The browser conta `load` resolver reuses verified gzip assets from persistent br
 on a miss it requests `blob/<sha1>.gz`, then the format-1 conta providers, preferring advertised gzip
 variants. Scene, airframe, and RAPTOR downloads share this cache; raw-only assets are gzipped before
 storage, corrupt entries are discarded, and storage failures leave downloading available.
-To prepare the local default scene, Crazyflie, and checkpoint, run
-`.venv/bin/python static/hyperdrone/prepare_blob.py /path/to/scene.glb /path/to/crazyflie.glb /path/to/policy.tar`.
 Run `static/hyperdrone/download_blob.sh` to clone the separate asset repository into
 `static/hyperdrone/blob/`; existing checkouts are left untouched. The build script writes its module
 to `blob/build/`. Serve the page over HTTPS or localhost; `?scene=ProcTHOR-Train-0` selects a
