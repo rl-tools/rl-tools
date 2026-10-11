@@ -8,6 +8,16 @@ add_executable(test_rl_environments_hyperdrone_on_policy_gradient on_policy_grad
 target_link_libraries(test_rl_environments_hyperdrone_on_policy_gradient PRIVATE RLtools::RLtools GTest::gtest_main)
 gtest_discover_tests(test_rl_environments_hyperdrone_on_policy_gradient)
 
+add_executable(test_rl_environments_hyperdrone_yaw yaw.cpp)
+target_link_libraries(test_rl_environments_hyperdrone_yaw PRIVATE RLtools::RLtools GTest::gtest_main)
+gtest_discover_tests(test_rl_environments_hyperdrone_yaw)
+if(RL_TOOLS_BACKEND_ENABLE_CUDA)
+    add_executable(test_rl_environments_hyperdrone_yaw_cuda yaw_cuda.cu)
+    target_link_libraries(test_rl_environments_hyperdrone_yaw_cuda PRIVATE RLtools::RLtools GTest::gtest_main)
+    set_target_properties(test_rl_environments_hyperdrone_yaw_cuda PROPERTIES CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED ON)
+    gtest_discover_tests(test_rl_environments_hyperdrone_yaw_cuda)
+endif()
+
 if(TARGET RLtools::HyperDroneSpy)
     find_package(glfw3 REQUIRED)
     find_package(OpenGL REQUIRED)
