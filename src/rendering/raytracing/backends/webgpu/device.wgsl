@@ -464,14 +464,6 @@ fn safe_inverse(direction: vec3<f32>) -> vec3<f32>{
     );
 }
 
-fn intersect_aabb(node: BVHNode, origin: vec3<f32>, inv_direction: vec3<f32>, t_min: f32, t_max: f32) -> bool{
-    let t1 = (node.a.xyz - origin) * inv_direction;
-    let t2 = (vec3<f32>(node.a.w, node.b.x, node.b.y) - origin) * inv_direction;
-    let t_enter = max(max(min(t1.x, t2.x), min(t1.y, t2.y)), max(min(t1.z, t2.z), t_min));
-    let t_exit = min(min(max(t1.x, t2.x), max(t1.y, t2.y)), min(max(t1.z, t2.z), t_max));
-    return t_enter <= t_exit;
-}
-
 // entry distance for ordered traversal; MISS_DISTANCE on miss
 const MISS_DISTANCE: f32 = 1e30;
 fn intersect_aabb_distance(node: BVHNode, origin: vec3<f32>, inv_direction: vec3<f32>, t_min: f32, t_max: f32) -> f32{
@@ -482,18 +474,25 @@ fn intersect_aabb_distance(node: BVHNode, origin: vec3<f32>, inv_direction: vec3
     return select(MISS_DISTANCE, t_enter, t_enter <= t_exit);
 }
 
+// module-scope traversal stacks: every inlined trace site shares them (traversals only nest
+// TLAS -> BLAS), where function-scope arrays cost private memory per inlined copy
+var<private> tlas_stack: array<u32, TRAVERSAL_STACK_SIZE>;
+var<private> blas_stack: array<u32, TRAVERSAL_STACK_SIZE>;
+
 // BLAS traversal against one instance; the ray is transformed into object space with an
 // unnormalized direction, so hit.t stays parameterized in world units and is comparable
 // across instances. Ordered: both children are tested at the parent and the nearer subtree is
-// descended first, so the best.t cull prunes the far subtree early.
-fn intersect_blas_closest(instance_index: u32, origin_in: vec3<f32>, direction_in: vec3<f32>, inv_direction_in: vec3<f32>, t_min: f32, best: ptr<function, Hit>){
+// descended first, so the best.t cull prunes the far subtree early. any_hit queries (shadow
+// and flow visibility rays: is there a hit in (t_min, best.t)?) share the ordered traversal and
+// return at the first hit, which near-first ordering reaches early on occluded rays
+fn intersect_blas(instance_index: u32, origin_in: vec3<f32>, direction_in: vec3<f32>, inv_direction_in: vec3<f32>, t_min: f32, best: ptr<function, Hit>, any_hit: bool) -> bool{
     // per-field loads: identity instances skip the 96-byte matrix load entirely
     let object = instance_data[instance_index].object;
     let record_base = params.object_records_offset + 4u * object;
     let node_base = geometry_u32(record_base);
     let node_count = geometry_u32(record_base + 1u);
     let first_triangle = geometry_u32(record_base + 2u);
-    if(node_count == 0u){ return; }
+    if(node_count == 0u){ return false; }
     var origin = origin_in;
     var direction = direction_in;
     var inv_direction = inv_direction_in;
@@ -503,10 +502,10 @@ fn intersect_blas_closest(instance_index: u32, origin_in: vec3<f32>, direction_i
         direction = transform_vector(world_to_object, direction_in);
         inv_direction = safe_inverse(direction);
     }
-    if(intersect_aabb_distance(bvh_nodes[node_base], origin, inv_direction, t_min, (*best).t) >= (*best).t){ return; }
-    var stack: array<u32, TRAVERSAL_STACK_SIZE>;
+    if(intersect_aabb_distance(bvh_nodes[node_base], origin, inv_direction, t_min, (*best).t) >= (*best).t){ return false; }
     var stack_pointer = 0u;
     var node_index = 0u;
+    var found = false;
     loop{
         let node = bvh_nodes[node_base + node_index];
         let left_or_first = bvh_left_or_first(node);
@@ -515,6 +514,8 @@ fn intersect_blas_closest(instance_index: u32, origin_in: vec3<f32>, direction_i
             for(var i = 0u; i < count; i++){
                 if(intersect_triangle_packed(first_triangle + left_or_first + i, origin, direction, t_min, (*best).t, best)){
                     (*best).instance = instance_index;
+                    found = true;
+                    if(any_hit){ return true; }
                 }
             }
         }
@@ -532,7 +533,7 @@ fn intersect_blas_closest(instance_index: u32, origin_in: vec3<f32>, direction_i
                 far_t = t_left;
             }
             if(far_t < (*best).t && stack_pointer < TRAVERSAL_STACK_SIZE){
-                stack[stack_pointer] = far_index;
+                blas_stack[stack_pointer] = far_index;
                 stack_pointer++;
             }
             if(near_t < (*best).t){
@@ -540,66 +541,18 @@ fn intersect_blas_closest(instance_index: u32, origin_in: vec3<f32>, direction_i
                 continue;
             }
         }
-        if(stack_pointer == 0u){ return; }
+        if(stack_pointer == 0u){ return found; }
         stack_pointer--;
-        node_index = stack[stack_pointer];
+        node_index = blas_stack[stack_pointer];
     }
+    return found;
 }
 
-fn traverse_scene_tlas_closest(origin: vec3<f32>, direction: vec3<f32>, t_min: f32, best: ptr<function, Hit>){
-    if(params.tlas_node_count == 0u){ return; }
-    let inv_direction = safe_inverse(direction);
-    if(intersect_aabb_distance(bvh_nodes[params.tlas_node_offset], origin, inv_direction, t_min, (*best).t) >= (*best).t){ return; }
-    var stack: array<u32, TRAVERSAL_STACK_SIZE>;
-    var stack_pointer = 0u;
-    var node_index = 0u;
-    loop{
-        let node = bvh_nodes[params.tlas_node_offset + node_index];
-        let left_or_first = bvh_left_or_first(node);
-        let count = bvh_count(node);
-        if(count > 0u){
-            for(var i = 0u; i < count; i++){
-                let instance_index = geometry_u32(params.tlas_primitive_offset + left_or_first + i);
-                intersect_blas_closest(instance_index, origin, direction, inv_direction, t_min, best);
-            }
-        }
-        else{
-            let t_left = intersect_aabb_distance(bvh_nodes[params.tlas_node_offset + left_or_first], origin, inv_direction, t_min, (*best).t);
-            let t_right = intersect_aabb_distance(bvh_nodes[params.tlas_node_offset + left_or_first + 1u], origin, inv_direction, t_min, (*best).t);
-            var near_index = left_or_first;
-            var near_t = t_left;
-            var far_index = left_or_first + 1u;
-            var far_t = t_right;
-            if(t_right < t_left){
-                near_index = left_or_first + 1u;
-                near_t = t_right;
-                far_index = left_or_first;
-                far_t = t_left;
-            }
-            if(far_t < (*best).t && stack_pointer < TRAVERSAL_STACK_SIZE){
-                stack[stack_pointer] = far_index;
-                stack_pointer++;
-            }
-            if(near_t < (*best).t){
-                node_index = near_index;
-                continue;
-            }
-        }
-        if(stack_pointer == 0u){ return; }
-        stack_pointer--;
-        node_index = stack[stack_pointer];
-    }
-}
-
-fn traverse_overlay_tlas_closest(region: u32, overlay: u32, origin: vec3<f32>, direction: vec3<f32>, t_min: f32, best: ptr<function, Hit>){
-    let slot = region * fc_num_overlays + overlay;
-    let num_tlas_nodes = frame_u32(params.overlay_meta_offset + slot * 2u + 1u);
-    if(num_tlas_nodes == 0u){ return; }
-    let node_base = params.overlay_node_offset + slot * 2u * fc_overlay_capacity;
-    let primitive_base = params.overlay_primitives_offset + slot * fc_overlay_capacity;
-    let inv_direction = safe_inverse(direction);
-    if(intersect_aabb_distance(bvh_nodes[node_base], origin, inv_direction, t_min, (*best).t) >= (*best).t){ return; }
-    var stack: array<u32, TRAVERSAL_STACK_SIZE>;
+// one instance-level traversal for the scene TLAS and every overlay TLAS: every inlined copy of
+// the nested BLAS loop costs kernel time (a separate overlay copy cost about a fifth of it).
+// Overlay TLAS leaves index their instance ids in FRAME_INPUTS
+fn traverse_tlas(node_base: u32, primitive_base: u32, overlay: bool, origin: vec3<f32>, direction: vec3<f32>, inv_direction: vec3<f32>, t_min: f32, best: ptr<function, Hit>, any_hit: bool) -> bool{
+    if(intersect_aabb_distance(bvh_nodes[node_base], origin, inv_direction, t_min, (*best).t) >= (*best).t){ return false; }
     var stack_pointer = 0u;
     var node_index = 0u;
     loop{
@@ -608,8 +561,14 @@ fn traverse_overlay_tlas_closest(region: u32, overlay: u32, origin: vec3<f32>, d
         let count = bvh_count(node);
         if(count > 0u){
             for(var i = 0u; i < count; i++){
-                let instance_index = frame_u32(primitive_base + left_or_first + i);
-                intersect_blas_closest(instance_index, origin, direction, inv_direction, t_min, best);
+                var instance_index: u32;
+                if(overlay){
+                    instance_index = frame_u32(primitive_base + left_or_first + i);
+                }
+                else{
+                    instance_index = geometry_u32(primitive_base + left_or_first + i);
+                }
+                if(intersect_blas(instance_index, origin, direction, inv_direction, t_min, best, any_hit) && any_hit){ return true; }
             }
         }
         else{
@@ -626,7 +585,7 @@ fn traverse_overlay_tlas_closest(region: u32, overlay: u32, origin: vec3<f32>, d
                 far_t = t_left;
             }
             if(far_t < (*best).t && stack_pointer < TRAVERSAL_STACK_SIZE){
-                stack[stack_pointer] = far_index;
+                tlas_stack[stack_pointer] = far_index;
                 stack_pointer++;
             }
             if(near_t < (*best).t){
@@ -634,143 +593,9 @@ fn traverse_overlay_tlas_closest(region: u32, overlay: u32, origin: vec3<f32>, d
                 continue;
             }
         }
-        if(stack_pointer == 0u){ return; }
+        if(stack_pointer == 0u){ return false; }
         stack_pointer--;
-        node_index = stack[stack_pointer];
-    }
-}
-
-fn intersect_blas_any(instance_index: u32, origin_in: vec3<f32>, direction_in: vec3<f32>, inv_direction_in: vec3<f32>, t_min: f32, t_max: f32) -> bool{
-    let object = instance_data[instance_index].object;
-    let record_base = params.object_records_offset + 4u * object;
-    let node_base = geometry_u32(record_base);
-    let node_count = geometry_u32(record_base + 1u);
-    let first_triangle = geometry_u32(record_base + 2u);
-    if(node_count == 0u){
-        return false;
-    }
-    var origin = origin_in;
-    var direction = direction_in;
-    var inv_direction = inv_direction_in;
-    if(instance_data[instance_index].identity == 0u){
-        let world_to_object = instance_data[instance_index].world_to_object;
-        origin = transform_point(world_to_object, origin_in);
-        direction = transform_vector(world_to_object, direction_in);
-        inv_direction = safe_inverse(direction);
-    }
-    var stack: array<u32, TRAVERSAL_STACK_SIZE>;
-    var stack_pointer = 0u;
-    var node_index = 0u;
-    var hit: Hit;
-    hit.valid = false;
-    loop{
-        let node = bvh_nodes[node_base + node_index];
-        if(intersect_aabb(node, origin, inv_direction, t_min, t_max)){
-            let left_or_first = bvh_left_or_first(node);
-            let count = bvh_count(node);
-            if(count > 0u){
-                for(var i = 0u; i < count; i++){
-                    if(intersect_triangle_packed(first_triangle + left_or_first + i, origin, direction, t_min, t_max, &hit)){
-                        return true;
-                    }
-                }
-            }
-            else{
-                if(stack_pointer < TRAVERSAL_STACK_SIZE){
-                    stack[stack_pointer] = left_or_first + 1u;
-                    stack_pointer++;
-                    node_index = left_or_first;
-                    continue;
-                }
-            }
-        }
-        if(stack_pointer == 0u){
-            return false;
-        }
-        stack_pointer--;
-        node_index = stack[stack_pointer];
-    }
-    return false;
-}
-
-fn traverse_scene_tlas_any(origin: vec3<f32>, direction: vec3<f32>, t_min: f32, t_max: f32) -> bool{
-    if(params.tlas_node_count == 0u){
-        return false;
-    }
-    let inv_direction = safe_inverse(direction);
-    var stack: array<u32, TRAVERSAL_STACK_SIZE>;
-    var stack_pointer = 0u;
-    var node_index = 0u;
-    loop{
-        let node = bvh_nodes[params.tlas_node_offset + node_index];
-        if(intersect_aabb(node, origin, inv_direction, t_min, t_max)){
-            let left_or_first = bvh_left_or_first(node);
-            let count = bvh_count(node);
-            if(count > 0u){
-                for(var i = 0u; i < count; i++){
-                    let instance_index = geometry_u32(params.tlas_primitive_offset + left_or_first + i);
-                    if(intersect_blas_any(instance_index, origin, direction, inv_direction, t_min, t_max)){
-                        return true;
-                    }
-                }
-            }
-            else{
-                if(stack_pointer < TRAVERSAL_STACK_SIZE){
-                    stack[stack_pointer] = left_or_first + 1u;
-                    stack_pointer++;
-                    node_index = left_or_first;
-                    continue;
-                }
-            }
-        }
-        if(stack_pointer == 0u){
-            return false;
-        }
-        stack_pointer--;
-        node_index = stack[stack_pointer];
-    }
-    return false;
-}
-
-fn traverse_overlay_tlas_any(region: u32, overlay: u32, origin: vec3<f32>, direction: vec3<f32>, t_min: f32, t_max: f32) -> bool{
-    let slot = region * fc_num_overlays + overlay;
-    let num_tlas_nodes = frame_u32(params.overlay_meta_offset + slot * 2u + 1u);
-    if(num_tlas_nodes == 0u){
-        return false;
-    }
-    let node_base = params.overlay_node_offset + slot * 2u * fc_overlay_capacity;
-    let primitive_base = params.overlay_primitives_offset + slot * fc_overlay_capacity;
-    let inv_direction = safe_inverse(direction);
-    var stack: array<u32, TRAVERSAL_STACK_SIZE>;
-    var stack_pointer = 0u;
-    var node_index = 0u;
-    loop{
-        let node = bvh_nodes[node_base + node_index];
-        if(intersect_aabb(node, origin, inv_direction, t_min, t_max)){
-            let left_or_first = bvh_left_or_first(node);
-            let count = bvh_count(node);
-            if(count > 0u){
-                for(var i = 0u; i < count; i++){
-                    let instance_index = frame_u32(primitive_base + left_or_first + i);
-                    if(intersect_blas_any(instance_index, origin, direction, inv_direction, t_min, t_max)){
-                        return true;
-                    }
-                }
-            }
-            else{
-                if(stack_pointer < TRAVERSAL_STACK_SIZE){
-                    stack[stack_pointer] = left_or_first + 1u;
-                    stack_pointer++;
-                    node_index = left_or_first;
-                    continue;
-                }
-            }
-        }
-        if(stack_pointer == 0u){
-            return false;
-        }
-        stack_pointer--;
-        node_index = stack[stack_pointer];
+        node_index = tlas_stack[stack_pointer];
     }
     return false;
 }
@@ -778,7 +603,7 @@ fn traverse_overlay_tlas_any(region: u32, overlay: u32, origin: vec3<f32>, direc
 // min-t composition of the shared world and the overlays attached to this camera; at
 // fc_overlay_count == 0 the loop specializes away and this is a plain intersect
 // the overlay region selects shutter close (0), a dynamic motion sample, or the flow previous instant
-fn trace_closest_composed_region(region: u32, camera: i32, origin: vec3<f32>, direction: vec3<f32>, t_min: f32, t_max: f32) -> Hit{
+fn trace_composed_region(region: u32, camera: i32, origin: vec3<f32>, direction: vec3<f32>, t_min: f32, t_max: f32, any_hit: bool) -> Hit{
     var best: Hit;
     best.t = t_max;
     best.u = 0.0;
@@ -786,23 +611,33 @@ fn trace_closest_composed_region(region: u32, camera: i32, origin: vec3<f32>, di
     best.triangle = 0u;
     best.instance = 0u;
     best.valid = false;
-    traverse_scene_tlas_closest(origin, direction, t_min, &best);
-    for(var k = 0; k < fc_overlay_count; k++){
-        let overlay = frame_u32(params.attachments_offset + u32(camera) * u32(fc_overlay_count) + u32(k));
-        if(overlay == ABSENT){ continue; }
-        traverse_overlay_tlas_closest(region, overlay, origin, direction, t_min, &best);
+    let inv_direction = safe_inverse(direction);
+    // k = -1 is the scene TLAS, k >= 0 the k-th overlay attached to this camera
+    for(var k = -1; k < fc_overlay_count; k++){
+        var node_base = params.tlas_node_offset;
+        var primitive_base = params.tlas_primitive_offset;
+        if(k < 0){
+            if(params.tlas_node_count == 0u){ continue; }
+        }
+        else{
+            let overlay = frame_u32(params.attachments_offset + u32(camera) * u32(fc_overlay_count) + u32(k));
+            if(overlay == ABSENT){ continue; }
+            let slot = region * fc_num_overlays + overlay;
+            if(frame_u32(params.overlay_meta_offset + slot * 2u + 1u) == 0u){ continue; }
+            node_base = params.overlay_node_offset + slot * 2u * fc_overlay_capacity;
+            primitive_base = params.overlay_primitives_offset + slot * fc_overlay_capacity;
+        }
+        if(traverse_tlas(node_base, primitive_base, k >= 0, origin, direction, inv_direction, t_min, &best, any_hit) && any_hit){ return best; }
     }
     return best;
 }
 
+fn trace_closest_composed_region(region: u32, camera: i32, origin: vec3<f32>, direction: vec3<f32>, t_min: f32, t_max: f32) -> Hit{
+    return trace_composed_region(region, camera, origin, direction, t_min, t_max, false);
+}
+
 fn trace_any_composed_region(region: u32, camera: i32, origin: vec3<f32>, direction: vec3<f32>, t_min: f32, t_max: f32) -> bool{
-    if(traverse_scene_tlas_any(origin, direction, t_min, t_max)){ return true; }
-    for(var k = 0; k < fc_overlay_count; k++){
-        let overlay = frame_u32(params.attachments_offset + u32(camera) * u32(fc_overlay_count) + u32(k));
-        if(overlay == ABSENT){ continue; }
-        if(traverse_overlay_tlas_any(region, overlay, origin, direction, t_min, t_max)){ return true; }
-    }
-    return false;
+    return trace_composed_region(region, camera, origin, direction, t_min, t_max, true).valid;
 }
 
 struct PixelLaunchContext{

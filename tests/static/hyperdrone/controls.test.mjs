@@ -62,6 +62,10 @@ function fixture({defer_mouse_lock = false, search = "", catalog = configuration
         element.value = element.defaultValue = match[0].match(/\bvalue="([^"]+)"/)?.[1] || "";
         element.min = match[0].match(/\bmin="([^"]+)"/)?.[1] || "";
         element.max = match[0].match(/\bmax="([^"]+)"/)?.[1] || "";
+        if(match[0].startsWith("<canvas")){
+            element.width = Number(match[0].match(/\bwidth="([^"]+)"/)[1]);
+            element.height = Number(match[0].match(/\bheight="([^"]+)"/)[1]);
+        }
         element.disabled = /\bdisabled\b/.test(match[0]);
         element.hidden = /\bhidden\b/.test(match[0]);
         element.open = false;
@@ -83,7 +87,6 @@ function fixture({defer_mouse_lock = false, search = "", catalog = configuration
             && Number(element.value) >= Number(element.min) && Number(element.value) <= Number(element.max);
         element.reportValidity = element.checkValidity;
         const drawing = {
-            createImageData: (width, height) => ({width, height, data: new Uint8ClampedArray(width * height * 4)}),
             putImageData: image => { element.image = image; },
         };
         element.getContext = () => drawing;
@@ -149,6 +152,13 @@ function fixture({defer_mouse_lock = false, search = "", catalog = configuration
     };
     const context = vm.createContext({
         document, window, navigator: {maxTouchPoints: 2, gpu: {}}, performance, URLSearchParams, create_touch_stick,
+        ImageData: class {
+            constructor(data, width, height){
+                this.data = data;
+                this.width = width;
+                this.height = height;
+            }
+        },
         Conta: class {async load(reference){ events.push(`asset:${reference}`); return new Uint8Array(); }},
         console: {...console, error: error => errors.push(error)},
         import_module: async () => ({default: async options => {

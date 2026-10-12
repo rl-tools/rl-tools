@@ -127,43 +127,53 @@ namespace rl_tools {
 #endif
         }
 
+        // the browser's mapped range lives outside the Wasm heap, so it is read straight into the
+        // destination; wgpu-native maps host memory directly (and leaves ReadMappedRange unimplemented)
+        inline bool read_mapped_range(WGPUBuffer buffer, size_t offset, void* destination, size_t bytes){
+#ifdef __EMSCRIPTEN__
+            return wgpuBufferReadMappedRange(buffer, offset, destination, bytes) == WGPUStatus_Success;
+#else
+            const void* mapped = wgpuBufferGetConstMappedRange(buffer, offset, bytes);
+            if(mapped == nullptr){
+                return false;
+            }
+            std::memcpy(destination, mapped, bytes);
+            return true;
+#endif
+        }
+
         template <typename DEVICE>
-        void read_back(DEVICE& device, Context& ctx, const std::vector<ReadbackTarget>& targets){
-            std::vector<MapRequest> requests(targets.size());
-            for(size_t i = 0; i < targets.size(); i++){
-                const auto& staging = *targets[i].staging;
-                WGPUBufferMapCallbackInfo callback_info{};
-#ifdef __EMSCRIPTEN__
-                requests[i].promise = emscripten_promise_create();
-                callback_info.mode = WGPUCallbackMode_AllowSpontaneous;
-#else
-                callback_info.mode = WGPUCallbackMode_AllowProcessEvents;
-#endif
-                callback_info.callback = map_callback;
-                callback_info.userdata1 = &requests[i];
-                wgpuBufferMapAsync(staging.buffer, WGPUMapMode_Read, 0, (size_t)staging.size, callback_info);
+        void read_back(DEVICE& device, Context& ctx, const Readback& readback){
+            if(readback.targets.empty()){
+                return;
             }
-            for(size_t i = 0; i < targets.size(); i++){
-                const auto& request = requests[i];
-                const auto& target = targets[i];
-                const auto& staging = *target.staging;
-                while(!request.done){
+            MapRequest request;
+            WGPUBufferMapCallbackInfo callback_info{};
 #ifdef __EMSCRIPTEN__
-                    const auto settled = emscripten_promise_await(request.promise);
-                    utils::assert_exit(device, settled.result == EM_PROMISE_FULFILL, "WebGPU: map promise rejected");
+            request.promise = emscripten_promise_create();
+            callback_info.mode = WGPUCallbackMode_AllowSpontaneous;
 #else
-                    wgpuDevicePoll(ctx.device, true, nullptr);
+            callback_info.mode = WGPUCallbackMode_AllowProcessEvents;
 #endif
-                }
-                utils::assert_exit(device, request.status == WGPUMapAsyncStatus_Success, "WebGPU: staging buffer map failed");
-                const void* mapped = wgpuBufferGetConstMappedRange(staging.buffer, 0, (size_t)staging.size);
-                utils::assert_exit(device, mapped != nullptr, "WebGPU: mapped range unavailable");
-                std::memcpy(target.destination, mapped, target.bytes);
-                wgpuBufferUnmap(staging.buffer);
+            callback_info.callback = map_callback;
+            callback_info.userdata1 = &request;
+            wgpuBufferMapAsync(readback.staging.buffer, WGPUMapMode_Read, 0, (size_t)readback.staging.size, callback_info);
+            while(!request.done){
 #ifdef __EMSCRIPTEN__
-                emscripten_promise_destroy(request.promise);
+                const auto settled = emscripten_promise_await(request.promise);
+                utils::assert_exit(device, settled.result == EM_PROMISE_FULFILL, "WebGPU: map promise rejected");
+#else
+                wgpuDevicePoll(ctx.device, true, nullptr);
 #endif
             }
+#ifdef __EMSCRIPTEN__
+            emscripten_promise_destroy(request.promise);
+#endif
+            utils::assert_exit(device, request.status == WGPUMapAsyncStatus_Success, "WebGPU: staging buffer map failed");
+            for(const auto& target : readback.targets){
+                utils::assert_exit(device, read_mapped_range(readback.staging.buffer, (size_t)target.staging_offset, target.destination, target.bytes), "WebGPU: mapped range unavailable");
+            }
+            wgpuBufferUnmap(readback.staging.buffer);
         }
 
         template <typename DEVICE>
@@ -171,7 +181,7 @@ namespace rl_tools {
             if(!ctx.render_in_flight){
                 return;
             }
-            read_back(device, ctx, ctx.render_readbacks);
+            read_back(device, ctx, ctx.render_readback);
             ctx.render_in_flight = false;
         }
 
@@ -180,7 +190,7 @@ namespace rl_tools {
             if(!ctx.collision_in_flight){
                 return;
             }
-            read_back(device, ctx, ctx.probe_readbacks);
+            read_back(device, ctx, ctx.probe_readback);
             ctx.collision_in_flight = false;
         }
 
@@ -603,12 +613,16 @@ namespace rl_tools {
         for_each_output(device, renderer.outputs, [&](auto& buffer){
             using OUTPUT = decltype(output_type(buffer));
             constexpr auto SLOT = rendering::raytracing::outputs::Traits<OUTPUT>::SLOT;
-            constexpr uint32_t INDEX = (uint32_t)SLOT;
             constexpr size_t BYTES = decltype(buffer.tensor)::SPEC::SIZE_BYTES;
-            ctx->staging[INDEX] = wg::create_buffer(device, *ctx, BYTES, STAGING);
-            auto& targets = SLOT == rendering::raytracing::outputs::Slot::PROBES ? ctx->probe_readbacks : ctx->render_readbacks;
-            targets.push_back({&ctx->staging[INDEX], data(buffer.tensor), BYTES, rendering::raytracing::outputs::Layout<SPEC>::template offset<OUTPUT>()});
+            auto& readback = SLOT == rendering::raytracing::outputs::Slot::PROBES ? ctx->probe_readback : ctx->render_readback;
+            readback.targets.push_back({data(buffer.tensor), BYTES, rendering::raytracing::outputs::Layout<SPEC>::template offset<OUTPUT>(), readback.staging.size});
+            readback.staging.size += (BYTES + 7) & ~(size_t)7;
         });
+        for(auto* readback : {&ctx->render_readback, &ctx->probe_readback}){
+            if(!readback->targets.empty()){
+                readback->staging = wg::create_buffer(device, *ctx, readback->staging.size, STAGING);
+            }
+        }
         rendering::raytracing::detail::announce_backend(device, renderer);
     }
 
@@ -1151,8 +1165,8 @@ namespace rl_tools {
             wgpuComputePassEncoderEnd(pass);
             wgpuComputePassEncoderRelease(pass);
         }
-        for(const auto& target : ctx.render_readbacks){
-            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, target.offset, target.staging->buffer, 0, target.bytes);
+        for(const auto& target : ctx.render_readback.targets){
+            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, target.output_offset, ctx.render_readback.staging.buffer, target.staging_offset, target.bytes);
         }
         WGPUCommandBuffer command_buffer = wgpuCommandEncoderFinish(encoder, nullptr);
         wgpuCommandEncoderRelease(encoder);
@@ -1188,8 +1202,8 @@ namespace rl_tools {
             wgpuComputePassEncoderEnd(pass);
             wgpuComputePassEncoderRelease(pass);
         }
-        for(const auto& target : ctx.probe_readbacks){
-            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, target.offset, target.staging->buffer, 0, target.bytes);
+        for(const auto& target : ctx.probe_readback.targets){
+            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, target.output_offset, ctx.probe_readback.staging.buffer, target.staging_offset, target.bytes);
         }
         WGPUCommandBuffer command_buffer = wgpuCommandEncoderFinish(encoder, nullptr);
         wgpuCommandEncoderRelease(encoder);
@@ -1229,9 +1243,8 @@ namespace rl_tools {
             wg::destroy_buffer(ctx.launch_params);
             wg::destroy_buffer(ctx.frame_inputs);
             wg::destroy_buffer(ctx.outputs);
-            for(auto& staging : ctx.staging){
-                wg::destroy_buffer(staging);
-            }
+            wg::destroy_buffer(ctx.render_readback.staging);
+            wg::destroy_buffer(ctx.probe_readback.staging);
             if(ctx.rgb_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.rgb_pipeline); }
             if(ctx.auxiliary_pipeline != nullptr){
                 wgpuComputePipelineRelease(ctx.auxiliary_pipeline);

@@ -165,12 +165,18 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
     };
 
     // staging -> host-tensor readback registered in malloc; lets the in-flight settle run against
-    // the Context alone (the renderer memory-domain copy has no SPEC)
+    // the Context alone (the renderer memory-domain copy has no SPEC). Each group's outputs share
+    // one staging buffer at 8-byte aligned sections (the mapped-range offset alignment), so a
+    // settle is a single map whose sections are read straight into the tensors
     struct ReadbackTarget{
-        BufferResource* staging = nullptr;
         void* destination = nullptr;
         size_t bytes = 0;
-        uint64_t offset = 0;
+        uint64_t output_offset = 0;
+        uint64_t staging_offset = 0;
+    };
+    struct Readback{
+        BufferResource staging;
+        std::vector<ReadbackTarget> targets;
     };
 
     struct Context{
@@ -199,9 +205,8 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         BufferResource frame_inputs;
         BufferResource outputs;
 
-        BufferResource staging[(uint32_t)outputs::Slot::COUNT];
-        std::vector<ReadbackTarget> render_readbacks;
-        std::vector<ReadbackTarget> probe_readbacks;
+        Readback render_readback;
+        Readback probe_readback;
         std::vector<float> flow_deltas_host; // flow: [2][slots][12], composed by update() and written into FRAME_INPUTS
 
         // scene-dependent arena offsets mirrored from LaunchParams for the per-update writes

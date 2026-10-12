@@ -58,7 +58,6 @@ let ready = false;
 let failed = false;
 let touch_control = false;
 let mouse_control_requested = false;
-let images = null;
 let segmentation_classes = {};
 let segmentation_ids = null;
 let segmentation_cursor = null;
@@ -609,21 +608,19 @@ async function main(){
             if(num_views !== canvases.length){
                 throw new Error(`Expected ${canvases.length} camera outputs; received ${num_views}. Rebuild the HyperDrone browser module.`);
             }
-            if(images === null || images[0].width !== width || images[0].height !== height){
+            if(segmentation_ids === null || canvases[0].width !== width || canvases[0].height !== height){
                 segmentation_ids = new Uint32Array(width * height);
-                images = contexts.map((context, index) => {
-                    canvases[index].width = width;
-                    canvases[index].height = height;
-                    return context.createImageData(width, height);
-                });
+                for(const canvas of canvases){
+                    canvas.width = width;
+                    canvas.height = height;
+                }
             }
             const heap = module.HEAPU8;
             segmentation_ids.set(new Uint32Array(heap.buffer, heap.byteOffset + segmentation_pointer, width * height));
             const image_bytes = width * height * 4;
             for(let view = 0; view < num_views; view++){
-                const begin = pointer + view * image_bytes;
-                images[view].data.set(heap.subarray(begin, begin + image_bytes));
-                contexts[view].putImageData(images[view], 0, 0);
+                const pixels = new Uint8ClampedArray(module.HEAPU8.buffer, pointer + view * image_bytes, image_bytes);
+                contexts[view].putImageData(new ImageData(pixels, width, height), 0, 0);
             }
             drone_pose = {position: round_values([x, y, z], 2), orientation: round_values([qw, qx, qy, qz], 3)};
             position_readout.textContent = format_pose(drone_pose.position, 2);
