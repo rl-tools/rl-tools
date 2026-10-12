@@ -5,6 +5,9 @@ const params = new URLSearchParams(window.location.search);
 const requested_frames = Number.parseInt(params.get("frames") || "0", 10);
 const max_frames = Number.isFinite(requested_frames) && requested_frames > 0 ? requested_frames : 0;
 const conta = new Conta();
+const rendering_defaults = window.matchMedia("(pointer: coarse)").matches
+    ? {id: "medium-mb1-aa1-480x270", fps: 30}
+    : {id: "high-mb1-aa1-960x540", fps: 60};
 
 const status_element = document.getElementById("status");
 const error_element = document.getElementById("error");
@@ -12,6 +15,7 @@ const motor_layout_warning = document.getElementById("motor-layout-warning");
 const fps_element = document.getElementById("fps");
 const frame_rate_panel = document.getElementById("frame-rate-tuning");
 const target_fps = document.getElementById("target-fps");
+target_fps.defaultValue = String(rendering_defaults.fps);
 const progress_element = document.getElementById("progress");
 const progress_percent = document.getElementById("progress-percent");
 const drone_select = document.getElementById("drone");
@@ -112,7 +116,7 @@ function setup_rendering(configurations){
         throw new Error("No rendering configurations are available in this simulation bundle.");
     }
     render_configurations = configurations;
-    default_render_configuration = configurations.find(configuration => configuration.id === "high-mb4-aa1-480x270" && configuration.num_agents === 8) || configurations[0];
+    default_render_configuration = configurations.find(configuration => configuration.id === rendering_defaults.id && configuration.num_agents === 8) || configurations[0];
     const requested = params.get("render");
     const agents = params.has("agents") ? Number(params.get("agents")) : default_render_configuration.num_agents;
     const selected = configurations.find(configuration => configuration.id === (requested || default_render_configuration.id) && configuration.num_agents === agents);
