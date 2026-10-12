@@ -9,8 +9,8 @@ namespace golden {
         return {
             {"system", R"profile(@CMAKE_SYSTEM_NAME@ @CMAKE_SYSTEM_VERSION@)profile"},
             {"architecture", R"profile(@CMAKE_SYSTEM_PROCESSOR@)profile"},
-            {"host_cpu", R"profile(@RL_TOOLS_GOLDEN_HOST_CPU@)profile"},
             {"compiler", R"profile(@CMAKE_CXX_COMPILER_ID@ @CMAKE_CXX_COMPILER_VERSION@)profile"},
+            {"toolchain", R"profile(@RL_TOOLS_GOLDEN_TOOLCHAIN@)profile"},
             {"build_type", "$<CONFIG>"},
             {"cxx_flags", R"profile(@CMAKE_CXX_FLAGS@ $<$<CONFIG:Release>:@CMAKE_CXX_FLAGS_RELEASE@>$<$<CONFIG:Debug>:@CMAKE_CXX_FLAGS_DEBUG@>$<$<CONFIG:RelWithDebInfo>:@CMAKE_CXX_FLAGS_RELWITHDEBINFO@>$<$<CONFIG:MinSizeRel>:@CMAKE_CXX_FLAGS_MINSIZEREL@>)profile"},
             {"compile_options", R"profile($<JOIN:$<TARGET_PROPERTY:COMPILE_OPTIONS>, >)profile"},

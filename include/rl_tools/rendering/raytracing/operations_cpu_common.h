@@ -807,18 +807,17 @@ namespace rl_tools {
             std::vector<float> dirs;
             dirs.reserve(SPEC::NUM_PROBES * 3);
 
-            const float golden_ratio = (1.0f + sqrtf(5.0f)) / 2.0f;
+            // double with the spiral angle reduced modulo one turn: as a float angle of up to ~245 rad the
+            // directions moved by one ulp (1.5e-5 rad) between fast-math and strict toolchains
+            const double golden_ratio = (1.0 + std::sqrt(5.0)) / 2.0;
 
             for(int i = 0; i < (int)SPEC::NUM_PROBES; i++){
-                float theta = 2.0f * (float)M_PI * i / golden_ratio;
-                float cos_inc = 1.0f - 2.0f * (i + 0.5f) / SPEC::NUM_PROBES;
-                float sin_inc = sqrtf(1.0f - cos_inc * cos_inc);
-
-                const float dir[3] = {sin_inc * cosf(theta), sin_inc * sinf(theta), cos_inc};
-                const float inv_len = 1.0f / sqrtf(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
-                dirs.push_back(dir[0] * inv_len);
-                dirs.push_back(dir[1] * inv_len);
-                dirs.push_back(dir[2] * inv_len);
+                const double theta = 2.0 * math::PI<double> * std::fmod(i / golden_ratio, 1.0);
+                const double cos_inc = 1.0 - 2.0 * (i + 0.5) / SPEC::NUM_PROBES;
+                const double sin_inc = std::sqrt(1.0 - cos_inc * cos_inc);
+                dirs.push_back((float)(sin_inc * std::cos(theta)));
+                dirs.push_back((float)(sin_inc * std::sin(theta)));
+                dirs.push_back((float)cos_inc);
             }
 
             log(device, device.logger, devices::logging::Verbosity::debug, rendering::raytracing::LOG_PREFIX, "Generated ", SPEC::NUM_PROBES, " probe directions per camera");

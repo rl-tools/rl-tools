@@ -7,6 +7,7 @@
 #include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #include "golden_build.h"
+#include "golden_dump.h"
 #include "golden_io.h"
 #include "golden_manifest.h"
 #include "golden_render.h"
@@ -42,8 +43,9 @@ using TI = typename DEVICE::index_t;
 using CASES = golden::Cases<T, TI>;
 using Rendered = golden::Rendered<T>;
 
-static const std::string SCENE_PATH = golden::PROCTHOR_TRAIN_1_SCENE;
-static const std::string DEFAULT_OUTPUT_DIR = golden::layout::procthor_directory(golden::layout::goldens_root(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)));
+static std::string scene_path = golden::PROCTHOR_TRAIN_1_SCENE;
+static std::string dump_dir;
+static const std::string CANONICAL_OUTPUT_DIR = golden::layout::procthor_directory(golden::layout::goldens_root(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)));
 static constexpr const char* LOG_PREFIX = "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] ";
 static constexpr size_t MIN_OVERLAY_PIXELS = 16; // every view must see its private overlay, the shared one shows in some view
 
@@ -332,8 +334,14 @@ bool run_case(DEVICE& device, const std::string& output_dir) {
     const std::string name = CASES::name<CASE>();
     std::cout << LOG_PREFIX << "rendering " << name << std::endl;
     Rendered rendered;
-    if(!golden::render_case<CASE, BACKEND, DEVICE, CASES>(device, SCENE_PATH, rendered)) {
-        return fail(name, "failed to load scene: " + SCENE_PATH);
+    if(!golden::render_case<CASE, BACKEND, DEVICE, CASES>(device, scene_path, rendered)) {
+        return fail(name, "failed to load scene: " + scene_path);
+    }
+    if(!dump_dir.empty() && !golden::write_rendered<CASE, CASES>(golden::layout::join(dump_dir, name), rendered)) {
+        return fail(name, "failed to write the raw dump");
+    }
+    if(output_dir.empty()) {
+        return true;
     }
     bool ok = true;
     if constexpr(SPEC::HAS_RGB) {
@@ -376,7 +384,7 @@ bool write_views(const std::string& output_dir) {
 }
 
 int main(int argc, char** argv) {
-    std::string output_dir = DEFAULT_OUTPUT_DIR;
+    std::string output_dir;
     for(int arg_i = 1; arg_i < argc; arg_i++) {
         const std::string argument = argv[arg_i];
         if(argument == "--output-dir") {
@@ -386,9 +394,23 @@ int main(int argc, char** argv) {
             }
             output_dir = argv[++arg_i];
         }
+        else if(argument == "--scene") {
+            if(arg_i + 1 >= argc) {
+                std::cerr << "--scene requires a path or conta reference" << std::endl;
+                return 2;
+            }
+            scene_path = argv[++arg_i];
+        }
+        else if(argument == "--dump-dir") {
+            if(arg_i + 1 >= argc) {
+                std::cerr << "--dump-dir requires a path" << std::endl;
+                return 2;
+            }
+            dump_dir = argv[++arg_i];
+        }
         else if(argument == "--help" || argument == "-h") {
-            std::cout << "Usage: " << argv[0] << " [--output-dir path]" << std::endl;
-            std::cout << "Default output: " << DEFAULT_OUTPUT_DIR << std::endl;
+            std::cout << "Usage: " << argv[0] << " [--output-dir path] [--dump-dir path] [--scene path|conta:hash]" << std::endl;
+            std::cout << "--output-dir writes the corpus, --dump-dir the raw per-case dumps for the comparator; at least one is required" << std::endl;
             return 0;
         }
         else {
@@ -396,26 +418,28 @@ int main(int argc, char** argv) {
             return 2;
         }
     }
-    if(output_dir.empty()) {
-        std::cerr << "--output-dir must not be empty" << std::endl;
+    if(output_dir.empty() && dump_dir.empty()) {
+        std::cerr << "--output-dir or --dump-dir is required" << std::endl;
         return 2;
     }
-    if(std::string(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME) != golden::REFERENCE_BACKEND
-       && std::filesystem::weakly_canonical(output_dir) == std::filesystem::weakly_canonical(DEFAULT_OUTPUT_DIR)) {
-        std::cerr << "Only the CPU reference generator may write the canonical corpus; use --output-dir for a candidate" << std::endl;
+    if(!output_dir.empty() && std::string(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME) != golden::REFERENCE_BACKEND
+       && std::filesystem::weakly_canonical(output_dir) == std::filesystem::weakly_canonical(CANONICAL_OUTPUT_DIR)) {
+        std::cerr << "Only the " << golden::REFERENCE_BACKEND << " reference module may write the canonical corpus; render a candidate elsewhere" << std::endl;
         return 2;
     }
 
-    std::filesystem::create_directories(output_dir);
-    std::filesystem::remove(golden::layout::manifest_path(output_dir));
+    if(!output_dir.empty()) {
+        std::filesystem::create_directories(output_dir);
+        std::filesystem::remove(golden::layout::manifest_path(output_dir));
+    }
 
     DEVICE device;
     rlt::init(device);
 
-    bool ok = write_views(output_dir);
+    bool ok = output_dir.empty() || write_views(output_dir);
     ok = run_cases(CASES::ALL{}, device, output_dir) && ok;
 
-    if(ok) {
+    if(ok && !output_dir.empty()) {
         ok = golden::write_json(golden::layout::manifest_path(output_dir), golden::procthor_manifest(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME, golden::generation_environment()));
     }
 
@@ -423,6 +447,6 @@ int main(int argc, char** argv) {
         std::cerr << LOG_PREFIX << "FAILED" << std::endl;
         return 1;
     }
-    std::cout << LOG_PREFIX << "done: " << output_dir << std::endl;
+    std::cout << LOG_PREFIX << "done: " << (output_dir.empty() ? dump_dir : output_dir) << std::endl;
     return 0;
 }

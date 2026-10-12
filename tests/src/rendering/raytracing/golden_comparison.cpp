@@ -1,7 +1,10 @@
 // Renders every case of tests/src/rendering/raytracing/golden_cases.h and compares against the
-// CPU golden renderings in tests/data/rendering/raytracing/goldens/procthor-train-1 (see
-// AGENTS.md "Raytracing Golden Renderings" and GOLDEN_LEDGER.md). Two targets are compiled from
+// wasm-rendered goldens in tests/data/rendering/raytracing/goldens/procthor-train-1 (see
+// AGENTS.md "Raytracing Golden Renderings" and GOLDEN_LEDGER.md). Three targets are compiled from
 // this file:
+// - test_rendering_raytracing_golden_comparison_wasm: the reference, held to bit-exact reproduction;
+//   loads the dumps the wasm module rendered (RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_DUMP_DIRECTORY)
+//   instead of rendering in-process.
 // - test_rendering_raytracing_golden_comparison_cpu: pinned to the generic (CPU) backend (included
 //   directly, not via the mux) so the CPU raytracer is tested in every build configuration.
 // - test_rendering_raytracing_golden_comparison_<metal|optix|vulkan|webgpu>: uses the mux, i.e.
@@ -14,7 +17,10 @@
 #endif
 #include <rl_tools/rendering/raytracing/save_cpu.h>
 
-#if !defined(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND)
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_DUMP_DIRECTORY)
+#define RL_TOOLS_GOLDEN_SUITE RENDERING_RAYTRACING_GOLDEN_WASM
+#define RL_TOOLS_GOLDEN_BACKEND_NAME "wasm"
+#elif !defined(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND)
 #define RL_TOOLS_GOLDEN_SUITE RENDERING_RAYTRACING_GOLDEN_CPU
 #define RL_TOOLS_GOLDEN_BACKEND_NAME "generic"
 #elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_METAL)
@@ -35,6 +41,7 @@
 #endif
 
 #include "golden_cases.h"
+#include "golden_dump.h"
 #include "golden_io.h"
 #include "golden_manifest.h"
 #include "golden_metrics.h"
@@ -76,13 +83,12 @@ using TI = typename DEVICE::index_t;
 using CASES = golden::Cases<T, TI>;
 using Rendered = golden::Rendered<T>;
 
-// CPU reproduction is exact in the manifest's generation environment; other CPU toolchains
-// must be qualified explicitly. Non-reference bounds retain the OptiX v2 calibration: RGB MAD
-// 0.16, outliers 0.31%, shading outliers two pixels, normals MAD 0.0013, probes 5.3e-7,
-// forward flow EPE 0.0005 px and one outlier/status pixel; zero-floor fractions allow 0.05%.
-// Against CPU v3, Metal measures RGB MAD 0.0973, outliers 0.3906%, shading outliers three pixels,
-// normals MAD 0.0015, depth MAD 4.42e-9, probes 8.48e-7, flow EPE 0.0003 px and one outlier/status
-// pixel.
+// The wasm module reproduces the corpus exactly by construction. Against wasm v5 the native
+// backends measure (M5 Ultra, AppleClang 21, Assimp 6.0.4): generic CPU RGB MAD 0.034, outliers
+// 0.25%, shading outliers one pixel, depth MAD 6.5e-9, normals MAD 0.0001, flow EPE 0.0005 px and
+// one outlier/status pixel; Metal RGB MAD 0.089, outliers 0.38%, shading outliers two pixels,
+// depth MAD 7.3e-9, normals MAD 0.0016, flow EPE 0.0005 px; probe distances generic 1.03e-6,
+// Metal 2.15e-6; zero-floor fractions allow 0.05%.
 static constexpr bool REFERENCE_BACKEND = std::string_view(RL_TOOLS_GOLDEN_BACKEND_NAME) == golden::REFERENCE_BACKEND;
 static constexpr double RGB_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.35;             // mean abs diff in 8-bit levels
 static constexpr int RGB_OUTLIER_CHANNEL_DELTA = 8;
@@ -92,7 +98,7 @@ static constexpr double DEPTH_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 1e-7;     
 static constexpr double DEPTH_OUTLIER_REL = 1e-3;                                      // per-pixel relative outlier threshold
 static constexpr double DEPTH_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;      // max fraction of outlier pixels
 static constexpr int PROBE_HIT_MISMATCH_MAX = REFERENCE_BACKEND ? 0 : 1;              // out of NUM_CAMERAS * NUM_PROBES = 768
-static constexpr double PROBE_DISTANCE_REL = REFERENCE_BACKEND ? 0 : 2e-6;
+static constexpr double PROBE_DISTANCE_REL = REFERENCE_BACKEND ? 0 : 5e-6;
 static constexpr double NORMALS_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.005;        // encoded normals compare like RGB
 static constexpr int NORMALS_OUTLIER_CHANNEL_DELTA = 8;
 static constexpr double NORMALS_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;
@@ -101,9 +107,10 @@ static constexpr double FLOW_OUTLIER_EPE = 0.5;                                 
 static constexpr double FLOW_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;
 static constexpr double FLOW_STATUS_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;
 static constexpr double SEGMENTATION_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;
-// CPU v4 on M5 Ultra / AppleClang 21 / Assimp 6.0.4: Metal instance IDs differ on 0.5234%
-// static / 0.4974% overlay pixels due to coplanar wall/floor/ceiling overlaps; allow ~2x that floor.
+// wasm v5: Metal instance IDs differ on 0.5203% static / 0.5051% overlay pixels due to coplanar
+// wall/floor/ceiling overlaps, the generic CPU under fast-math and FMA on 0.1251% / 0.1114%; allow ~2x those floors.
 static constexpr double METAL_INSTANCE_SEGMENTATION_MISMATCH_FRACTION = 0.011;
+static constexpr double GENERIC_INSTANCE_SEGMENTATION_MISMATCH_FRACTION = 0.0026;
 static constexpr double SEGMENTATION_BACKGROUND_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;
 
 static const std::string SCENE_PATH = golden::PROCTHOR_TRAIN_1_SCENE;
@@ -355,9 +362,11 @@ namespace {
     template <typename CASE>
     void expect_segmentation(const Rendered& rendered){
         using SPEC = typename CASE::SPEC;
-        constexpr double mismatch_fraction_bound = !REFERENCE_BACKEND && !SPEC::HAS_SEMANTIC_SEGMENTATION
-            && std::string_view(RL_TOOLS_GOLDEN_BACKEND_NAME) == "metal"
-            ? METAL_INSTANCE_SEGMENTATION_MISMATCH_FRACTION : SEGMENTATION_MISMATCH_FRACTION;
+        constexpr std::string_view backend = RL_TOOLS_GOLDEN_BACKEND_NAME;
+        constexpr double mismatch_fraction_bound = REFERENCE_BACKEND || SPEC::HAS_SEMANTIC_SEGMENTATION ? SEGMENTATION_MISMATCH_FRACTION
+            : backend == "metal" ? METAL_INSTANCE_SEGMENTATION_MISMATCH_FRACTION
+            : backend == "generic" ? GENERIC_INSTANCE_SEGMENTATION_MISMATCH_FRACTION
+            : SEGMENTATION_MISMATCH_FRACTION;
         const char* output = SPEC::HAS_SEMANTIC_SEGMENTATION ? "segmentation-semantic" : "segmentation";
         const std::string name = std::string(CASE::STATE) + "/" + output;
         ASSERT_EQ(rendered.segmentation.size(), (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
@@ -559,7 +568,7 @@ namespace {
 #if defined(RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS)
 #define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() ASSERT_TRUE(goldens_available()) << "required golden renderings not found at " << CORPUS_DIRECTORY; RL_TOOLS_GOLDEN_REQUIRE_MANIFEST()
 #else
-#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() if(!goldens_available()){ GTEST_SKIP() << "golden renderings not found at " << CORPUS_DIRECTORY << " (run tests/src/rendering/raytracing/download_data.sh or generate with test_rendering_raytracing_generate_golden_cpu)"; } RL_TOOLS_GOLDEN_REQUIRE_MANIFEST()
+#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() if(!goldens_available()){ GTEST_SKIP() << "golden renderings not found at " << CORPUS_DIRECTORY << " (run tests/src/rendering/raytracing/download_data.sh or regenerate with tests/src/rendering/raytracing/wasm/render.cmake)"; } RL_TOOLS_GOLDEN_REQUIRE_MANIFEST()
 #endif
 
 // one test per entry of the case table, registered under a readable name (static/high-mb4 ->
@@ -572,7 +581,12 @@ void run_case(){
     DEVICE device;
     rlt::init(device);
     Rendered rendered;
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_DUMP_DIRECTORY
+    const std::string dump_directory = golden::layout::join(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_DUMP_DIRECTORY, CASES::name<CASE>());
+    ASSERT_TRUE((golden::load_rendered<CASE, CASES>(dump_directory, rendered))) << "failed to load the rendered dump: " << dump_directory;
+#else
     ASSERT_TRUE((golden::render_case<CASE, BACKEND, DEVICE, CASES>(device, SCENE_PATH, rendered))) << "failed to load scene: " << SCENE_PATH;
+#endif
     if constexpr(SPEC::HAS_RGB){
         expect_rgb<CASE>(rendered);
     }

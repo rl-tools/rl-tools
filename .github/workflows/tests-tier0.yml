@@ -133,6 +133,15 @@ jobs:
         if: matrix.backend != 'webgpu'
         run: ./tests/src/rendering/raytracing/download_data.sh
 
+      # the wasm golden reference (tests/src/rendering/raytracing/GOLDEN_LEDGER.md pins both releases)
+      - name: Install wasi-sdk and wasmtime
+        if: matrix.backend != 'webgpu'
+        run: |
+          curl -fsSL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/wasi-sdk-34.0-x86_64-linux.tar.gz | tar -xz -C "$HOME"
+          curl -fsSL https://github.com/bytecodealliance/wasmtime/releases/download/v49.0.2/wasmtime-v49.0.2-x86_64-linux.tar.xz | tar -xJ -C "$HOME"
+          echo "WASI_SDK_PREFIX=$HOME/wasi-sdk-34.0-x86_64-linux" >> "$GITHUB_ENV"
+          echo "$HOME/wasmtime-v49.0.2-x86_64-linux" >> "$GITHUB_PATH"
+
       - name: Select Lavapipe driver
         if: matrix.backend != 'generic'
         run: |
@@ -157,6 +166,9 @@ jobs:
           --target
           test_rendering_raytracing_golden_io
           test_rendering_raytracing_golden_comparison_cpu
+          test_rendering_raytracing_golden_comparison_wasm
+          rendering_raytracing_golden_wasm
+          conta
           ${{ matrix.backend_targets }}
           --parallel 5
 
@@ -215,8 +227,8 @@ jobs:
           env -u DISPLAY -u WAYLAND_DISPLAY .venv/bin/python tests/src/rendering/raytracing/paper_benchmark.py
           --build-dir build-raytracing-${{ matrix.backend }} --backend ${{ matrix.backend }} --with-procthor --timeout 120
 
-      # ProcTHOR corpus (tests/src/rendering/raytracing/GOLDEN_LEDGER.md): cross-backend tier on
-      # generic CPU reference and lavapipe; OptiX comparisons require an OptiX host
+      # ProcTHOR corpus (tests/src/rendering/raytracing/GOLDEN_LEDGER.md): the wasm reference
+      # (bit-exact), generic CPU and lavapipe against their floors; OptiX comparisons require an OptiX host
       - name: Test ProcTHOR goldens
         if: matrix.backend != 'webgpu'
         working-directory: build-raytracing-${{ matrix.backend }}

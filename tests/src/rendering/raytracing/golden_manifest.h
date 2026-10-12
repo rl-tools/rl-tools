@@ -17,10 +17,10 @@
 #include <string>
 
 namespace golden {
-    static constexpr uint32_t PROCTHOR_TRAIN_1_GOLDEN_VERSION = 4;
+    static constexpr uint32_t PROCTHOR_TRAIN_1_GOLDEN_VERSION = 5;
     static constexpr const char* PROCTHOR_TRAIN_1_SCENE = "conta:75d1d67a17ecd16bc3a214baa895240da8060df7";
     // the backend that renders the canonical corpus and is held to bit-exact reproduction
-    static constexpr const char* REFERENCE_BACKEND = "generic";
+    static constexpr const char* REFERENCE_BACKEND = "wasm";
 
     inline nlohmann::json procthor_manifest(const std::string& backend, const nlohmann::json& environment){
         return {

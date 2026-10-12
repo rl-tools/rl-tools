@@ -29,6 +29,8 @@
 #endif
 #if defined(_WIN32)
 #include <process.h>
+#elif defined(__wasi__)
+#include <unistd.h>
 #else
 #include <sys/wait.h>
 #include <unistd.h>
@@ -807,7 +809,7 @@ namespace conta{
             return std::to_string(process_id()) + "-" + random_hex;
         }
         inline int command_exit_code(int status){
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__wasi__)
             return status;
 #else
             if(status != -1 && WIFSIGNALED(status)){
@@ -843,8 +845,8 @@ namespace conta{
             return described;
         }
         inline bool run_curl(const std::string& url, const std::filesystem::path& output, bool quiet, std::string& failure_output){
-#if defined(__APPLE__) && TARGET_OS_IOS
-            failure_output = "downloads are unavailable on iOS; bundle the asset in CONTA_ROOT";
+#if (defined(__APPLE__) && TARGET_OS_IOS) || defined(__wasi__)
+            failure_output = "downloads are unavailable on iOS and WASI; bundle the asset in CONTA_ROOT";
             return false;
 #else
             std::string quoted_url, quoted_output;

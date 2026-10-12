@@ -5,20 +5,7 @@ function(rl_tools_configure_raytracing_golden_target TARGET_NAME)
     endif()
 endfunction()
 
-function(rl_tools_configure_golden_generator TARGET_NAME BACKEND_NAME)
-    target_compile_definitions(${TARGET_NAME} PRIVATE
-        RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME="${BACKEND_NAME}"
-    )
-    cmake_host_system_information(RESULT RL_TOOLS_GOLDEN_HOST_CPU QUERY PROCESSOR_DESCRIPTION)
-    configure_file(golden_build.h.in ${TARGET_NAME}-build.h.in @ONLY)
-    file(GENERATE
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/${TARGET_NAME}/$<CONFIG>/golden_build.h
-        INPUT ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}-build.h.in
-        CONDITION $<COMPILE_LANGUAGE:CXX>
-        TARGET ${TARGET_NAME}
-    )
-    target_include_directories(${TARGET_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated/${TARGET_NAME}/$<CONFIG>)
-endfunction()
+include(golden_build.cmake)
 
 add_executable(test_rendering_raytracing_golden_io golden_io_test.cpp)
 target_link_libraries(test_rendering_raytracing_golden_io
@@ -58,7 +45,7 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
 endif()
 
 if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
-    # always present: the CPU reference backend
+    # always present: the generic CPU backend
     add_executable(test_rendering_raytracing_golden_comparison_cpu golden_comparison.cpp)
     target_link_libraries(test_rendering_raytracing_golden_comparison_cpu
         PRIVATE
@@ -72,8 +59,7 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
         PROPERTIES TIMEOUT 300 LABELS "procthor-golden;procthor-golden-generic"
     )
 
-    # the backend this build is configured for vs the CPU goldens; in GENERIC
-    # builds this would duplicate the cpu target, so it is skipped
+    # the backend this build is configured for; in GENERIC builds this would duplicate the cpu target, so it is skipped
     if(NOT RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "GENERIC")
         string(TOLOWER ${RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED} RL_TOOLS_GOLDEN_BACKEND_TARGET_SUFFIX)
         set(RL_TOOLS_GOLDEN_BACKEND_TARGET test_rendering_raytracing_golden_comparison_${RL_TOOLS_GOLDEN_BACKEND_TARGET_SUFFIX})
@@ -92,6 +78,36 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
         rl_tools_configure_raytracing_golden_target(${RL_TOOLS_GOLDEN_BACKEND_TARGET})
         gtest_discover_tests(${RL_TOOLS_GOLDEN_BACKEND_TARGET}
             PROPERTIES TIMEOUT 300 LABELS "procthor-golden;procthor-golden-${RL_TOOLS_GOLDEN_BACKEND_TARGET_SUFFIX}"
+        )
+    endif()
+
+    # the wasm reference: generate_golden built as a WASI module (wasm/CMakeLists.txt) renders the
+    # corpus into a dump directory once per ctest run (fixture); the comparator loads the dumps natively
+    if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING_WASM_GOLDENS AND RL_TOOLS_TEST_DATA_PATH AND TARGET conta)
+        include(ExternalProject)
+        set(RL_TOOLS_GOLDEN_WASM_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/wasm)
+        set(RL_TOOLS_GOLDEN_WASM_MODULE ${RL_TOOLS_GOLDEN_WASM_BINARY_DIR}/generate_golden.wasm)
+        set(RL_TOOLS_GOLDEN_WASM_DUMP_DIR ${RL_TOOLS_GOLDEN_WASM_BINARY_DIR}/dump)
+        ExternalProject_Add(rendering_raytracing_golden_wasm
+            SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/wasm
+            BINARY_DIR ${RL_TOOLS_GOLDEN_WASM_BINARY_DIR}
+            CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=${WASI_SDK_PREFIX}/share/cmake/wasi-sdk-p1.cmake -DWASI_SDK_PREFIX=${WASI_SDK_PREFIX} -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_DEPENDENCY_SOURCES=${FETCHCONTENT_BASE_DIR}
+            BUILD_ALWAYS ON
+            INSTALL_COMMAND ""
+            BUILD_BYPRODUCTS ${RL_TOOLS_GOLDEN_WASM_MODULE}
+        )
+        file(STRINGS golden_manifest.h RL_TOOLS_GOLDEN_SCENE_LINE REGEX "PROCTHOR_TRAIN_1_SCENE = \"")
+        string(REGEX REPLACE ".*\"([^\"]+)\".*" "\\1" RL_TOOLS_GOLDEN_SCENE "${RL_TOOLS_GOLDEN_SCENE_LINE}")
+        add_test(NAME RENDERING_RAYTRACING_GOLDEN_WASM.render
+            COMMAND ${CMAKE_COMMAND} -DCONTA=$<TARGET_FILE:conta> -DWASMTIME=${RL_TOOLS_WASMTIME} -DMODULE=${RL_TOOLS_GOLDEN_WASM_MODULE} -DSCENE=${RL_TOOLS_GOLDEN_SCENE} -DDUMP_DIR=${RL_TOOLS_GOLDEN_WASM_DUMP_DIR} -P ${CMAKE_CURRENT_SOURCE_DIR}/wasm/render.cmake
+        )
+        set_tests_properties(RENDERING_RAYTRACING_GOLDEN_WASM.render PROPERTIES FIXTURES_SETUP golden-wasm LABELS "procthor-golden;procthor-golden-wasm" TIMEOUT 3600)
+        add_executable(test_rendering_raytracing_golden_comparison_wasm golden_comparison.cpp)
+        target_link_libraries(test_rendering_raytracing_golden_comparison_wasm PRIVATE RLtools::RLtools assimp::assimp rendering_raytracing_stb GTest::gtest_main)
+        target_compile_definitions(test_rendering_raytracing_golden_comparison_wasm PRIVATE RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_DUMP_DIRECTORY="${RL_TOOLS_GOLDEN_WASM_DUMP_DIR}")
+        rl_tools_configure_raytracing_golden_target(test_rendering_raytracing_golden_comparison_wasm)
+        gtest_discover_tests(test_rendering_raytracing_golden_comparison_wasm
+            PROPERTIES TIMEOUT 300 LABELS "procthor-golden;procthor-golden-wasm" FIXTURES_REQUIRED golden-wasm
         )
     endif()
 endif()
