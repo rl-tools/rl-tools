@@ -40,11 +40,13 @@ namespace rl_tools::rl::environments::hyperdrone::web {
         static constexpr TI CAM_WIDTH = 480 * T_RESOLUTION_SCALE;
         static constexpr TI CAM_HEIGHT = 270 * T_RESOLUTION_SCALE;
         static constexpr TI NUM_PROBES = 64;
-        static constexpr bool OUTPUT_DEPTH = true;
-        static constexpr bool OUTPUT_SEGMENTATION = true;
-        static constexpr bool SEMANTIC_SEGMENTATION = true;
-        static constexpr bool OUTPUT_NORMALS = true;
-        static constexpr bool OUTPUT_FLOW = true;
+        using OUTPUTS = rendering::raytracing::outputs::List<
+            rendering::raytracing::outputs::RGB<>,
+            rendering::raytracing::outputs::Depth<rendering::raytracing::outputs::format::RGBA8>,
+            rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::RGBA8, rendering::raytracing::outputs::labels::Semantic>,
+            rendering::raytracing::outputs::Normals<rendering::raytracing::outputs::format::RGBA8>,
+            rendering::raytracing::outputs::Flow<rendering::raytracing::outputs::direction::Backward, rendering::raytracing::outputs::format::RGBA8>,
+            rendering::raytracing::outputs::Probes>;
         static constexpr bool ENABLE_MOTION_BLUR = T_MOTION_BLUR_SAMPLES > 1;
         static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;
         static constexpr bool ENABLE_ANTI_ALIASING = T_ANTI_ALIASING_GRID_SIZE > 1;
@@ -59,8 +61,6 @@ namespace rl_tools::rl::environments::hyperdrone::web {
     constexpr TI VIEWS = 6;
     constexpr TI SPAWN_ATTEMPTS = 4096;
     constexpr T DRONE_SEPARATION = 1.5;
-    constexpr T DEPTH_DISPLAY_METERS = 10;
-    constexpr T FLOW_DISPLAY_PIXELS = 20;
     constexpr double FRAME_PERIOD = 1.0 / 60.0;
 
     struct Drone {
@@ -98,11 +98,6 @@ namespace rl_tools::rl::environments::hyperdrone::web {
     struct Buffer {
         static constexpr TI PIXELS = CONFIG::CAM_WIDTH * CONFIG::CAM_HEIGHT;
         std::vector<uint32_t> rgba = std::vector<uint32_t>(VIEWS * PIXELS);
-        std::vector<float> depth = std::vector<float>(PIXELS);
-        std::vector<uint32_t> segmentation = std::vector<uint32_t>(PIXELS);
-        std::vector<float> normals = std::vector<float>(PIXELS * 3);
-        std::vector<float> flow = std::vector<float>(PIXELS * 2);
-        std::vector<uint32_t> flow_status = std::vector<uint32_t>(PIXELS);
     };
 }
 
@@ -354,25 +349,14 @@ namespace rl_tools {
         render(device, state.environment, state.parameters, state.states, state.reset_mask);
         set_all(device, state.reset_mask, false);
         auto& renderer = get_renderer(device, state.environment.environments[0]);
-        auto& rgb = frame_buffer(device, renderer);
-        Tensor<typename WORLD::RENDERER::FB_TENSOR_SPEC> alias;
+        auto& rgb = output(device, renderer, rl_tools::rendering::raytracing::outputs::RGB<>{});
+        Tensor<typename utils::typing::remove_reference_t<decltype(rgb)>::SPEC> alias;
         alias._data = buffer.rgba.data();
         copy(renderer.device, device, rgb, alias);
-        copy_onboard(device, renderer, depth_buffer(device, renderer), buffer.depth.data());
-        copy_onboard(device, renderer, segmentation_buffer(device, renderer), buffer.segmentation.data());
-        copy_onboard(device, renderer, normals_buffer(device, renderer), buffer.normals.data());
-        copy_onboard(device, renderer, flow_buffer(device, renderer), buffer.flow.data());
-        copy_onboard(device, renderer, flow_status_buffer(device, renderer), buffer.flow_status.data());
-        for(TI pixel = 0; pixel < PIXELS; pixel++) {
-            const auto shade = (uint32_t)(math::clamp(device.math, buffer.depth[pixel] / DEPTH_DISPLAY_METERS, (T)0, (T)1) * 255);
-            buffer.rgba[2 * PIXELS + pixel] = 0xFF000000u | shade | (shade << 8) | (shade << 16);
-            buffer.rgba[3 * PIXELS + pixel] = rendering::raytracing::detail::segmentation_id_to_rgba(buffer.segmentation[pixel]);
-            buffer.rgba[4 * PIXELS + pixel] = rendering::raytracing::detail::normal_to_rgba(buffer.normals.data() + pixel * 3);
-            const auto status = buffer.flow_status[pixel];
-            buffer.rgba[5 * PIXELS + pixel] = status == rendering::raytracing::FlowStatus::VALID
-                ? rendering::raytracing::detail::flow_to_rgba(buffer.flow[pixel * 2], buffer.flow[pixel * 2 + 1], FLOW_DISPLAY_PIXELS)
-                : rendering::raytracing::detail::flow_status_to_rgba(status);
-        }
+        copy_onboard(device, renderer, output(device, renderer, rendering::raytracing::outputs::Depth<rendering::raytracing::outputs::format::RGBA8>{}), buffer.rgba.data() + 2 * PIXELS);
+        copy_onboard(device, renderer, output(device, renderer, rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::RGBA8, rendering::raytracing::outputs::labels::Semantic>{}), buffer.rgba.data() + 3 * PIXELS);
+        copy_onboard(device, renderer, output(device, renderer, rendering::raytracing::outputs::Normals<rendering::raytracing::outputs::format::RGBA8>{}), buffer.rgba.data() + 4 * PIXELS);
+        copy_onboard(device, renderer, output(device, renderer, rendering::raytracing::outputs::Flow<rendering::raytracing::outputs::direction::Backward, rendering::raytracing::outputs::format::RGBA8>{}), buffer.rgba.data() + 5 * PIXELS);
     }
 }
 

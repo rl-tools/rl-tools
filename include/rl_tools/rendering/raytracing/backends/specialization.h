@@ -22,8 +22,6 @@ namespace rl_tools{
             static constexpr bool PBR_SHADING = SPEC::SHADING::PBR_SHADING;
             static constexpr bool PUNCTUAL_LIGHT_SHADOWS = SPEC::SHADING::PUNCTUAL_LIGHT_SHADOWS;
             static constexpr int OVERLAY_COUNT = SPEC::ENABLE_OVERLAYS ? (int)SPEC::MAX_OVERLAYS_PER_CAMERA : 0;
-            static constexpr bool SEMANTIC_SEGMENTATION = SPEC::SEMANTIC_SEGMENTATION;
-            static constexpr bool HAS_OBSERVATION = SPEC::HAS_OBSERVATION;
             static constexpr bool DYNAMIC_MOTION_BLUR = SPEC::ENABLE_DYNAMIC_MOTION_BLUR;
             static constexpr bool RESOLVE_RGB = SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_RGB;
             // WGSL-only consumers (the other shader backends derive these in-shader)

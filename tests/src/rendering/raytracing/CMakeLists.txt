@@ -104,9 +104,6 @@ if(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "VULKAN")
         rendering_raytracing_backend_depth
         GTest::gtest_main
     )
-    target_compile_definitions(test_rendering_raytracing_runtime_vulkan PRIVATE
-        RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1
-    )
     gtest_discover_tests(test_rendering_raytracing_runtime_vulkan
         PROPERTIES TIMEOUT 60 LABELS "raytracing-runtime"
     )
@@ -176,3 +173,29 @@ add_executable(test_rendering_raytracing_paper_physics_cpu
 )
 target_link_libraries(test_rendering_raytracing_paper_physics_cpu PRIVATE RLtools::RLtools GTest::gtest_main)
 gtest_discover_tests(test_rendering_raytracing_paper_physics_cpu PROPERTIES TIMEOUT 20 LABELS "paper-benchmark")
+
+if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
+    add_executable(test_rendering_raytracing_typed_outputs_generic typed_outputs.cpp)
+    target_link_libraries(test_rendering_raytracing_typed_outputs_generic PRIVATE
+        RLtools::RLtools assimp::assimp rendering_raytracing_stb GTest::gtest_main
+    )
+    gtest_discover_tests(test_rendering_raytracing_typed_outputs_generic
+        PROPERTIES TIMEOUT 60 LABELS "raytracing-outputs;raytracing-outputs-generic"
+        TEST_PREFIX "generic."
+    )
+    if(NOT RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "GENERIC")
+        string(TOLOWER ${RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED} RL_TOOLS_OUTPUTS_BACKEND_SUFFIX)
+        set(RL_TOOLS_OUTPUTS_BACKEND_TARGET test_rendering_raytracing_typed_outputs_${RL_TOOLS_OUTPUTS_BACKEND_SUFFIX})
+        add_executable(${RL_TOOLS_OUTPUTS_BACKEND_TARGET} typed_outputs.cpp)
+        target_link_libraries(${RL_TOOLS_OUTPUTS_BACKEND_TARGET} PRIVATE
+            RLtools::RLtools rendering_raytracing_backend rendering_raytracing_backend_depth
+            rendering_raytracing_backend_segmentation rendering_raytracing_backend_normals
+            rendering_raytracing_stb GTest::gtest_main
+        )
+        target_compile_definitions(${RL_TOOLS_OUTPUTS_BACKEND_TARGET} PRIVATE RL_TOOLS_RENDERING_RAYTRACING_TYPED_OUTPUTS_ACTIVE_BACKEND)
+        gtest_discover_tests(${RL_TOOLS_OUTPUTS_BACKEND_TARGET}
+            PROPERTIES TIMEOUT 60 LABELS "raytracing-outputs;raytracing-outputs-${RL_TOOLS_OUTPUTS_BACKEND_SUFFIX}"
+            TEST_PREFIX "${RL_TOOLS_OUTPUTS_BACKEND_SUFFIX}."
+        )
+    endif()
+endif()

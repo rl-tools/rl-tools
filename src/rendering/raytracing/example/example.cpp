@@ -1,4 +1,3 @@
-#define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 0
 
 #define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB 0
 #define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD 1
@@ -26,6 +25,7 @@
 #include <array>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
 
 static constexpr bool OUTPUT_RGB = RL_TOOLS_RENDERING_RAYTRACING_EXAMPLE_OUTPUT_MODE != RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH;
 static constexpr bool OUTPUT_DEPTH = RL_TOOLS_RENDERING_RAYTRACING_EXAMPLE_OUTPUT_MODE != RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB;
@@ -50,7 +50,8 @@ int main(int argc, char** argv) {
     using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
     static constexpr TI NUM_ENVS = 256;
     constexpr T PI = static_cast<T>(3.14159265358979323846);
-    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, 64, 64, 64, rlt::rendering::raytracing::Low, false, 1, false, 1, OUTPUT_RGB, OUTPUT_DEPTH>;
+    using OUTPUTS = typename rro::Concat<rro::If<OUTPUT_RGB, rro::RGB<>>, rro::If<OUTPUT_DEPTH, rro::Depth<>>, rro::List<rro::Probes>>::type;
+    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, 64, 64, 64, rlt::rendering::raytracing::Low, false, 1, false, 1, OUTPUTS>;
 
     static_assert(std::is_standard_layout_v<rlt::rl::environments::raytracing_example::Parameters<SPEC>>);
     static_assert(std::is_trivially_copyable_v<rlt::rl::environments::raytracing_example::Parameters<SPEC>>);
@@ -163,9 +164,9 @@ int main(int argc, char** argv) {
         if (mp4_pipe == nullptr) return 0;
         constexpr size_t pixel_count = (size_t)NUM_ENVS * SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT;
         static std::vector<uint32_t> frame_staging(pixel_count);
-        rlt::Tensor<typename decltype(env.renderer->frame_buffer)::SPEC> frame_alias;
+        rlt::Tensor<typename rlt::utils::typing::remove_reference_t<decltype(rlt::output(device, *env.renderer, rro::RGB<>{}))>::SPEC> frame_alias;
         frame_alias._data = frame_staging.data();
-        rlt::copy(env.renderer->device, device, rlt::frame_buffer(device, *env.renderer), frame_alias);
+        rlt::copy(env.renderer->device, device, rlt::output(device, *env.renderer, rro::RGB<>{}), frame_alias);
         const uint32_t* per_camera_rgba_ptr = frame_staging.data();
         for (TI camera_i = 0; camera_i < NUM_ENVS; camera_i++) {
             const TI col = camera_i % SPEC::RAYTRACING_SPEC::GRID_COLS;

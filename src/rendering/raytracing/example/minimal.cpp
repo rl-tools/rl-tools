@@ -8,6 +8,8 @@
 #include <string>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
+using rlt::output;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using T = float;
@@ -59,9 +61,9 @@ int main(int argc, char** argv){
 
     rlt::render(device, renderer);
 
-    rlt::Tensor<typename decltype(renderer.frame_buffer)::SPEC> frame_buffer;
+    rlt::Tensor<typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rro::RGB<>{}))>::SPEC> frame_buffer;
     rlt::malloc(device, frame_buffer);
-    rlt::copy(renderer.device, device, rlt::frame_buffer(device, renderer), frame_buffer);
+    rlt::copy(renderer.device, device, rlt::output(device, renderer, rro::RGB<>{}), frame_buffer);
 
     int status = 0;
     for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){

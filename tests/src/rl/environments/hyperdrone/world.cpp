@@ -11,6 +11,8 @@
 #include <vector>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
+using rlt::output;
 namespace l2f = rlt::rl::environments::l2f;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -305,9 +307,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, RENDER_PATH_EQUIVALENCE){
     constexpr TI CAM_PIXELS = WORLD_SPEC::CAM_WIDTH * WORLD_SPEC::CAM_HEIGHT;
     std::vector<float> manual_observation(NUM_CAMERAS * CAM_PIXELS * 3);
     {
-        rlt::Tensor<rlt::tensor::Specification<float, TI, typename decltype(renderer.observation)::SPEC::SHAPE>> observation_alias;
+        rlt::Tensor<rlt::tensor::Specification<float, TI, typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rro::RGB<rro::format::Float32>{}))>::SPEC::SHAPE>> observation_alias;
         observation_alias._data = manual_observation.data();
-        rlt::copy(renderer.device, device, renderer.observation, observation_alias);
+        rlt::copy(renderer.device, device, output(device, renderer, rro::RGB<rro::format::Float32>{}), observation_alias);
     }
     for(TI instance_i = 0; instance_i < NUM_CAMERAS; instance_i++){
         typename WORLD::Parameters instance_parameters = rlt::get(device, tensors.parameters, instance_i);
@@ -382,12 +384,17 @@ int main(int argc, char** argv) {
 }
 
 namespace test_hyperdrone_acquisition {
-    template <TI HISTORY, bool FLOW = false>
+    template <TI HISTORY, bool FLOW = false, bool IMAGE = true>
     struct Specification: WORLD_SPEC {
         static constexpr TI HISTORY_LENGTH = HISTORY;
         static constexpr bool ENABLE_MOTION_BLUR = true;
         static constexpr TI MOTION_BLUR_SAMPLES = 4;
-        static constexpr bool OUTPUT_FLOW = FLOW;
+        using OUTPUTS = typename rro::Concat<
+            rro::If<(IMAGE), rro::RGB<rro::format::Float32>>,
+            rro::If<(FLOW), rro::Flow<>>,
+            rro::If<(FLOW), rro::FlowStatus<>>,
+            rro::List<rro::Probes>
+        >::type;
     };
 
     struct Checkpoint {
@@ -409,10 +416,10 @@ namespace test_hyperdrone_acquisition {
         EXPECT_EQ(a.rotor_history_step, b.rotor_history_step);
     }
 
-    template <TI HISTORY, bool FLOW = false>
+    template <TI HISTORY, bool FLOW = false, bool IMAGE = true>
     std::vector<Checkpoint> rollout(bool read_every_step){
         using namespace rlt;
-        using WORLD_TYPE = rl::environments::hyperdrone::World<Specification<HISTORY, FLOW>>;
+        using WORLD_TYPE = rl::environments::hyperdrone::World<Specification<HISTORY, FLOW, IMAGE>>;
         constexpr TI COUNT = WORLD_TYPE::INSTANCES;
         DEVICE device;
         RNG rng;
@@ -438,7 +445,12 @@ namespace test_hyperdrone_acquisition {
         typename decltype(dataset)::Corpus corpus;
         rendering::datasets::procthor::enumerate(device, dataset, corpus);
         init(device, world, shared, dataset, corpus, 0, 2, 0);
-        set_all(device, world.history, T(-1));
+        EXPECT_EQ(data(world.prev_cameras) != nullptr, IMAGE);
+        EXPECT_EQ(data(world.camera_staging_open) != nullptr, IMAGE);
+        EXPECT_EQ(data(world.camera_staging_previous) != nullptr, IMAGE || FLOW);
+        if constexpr (IMAGE){
+            set_all(device, world.history, T(-1));
+        }
         set_all(device, reset_mask, true);
         sample_initial_parameters(device, world, parameters, reset_mask, rng);
         sample_initial_state(device, world, parameters, states, reset_mask, rng);
@@ -446,24 +458,33 @@ namespace test_hyperdrone_acquisition {
         set_all(device, reset_mask, false);
         TI expected_episode_start[COUNT] = {};
         const auto checkpoint = [&](){
-            observe(device, world, parameters, states, typename WORLD_TYPE::Observation{}, observations, rng);
+            if constexpr (IMAGE){
+                observe(device, world, parameters, states, typename WORLD_TYPE::Observation{}, observations, rng);
+            }
+            else {
+                render(device, world, parameters, states, reset_mask);
+            }
             EXPECT_FALSE(world.render_pending);
             Checkpoint result;
             result.history_step = world.history_step;
             result.scene_version = world.scene_version;
-            for(TI slot = 0; slot < HISTORY; slot++){
-                for(TI camera = 0; camera < COUNT * WORLD_TYPE::N_VIEWS; camera++){
-                    for(TI column = 0; column < WORLD_TYPE::FRAME_DIM; column++){
-                        const T value = get(device, world.history, slot, camera, column);
-                        EXPECT_GE(value, T(0));
-                        EXPECT_LE(value, T(1));
-                        result.history.push_back(value);
+            if constexpr (IMAGE){
+                for(TI slot = 0; slot < HISTORY; slot++){
+                    for(TI camera = 0; camera < COUNT * WORLD_TYPE::N_VIEWS; camera++){
+                        for(TI column = 0; column < WORLD_TYPE::FRAME_DIM; column++){
+                            const T value = get(device, world.history, slot, camera, column);
+                            EXPECT_GE(value, T(0));
+                            EXPECT_LE(value, T(1));
+                            result.history.push_back(value);
+                        }
                     }
                 }
             }
             for(TI row = 0; row < COUNT; row++){
-                for(TI column = 0; column < WORLD_TYPE::OBSERVATION_DIM; column++){
-                    result.observation.push_back(get(device, observations, row, column));
+                if constexpr (IMAGE){
+                    for(TI column = 0; column < WORLD_TYPE::OBSERVATION_DIM; column++){
+                        result.observation.push_back(get(device, observations, row, column));
+                    }
                 }
                 const auto& state = get_ref(device, states, row);
                 result.dynamics.insert(result.dynamics.end(), state.position, state.position + 3);
@@ -484,16 +505,17 @@ namespace test_hyperdrone_acquisition {
             }
             if constexpr (FLOW){
                 EXPECT_EQ(world.flow_scene_version, world.scene_version);
-                using RENDERER = typename WORLD_TYPE::RENDERER;
-                result.flow.resize(RENDERER::FLOW_TENSOR_SPEC::SIZE);
-                result.flow_status.resize(RENDERER::FLOW_STATUS_TENSOR_SPEC::SIZE);
-                Tensor<typename RENDERER::FLOW_TENSOR_SPEC> flow_alias;
-                Tensor<typename RENDERER::FLOW_STATUS_TENSOR_SPEC> status_alias;
+                auto& renderer = get_renderer(device, world);
+                using FLOW_SPEC = typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rro::Flow<>{}))>::SPEC;
+                using STATUS_SPEC = typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rro::FlowStatus<>{}))>::SPEC;
+                result.flow.resize(FLOW_SPEC::SIZE);
+                result.flow_status.resize(STATUS_SPEC::SIZE);
+                Tensor<FLOW_SPEC> flow_alias;
+                Tensor<STATUS_SPEC> status_alias;
                 flow_alias._data = result.flow.data();
                 status_alias._data = result.flow_status.data();
-                auto& renderer = get_renderer(device, world);
-                copy(renderer.device, device, flow_buffer(device, renderer), flow_alias);
-                copy(renderer.device, device, flow_status_buffer(device, renderer), status_alias);
+                copy(renderer.device, device, output(device, renderer, rro::Flow<>{}), flow_alias);
+                copy(renderer.device, device, output(device, renderer, rro::FlowStatus<>{}), status_alias);
             }
             return result;
         };
@@ -523,7 +545,12 @@ namespace test_hyperdrone_acquisition {
             EXPECT_EQ(world.history_step, index + 2);
             const bool acquire = index == 1 || index == 4 || index == 6 || index == 10 || index == 11;
             if(read_every_step || acquire){
+                if constexpr (IMAGE){
                 observe(device, world, parameters, states, typename WORLD_TYPE::Observation{}, observations, rng);
+            }
+            else {
+                render(device, world, parameters, states, reset_mask);
+            }
             }
             if(acquire){
                 result.push_back(checkpoint());
@@ -543,12 +570,12 @@ namespace test_hyperdrone_acquisition {
         return result;
     }
 
-    template <TI HISTORY, bool FLOW = false>
+    template <TI HISTORY, bool FLOW = false, bool IMAGE = true>
     void compare_acquisition(){
         SCOPED_TRACE(HISTORY);
         SCOPED_TRACE(FLOW);
-        const auto deferred = rollout<HISTORY, FLOW>(false);
-        const auto eager = rollout<HISTORY, FLOW>(true);
+        const auto deferred = rollout<HISTORY, FLOW, IMAGE>(false);
+        const auto eager = rollout<HISTORY, FLOW, IMAGE>(true);
         ASSERT_EQ(deferred.size(), 5);
         ASSERT_EQ(deferred.size(), eager.size());
         for(size_t index = 0; index < deferred.size(); index++){
@@ -566,4 +593,24 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, ACQUISITION_READ_ORDER_AND_HISTO
     test_hyperdrone_acquisition::compare_acquisition<3>();
     test_hyperdrone_acquisition::compare_acquisition<1, true>();
     test_hyperdrone_acquisition::compare_acquisition<3, true>();
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, OUTPUTS_WITHOUT_IMAGE_HISTORY){
+    if(SCENE_PATH.empty()){
+        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
+    }
+    using namespace test_hyperdrone_acquisition;
+    using WORLD_TYPE = rlt::rl::environments::hyperdrone::World<Specification<3, true, false>>;
+    static_assert(!WORLD_TYPE::HAS_IMAGE_OBSERVATION);
+    static_assert(rlt::utils::typing::is_same_v<decltype(WORLD_TYPE{}.history), rlt::rl::environments::hyperdrone::world::NoImageHistory>);
+    auto with_image = rollout<3, true>(false);
+    const auto without_image = rollout<3, true, false>(false);
+    ASSERT_EQ(with_image.size(), without_image.size());
+    for(size_t index = 0; index < with_image.size(); index++){
+        with_image[index].observation.clear();
+        with_image[index].history.clear();
+        expect_equal(with_image[index], without_image[index]);
+    }
+    compare_acquisition<3, true, false>();
+    compare_acquisition<3, false, false>();
 }

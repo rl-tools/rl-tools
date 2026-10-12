@@ -10,6 +10,7 @@
 // not include renderer.h, which is not freestanding); the host adapter in operations_cpu.h passes
 // rendering::raytracing::Specification.
 #include "../../types.h"
+#include "../../outputs/operations_generic.h"
 #include "../../../../utils/generic/typing.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -130,20 +131,10 @@ namespace rl_tools {
             const Camera<T>* cameras_open = nullptr;
             const Camera<T>* cameras_previous = nullptr; // flow: the previous instant's cameras
             const OverlayView<T, TI>* overlays_previous = nullptr; // flow: the previous instant's overlay TLASes (leaves index the shifted id range [first_overlay_instance + SLOTS, ...))
-            unsigned int* frame_buffer = nullptr;
-            float* depth_buffer = nullptr;
-            unsigned int* segmentation_buffer = nullptr;
-            float* normals_buffer = nullptr; // 3 per pixel, world-frame unit normal or zero on miss
-            float* flow_buffer = nullptr;    // 2 per pixel on the current grid: p_previous - p_current in pixels
-            unsigned int* flow_status_buffer = nullptr; // FlowStatus per current pixel
-            float* flow_forward_buffer = nullptr;       // 2 per pixel on the previous grid: q_current - q_previous in pixels
-            unsigned int* flow_forward_status_buffer = nullptr;
             const float* flow_deltas = nullptr; // [2][SLOTS][12]: slab 0 carries a current-instant point to the previous instant, slab 1 the inverse
             TI first_overlay_instance = 0;   // global instance ids >= this index the flow-delta table
             TI num_overlay_slots = 0;        // NUM_OVERLAYS * MAX_OVERLAY_INSTANCES: delta slab stride and the previous-instant id shift
             const unsigned int* instance_classes = nullptr; // indexed by global instance id
-            CollisionResult* collision_results = nullptr;
-            float* observation = nullptr; // 3 per pixel, written pre-quantization when set
             float* rgb_accumulation = nullptr;   // 3 per pixel, linear radiance summed across dynamic-motion-blur passes
         };
 
@@ -615,7 +606,7 @@ namespace rl_tools {
         }
 
         template <typename DEVICE, typename SPEC, int DEPTH>
-        RL_TOOLS_FUNCTION_PLACEMENT Vec3<typename SPEC::T> trace_rgb(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene, typename SPEC::TI pixel_x, typename SPEC::TI pixel_y, Vec3<typename SPEC::T> origin, Vec3<typename SPEC::T> direction, typename SPEC::T t_min, typename SPEC::T t_max);
+        RL_TOOLS_FUNCTION_PLACEMENT Vec3<typename SPEC::T> trace_rgb(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene, typename SPEC::TI pixel_x, typename SPEC::TI pixel_y, Vec3<typename SPEC::T> origin, Vec3<typename SPEC::T> direction, typename SPEC::T t_min, typename SPEC::T t_max, Hit<typename SPEC::T, typename SPEC::TI>* primary_hit = nullptr);
 
         template <typename DEVICE, typename SPEC, int DEPTH>
         RL_TOOLS_FUNCTION_PLACEMENT Vec3<typename SPEC::T> shade_basic(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene, typename SPEC::TI pixel_x, typename SPEC::TI pixel_y, Vec3<typename SPEC::T> origin, Vec3<typename SPEC::T> ray_direction, const Hit<typename SPEC::T, typename SPEC::TI>& hit){
@@ -888,10 +879,13 @@ namespace rl_tools {
         }
 
         template <typename DEVICE, typename SPEC, int DEPTH>
-        RL_TOOLS_FUNCTION_PLACEMENT Vec3<typename SPEC::T> trace_rgb(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene, typename SPEC::TI pixel_x, typename SPEC::TI pixel_y, Vec3<typename SPEC::T> origin, Vec3<typename SPEC::T> direction, typename SPEC::T t_min, typename SPEC::T t_max){
+        RL_TOOLS_FUNCTION_PLACEMENT Vec3<typename SPEC::T> trace_rgb(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene, typename SPEC::TI pixel_x, typename SPEC::TI pixel_y, Vec3<typename SPEC::T> origin, Vec3<typename SPEC::T> direction, typename SPEC::T t_min, typename SPEC::T t_max, Hit<typename SPEC::T, typename SPEC::TI>* primary_hit){
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             const Hit<T, TI> hit = trace_closest_composed<SPEC>(scene, camera_from_pixel<SPEC>(pixel_x, pixel_y), origin, direction, t_min, t_max);
+            if(primary_hit != nullptr) {
+                *primary_hit = hit;
+            }
             if(!hit.valid){
                 return miss_color<SPEC>(scene, pixel_x, pixel_y);
             }
@@ -903,8 +897,165 @@ namespace rl_tools {
             }
         }
 
+        template <typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT bool project_camera(const Camera<T>& cam, Vec3<T> point, T& screen_x, T& screen_y){
+            const Vec3<T> direction = point - to_vec3(cam.pos);
+            const Vec3<T> dir_du = to_vec3(cam.dir_du);
+            const Vec3<T> dir_dv = to_vec3(cam.dir_dv);
+            const Vec3<T> negative_direction = -direction;
+            const Vec3<T> cross_dv_negative_direction = cross(dir_dv, negative_direction);
+            const T det = dot(dir_du, cross_dv_negative_direction);
+            if(det > (T)-1e-12 && det < (T)1e-12){
+                return false;
+            }
+            const T inv_det = (T)1 / det;
+            const Vec3<T> b = -to_vec3(cam.dir_00);
+            screen_x = dot(b, cross_dv_negative_direction) * inv_det;
+            screen_y = dot(dir_du, cross(b, negative_direction)) * inv_det;
+            const T lambda = dot(dir_du, cross(dir_dv, b)) * inv_det;
+            return lambda > (T)0;
+        }
+
+        template <typename DEVICE, typename SPEC, bool FORWARD>
+        RL_TOOLS_FUNCTION_PLACEMENT auto flow_sample(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene, typename SPEC::TI camera_i, typename SPEC::TI x, typename SPEC::TI y, Vec3<typename SPEC::T> pos, Vec3<typename SPEC::T> direction, const Hit<typename SPEC::T, typename SPEC::TI>& hit) {
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            const auto& math_device = device.math;
+            const TI SLOTS = scene.num_overlay_slots;
+            const Camera<T>& cam_target = (FORWARD ? scene.cameras_close : scene.cameras_previous)[camera_i];
+            const Vec3<T> target_pos = to_vec3(cam_target.pos);
+            const OverlayView<T, TI>* overlays_target = FORWARD ? scene.overlays : scene.overlays_previous;
+            const float* deltas = SPEC::ENABLE_OVERLAYS ? scene.flow_deltas + (FORWARD ? SLOTS * 12 : 0) : nullptr;
+            const TI source_first_overlay_instance = scene.first_overlay_instance + (FORWARD ? SLOTS : 0);
+            T flow_u = 0, flow_v = 0;
+            unsigned int status = FlowStatus::MISS;
+            if(hit.valid){
+                Vec3<T> point = pos + direction * hit.t;
+                if constexpr (SPEC::ENABLE_OVERLAYS){
+                    if(hit.instance >= source_first_overlay_instance){
+                        point = transform_point(&deltas[(TI)(hit.instance - source_first_overlay_instance) * 12], point);
+                    }
+                }
+                T target_x, target_y;
+                if(!project_camera(cam_target, point, target_x, target_y)){
+                    status = FlowStatus::BEHIND;
+                }
+                else{
+                    flow_u = target_x * (T)SPEC::CAM_WIDTH - ((T)x + (T)0.5);
+                    flow_v = target_y * (T)SPEC::CAM_HEIGHT - ((T)y + (T)0.5);
+                    if(target_x < (T)0 || target_x >= (T)1 || target_y < (T)0 || target_y >= (T)1){
+                        status = FlowStatus::OUT_OF_FRAME;
+                    }
+                    else{
+                        status = FlowStatus::VALID;
+                        if constexpr (FORWARD ? SPEC::PLAN::HAS_FLOW_FORWARD_STATUS : SPEC::PLAN::HAS_FLOW_BACKWARD_STATUS) {
+                            const Vec3<T> to_point = point - target_pos;
+                            const T length = math::sqrt(math_device, dot(to_point, to_point));
+                            const Vec3<T> visibility_direction = to_point * ((T)1 / length);
+                            const bool occluded = trace_any_composed<SPEC>(scene, overlays_target, camera_i, target_pos, visibility_direction, (T)0, length * ((T)1 - FLOW_VISIBILITY_EPSILON<T>));
+                            status = occluded ? FlowStatus::OCCLUDED : FlowStatus::VALID;
+                        }
+                    }
+                }
+            }
+
+            outputs::Sample<FORWARD ? outputs::Source::ForwardFlow : outputs::Source::BackwardFlow> sample;
+            sample.values[0] = (float)flow_u;
+            sample.values[1] = (float)flow_v;
+            sample.status = status;
+            return sample;
+        }
         template <typename DEVICE, typename SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT void render_frame(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene){
+        RL_TOOLS_FUNCTION_PLACEMENT void write_auxiliary(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene, outputs::Buffers<SPEC, typename SPEC::OUTPUTS>& buffers, typename SPEC::TI camera_i, typename SPEC::TI x, typename SPEC::TI y, Vec3<typename SPEC::T> pos, Vec3<typename SPEC::T> direction, const Hit<typename SPEC::T, typename SPEC::TI>& hit) {
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            const TI offset = camera_i * SPEC::CAM_PIXELS + y * SPEC::CAM_WIDTH + x;
+            outputs::Sample<outputs::Source::Surface> sample;
+            if constexpr (SPEC::HAS_DEPTH) {
+                const auto& cam = scene.cameras_close[camera_i];
+                const Vec3<T> normal = normalize(device.math, cross(to_vec3(cam.dir_du), to_vec3(cam.dir_dv)));
+                if(hit.valid) {
+                    sample.depth = (float)(hit.t * math::abs(device.math, dot(direction, normal)));
+                }
+                else {
+                    store_miss(sample.depth);
+                }
+            }
+            if constexpr (SPEC::HAS_INSTANCE_SEGMENTATION) {
+                sample.instance = hit.valid ? (unsigned int)hit.instance : 0xffffffffu;
+            }
+            if constexpr (SPEC::HAS_SEMANTIC_SEGMENTATION) {
+                sample.semantic = hit.valid ? scene.instance_classes[hit.instance] : 0xffffffffu;
+            }
+            if constexpr (SPEC::HAS_NORMALS) {
+                Vec3<T> normal = {0, 0, 0};
+                if(hit.valid) {
+                    Vec3<T> vertex_a, vertex_b, vertex_c;
+                    triangle_vertices(scene, hit.triangle, vertex_a, vertex_b, vertex_c);
+                    const InstanceView<T, TI>& instance = scene.instances[hit.instance];
+                    if(!instance.identity) {
+                        vertex_a = transform_point(instance.object_to_world, vertex_a);
+                        vertex_b = transform_point(instance.object_to_world, vertex_b);
+                        vertex_c = transform_point(instance.object_to_world, vertex_c);
+                    }
+                    normal = normalize(device.math, cross(vertex_b - vertex_a, vertex_c - vertex_a));
+                    if(dot(direction, normal) > (T)0) {
+                        normal = -normal;
+                    }
+                }
+                sample.values[0] = (float)normal.x;
+                sample.values[1] = (float)normal.y;
+                sample.values[2] = (float)normal.z;
+            }
+            write_outputs(device, buffers, offset, sample);
+            if constexpr (SPEC::HAS_FLOW_BACKWARD) {
+                write_outputs(device, buffers, offset, flow_sample<DEVICE, SPEC, false>(device, scene, camera_i, x, y, pos, direction, hit));
+            }
+        }
+        template <typename DEVICE, typename SPEC, bool FORWARD = false>
+        RL_TOOLS_FUNCTION_PLACEMENT void render_auxiliary_frame(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene, outputs::Buffers<SPEC, typename SPEC::OUTPUTS>& buffers) {
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            const auto* cameras = FORWARD ? scene.cameras_previous : scene.cameras_close;
+            const auto* overlays = FORWARD ? scene.overlays_previous : scene.overlays;
+            for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
+                const auto& cam = cameras[camera_i];
+                const Vec3<T> pos = to_vec3(cam.pos);
+                for(TI y = 0; y < SPEC::CAM_HEIGHT; y++) {
+                    for(TI x = 0; x < SPEC::CAM_WIDTH; x++) {
+                        const T screen_x = ((T)x + (T)0.5) / (T)SPEC::CAM_WIDTH;
+                        const T screen_y = ((T)y + (T)0.5) / (T)SPEC::CAM_HEIGHT;
+                        const Vec3<T> direction = normalize(device.math, to_vec3(cam.dir_00) + screen_x * to_vec3(cam.dir_du) + screen_y * to_vec3(cam.dir_dv));
+                        const auto hit = trace_closest_composed<SPEC>(scene, overlays, camera_i, pos, direction, (T)0, (T)1e30);
+                        if constexpr (FORWARD) {
+                            const TI offset = camera_i * SPEC::CAM_PIXELS + y * SPEC::CAM_WIDTH + x;
+                            write_outputs(device, buffers, offset, flow_sample<DEVICE, SPEC, true>(device, scene, camera_i, x, y, pos, direction, hit));
+                        }
+                        else {
+                            write_auxiliary<DEVICE, SPEC>(device, scene, buffers, camera_i, x, y, pos, direction, hit);
+                        }
+                    }
+                }
+            }
+        }
+        template <typename DEVICE, typename SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT void write_rgb(DEVICE& device, outputs::Buffers<SPEC, typename SPEC::OUTPUTS>& buffers, typename SPEC::TI pixel, Vec3<typename SPEC::T> color) {
+            outputs::Sample<outputs::Source::RGB> sample;
+            const float values[3] = {(float)color.x, (float)color.y, (float)color.z};
+            for(unsigned int channel = 0; channel < 3; channel++) {
+                const auto clamped = clamp01(values[channel]);
+                if constexpr (SPEC::SHADING::SRGB_OUTPUT) {
+                    sample.values[channel] = linear_to_srgb(device.math, clamped);
+                }
+                else {
+                    sample.values[channel] = clamped;
+                }
+            }
+            write_outputs(device, buffers, pixel, sample);
+        }
+
+        template <typename DEVICE, typename SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT void render_frame(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene, outputs::Buffers<SPEC, typename SPEC::OUTPUTS>& buffers){
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             const auto& math_device = device.math;
@@ -943,33 +1094,20 @@ namespace rl_tools {
                                     const T screen_x = ((T)x + ((T)aa_x + (T)0.5) * inv_aa_grid) / (T)SPEC::CAM_WIDTH;
                                     const T screen_y = ((T)y + ((T)aa_y + (T)0.5) * inv_aa_grid) / (T)SPEC::CAM_HEIGHT;
                                     const Vec3<T> direction = normalize(math_device, dir_00 + screen_x * dir_du + screen_y * dir_dv);
+                                    if constexpr (SPEC::FUSE_AUXILIARY) {
+                                        Hit<T, TI> hit;
+                                        accumulated_rgb = accumulated_rgb + trace_rgb<DEVICE, SPEC, 0>(device, scene, pixel_x, pixel_y, pos, direction, (T)0, (T)1e30, &hit);
+                                        write_auxiliary<DEVICE, SPEC>(device, scene, buffers, camera_i, x, y, pos, direction, hit);
+                                    }
+                                    else {
                                     accumulated_rgb = accumulated_rgb + trace_rgb<DEVICE, SPEC, 0>(device, scene, pixel_x, pixel_y, pos, direction, (T)0, (T)1e30);
+                                    }
                                 }
                             }
                         }
                         constexpr TI SAMPLES = MOTION_SAMPLES * AA_GRID * AA_GRID;
                         const Vec3<T> color = accumulated_rgb * ((T)1 / (T)SAMPLES);
-                        if(scene.observation != nullptr){
-                            // the observation is the frame-buffer color before 8-bit
-                            // quantization — same transfer curve, full float precision
-                            float* observation = scene.observation + fb_offset * 3;
-                            if constexpr (SPEC::SHADING::SRGB_OUTPUT){
-                                observation[0] = (float)linear_to_srgb(math_device, clamp01(color.x));
-                                observation[1] = (float)linear_to_srgb(math_device, clamp01(color.y));
-                                observation[2] = (float)linear_to_srgb(math_device, clamp01(color.z));
-                            }
-                            else{
-                                observation[0] = (float)clamp01(color.x);
-                                observation[1] = (float)clamp01(color.y);
-                                observation[2] = (float)clamp01(color.z);
-                            }
-                        }
-                        if constexpr (SPEC::SHADING::SRGB_OUTPUT){
-                            scene.frame_buffer[fb_offset] = make_srgb_rgba_from_linear(math_device, color);
-                        }
-                        else{
-                            scene.frame_buffer[fb_offset] = make_linear_rgba_from_linear(color);
-                        }
+                        write_rgb<DEVICE, SPEC>(device, buffers, fb_offset, color);
                     }
                 }
             }
@@ -1021,7 +1159,7 @@ namespace rl_tools {
         // divides the accumulated linear radiance by the pass count and writes the declared
         // outputs with the same transfer curve + quantization as the single-launch path
         template <typename DEVICE, typename SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT void resolve_frame(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene){
+        RL_TOOLS_FUNCTION_PLACEMENT void resolve_frame(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene, outputs::Buffers<SPEC, typename SPEC::OUTPUTS>& buffers){
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             const auto& math_device = device.math;
@@ -1032,223 +1170,12 @@ namespace rl_tools {
                     (T)scene.rgb_accumulation[fb_offset * 3 + 1] * inv_samples,
                     (T)scene.rgb_accumulation[fb_offset * 3 + 2] * inv_samples
                 };
-                if(scene.observation != nullptr){
-                    float* observation = scene.observation + fb_offset * 3;
-                    if constexpr (SPEC::SHADING::SRGB_OUTPUT){
-                        observation[0] = (float)linear_to_srgb(math_device, clamp01(color.x));
-                        observation[1] = (float)linear_to_srgb(math_device, clamp01(color.y));
-                        observation[2] = (float)linear_to_srgb(math_device, clamp01(color.z));
-                    }
-                    else{
-                        observation[0] = (float)clamp01(color.x);
-                        observation[1] = (float)clamp01(color.y);
-                        observation[2] = (float)clamp01(color.z);
-                    }
-                }
-                if constexpr (SPEC::SHADING::SRGB_OUTPUT){
-                    scene.frame_buffer[fb_offset] = make_srgb_rgba_from_linear(math_device, color);
-                }
-                else{
-                    scene.frame_buffer[fb_offset] = make_linear_rgba_from_linear(color);
-                }
+                write_rgb<DEVICE, SPEC>(device, buffers, fb_offset, color);
             }
         }
 
         template <typename DEVICE, typename SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT void render_depth_frame(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene){
-            using T = typename SPEC::T;
-            using TI = typename SPEC::TI;
-            for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
-                const Camera<T>& cam = scene.cameras_close[camera_i];
-                const Vec3<T> pos = to_vec3(cam.pos);
-                const Vec3<T> dir_00 = to_vec3(cam.dir_00);
-                const Vec3<T> dir_du = to_vec3(cam.dir_du);
-                const Vec3<T> dir_dv = to_vec3(cam.dir_dv);
-                const Vec3<T> normal = normalize(device.math, cross(dir_du, dir_dv));
-                for(TI y = 0; y < SPEC::CAM_HEIGHT; y++){
-                    for(TI x = 0; x < SPEC::CAM_WIDTH; x++){
-                        const TI offset = camera_i * SPEC::CAM_PIXELS + y * SPEC::CAM_WIDTH + x;
-                        const T screen_x = ((T)x + (T)0.5) / (T)SPEC::CAM_WIDTH;
-                        const T screen_y = ((T)y + (T)0.5) / (T)SPEC::CAM_HEIGHT;
-                        const Vec3<T> direction = normalize(device.math, dir_00 + screen_x * dir_du + screen_y * dir_dv);
-                        const auto hit = trace_closest_composed<SPEC>(scene, camera_i, pos, direction, (T)0, (T)1e30);
-                        if(hit.valid){
-                            scene.depth_buffer[offset] = (float)(hit.t * math::abs(device.math, dot(direction, normal)));
-                        }
-                        else{
-                            store_miss(scene.depth_buffer[offset]);
-                        }
-                    }
-                }
-            }
-        }
-
-        // single-sample by design: instance labels cannot be averaged, so anti-aliasing and
-        // motion blur do not apply (shutter-close camera, pixel-center ray)
-        template <typename DEVICE, typename SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT void render_segmentation_frame(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene){
-            using T = typename SPEC::T;
-            using TI = typename SPEC::TI;
-            const auto& math_device = device.math;
-            for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
-                const Camera<T>& cam = scene.cameras_close[camera_i];
-                const Vec3<T> pos = to_vec3(cam.pos);
-                const Vec3<T> dir_00 = to_vec3(cam.dir_00);
-                const Vec3<T> dir_du = to_vec3(cam.dir_du);
-                const Vec3<T> dir_dv = to_vec3(cam.dir_dv);
-                for(TI y = 0; y < SPEC::CAM_HEIGHT; y++){
-                    for(TI x = 0; x < SPEC::CAM_WIDTH; x++){
-                        const TI fb_offset = camera_i * SPEC::CAM_PIXELS + y * SPEC::CAM_WIDTH + x;
-                        const T screen_x = ((T)x + (T)0.5) / (T)SPEC::CAM_WIDTH;
-                        const T screen_y = ((T)y + (T)0.5) / (T)SPEC::CAM_HEIGHT;
-                        const Vec3<T> direction = normalize(math_device, dir_00 + screen_x * dir_du + screen_y * dir_dv);
-                        const Hit<T, TI> hit = trace_closest_composed<SPEC>(scene, camera_i, pos, direction, (T)0, (T)1e30);
-                        scene.segmentation_buffer[fb_offset] = hit.valid ? (SPEC::SEMANTIC_SEGMENTATION ? scene.instance_classes[hit.instance] : (unsigned int)hit.instance) : 0xFFFFFFFFu;
-                    }
-                }
-            }
-        }
-
-        // world point → screen fraction through the linear camera model: solves
-        // dir_00 + screen_x·dir_du + screen_y·dir_dv = lambda·(point − pos) by Cramer's rule;
-        // returns false for a degenerate basis or a point at/behind the camera (lambda <= 0)
-        template <typename T>
-        RL_TOOLS_FUNCTION_PLACEMENT bool project_camera(const Camera<T>& cam, Vec3<T> point, T& screen_x, T& screen_y){
-            const Vec3<T> direction = point - to_vec3(cam.pos);
-            const Vec3<T> dir_du = to_vec3(cam.dir_du);
-            const Vec3<T> dir_dv = to_vec3(cam.dir_dv);
-            const Vec3<T> negative_direction = -direction;
-            const Vec3<T> cross_dv_negative_direction = cross(dir_dv, negative_direction);
-            const T det = dot(dir_du, cross_dv_negative_direction);
-            if(det > (T)-1e-12 && det < (T)1e-12){
-                return false;
-            }
-            const T inv_det = (T)1 / det;
-            const Vec3<T> b = -to_vec3(cam.dir_00);
-            screen_x = dot(b, cross_dv_negative_direction) * inv_det;
-            screen_y = dot(dir_du, cross(b, negative_direction)) * inv_det;
-            const T lambda = dot(dir_du, cross(dir_dv, b)) * inv_det;
-            return lambda > (T)0;
-        }
-
-        // two-instant flow, single-sample from pixel centres (like segmentation): the pass is
-        // parameterised on its direction — backward traces the current instant and lands on the
-        // previous one, forward the reverse. The source hit point is carried to the target
-        // instant by its instance's rigid motion (identity for the static world), projected
-        // through the target camera, and tested for visibility against the target instant's
-        // scene by a ray from the target camera to the carried point (distance test, so
-        // self-occlusion counts). Status priority: MISS, BEHIND, OUT_OF_FRAME, OCCLUDED, VALID;
-        // the flow vector is p_target - p_source in pixels, zero for MISS and BEHIND, retained
-        // (the geometric flow) for OUT_OF_FRAME and OCCLUDED.
-        template <typename DEVICE, typename SPEC, bool FORWARD>
-        RL_TOOLS_FUNCTION_PLACEMENT void render_flow_frame(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene){
-            using T = typename SPEC::T;
-            using TI = typename SPEC::TI;
-            const auto& math_device = device.math;
-            const TI SLOTS = scene.num_overlay_slots;
-            const Camera<T>* cameras_source = FORWARD ? scene.cameras_previous : scene.cameras_close;
-            const Camera<T>* cameras_target = FORWARD ? scene.cameras_close : scene.cameras_previous;
-            const OverlayView<T, TI>* overlays_source = FORWARD ? scene.overlays_previous : scene.overlays;
-            const OverlayView<T, TI>* overlays_target = FORWARD ? scene.overlays : scene.overlays_previous;
-            const float* deltas = SPEC::ENABLE_OVERLAYS ? scene.flow_deltas + (FORWARD ? SLOTS * 12 : 0) : nullptr;
-            const TI source_first_overlay_instance = scene.first_overlay_instance + (FORWARD ? SLOTS : 0);
-            float* flow_buffer = FORWARD ? scene.flow_forward_buffer : scene.flow_buffer;
-            unsigned int* status_buffer = FORWARD ? scene.flow_forward_status_buffer : scene.flow_status_buffer;
-            for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
-                const Camera<T>& cam = cameras_source[camera_i];
-                const Camera<T>& cam_target = cameras_target[camera_i];
-                const Vec3<T> pos = to_vec3(cam.pos);
-                const Vec3<T> dir_00 = to_vec3(cam.dir_00);
-                const Vec3<T> dir_du = to_vec3(cam.dir_du);
-                const Vec3<T> dir_dv = to_vec3(cam.dir_dv);
-                const Vec3<T> target_pos = to_vec3(cam_target.pos);
-                for(TI y = 0; y < SPEC::CAM_HEIGHT; y++){
-                    for(TI x = 0; x < SPEC::CAM_WIDTH; x++){
-                        const TI fb_offset = camera_i * SPEC::CAM_PIXELS + y * SPEC::CAM_WIDTH + x;
-                        const T screen_x = ((T)x + (T)0.5) / (T)SPEC::CAM_WIDTH;
-                        const T screen_y = ((T)y + (T)0.5) / (T)SPEC::CAM_HEIGHT;
-                        const Vec3<T> direction = normalize(math_device, dir_00 + screen_x * dir_du + screen_y * dir_dv);
-                        const Hit<T, TI> hit = trace_closest_composed<SPEC>(scene, overlays_source, camera_i, pos, direction, (T)0, (T)1e30);
-                        T flow_u = 0, flow_v = 0;
-                        unsigned int status = FlowStatus::MISS;
-                        if(hit.valid){
-                            Vec3<T> point = pos + direction * hit.t;
-                            if constexpr (SPEC::ENABLE_OVERLAYS){
-                                if(hit.instance >= source_first_overlay_instance){
-                                    point = transform_point(&deltas[(TI)(hit.instance - source_first_overlay_instance) * 12], point);
-                                }
-                            }
-                            T target_x, target_y;
-                            if(!project_camera(cam_target, point, target_x, target_y)){
-                                status = FlowStatus::BEHIND;
-                            }
-                            else{
-                                flow_u = target_x * (T)SPEC::CAM_WIDTH - ((T)x + (T)0.5);
-                                flow_v = target_y * (T)SPEC::CAM_HEIGHT - ((T)y + (T)0.5);
-                                if(target_x < (T)0 || target_x >= (T)1 || target_y < (T)0 || target_y >= (T)1){
-                                    status = FlowStatus::OUT_OF_FRAME;
-                                }
-                                else{
-                                    const Vec3<T> to_point = point - target_pos;
-                                    const T length = math::sqrt(math_device, dot(to_point, to_point));
-                                    const Vec3<T> visibility_direction = to_point * ((T)1 / length);
-                                    const bool occluded = trace_any_composed<SPEC>(scene, overlays_target, camera_i, target_pos, visibility_direction, (T)0, length * ((T)1 - FLOW_VISIBILITY_EPSILON<T>));
-                                    status = occluded ? FlowStatus::OCCLUDED : FlowStatus::VALID;
-                                }
-                            }
-                        }
-                        flow_buffer[fb_offset * 2 + 0] = (float)flow_u;
-                        flow_buffer[fb_offset * 2 + 1] = (float)flow_v;
-                        status_buffer[fb_offset] = status;
-                    }
-                }
-            }
-        }
-
-        // single-sample by design: unit normals cannot be averaged, so anti-aliasing and motion
-        // blur do not apply (shutter-close camera, pixel-center ray); the geometric normal is
-        // world-frame (FLU), oriented against the ray, zero on miss
-        template <typename DEVICE, typename SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT void render_normals_frame(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene){
-            using T = typename SPEC::T;
-            using TI = typename SPEC::TI;
-            const auto& math_device = device.math;
-            for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
-                const Camera<T>& cam = scene.cameras_close[camera_i];
-                const Vec3<T> pos = to_vec3(cam.pos);
-                const Vec3<T> dir_00 = to_vec3(cam.dir_00);
-                const Vec3<T> dir_du = to_vec3(cam.dir_du);
-                const Vec3<T> dir_dv = to_vec3(cam.dir_dv);
-                for(TI y = 0; y < SPEC::CAM_HEIGHT; y++){
-                    for(TI x = 0; x < SPEC::CAM_WIDTH; x++){
-                        const TI fb_offset = camera_i * SPEC::CAM_PIXELS + y * SPEC::CAM_WIDTH + x;
-                        const T screen_x = ((T)x + (T)0.5) / (T)SPEC::CAM_WIDTH;
-                        const T screen_y = ((T)y + (T)0.5) / (T)SPEC::CAM_HEIGHT;
-                        const Vec3<T> direction = normalize(math_device, dir_00 + screen_x * dir_du + screen_y * dir_dv);
-                        const Hit<T, TI> hit = trace_closest_composed<SPEC>(scene, camera_i, pos, direction, (T)0, (T)1e30);
-                        Vec3<T> normal = {0, 0, 0};
-                        if(hit.valid){
-                            Vec3<T> vertex_a, vertex_b, vertex_c;
-                            triangle_vertices(scene, hit.triangle, vertex_a, vertex_b, vertex_c);
-                            const InstanceView<T, TI>& instance = scene.instances[hit.instance];
-                            if(!instance.identity){
-                                vertex_a = transform_point(instance.object_to_world, vertex_a);
-                                vertex_b = transform_point(instance.object_to_world, vertex_b);
-                                vertex_c = transform_point(instance.object_to_world, vertex_c);
-                            }
-                            normal = normalize(math_device, cross(vertex_b - vertex_a, vertex_c - vertex_a));
-                            if(dot(direction, normal) > (T)0) normal = -normal;
-                        }
-                        scene.normals_buffer[fb_offset * 3 + 0] = (float)normal.x;
-                        scene.normals_buffer[fb_offset * 3 + 1] = (float)normal.y;
-                        scene.normals_buffer[fb_offset * 3 + 2] = (float)normal.z;
-                    }
-                }
-            }
-        }
-
-        template <typename DEVICE, typename SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT void render_collision(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene){
+        RL_TOOLS_FUNCTION_PLACEMENT void render_collision(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene, outputs::Buffers<SPEC, typename SPEC::OUTPUTS>& buffers){
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             const auto& math_device = device.math;
@@ -1276,7 +1203,7 @@ namespace rl_tools {
                         result.distance = (float)hit.t;
                         result.hit = 1;
                     }
-                    scene.collision_results[camera_i * SPEC::NUM_PROBES + probe_i] = result;
+                    data(output(device, buffers, outputs::Probes{}))[camera_i * SPEC::NUM_PROBES + probe_i] = result;
                 }
             }
         }

@@ -29,6 +29,7 @@
 #include <chrono>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
 
 using T = float;
 static constexpr T FOV = 80;
@@ -38,8 +39,11 @@ struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_HEIGHT = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_HEIGHT;
     static constexpr TI NUM_CAMERAS = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_NUM_CAMERAS;
     static constexpr TI NUM_PROBES = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_NUM_PROBES;
-    static constexpr bool OUTPUT_RGB = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_OUTPUT_MODE != RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH;
-    static constexpr bool OUTPUT_DEPTH = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_OUTPUT_MODE != RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB;
+    using OUTPUTS = typename rro::Concat<
+        rro::If<(RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_OUTPUT_MODE != RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH), rro::RGB<>>,
+        rro::If<(RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_OUTPUT_MODE != RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB), rro::Depth<>>,
+        rro::List<rro::Probes>
+    >::type;
 };
 using SPEC = rlt::rendering::raytracing::Specification<CONFIG>;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;

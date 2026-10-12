@@ -39,12 +39,9 @@ namespace rl_tools::rl::environments::hyperdrone {
         static constexpr TI MOTION_BLUR_SAMPLES = 1;
         static constexpr bool ENABLE_ANTI_ALIASING = false;
         static constexpr TI ANTI_ALIASING_GRID_SIZE = 1;
-        static constexpr bool OUTPUT_RGB = true;
-        static constexpr bool OUTPUT_DEPTH = false;
-        static constexpr bool OUTPUT_SEGMENTATION = false;
-        static constexpr bool SEMANTIC_SEGMENTATION = false;
-        static constexpr bool OUTPUT_NORMALS = false;
-        static constexpr bool OUTPUT_FLOW = false;
+        using OUTPUTS = rendering::raytracing::outputs::List<
+            rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>,
+            rendering::raytracing::outputs::Probes>;
         static constexpr TI HISTORY_LENGTH = 1;
         static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = 0;
         static constexpr T CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE = 0;
@@ -65,6 +62,7 @@ namespace rl_tools::rl::environments::hyperdrone {
     };
 
     namespace world {
+        struct NoImageHistory {};
         template <typename STATE, typename = void>
         struct HasRotorPhase {
             static constexpr bool VALUE = false;
@@ -90,19 +88,11 @@ namespace rl_tools::rl::environments::hyperdrone {
             static constexpr TI NUM_CAMERAS = SPEC::INSTANCES_PER_ENVIRONMENT * SPEC::N_CAMERA_AGENTS * SPEC::N_CAMERAS_PER_AGENT;
             static constexpr TI NUM_PROBES = SPEC::NUM_PROBES;
             using SHADING = typename SPEC::SHADING;
-            static constexpr bool OUTPUT_RGB = SPEC::OUTPUT_RGB;
-            static constexpr bool OUTPUT_DEPTH = SPEC::OUTPUT_DEPTH;
-            static constexpr bool OUTPUT_SEGMENTATION = SPEC::OUTPUT_SEGMENTATION;
-            static constexpr bool SEMANTIC_SEGMENTATION = SPEC::SEMANTIC_SEGMENTATION;
-            static constexpr bool OUTPUT_NORMALS = SPEC::OUTPUT_NORMALS;
-            static constexpr bool OUTPUT_FLOW = SPEC::OUTPUT_FLOW;
+            using OUTPUTS = typename SPEC::OUTPUTS;
             static constexpr bool ENABLE_MOTION_BLUR = SPEC::ENABLE_MOTION_BLUR;
             static constexpr TI MOTION_BLUR_SAMPLES = SPEC::MOTION_BLUR_SAMPLES;
             static constexpr bool ENABLE_ANTI_ALIASING = SPEC::ENABLE_ANTI_ALIASING;
             static constexpr TI ANTI_ALIASING_GRID_SIZE = SPEC::ANTI_ALIASING_GRID_SIZE;
-            // the RGB observation is consumed as the renderer's float observation output —
-            // written by the ray gen at full precision, no format-conversion pass
-            static constexpr bool OUTPUT_OBSERVATION = SPEC::OUTPUT_RGB;
             static constexpr TI NUM_OVERLAYS = SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE > 0 ? SPEC::INSTANCES_PER_ENVIRONMENT : 0;
             static constexpr TI MAX_OVERLAY_INSTANCES = SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE;
             static constexpr TI MAX_OVERLAYS_PER_CAMERA = SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE > 0 ? 1 : 0;
@@ -224,7 +214,7 @@ namespace rl_tools::rl::environments::hyperdrone {
 
         using RENDERER_CONFIG = world::RendererConfig<SPEC>;
         using RENDERER_SPEC = rendering::raytracing::Specification<RENDERER_CONFIG>;
-        static_assert(IMAGE_CHANNELS == RENDERER_SPEC::OBSERVATION_CHANNELS, "the image observation must match the renderer's RGB channels");
+        static constexpr bool HAS_IMAGE_OBSERVATION = rendering::raytracing::outputs::contains<typename SPEC::OUTPUTS, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>::value;
         using RENDERER = rendering::raytracing::Renderer<RENDERER_SPEC>;
         using ANNOTATIONS_SPEC = rendering::datasets::annotations::FreeSpaceSpecification<T, TI>;
         using ANNOTATIONS = rendering::datasets::annotations::FreeSpace<ANNOTATIONS_SPEC>;
@@ -272,7 +262,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         using EPISODE_START_SPEC = tensor::Specification<TI, TI, tensor::Shape<TI, INSTANCES>>;
         using RENDER_RESET_SPEC = tensor::Specification<bool, TI, tensor::Shape<TI, INSTANCES>>;
         using ACTIVE_ANNOTATIONS_SPEC = tensor::Specification<ANNOTATIONS, TI, tensor::Shape<TI, 1>>;
-        Tensor<HISTORY_SPEC> history;
+        utils::typing::conditional_t<HAS_IMAGE_OBSERVATION, Tensor<HISTORY_SPEC>, world::NoImageHistory> history;
         Tensor<PREV_CAMERAS_SPEC> prev_cameras;  // shutter-open interpolation source (motion blur)
         Tensor<EPISODE_START_SPEC> episode_start;  // history slot at which each instance's episode began
         Tensor<RENDER_RESET_SPEC> render_reset;

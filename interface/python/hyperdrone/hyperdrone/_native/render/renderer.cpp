@@ -1,13 +1,6 @@
 #ifndef HYPERDRONE_RENDER_NUM_PROBES
 #define HYPERDRONE_RENDER_NUM_PROBES 1
 #endif
-// num_probes=0 compiles the collision-probe pass out the way the C++ benchmark targets do: the
-// backend macro removes the probe resources and launches, and the renderer specification keeps
-// one probe slot because zero-sized tensors are not representable
-#if HYPERDRONE_RENDER_NUM_PROBES == 0
-#define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 1
-#endif
-
 #include "verbosity.h"
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
@@ -79,13 +72,11 @@
 #endif
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
 namespace rrt = rl_tools::rendering::raytracing;
 using hyperdrone::FloatArray;
 using rl_tools::data;
-using rl_tools::segmentation_buffer;
-using rl_tools::normals_buffer;
-using rl_tools::flow_buffer;
-using rl_tools::flow_status_buffer;
+using rl_tools::output;
 
 
 // Each configuration needs a distinct C++ type in nanobind's shared type registry.
@@ -102,18 +93,24 @@ namespace HYPERDRONE_MODULE_NAME {
 
     static constexpr bool PROBES_ENABLED = HYPERDRONE_RENDER_NUM_PROBES > 0;
 
+    using SEGMENTATION_LABELS = rl_tools::utils::typing::conditional_t<(HYPERDRONE_RENDER_SEMANTIC_SEGMENTATION != 0), rro::labels::Semantic, rro::labels::Instance>;
+    using SEGMENTATION_OUTPUT = rro::Segmentation<rro::format::UInt32, SEGMENTATION_LABELS>;
+
     struct RendererConfiguration: rrt::config::Default<T, TI>{
         static constexpr TI CAM_WIDTH = HYPERDRONE_RENDER_WIDTH;
         static constexpr TI CAM_HEIGHT = HYPERDRONE_RENDER_HEIGHT;
         static constexpr TI NUM_CAMERAS = HYPERDRONE_RENDER_NUM_CAMERAS;
-        static constexpr TI NUM_PROBES = PROBES_ENABLED ? HYPERDRONE_RENDER_NUM_PROBES : 1;
+        static constexpr TI NUM_PROBES = HYPERDRONE_RENDER_NUM_PROBES;
         using SHADING = typename ShadingSelector<HYPERDRONE_RENDER_SHADING>::type;
-        static constexpr bool OUTPUT_RGB = HYPERDRONE_RENDER_OUTPUT_RGB != 0;
-        static constexpr bool OUTPUT_DEPTH = HYPERDRONE_RENDER_OUTPUT_DEPTH != 0;
-        static constexpr bool OUTPUT_SEGMENTATION = HYPERDRONE_RENDER_OUTPUT_SEGMENTATION != 0;
-        static constexpr bool OUTPUT_NORMALS = HYPERDRONE_RENDER_OUTPUT_NORMALS != 0;
-        static constexpr bool OUTPUT_FLOW = HYPERDRONE_RENDER_OUTPUT_FLOW != 0;
-        static constexpr bool SEMANTIC_SEGMENTATION = HYPERDRONE_RENDER_SEMANTIC_SEGMENTATION != 0;
+        using OUTPUTS = typename rro::Concat<
+            rro::If<(HYPERDRONE_RENDER_OUTPUT_RGB != 0), rro::RGB<>>,
+            rro::If<(HYPERDRONE_RENDER_OUTPUT_DEPTH != 0), rro::Depth<>>,
+            rro::If<(HYPERDRONE_RENDER_OUTPUT_SEGMENTATION != 0), SEGMENTATION_OUTPUT>,
+            rro::If<(HYPERDRONE_RENDER_OUTPUT_NORMALS != 0), rro::Normals<>>,
+            rro::If<(HYPERDRONE_RENDER_OUTPUT_FLOW != 0), rro::Flow<>>,
+            rro::If<(HYPERDRONE_RENDER_OUTPUT_FLOW != 0), rro::FlowStatus<>>,
+            rro::If<(PROBES_ENABLED), rro::Probes>
+        >::type;
         static constexpr bool ENABLE_MOTION_BLUR = HYPERDRONE_RENDER_MB_SAMPLES > 1;
         static constexpr TI MOTION_BLUR_SAMPLES = HYPERDRONE_RENDER_MB_SAMPLES;
         static constexpr bool ENABLE_ANTI_ALIASING = HYPERDRONE_RENDER_AA_GRID > 1;
@@ -396,7 +393,7 @@ namespace HYPERDRONE_MODULE_NAME {
         void read_frame_buffer(uint32_t* dst) {
             if constexpr (SPEC::HAS_RGB){
                 require_init();
-                copy_out(rlt::frame_buffer(device, renderer), dst);
+                copy_out(rlt::output(device, renderer, rro::RGB<>{}), dst);
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer has no RGB output");
@@ -406,7 +403,7 @@ namespace HYPERDRONE_MODULE_NAME {
         void read_depth_buffer(float* dst) {
             if constexpr (SPEC::HAS_DEPTH){
                 require_init();
-                copy_out(rlt::depth_buffer(device, renderer), dst);
+                copy_out(rlt::output(device, renderer, rro::Depth<>{}), dst);
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer has no depth output");
@@ -418,7 +415,7 @@ namespace HYPERDRONE_MODULE_NAME {
                 require_init();
                 constexpr TI count = SPEC::NUM_CAMERAS * SPEC::NUM_PROBES;
                 host_collisions.resize(count);
-                copy_out(rlt::collision_results(device, renderer), host_collisions.data());
+                copy_out(rlt::output(device, renderer, rro::Probes{}), host_collisions.data());
                 for(TI i = 0; i < count; i++){
                     distances[i] = host_collisions[i].distance;
                     hits[i] = host_collisions[i].hit;
@@ -432,7 +429,7 @@ namespace HYPERDRONE_MODULE_NAME {
         uint32_t* framebuffer_device_ptr() {
             if constexpr (SPEC::HAS_RGB){
                 require_init();
-                return rlt::data(rlt::frame_buffer(device, renderer));
+                return rlt::data(rlt::output(device, renderer, rro::RGB<>{}));
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer has no RGB output");
@@ -442,7 +439,7 @@ namespace HYPERDRONE_MODULE_NAME {
         float* depthbuffer_device_ptr() {
             if constexpr (SPEC::HAS_DEPTH){
                 require_init();
-                return rlt::data(rlt::depth_buffer(device, renderer));
+                return rlt::data(rlt::output(device, renderer, rro::Depth<>{}));
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer has no depth output");
@@ -789,13 +786,13 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     using SPEC = Renderer::SPEC;
     auto renderer_class = nb::class_<Renderer>(m, "Renderer");
     bind_image_output<SPEC::HAS_SEGMENTATION, uint32_t, 1>(renderer_class, "segmentation",
-        [](auto& self) -> auto& { return segmentation_buffer(self.device, self.renderer); });
+        [](auto& self) -> auto& { return output(self.device, self.renderer, HYPERDRONE_MODULE_NAME::SEGMENTATION_OUTPUT{}); });
     bind_image_output<SPEC::HAS_NORMALS, float, 3>(renderer_class, "normals",
-        [](auto& self) -> auto& { return normals_buffer(self.device, self.renderer); });
+        [](auto& self) -> auto& { return output(self.device, self.renderer, rro::Normals<>{}); });
     bind_image_output<SPEC::HAS_FLOW, float, 2>(renderer_class, "flow",
-        [](auto& self) -> auto& { return flow_buffer(self.device, self.renderer); });
+        [](auto& self) -> auto& { return output(self.device, self.renderer, rro::Flow<>{}); });
     bind_image_output<SPEC::HAS_FLOW, uint32_t, 1>(renderer_class, "flow_status",
-        [](auto& self) -> auto& { return flow_status_buffer(self.device, self.renderer); });
+        [](auto& self) -> auto& { return output(self.device, self.renderer, rro::FlowStatus<>{}); });
     renderer_class
         .def(nb::init<>())
         .def_prop_ro("backend", [](const Renderer& self){ return std::string(self.backend()); })

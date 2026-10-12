@@ -5,6 +5,7 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_RENDERER_H
 
 #include "types.h"
+#include "outputs/outputs.h"
 #include "scene.h"
 #include "../../containers/tensor/tensor.h"
 
@@ -22,38 +23,12 @@ namespace rl_tools {
         using FastFlatShading = Low;
 
         namespace config{
-            // Fringe defaults only: the required geometry — CAM_WIDTH, CAM_HEIGHT, NUM_CAMERAS,
-            // NUM_PROBES — is deliberately absent from this base, so a missing (or misspelled)
-            // required member fails to compile instead of silently falling back to a default.
             template <typename T_T, typename T_TI>
             struct Default{
                 using T = T_T;
                 using TI = T_TI;
                 using SHADING = Medium;
-                static constexpr bool OUTPUT_RGB = true;
-                // Metric camera-forward (+X in FLU) depth at pixel center and shutter close; misses are +infinity.
-                static constexpr bool OUTPUT_DEPTH = false;
-                // segmentation writes one uint32 instance index per pixel (miss = 0xFFFFFFFF),
-                // always single-sample from the shutter-close camera: labels cannot be averaged,
-                // so anti-aliasing and motion-blur settings do not apply to it
-                static constexpr bool OUTPUT_SEGMENTATION = false;
-                static constexpr bool SEMANTIC_SEGMENTATION = false;
-                // normals writes the world-frame (FLU) geometric unit normal of the hit surface,
-                // oriented against the ray, as float3 per pixel (miss = 0,0,0); like segmentation
-                // it is always single-sample from the shutter-close camera: unit normals cannot
-                // be averaged, so anti-aliasing and motion-blur settings do not apply to it
-                static constexpr bool OUTPUT_NORMALS = false;
-                // flow relates the current instant (cameras/transforms) to the previous instant
-                // (cameras_previous/transforms_previous): per pixel of the current image, the
-                // displacement to its correspondence in the previous image in pixels
-                // (p_previous - p_current, float2) plus a FlowStatus code. The hit point is
-                // carried to the previous instant by its instance's rigid motion, projected
-                // through the previous camera, and tested for visibility against the previous
-                // instant's scene. Always single-sample from pixel centres, like segmentation.
-                static constexpr bool OUTPUT_FLOW = false;
-                // forward flow: the same pass from the previous image to the current one, on the
-                // previous grid (q_current - q_previous). Requires OUTPUT_FLOW.
-                static constexpr bool OUTPUT_FLOW_FORWARD = false;
+                using OUTPUTS = outputs::List<outputs::RGB<>>;
                 static constexpr bool ENABLE_MOTION_BLUR = false;
                 static constexpr T_TI MOTION_BLUR_SAMPLES = 1;
                 // Dynamic motion blur uses transforms_motion for each shutter sample and averages linear radiance; requires motion blur and overlays.
@@ -63,9 +38,6 @@ namespace rl_tools {
                 static constexpr T_TI NUM_OVERLAYS = 0;
                 static constexpr T_TI MAX_OVERLAY_INSTANCES = 0;
                 static constexpr T_TI MAX_OVERLAYS_PER_CAMERA = 0;
-                // RGB observations are [0,1] sRGB for every built-in shading tier; packed-frame alpha is always 255, reserved.
-                static constexpr bool OUTPUT_OBSERVATION = false;
-                using OBSERVATION_T = float;
             };
         }
 
@@ -75,28 +47,44 @@ namespace rl_tools {
             using T = typename CONFIG::T;
             using TI = typename CONFIG::TI;
             using SHADING = typename CONFIG::SHADING;
-            static constexpr bool HAS_RGB = CONFIG::OUTPUT_RGB;
-            static constexpr bool HAS_DEPTH = CONFIG::OUTPUT_DEPTH;
-            static constexpr bool HAS_SEGMENTATION = CONFIG::OUTPUT_SEGMENTATION;
-            static constexpr bool HAS_NORMALS = CONFIG::OUTPUT_NORMALS;
-            static constexpr bool HAS_FLOW = CONFIG::OUTPUT_FLOW;
-            static constexpr bool HAS_FLOW_FORWARD = CONFIG::OUTPUT_FLOW_FORWARD;
-            static_assert(!HAS_FLOW_FORWARD || HAS_FLOW, "OUTPUT_FLOW_FORWARD requires OUTPUT_FLOW");
-            static constexpr bool ENABLE_DEPTH = HAS_DEPTH;
-            static constexpr bool ENABLE_RGB = HAS_RGB;
+            using OUTPUTS = typename CONFIG::OUTPUTS;
+            using PLAN = outputs::Requirements<OUTPUTS>;
+            static constexpr bool HAS_RGB = PLAN::HAS_RGB;
+            static constexpr bool HAS_RGBA8 = PLAN::HAS_RGBA8;
+            static constexpr bool HAS_RGB32F = PLAN::HAS_RGB32F;
+            static constexpr bool HAS_DEPTH = PLAN::HAS_DEPTH;
+            static constexpr bool HAS_SEGMENTATION = PLAN::HAS_SEGMENTATION;
+            static constexpr bool HAS_INSTANCE_SEGMENTATION = PLAN::HAS_INSTANCE_SEGMENTATION;
+            static constexpr bool HAS_SEMANTIC_SEGMENTATION = PLAN::HAS_SEMANTIC_SEGMENTATION;
+            static constexpr bool HAS_NORMALS = PLAN::HAS_NORMALS;
+            static constexpr bool HAS_FLOW = PLAN::HAS_FLOW;
+            static constexpr bool HAS_FLOW_BACKWARD = PLAN::HAS_FLOW_BACKWARD;
+            static constexpr bool HAS_FLOW_FORWARD = PLAN::HAS_FLOW_FORWARD;
+            static constexpr bool HAS_FLOW_BACKWARD_STATUS = PLAN::HAS_FLOW_BACKWARD_STATUS;
+            static constexpr bool HAS_FLOW_FORWARD_STATUS = PLAN::HAS_FLOW_FORWARD_STATUS;
+            static constexpr bool HAS_PROBES = PLAN::HAS_PROBES;
+            static constexpr bool HAS_AUXILIARY = PLAN::HAS_AUXILIARY;
             static constexpr TI CAM_WIDTH = CONFIG::CAM_WIDTH;
             static constexpr TI CAM_HEIGHT = CONFIG::CAM_HEIGHT;
             static constexpr TI NUM_CAMERAS = CONFIG::NUM_CAMERAS;
-            static constexpr TI NUM_PROBES = CONFIG::NUM_PROBES;
+            static constexpr TI NUM_PROBES = []() {
+                if constexpr (HAS_PROBES) {
+                    return CONFIG::NUM_PROBES;
+                }
+                else {
+                    return TI(0);
+                }
+            }();
+            static_assert(!HAS_PROBES || NUM_PROBES > 0, "configured probes require NUM_PROBES > 0");
             static_assert(CAM_WIDTH > 0 && CAM_HEIGHT > 0 && NUM_CAMERAS > 0, "camera geometry must be nonzero");
-            static_assert(HAS_RGB || HAS_DEPTH || HAS_SEGMENTATION || HAS_NORMALS || HAS_FLOW || NUM_PROBES > 0, "the renderer must produce at least one output (an image target or collision probes)");
+            static_assert(PLAN::HAS_IMAGE || HAS_PROBES, "the renderer must produce at least one output (an image target or collision probes)");
             static constexpr TI MOTION_BLUR_SAMPLES = CONFIG::MOTION_BLUR_SAMPLES;
-            static constexpr bool ENABLE_MOTION_BLUR = CONFIG::ENABLE_MOTION_BLUR && MOTION_BLUR_SAMPLES > 1;
+            static constexpr bool ENABLE_MOTION_BLUR = HAS_RGB && CONFIG::ENABLE_MOTION_BLUR && MOTION_BLUR_SAMPLES > 1;
             static constexpr bool HAS_CAMERA_PAIR = ENABLE_MOTION_BLUR;
             static_assert(MOTION_BLUR_SAMPLES >= 1, "MOTION_BLUR_SAMPLES must be at least 1");
             static_assert(!ENABLE_MOTION_BLUR || MOTION_BLUR_SAMPLES == 2 || MOTION_BLUR_SAMPLES == 4 || MOTION_BLUR_SAMPLES == 8 || MOTION_BLUR_SAMPLES == 16 || MOTION_BLUR_SAMPLES == 32, "MOTION_BLUR_SAMPLES must be one of 2, 4, 8, 16, or 32");
             static constexpr TI ANTI_ALIASING_GRID_SIZE = CONFIG::ANTI_ALIASING_GRID_SIZE;
-            static constexpr bool ENABLE_ANTI_ALIASING = CONFIG::ENABLE_ANTI_ALIASING && ANTI_ALIASING_GRID_SIZE > 1;
+            static constexpr bool ENABLE_ANTI_ALIASING = HAS_RGB && CONFIG::ENABLE_ANTI_ALIASING && ANTI_ALIASING_GRID_SIZE > 1;
             static constexpr TI ANTI_ALIASING_SAMPLES = ENABLE_ANTI_ALIASING ? ANTI_ALIASING_GRID_SIZE * ANTI_ALIASING_GRID_SIZE : 1;
             static constexpr TI RGB_SAMPLES = (ENABLE_MOTION_BLUR ? MOTION_BLUR_SAMPLES : 1) * ANTI_ALIASING_SAMPLES;
             static_assert(ANTI_ALIASING_GRID_SIZE >= 1, "ANTI_ALIASING_GRID_SIZE must be at least 1");
@@ -115,16 +103,11 @@ namespace rl_tools {
             static constexpr TI MAX_OVERLAY_INSTANCES = CONFIG::MAX_OVERLAY_INSTANCES;
             static constexpr TI MAX_OVERLAYS_PER_CAMERA = CONFIG::MAX_OVERLAYS_PER_CAMERA;
             static constexpr bool ENABLE_OVERLAYS = NUM_OVERLAYS > 0 && MAX_OVERLAY_INSTANCES > 0 && MAX_OVERLAYS_PER_CAMERA > 0;
-            static constexpr bool SEMANTIC_SEGMENTATION = CONFIG::SEMANTIC_SEGMENTATION; // segmentation output carries Object::segmentation_class instead of the instance id
-            static_assert(!SEMANTIC_SEGMENTATION || HAS_SEGMENTATION, "SEMANTIC_SEGMENTATION requires OUTPUT_SEGMENTATION");
             static_assert(ENABLE_OVERLAYS || (NUM_OVERLAYS == 0 && MAX_OVERLAY_INSTANCES == 0 && MAX_OVERLAYS_PER_CAMERA == 0), "overlay constants must be all zero (disabled) or all nonzero");
             static constexpr bool ENABLE_DYNAMIC_MOTION_BLUR = CONFIG::ENABLE_DYNAMIC_MOTION_BLUR && ENABLE_MOTION_BLUR && ENABLE_OVERLAYS;
-            static_assert(!CONFIG::ENABLE_DYNAMIC_MOTION_BLUR || (ENABLE_MOTION_BLUR && ENABLE_OVERLAYS), "ENABLE_DYNAMIC_MOTION_BLUR requires ENABLE_MOTION_BLUR (MOTION_BLUR_SAMPLES > 1) and overlays");
+            static_assert(!HAS_RGB || !CONFIG::ENABLE_DYNAMIC_MOTION_BLUR || (ENABLE_MOTION_BLUR && ENABLE_OVERLAYS), "ENABLE_DYNAMIC_MOTION_BLUR requires ENABLE_MOTION_BLUR (MOTION_BLUR_SAMPLES > 1) and overlays");
             static constexpr bool HAS_FLOW_OVERLAYS = HAS_FLOW && ENABLE_OVERLAYS;
-            static constexpr bool HAS_OBSERVATION = CONFIG::OUTPUT_OBSERVATION;
-            using OBSERVATION_T = typename CONFIG::OBSERVATION_T;
-            static constexpr TI OBSERVATION_CHANNELS = 3;
-            static_assert(!HAS_OBSERVATION || HAS_RGB, "OUTPUT_OBSERVATION requires OUTPUT_RGB (the RGB ray gen writes it)");
+            static constexpr bool FUSE_AUXILIARY = HAS_RGB && HAS_AUXILIARY && !ENABLE_ANTI_ALIASING && !ENABLE_MOTION_BLUR;
         };
 
         namespace backends {
@@ -270,80 +253,12 @@ namespace rl_tools {
             Tensor<CAMERA_TENSOR_SPEC> cameras_open;
         };
 
-        template <typename T_SPEC, bool T_HAS_RGB>
-        struct RGBRendererStorage {};
-
-        template <typename T_SPEC>
-        struct RGBRendererStorage<T_SPEC, true> {
-            using SPEC = T_SPEC;
-            using TI = typename SPEC::TI;
-            using FB_TENSOR_SPEC = tensor::Specification<uint32_t, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH>, true>;
-            Tensor<FB_TENSOR_SPEC> frame_buffer;
-        };
-
-        template <typename T_SPEC, bool T_HAS_DEPTH>
-        struct DepthRendererStorage {};
-
-        template <typename T_SPEC>
-        struct DepthRendererStorage<T_SPEC, true> {
-            using SPEC = T_SPEC;
-            using T = typename SPEC::T;
-            using TI = typename SPEC::TI;
-            using DEPTH_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH>, true>;
-            Tensor<DEPTH_TENSOR_SPEC> depth_buffer;
-        };
-
-        template <typename T_SPEC, bool T_HAS_SEGMENTATION>
-        struct SegmentationRendererStorage {};
-
-        template <typename T_SPEC>
-        struct SegmentationRendererStorage<T_SPEC, true> {
-            using SPEC = T_SPEC;
-            using TI = typename SPEC::TI;
-            using SEGMENTATION_TENSOR_SPEC = tensor::Specification<uint32_t, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH>, true>;
-            Tensor<SEGMENTATION_TENSOR_SPEC> segmentation_buffer;
-        };
-
-        template <typename T_SPEC, bool T_HAS_NORMALS>
-        struct NormalsRendererStorage {};
-
-        template <typename T_SPEC>
-        struct NormalsRendererStorage<T_SPEC, true> {
-            using SPEC = T_SPEC;
-            using TI = typename SPEC::TI;
-            using NORMALS_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, 3>, true>;
-            Tensor<NORMALS_TENSOR_SPEC> normals_buffer;
-        };
-
         template <typename T_SPEC, bool T_HAS_FLOW>
-        struct FlowRendererStorage {};
-
+        struct FlowCameraRendererStorage {};
         template <typename T_SPEC>
-        struct FlowRendererStorage<T_SPEC, true> {
-            using SPEC = T_SPEC;
-            using T = typename SPEC::T;
-            using TI = typename SPEC::TI;
-            // the previous instant's cameras: producer input with the residency and ownership of
-            // cameras; advance_flow snapshots cameras into it
-            using CAMERA_TENSOR_SPEC = tensor::Specification<Camera<T>, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS>, true>;
+        struct FlowCameraRendererStorage<T_SPEC, true> {
+            using CAMERA_TENSOR_SPEC = tensor::Specification<Camera<typename T_SPEC::T>, typename T_SPEC::TI, tensor::Shape<typename T_SPEC::TI, T_SPEC::NUM_CAMERAS>, true>;
             Tensor<CAMERA_TENSOR_SPEC> cameras_previous;
-            using FLOW_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, 2>, true>;
-            Tensor<FLOW_TENSOR_SPEC> flow_buffer;
-            using FLOW_STATUS_TENSOR_SPEC = tensor::Specification<uint32_t, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH>, true>;
-            Tensor<FLOW_STATUS_TENSOR_SPEC> flow_status_buffer;
-        };
-
-        template <typename T_SPEC, bool T_HAS_FLOW_FORWARD>
-        struct FlowForwardRendererStorage {};
-
-        template <typename T_SPEC>
-        struct FlowForwardRendererStorage<T_SPEC, true> {
-            using SPEC = T_SPEC;
-            using TI = typename SPEC::TI;
-            using FLOW_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, 2>, true>;
-            Tensor<FLOW_TENSOR_SPEC> flow_forward_buffer;
-            using FLOW_STATUS_TENSOR_SPEC = tensor::Specification<uint32_t, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH>, true>;
-            Tensor<FLOW_STATUS_TENSOR_SPEC> flow_forward_status_buffer;
         };
 
         template <typename T_SPEC, bool T_HAS_FLOW_OVERLAYS>
@@ -363,17 +278,6 @@ namespace rl_tools {
             Tensor<TRANSFORMS_TENSOR_SPEC> transforms_previous;
             std::vector<float> transforms_previous_staging;
             bool transforms_previous_pending[SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES] = {};
-        };
-
-        template <typename T_SPEC, bool T_HAS_OBSERVATION>
-        struct ObservationRendererStorage {};
-
-        template <typename T_SPEC>
-        struct ObservationRendererStorage<T_SPEC, true> {
-            using SPEC = T_SPEC;
-            using TI = typename SPEC::TI;
-            using OBSERVATION_TENSOR_SPEC = tensor::Specification<typename SPEC::OBSERVATION_T, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, SPEC::OBSERVATION_CHANNELS>, true>;
-            Tensor<OBSERVATION_TENSOR_SPEC> observation;
         };
 
         template <typename T_SPEC, bool T_ENABLE_OVERLAYS>
@@ -440,7 +344,7 @@ namespace rl_tools {
         };
 
         template <typename T_SPEC, typename T_BACKEND = backends::Default>
-        struct Renderer: CameraPairRendererStorage<T_SPEC, T_SPEC::HAS_CAMERA_PAIR>, RGBRendererStorage<T_SPEC, T_SPEC::HAS_RGB>, DepthRendererStorage<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationRendererStorage<T_SPEC, T_SPEC::HAS_SEGMENTATION>, NormalsRendererStorage<T_SPEC, T_SPEC::HAS_NORMALS>, FlowRendererStorage<T_SPEC, T_SPEC::HAS_FLOW>, FlowForwardRendererStorage<T_SPEC, T_SPEC::HAS_FLOW_FORWARD>, FlowOverlayRendererStorage<T_SPEC, T_SPEC::HAS_FLOW_OVERLAYS>, ObservationRendererStorage<T_SPEC, T_SPEC::HAS_OBSERVATION>, OverlayRendererStorage<T_SPEC, T_SPEC::ENABLE_OVERLAYS>, DynamicMotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_DYNAMIC_MOTION_BLUR>{
+        struct Renderer: CameraPairRendererStorage<T_SPEC, T_SPEC::HAS_CAMERA_PAIR>, FlowCameraRendererStorage<T_SPEC, T_SPEC::HAS_FLOW>, FlowOverlayRendererStorage<T_SPEC, T_SPEC::HAS_FLOW_OVERLAYS>, OverlayRendererStorage<T_SPEC, T_SPEC::ENABLE_OVERLAYS>, DynamicMotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_DYNAMIC_MOTION_BLUR>{
             using SPEC = T_SPEC;
             using BACKEND = T_BACKEND;
             using BACKEND_STATE = backends::RendererState<BACKEND, SPEC>;
@@ -454,8 +358,7 @@ namespace rl_tools {
             using CAMERA_TENSOR_SPEC = tensor::Specification<Camera<T>, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS>, true>;
             Tensor<CAMERA_TENSOR_SPEC> cameras;
 
-            using COLLISION_TENSOR_SPEC = tensor::Specification<CollisionResult, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::NUM_PROBES>, true>;
-            Tensor<COLLISION_TENSOR_SPEC> collision_results;
+            rendering::raytracing::outputs::Buffers<SPEC, typename SPEC::OUTPUTS> outputs;
 
             // Loader-authoritative (SceneMetadata) probe ray budget.
             T max_ray_length = 0;

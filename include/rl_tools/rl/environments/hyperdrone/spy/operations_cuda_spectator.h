@@ -99,7 +99,7 @@ namespace rl_tools {
         }
         render_launch(device, renderer);
         const size_t pixels = SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT;
-        spy_spectator_cuda_check(cudaMemcpyAsync(buffer.pixels, data(frame_buffer(device, renderer)), pixels * sizeof(*buffer.pixels), cudaMemcpyDeviceToHost, device.stream));
+        spy_spectator_cuda_check(cudaMemcpyAsync(buffer.pixels, data(output(device, renderer, rl_tools::rendering::raytracing::outputs::RGB<>{})), pixels * sizeof(*buffer.pixels), cudaMemcpyDeviceToHost, device.stream));
         spy_spectator_cuda_check(cudaStreamSynchronize(device.stream));
         result.pixels.assign(buffer.pixels, buffer.pixels + pixels);
     }

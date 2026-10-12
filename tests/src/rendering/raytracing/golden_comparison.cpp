@@ -355,10 +355,10 @@ namespace {
     template <typename CASE>
     void expect_segmentation(const Rendered& rendered){
         using SPEC = typename CASE::SPEC;
-        constexpr double mismatch_fraction_bound = !REFERENCE_BACKEND && !SPEC::SEMANTIC_SEGMENTATION
+        constexpr double mismatch_fraction_bound = !REFERENCE_BACKEND && !SPEC::HAS_SEMANTIC_SEGMENTATION
             && std::string_view(RL_TOOLS_GOLDEN_BACKEND_NAME) == "metal"
             ? METAL_INSTANCE_SEGMENTATION_MISMATCH_FRACTION : SEGMENTATION_MISMATCH_FRACTION;
-        const char* output = SPEC::SEMANTIC_SEGMENTATION ? "segmentation-semantic" : "segmentation";
+        const char* output = SPEC::HAS_SEMANTIC_SEGMENTATION ? "segmentation-semantic" : "segmentation";
         const std::string name = std::string(CASE::STATE) + "/" + output;
         ASSERT_EQ(rendered.segmentation.size(), (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
 

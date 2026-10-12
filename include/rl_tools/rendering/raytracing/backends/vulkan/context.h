@@ -25,33 +25,24 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         constexpr uint32_t LAUNCH_PARAMS = 0;
         constexpr uint32_t CAMERAS_CLOSE = 1;
         constexpr uint32_t CAMERAS_OPEN = 2;
-        constexpr uint32_t FRAME_BUFFER = 3;
+        constexpr uint32_t OUTPUTS = 3;
         constexpr uint32_t MESH_RECORDS = 4;
         constexpr uint32_t SCENE_LIGHTS = 5;
         constexpr uint32_t PROBE_DIRECTIONS = 6;
-        constexpr uint32_t COLLISION_RESULTS = 7;
-        constexpr uint32_t ACCELERATION_STRUCTURE = 8;
-        constexpr uint32_t DEPTH_BUFFER = 9;
-        constexpr uint32_t SEGMENTATION_BUFFER = 10;
-        constexpr uint32_t INSTANCE_RECORD_BASE = 11;
-        constexpr uint32_t INSTANCE_DATA = 12;
-        constexpr uint32_t OVERLAY_ATTACHMENTS = 13;
-        constexpr uint32_t OVERLAY_NUM_ACTIVE = 14;
-        constexpr uint32_t OVERLAY_TLAS = 15;
-        constexpr uint32_t INSTANCE_CLASSES = 16;
-        constexpr uint32_t OBSERVATION = 17;
-        constexpr uint32_t RGB_ACCUMULATOR = 18;
-        constexpr uint32_t NORMALS_BUFFER = 19;
-        constexpr uint32_t FLOW_BUFFER = 20;
-        constexpr uint32_t FLOW_DELTAS = 21;              // internal [2][slots][12] delta table composed by update()
-        constexpr uint32_t FLOW_STATUS_BUFFER = 22;
-        constexpr uint32_t FLOW_FORWARD_BUFFER = 23;
-        constexpr uint32_t FLOW_FORWARD_STATUS_BUFFER = 24;
-        constexpr uint32_t CAMERAS_PREVIOUS = 25;
-        constexpr uint32_t OVERLAY_NUM_ACTIVE_PREVIOUS = 26;
-        constexpr uint32_t OVERLAY_TLAS_PREVIOUS = 27;    // the previous instant's overlay TLASes (flow visibility / forward primaries)
-        constexpr uint32_t TEXTURES = 28; // variable-descriptor-count binding must have the largest binding number in the set
-        constexpr uint32_t COUNT = 29;
+        constexpr uint32_t ACCELERATION_STRUCTURE = 7;
+        constexpr uint32_t INSTANCE_RECORD_BASE = 8;
+        constexpr uint32_t INSTANCE_DATA = 9;
+        constexpr uint32_t OVERLAY_ATTACHMENTS = 10;
+        constexpr uint32_t OVERLAY_NUM_ACTIVE = 11;
+        constexpr uint32_t OVERLAY_TLAS = 12;
+        constexpr uint32_t INSTANCE_CLASSES = 13;
+        constexpr uint32_t RGB_ACCUMULATOR = 14;
+        constexpr uint32_t FLOW_DELTAS = 15;
+        constexpr uint32_t CAMERAS_PREVIOUS = 16;
+        constexpr uint32_t OVERLAY_NUM_ACTIVE_PREVIOUS = 17;
+        constexpr uint32_t OVERLAY_TLAS_PREVIOUS = 18;
+        constexpr uint32_t TEXTURES = 19; // variable-descriptor-count binding must be last
+        constexpr uint32_t COUNT = 20;
     }
     namespace specialization_constants{
         constexpr uint32_t SRGB_OUTPUT = 0;
@@ -65,11 +56,10 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         constexpr uint32_t PBR_SHADING = 8;
         constexpr uint32_t PUNCTUAL_LIGHT_SHADOWS = 9;
         constexpr uint32_t OVERLAY_COUNT = 10;
-        constexpr uint32_t SEMANTIC_SEGMENTATION = 11;
-        constexpr uint32_t HAS_OBSERVATION = 12;
-        constexpr uint32_t DYNAMIC_MOTION_BLUR = 13;
-        constexpr uint32_t RESOLVE_RGB = 14;
-        constexpr uint32_t COUNT = 15;
+        constexpr uint32_t OUTPUT_MASK = 11;
+        constexpr uint32_t DYNAMIC_MOTION_BLUR = 12;
+        constexpr uint32_t RESOLVE_RGB = 13;
+        constexpr uint32_t COUNT = 14;
     }
     constexpr uint32_t WORKGROUP_SIZE = 8;
     constexpr uint32_t MAX_TEXTURE_DESCRIPTORS = 4096;
@@ -89,9 +79,10 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         float miss_color_1[3];
         uint32_t first_overlay_instance; // global instance ids >= this index the flow-delta table
         uint32_t num_overlay_slots;      // NUM_OVERLAYS * MAX_OVERLAY_INSTANCES: flow-delta slab stride and the previous-instant id shift
-        float padding[1];
+        uint32_t output_offsets[(uint32_t)outputs::Slot::COUNT];
+        float output_scales[(uint32_t)outputs::Slot::COUNT];
     };
-    static_assert(sizeof(LaunchParams) == 84, "LaunchParams layout must match the GLSL declaration in device.comp");
+    static_assert(sizeof(LaunchParams) == 232, "LaunchParams layout must match the GLSL declaration in device.comp");
 
     struct MeshRecord{
         uint64_t index;
@@ -180,26 +171,17 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         VkSampler sampler = VK_NULL_HANDLE;
 
         BufferResource launch_params;
+        BufferResource outputs;
         BufferResource cameras;
         BufferResource cameras_open;
         BufferResource cameras_previous;
-        BufferResource frame_buffer;
-        BufferResource depth_buffer;
-        BufferResource collision_results;
         BufferResource probe_directions;
         BufferResource mesh_records;
         BufferResource scene_lights;
         BufferResource mesh_data;
         BufferResource tlas_buffer;
         BufferResource instance_buffer;
-        BufferResource segmentation_buffer;
-        BufferResource normals_buffer;
-        BufferResource flow_buffer;
-        BufferResource flow_status_buffer;
-        BufferResource flow_forward_buffer;
-        BufferResource flow_forward_status_buffer;
         BufferResource flow_deltas;
-        BufferResource observation;
         BufferResource instance_data;
         BufferResource instance_record_base;
         BufferResource instance_classes;

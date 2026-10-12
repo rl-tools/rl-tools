@@ -21,6 +21,8 @@
 #include <sys/resource.h>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
+using rlt::output;
 namespace l2f = rlt::rl::environments::l2f;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -220,7 +222,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
             auto reset_block = rlt::view_range(device_gpu, reset_mask, environment_i * M, rlt::tensor::ViewSpec<0, M>{});
             constexpr TI SCATTER_BLOCKSIZE = 256;
             constexpr TI SCATTER_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(M * WORLD_SPEC::CAM_WIDTH * WORLD_SPEC::CAM_HEIGHT, SCATTER_BLOCKSIZE);
-            rlt::rl::environments::hyperdrone::cuda::scatter_kernel<TAG, WORLD_SPEC><<<dim3(SCATTER_BLOCKS), dim3(SCATTER_BLOCKSIZE), 0, render_stream>>>(tag_device, rlt::data(renderer.observation), hand_rolled_history + environment_i * M * WORLD::OBSERVATION_DIM, parameters_block, rlt::data(world.episode_start), reset_block, world.history_step);
+            rlt::rl::environments::hyperdrone::cuda::scatter_kernel<TAG, WORLD_SPEC><<<dim3(SCATTER_BLOCKS), dim3(SCATTER_BLOCKSIZE), 0, render_stream>>>(tag_device, rlt::data(output(device, renderer, rro::RGB<rro::format::Float32>{})), hand_rolled_history + environment_i * M * WORLD::OBSERVATION_DIM, parameters_block, rlt::data(world.episode_start), reset_block, world.history_step);
             auto observations_block = rlt::view_range(device_gpu, observations, environment_i * M, rlt::tensor::ViewSpec<0, M>{});
             constexpr TI ASSEMBLY_BLOCKSIZE = 256;
             constexpr TI ASSEMBLY_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(M * WORLD::FRAME_DIM, ASSEMBLY_BLOCKSIZE);

@@ -13,6 +13,7 @@
 #include <string>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
 using rl_tools::load; // makes the template name visible at global scope so load<SHADING, HAS_RGB>(...) parses; dataset dispatch still happens via ADL
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -38,9 +39,7 @@ struct PROBE_CONFIG: rlt::rendering::raytracing::config::Default<T, TI> {
     static constexpr TI NUM_CAMERAS = 64;
     static constexpr TI NUM_PROBES = T_NUM_PROBES;
     using SHADING = rlt::rendering::raytracing::Low;
-    static constexpr bool OUTPUT_RGB = true;
-    static constexpr bool OUTPUT_DEPTH = false;
-    static constexpr bool OUTPUT_SEGMENTATION = false;
+    using OUTPUTS = rro::List<rro::Probes>;
 };
 
 template <TI NUM_PROBES, typename DATASET>

@@ -95,7 +95,11 @@ namespace golden {
         template <typename T_SHADING, TI T_MOTION_BLUR_SAMPLES = 1, TI T_ANTI_ALIASING_GRID_SIZE = 1, bool T_OUTPUT_DEPTH = false, bool T_OVERLAYS = false>
         struct RGBConfig: Base<T_OVERLAYS>{
             using SHADING = T_SHADING;
-            static constexpr bool OUTPUT_DEPTH = T_OUTPUT_DEPTH;
+            using OUTPUTS = typename rl_tools::rendering::raytracing::outputs::Concat<
+                rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::RGB<>>,
+                rl_tools::rendering::raytracing::outputs::If<(T_OUTPUT_DEPTH), rl_tools::rendering::raytracing::outputs::Depth<>>,
+                rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::Probes>
+            >::type;
             static constexpr bool ENABLE_MOTION_BLUR = T_MOTION_BLUR_SAMPLES > 1;
             static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;
             static constexpr bool ENABLE_DYNAMIC_MOTION_BLUR = T_OVERLAYS && T_MOTION_BLUR_SAMPLES > 1;
@@ -108,21 +112,26 @@ namespace golden {
         template <bool T_OVERLAYS>
         struct GeometryConfig: Base<T_OVERLAYS>{
             using SHADING = rl_tools::rendering::raytracing::Low;
-            static constexpr bool OUTPUT_RGB = false;
-            static constexpr bool OUTPUT_NORMALS = true;
-            static constexpr bool OUTPUT_SEGMENTATION = true;
+            using OUTPUTS = rl_tools::rendering::raytracing::outputs::List<
+                rl_tools::rendering::raytracing::outputs::Normals<>,
+                rl_tools::rendering::raytracing::outputs::Segmentation<>,
+                rl_tools::rendering::raytracing::outputs::Probes>;
         };
         template <bool T_OVERLAYS>
         struct SemanticConfig: GeometryConfig<T_OVERLAYS>{
-            static constexpr bool OUTPUT_NORMALS = false;
-            static constexpr bool SEMANTIC_SEGMENTATION = true;
+            using OUTPUTS = rl_tools::rendering::raytracing::outputs::List<
+                rl_tools::rendering::raytracing::outputs::Segmentation<rl_tools::rendering::raytracing::outputs::format::UInt32, rl_tools::rendering::raytracing::outputs::labels::Semantic>,
+                rl_tools::rendering::raytracing::outputs::Probes>;
         };
         template <bool T_OVERLAYS>
         struct FlowConfig: Base<T_OVERLAYS>{
             using SHADING = rl_tools::rendering::raytracing::Low;
-            static constexpr bool OUTPUT_RGB = false;
-            static constexpr bool OUTPUT_FLOW = true;
-            static constexpr bool OUTPUT_FLOW_FORWARD = true;
+            using OUTPUTS = rl_tools::rendering::raytracing::outputs::List<
+                rl_tools::rendering::raytracing::outputs::Flow<>,
+                rl_tools::rendering::raytracing::outputs::FlowStatus<>,
+                rl_tools::rendering::raytracing::outputs::Flow<rl_tools::rendering::raytracing::outputs::direction::Forward>,
+                rl_tools::rendering::raytracing::outputs::FlowStatus<rl_tools::rendering::raytracing::outputs::direction::Forward>,
+                rl_tools::rendering::raytracing::outputs::Probes>;
         };
         template <typename CONFIG>
         using Spec = rl_tools::rendering::raytracing::Specification<CONFIG>;
@@ -194,7 +203,7 @@ namespace golden {
             else if constexpr(SPEC::HAS_FLOW){
                 primary = "flow";
             }
-            else if constexpr(SPEC::SEMANTIC_SEGMENTATION){
+            else if constexpr(SPEC::HAS_SEMANTIC_SEGMENTATION){
                 primary = "segmentation-semantic";
             }
             else{

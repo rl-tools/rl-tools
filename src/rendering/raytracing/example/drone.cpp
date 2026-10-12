@@ -1,4 +1,3 @@
-#define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 1
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
@@ -18,6 +17,8 @@
 #include <vector>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
+using rlt::output;
 namespace lissajous = rl_tools::rl::environments::l2f::parameters::trajectories::lissajous;
 
 using T = float;
@@ -34,7 +35,7 @@ static constexpr TI THIRD_PERSON_CAMERA = 1;
 struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_WIDTH = ::CAM_WIDTH, CAM_HEIGHT = ::CAM_HEIGHT, NUM_CAMERAS = ::NUM_CAMERAS, NUM_PROBES = ::NUM_PROBES;
     using SHADING = rlt::rendering::raytracing::High;
-    static constexpr bool OUTPUT_RGB = true;
+    using OUTPUTS = rro::List<rro::RGB<>>;
     static constexpr bool ENABLE_ANTI_ALIASING = true;
     static constexpr TI ANTI_ALIASING_GRID_SIZE = 2;
     static constexpr TI NUM_OVERLAYS = 1;
@@ -283,9 +284,9 @@ int main(int argc, char** argv) {
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
 
-        rlt::Tensor<typename decltype(renderer.frame_buffer)::SPEC> frame_alias;
+        rlt::Tensor<typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rro::RGB<>{}))>::SPEC> frame_alias;
         frame_alias._data = frame.data();
-        rlt::copy(renderer.device, device, rlt::frame_buffer(device, renderer), frame_alias);
+        rlt::copy(renderer.device, device, rlt::output(device, renderer, rro::RGB<>{}), frame_alias);
 
         if (video) {
             const size_t bytes = CAM_PIXELS * sizeof(uint32_t);

@@ -22,6 +22,7 @@
 #endif
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
 
 using DEVICE = rlt::devices::DefaultCPU;
 using T = float;
@@ -80,9 +81,9 @@ namespace {
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
         Frame<SPEC> frame;
-        golden::copy_out(renderer.device, device, rlt::frame_buffer(device, renderer), frame.rgb);
-        golden::copy_out(renderer.device, device, rlt::depth_buffer(device, renderer), frame.depth);
-        golden::copy_out(renderer.device, device, rlt::segmentation_buffer(device, renderer), frame.segmentation);
+        golden::copy_out(renderer.device, device, rlt::output(device, renderer, rro::RGB<>{}), frame.rgb);
+        golden::copy_out(renderer.device, device, rlt::output(device, renderer, rro::Depth<>{}), frame.depth);
+        golden::copy_out(renderer.device, device, rlt::output(device, renderer, rro::Segmentation<>{}), frame.segmentation);
         return frame;
     }
 

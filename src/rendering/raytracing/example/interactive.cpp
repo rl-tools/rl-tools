@@ -1,4 +1,3 @@
-#define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 0
 
 #define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB 0
 #define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD 1
@@ -34,6 +33,7 @@
 #include <vector>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
 
 static constexpr bool OUTPUT_FLOW = RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_FLOW;
 static constexpr bool OUTPUT_RGB = RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB || RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD || OUTPUT_FLOW;
@@ -648,7 +648,13 @@ int main(int argc, char** argv) {
     constexpr TI CAM_HEIGHT = 960;
     constexpr TI RENDER_WIDTH = CAM_WIDTH / FLOW_HALVES; // flow mode: each half of the window shows one full render
     constexpr TI NUM_ENVS = 1;
-    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, RENDER_WIDTH, CAM_HEIGHT, 64, rlt::rendering::raytracing::High, false, 1, true, 2, OUTPUT_RGB, OUTPUT_DEPTH, OUTPUT_SEGMENTATION, OUTPUT_FLOW, OUTPUT_FLOW, FLOW_NUM_OVERLAYS, FLOW_NUM_OVERLAYS, FLOW_NUM_OVERLAYS>;
+    using OUTPUTS = typename rro::Concat<
+        rro::If<OUTPUT_RGB, rro::RGB<>>, rro::If<OUTPUT_DEPTH, rro::Depth<>>,
+        rro::If<OUTPUT_SEGMENTATION, rro::Segmentation<>>,
+        rro::If<OUTPUT_FLOW, rro::Flow<>>, rro::If<OUTPUT_FLOW, rro::FlowStatus<>>,
+        rro::If<OUTPUT_FLOW, rro::Flow<rro::direction::Forward>>,
+        rro::If<OUTPUT_FLOW, rro::FlowStatus<rro::direction::Forward>>, rro::List<rro::Probes>>::type;
+    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, RENDER_WIDTH, CAM_HEIGHT, 64, rlt::rendering::raytracing::High, false, 1, true, 2, OUTPUTS, FLOW_NUM_OVERLAYS, FLOW_NUM_OVERLAYS, FLOW_NUM_OVERLAYS>;
     // FOV is horizontal: a half-width render keeps the full view's vertical field and pixel density
     // by halving the tangent of the horizontal half-angle
     const T fov = OUTPUT_FLOW ? static_cast<T>(2) * std::atan(std::tan(rlt::rendering::degrees_to_radians(SPEC::FOV) / static_cast<T>(2)) / static_cast<T>(FLOW_HALVES)) * static_cast<T>(180.0 / M_PI) : SPEC::FOV;
@@ -857,20 +863,20 @@ int main(int argc, char** argv) {
             constexpr size_t RENDER_PIXELS = (size_t)RENDER_WIDTH * CAM_HEIGHT;
             std::vector<uint32_t> rgb_staging(RENDER_PIXELS);
             {
-                rlt::Tensor<typename decltype(env.renderer->frame_buffer)::SPEC> frame_alias;
+                rlt::Tensor<typename rlt::utils::typing::remove_reference_t<decltype(rlt::output(device, *env.renderer, rro::RGB<>{}))>::SPEC> frame_alias;
                 frame_alias._data = rgb_staging.data();
-                rlt::copy(env.renderer->device, device, rlt::frame_buffer(device, *env.renderer), frame_alias);
+                rlt::copy(env.renderer->device, device, rlt::output(device, *env.renderer, rro::RGB<>{}), frame_alias);
             }
             std::vector<uint32_t> view_staging(RENDER_PIXELS);
             if (g_flow_view == FlowView::BACKWARD || g_flow_view == FlowView::FORWARD) {
                 std::vector<float> flow_staging(RENDER_PIXELS * 2);
-                rlt::Tensor<typename decltype(env.renderer->flow_buffer)::SPEC> flow_alias;
+                rlt::Tensor<typename rlt::utils::typing::remove_reference_t<decltype(rlt::output(device, *env.renderer, rro::Flow<>{}))>::SPEC> flow_alias;
                 flow_alias._data = flow_staging.data();
                 if (g_flow_view == FlowView::BACKWARD) {
-                    rlt::copy(env.renderer->device, device, rlt::flow_buffer(device, *env.renderer), flow_alias);
+                    rlt::copy(env.renderer->device, device, rlt::output(device, *env.renderer, rro::Flow<>{}), flow_alias);
                 }
                 else {
-                    rlt::copy(env.renderer->device, device, rlt::flow_forward_buffer(device, *env.renderer), flow_alias);
+                    rlt::copy(env.renderer->device, device, rlt::output(device, *env.renderer, rro::Flow<rro::direction::Forward>{}), flow_alias);
                 }
                 for (size_t pixel_i = 0; pixel_i < RENDER_PIXELS; pixel_i++) {
                     view_staging[pixel_i] = rlt::rendering::raytracing::detail::flow_to_rgba(flow_staging[pixel_i * 2 + 0], flow_staging[pixel_i * 2 + 1], FLOW_DISPLAY_SCALE_PX);
@@ -878,13 +884,13 @@ int main(int argc, char** argv) {
             }
             else {
                 std::vector<uint32_t> status_staging(RENDER_PIXELS);
-                rlt::Tensor<typename decltype(env.renderer->flow_status_buffer)::SPEC> status_alias;
+                rlt::Tensor<typename rlt::utils::typing::remove_reference_t<decltype(rlt::output(device, *env.renderer, rro::FlowStatus<>{}))>::SPEC> status_alias;
                 status_alias._data = status_staging.data();
                 if (g_flow_view == FlowView::BACKWARD_STATUS) {
-                    rlt::copy(env.renderer->device, device, rlt::flow_status_buffer(device, *env.renderer), status_alias);
+                    rlt::copy(env.renderer->device, device, rlt::output(device, *env.renderer, rro::FlowStatus<>{}), status_alias);
                 }
                 else {
-                    rlt::copy(env.renderer->device, device, rlt::flow_forward_status_buffer(device, *env.renderer), status_alias);
+                    rlt::copy(env.renderer->device, device, rlt::output(device, *env.renderer, rro::FlowStatus<rro::direction::Forward>{}), status_alias);
                 }
                 for (size_t pixel_i = 0; pixel_i < RENDER_PIXELS; pixel_i++) {
                     view_staging[pixel_i] = rlt::rendering::raytracing::detail::flow_status_to_rgba(status_staging[pixel_i]);
@@ -900,9 +906,9 @@ int main(int argc, char** argv) {
         {
             std::vector<float> depth_staging(pixels.size());
             {
-                rlt::Tensor<typename decltype(env.renderer->depth_buffer)::SPEC> depth_alias;
+                rlt::Tensor<typename rlt::utils::typing::remove_reference_t<decltype(rlt::output(device, *env.renderer, rro::Depth<>{}))>::SPEC> depth_alias;
                 depth_alias._data = depth_staging.data();
-                rlt::copy(env.renderer->device, device, rlt::depth_buffer(device, *env.renderer), depth_alias);
+                rlt::copy(env.renderer->device, device, rlt::output(device, *env.renderer, rro::Depth<>{}), depth_alias);
             }
             const float max_depth = env.renderer->max_ray_length > 0 ? env.renderer->max_ray_length : 1e30f;
             depth_to_rgba(depth_staging.data(), pixels.data(), static_cast<int>(pixels.size()), max_depth);
@@ -912,9 +918,9 @@ int main(int argc, char** argv) {
             rlt::render(device, *env.renderer);
             std::vector<float> depth_staging(pixels.size());
             {
-                rlt::Tensor<typename decltype(env.renderer->depth_buffer)::SPEC> depth_alias;
+                rlt::Tensor<typename rlt::utils::typing::remove_reference_t<decltype(rlt::output(device, *env.renderer, rro::Depth<>{}))>::SPEC> depth_alias;
                 depth_alias._data = depth_staging.data();
-                rlt::copy(env.renderer->device, device, rlt::depth_buffer(device, *env.renderer), depth_alias);
+                rlt::copy(env.renderer->device, device, rlt::output(device, *env.renderer, rro::Depth<>{}), depth_alias);
             }
             const float max_depth = env.renderer->max_ray_length > 0 ? env.renderer->max_ray_length : 1e30f;
             depth_to_rgba(depth_staging.data(), pixels.data(), static_cast<int>(pixels.size()), max_depth);
@@ -922,9 +928,9 @@ int main(int argc, char** argv) {
         else {
             rlt::render(device, *env.renderer);
             {
-                rlt::Tensor<typename decltype(env.renderer->frame_buffer)::SPEC> frame_alias;
+                rlt::Tensor<typename rlt::utils::typing::remove_reference_t<decltype(rlt::output(device, *env.renderer, rro::RGB<>{}))>::SPEC> frame_alias;
                 frame_alias._data = pixels.data();
-                rlt::copy(env.renderer->device, device, rlt::frame_buffer(device, *env.renderer), frame_alias);
+                rlt::copy(env.renderer->device, device, rlt::output(device, *env.renderer, rro::RGB<>{}), frame_alias);
             }
         }
 #elif RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_SEGMENTATION
@@ -932,9 +938,9 @@ int main(int argc, char** argv) {
         {
             std::vector<uint32_t> segmentation_staging(pixels.size());
             {
-                rlt::Tensor<typename decltype(env.renderer->segmentation_buffer)::SPEC> segmentation_alias;
+                rlt::Tensor<typename rlt::utils::typing::remove_reference_t<decltype(rlt::output(device, *env.renderer, rro::Segmentation<>{}))>::SPEC> segmentation_alias;
                 segmentation_alias._data = segmentation_staging.data();
-                rlt::copy(env.renderer->device, device, rlt::segmentation_buffer(device, *env.renderer), segmentation_alias);
+                rlt::copy(env.renderer->device, device, rlt::output(device, *env.renderer, rro::Segmentation<>{}), segmentation_alias);
             }
             for (size_t pixel_i = 0; pixel_i < pixels.size(); pixel_i++) {
                 pixels[pixel_i] = rlt::rendering::raytracing::detail::segmentation_id_to_rgba(segmentation_staging[pixel_i]);
@@ -943,9 +949,9 @@ int main(int argc, char** argv) {
 #else
         rlt::render(device, *env.renderer);
             {
-                rlt::Tensor<typename decltype(env.renderer->frame_buffer)::SPEC> frame_alias;
+                rlt::Tensor<typename rlt::utils::typing::remove_reference_t<decltype(rlt::output(device, *env.renderer, rro::RGB<>{}))>::SPEC> frame_alias;
                 frame_alias._data = pixels.data();
-                rlt::copy(env.renderer->device, device, rlt::frame_buffer(device, *env.renderer), frame_alias);
+                rlt::copy(env.renderer->device, device, rlt::output(device, *env.renderer, rro::RGB<>{}), frame_alias);
             }
 #endif
 

@@ -116,23 +116,23 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     dimensions["self_visible"] = WORLD::SPEC::SELF_VISIBLE;
     m.attr("dimensions") = dimensions;
     nb::list outputs;
-    if(WORLD::RENDERER_SPEC::HAS_RGB){
+    if(WORLD::HAS_IMAGE_OBSERVATION){
         outputs.append("rgb");
     }
-    if(WORLD::RENDERER_SPEC::HAS_DEPTH){
+    if(rro::contains<OUTPUTS, rro::Depth<>>::value){
         outputs.append("depth");
     }
-    if(WORLD::RENDERER_SPEC::HAS_SEGMENTATION){
+    if(rro::contains<OUTPUTS, SEGMENTATION_OUTPUT>::value){
         outputs.append("segmentation");
     }
-    if(WORLD::RENDERER_SPEC::HAS_NORMALS){
+    if(rro::contains<OUTPUTS, rro::Normals<>>::value){
         outputs.append("normals");
     }
-    if(WORLD::RENDERER_SPEC::HAS_FLOW){
+    if(rro::contains<OUTPUTS, rro::Flow<>>::value){
         outputs.append("flow");
     }
     m.attr("outputs") = nb::tuple(outputs);
-    m.attr("segmentation_mode") = WORLD::RENDERER_SPEC::SEMANTIC_SEGMENTATION ? "semantic" : "instance";
+    m.attr("segmentation_mode") = rro::contains<OUTPUTS, rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>>::value ? "semantic" : "instance";
 
     auto environment_class = nb::class_<Environment>(m, "Environment");
     environment_class

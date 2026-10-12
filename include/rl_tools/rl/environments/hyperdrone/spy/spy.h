@@ -18,6 +18,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         struct Config {
             using ENVIRONMENT = T_ENVIRONMENT;
             using WORLD = typename ENVIRONMENT::ENVIRONMENT;
+            static_assert(WORLD::HAS_IMAGE_OBSERVATION, "Spy image history requires RGB<Float32> in OUTPUTS");
             using T = typename WORLD::T;
             using TI = typename WORLD::TI;
             using BACKEND = typename WORLD::RENDERER::BACKEND;

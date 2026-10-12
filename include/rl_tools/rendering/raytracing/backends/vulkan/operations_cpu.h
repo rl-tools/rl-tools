@@ -550,13 +550,27 @@ namespace rl_tools {
         command_buffer_info.commandPool = ctx->command_pool;
         command_buffer_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         command_buffer_info.commandBufferCount = 1;
-        vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_rgb), "Vulkan: command buffer allocation failed");
-        vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_depth), "Vulkan: command buffer allocation failed");
-        vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_collision), "Vulkan: command buffer allocation failed");
-        vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_segmentation), "Vulkan: command buffer allocation failed");
-        vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_normals), "Vulkan: command buffer allocation failed");
-        vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_flow), "Vulkan: command buffer allocation failed");
-        vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_flow_forward), "Vulkan: command buffer allocation failed");
+        if constexpr (SPEC::HAS_RGB){
+            vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_rgb), "Vulkan: command buffer allocation failed");
+        }
+        if constexpr (SPEC::HAS_DEPTH){
+            vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_depth), "Vulkan: command buffer allocation failed");
+        }
+        if constexpr (SPEC::HAS_PROBES){
+            vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_collision), "Vulkan: command buffer allocation failed");
+        }
+        if constexpr (SPEC::HAS_SEGMENTATION){
+            vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_segmentation), "Vulkan: command buffer allocation failed");
+        }
+        if constexpr (SPEC::HAS_NORMALS){
+            vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_normals), "Vulkan: command buffer allocation failed");
+        }
+        if constexpr (SPEC::HAS_FLOW_BACKWARD){
+            vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_flow), "Vulkan: command buffer allocation failed");
+        }
+        if constexpr (SPEC::HAS_FLOW_FORWARD){
+            vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_flow_forward), "Vulkan: command buffer allocation failed");
+        }
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
             vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_dynamic), "Vulkan: command buffer allocation failed");
         }
@@ -564,7 +578,9 @@ namespace rl_tools {
         VkFenceCreateInfo fence_info{};
         fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         vk::check(device, vkCreateFence(ctx->device, &fence_info, nullptr, &ctx->fence_render), "Vulkan: fence creation failed");
-        vk::check(device, vkCreateFence(ctx->device, &fence_info, nullptr, &ctx->fence_collision), "Vulkan: fence creation failed");
+        if constexpr (SPEC::HAS_PROBES){
+            vk::check(device, vkCreateFence(ctx->device, &fence_info, nullptr, &ctx->fence_collision), "Vulkan: fence creation failed");
+        }
         vk::check(device, vkCreateFence(ctx->device, &fence_info, nullptr, &ctx->fence_update), "Vulkan: fence creation failed");
 
         VkSamplerCreateInfo sampler_info{};
@@ -643,7 +659,7 @@ namespace rl_tools {
             spirv = rendering::raytracing::backends::vulkan::device_spirv_normals(spirv_size);
             ctx->module_normals = make_module(spirv, spirv_size);
         }
-        if constexpr (SPEC::HAS_FLOW) {
+        if constexpr (SPEC::HAS_FLOW_BACKWARD) {
             spirv = rendering::raytracing::backends::vulkan::device_spirv_flow(spirv_size);
             ctx->module_flow = make_module(spirv, spirv_size);
         }
@@ -655,10 +671,10 @@ namespace rl_tools {
             spirv = rendering::raytracing::backends::vulkan::device_spirv_resolve(spirv_size);
             ctx->module_resolve = make_module(spirv, spirv_size);
         }
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        spirv = rendering::raytracing::backends::vulkan::device_spirv_collision(spirv_size);
-        ctx->module_collision = make_module(spirv, spirv_size);
-#endif
+        if constexpr (SPEC::HAS_PROBES){
+            spirv = rendering::raytracing::backends::vulkan::device_spirv_collision(spirv_size);
+            ctx->module_collision = make_module(spirv, spirv_size);
+        }
 
         // mapped like Metal's StorageModeShared, but preferring host-visible VRAM (BAR/ReBAR) so per-frame shader access stays at device speed
         constexpr VkMemoryPropertyFlags HOST_MEMORY = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
@@ -678,43 +694,13 @@ namespace rl_tools {
             ctx->cameras_previous = vk::create_buffer(device, *ctx, camera_bytes, STORAGE, HOST_MEMORY, true);
             renderer.cameras_previous._data = (rendering::raytracing::Camera<typename SPEC::T>*)ctx->cameras_previous.mapped;
         }
-        // the output tensors alias the mapped shader buffers (see frame_buffer/depth_buffer/
-        // segmentation_buffer/collision_results/observation accessors) — consumers read in place
-        if constexpr (SPEC::HAS_RGB) {
-            ctx->frame_buffer = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t), STORAGE, HOST_MEMORY, true);
-            renderer.frame_buffer._data = (uint32_t*)ctx->frame_buffer.mapped;
-        }
-        if constexpr (SPEC::HAS_DEPTH) {
-            ctx->depth_buffer = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(float), STORAGE, HOST_MEMORY, true);
-            renderer.depth_buffer._data = (float*)ctx->depth_buffer.mapped;
-        }
-        if constexpr (SPEC::HAS_SEGMENTATION) {
-            ctx->segmentation_buffer = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t), STORAGE, HOST_MEMORY, true);
-            renderer.segmentation_buffer._data = (uint32_t*)ctx->segmentation_buffer.mapped;
-        }
-        if constexpr (SPEC::HAS_NORMALS) {
-            ctx->normals_buffer = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * 3 * sizeof(float), STORAGE, HOST_MEMORY, true);
-            renderer.normals_buffer._data = (float*)ctx->normals_buffer.mapped;
-        }
-        if constexpr (SPEC::HAS_FLOW) {
-            ctx->flow_buffer = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * 2 * sizeof(float), STORAGE, HOST_MEMORY, true);
-            renderer.flow_buffer._data = (float*)ctx->flow_buffer.mapped;
-            ctx->flow_status_buffer = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t), STORAGE, HOST_MEMORY, true);
-            renderer.flow_status_buffer._data = (uint32_t*)ctx->flow_status_buffer.mapped;
-            if constexpr (SPEC::HAS_FLOW_OVERLAYS) {
-                ctx->flow_deltas = vk::create_buffer(device, *ctx, (size_t)2 * SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), STORAGE, HOST_MEMORY, true);
-            }
-        }
-        if constexpr (SPEC::HAS_FLOW_FORWARD) {
-            ctx->flow_forward_buffer = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * 2 * sizeof(float), STORAGE, HOST_MEMORY, true);
-            renderer.flow_forward_buffer._data = (float*)ctx->flow_forward_buffer.mapped;
-            ctx->flow_forward_status_buffer = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t), STORAGE, HOST_MEMORY, true);
-            renderer.flow_forward_status_buffer._data = (uint32_t*)ctx->flow_forward_status_buffer.mapped;
-        }
-        if constexpr (SPEC::HAS_OBSERVATION) {
-            static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The Vulkan raytracing backend requires OBSERVATION_T = float");
-            ctx->observation = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * SPEC::OBSERVATION_CHANNELS * sizeof(float), STORAGE, HOST_MEMORY, true);
-            renderer.observation._data = (float*)ctx->observation.mapped;
+        ctx->outputs = vk::create_buffer(device, *ctx, rendering::raytracing::outputs::Layout<SPEC>::WORDS * sizeof(uint32_t), STORAGE, HOST_MEMORY, true);
+        for_each_output(device, renderer.outputs, [&](auto& buffer){
+            using OUTPUT = decltype(output_type(buffer));
+            buffer.tensor._data = (typename rendering::raytracing::outputs::Traits<OUTPUT>::T*)((uint8_t*)ctx->outputs.mapped + rendering::raytracing::outputs::Layout<SPEC>::template offset<OUTPUT>());
+        });
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+            ctx->flow_deltas = vk::create_buffer(device, *ctx, (size_t)2 * SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), STORAGE, HOST_MEMORY, true);
         }
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
             constexpr VkBufferUsageFlags ACCUMULATOR = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT; // vkCmdFillBuffer zeroes them at frame start
@@ -723,11 +709,9 @@ namespace rl_tools {
                 renderer.rgb_accumulator._data = (float*)ctx->rgb_accumulator.mapped;
             }
         }
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        ctx->collision_results = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES * sizeof(rendering::raytracing::CollisionResult), STORAGE, HOST_MEMORY, true);
-        renderer.collision_results._data = (rendering::raytracing::CollisionResult*)ctx->collision_results.mapped;
-        ctx->probe_directions = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_PROBES * 3 * sizeof(float), STORAGE, HOST_MEMORY, true);
-#endif
+        if constexpr (SPEC::HAS_PROBES){
+            ctx->probe_directions = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_PROBES * 3 * sizeof(float), STORAGE, HOST_MEMORY, true);
+        }
         ctx->dummy = vk::create_buffer(device, *ctx, 64, STORAGE, HOST_MEMORY, false);
         rendering::raytracing::detail::announce_backend(device, renderer);
     }
@@ -767,7 +751,9 @@ namespace rl_tools {
         ctx.render_in_flight = false;
         ctx.collision_in_flight = false;
         vkResetFences(ctx.device, 1, &ctx.fence_render);
-        vkResetFences(ctx.device, 1, &ctx.fence_collision);
+        if constexpr (SPEC::HAS_PROBES){
+            vkResetFences(ctx.device, 1, &ctx.fence_collision);
+        }
         vk::destroy_scene_resources(ctx);
 
         constexpr VkMemoryPropertyFlags HOST_MEMORY = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
@@ -914,6 +900,16 @@ namespace rl_tools {
         params->grid_cols = SPEC::GRID_COLS;
         params->num_cameras = SPEC::NUM_CAMERAS;
         params->num_probes = SPEC::NUM_PROBES;
+        for(uint32_t slot = 0; slot < (uint32_t)rendering::raytracing::outputs::Slot::COUNT; slot++){
+            params->output_offsets[slot] = rendering::raytracing::outputs::Layout<SPEC>::SLOT_OFFSETS[slot];
+        }
+        for_each_output(device, renderer.outputs, [&](auto& buffer){
+            using OUTPUT = decltype(output_type(buffer));
+            constexpr auto SLOT = rendering::raytracing::outputs::Traits<OUTPUT>::SLOT;
+            if constexpr (SLOT == rendering::raytracing::outputs::Slot::DEPTH_RGBA8 || SLOT == rendering::raytracing::outputs::Slot::FLOW_RGBA8 || SLOT == rendering::raytracing::outputs::Slot::FLOW_FORWARD_RGBA8){
+                params->output_scales[(uint32_t)SLOT] = OUTPUT::PARAMETERS::SCALE;
+            }
+        });
         params->num_scene_lights = (uint32_t)scene_lights.size();
         params->max_dist = renderer.max_ray_length;
         for(int component = 0; component < 3; component++){
@@ -1223,8 +1219,7 @@ namespace rl_tools {
                 VkBool32 pbr_shading;
                 VkBool32 punctual_light_shadows;
                 int32_t overlay_count;
-                VkBool32 semantic_segmentation;
-                VkBool32 has_observation;
+                uint32_t output_mask;
                 VkBool32 dynamic_motion_blur;
                 VkBool32 resolve_rgb;
             };
@@ -1242,8 +1237,7 @@ namespace rl_tools {
             specialization_data.pbr_shading = CONSTANTS::PBR_SHADING ? VK_TRUE : VK_FALSE;
             specialization_data.punctual_light_shadows = CONSTANTS::PUNCTUAL_LIGHT_SHADOWS ? VK_TRUE : VK_FALSE;
             specialization_data.overlay_count = (int32_t)CONSTANTS::OVERLAY_COUNT;
-            specialization_data.semantic_segmentation = CONSTANTS::SEMANTIC_SEGMENTATION ? VK_TRUE : VK_FALSE;
-            specialization_data.has_observation = CONSTANTS::HAS_OBSERVATION ? VK_TRUE : VK_FALSE;
+            specialization_data.output_mask = SPEC::PLAN::MASK;
             specialization_data.dynamic_motion_blur = CONSTANTS::DYNAMIC_MOTION_BLUR ? VK_TRUE : VK_FALSE;
             specialization_data.resolve_rgb = CONSTANTS::RESOLVE_RGB ? VK_TRUE : VK_FALSE;
             VkSpecializationMapEntry map_entries[vk::specialization_constants::COUNT];
@@ -1282,7 +1276,7 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_NORMALS) {
                 ctx.normals_pipeline = make_pipeline(ctx.module_normals);
             }
-            if constexpr (SPEC::HAS_FLOW) {
+            if constexpr (SPEC::HAS_FLOW_BACKWARD) {
                 ctx.flow_pipeline = make_pipeline(ctx.module_flow);
             }
             if constexpr (SPEC::HAS_FLOW_FORWARD) {
@@ -1291,9 +1285,9 @@ namespace rl_tools {
             if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
                 ctx.resolve_pipeline = make_pipeline(ctx.module_resolve);
             }
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-            ctx.collision_pipeline = make_pipeline(ctx.module_collision);
-#endif
+            if constexpr (SPEC::HAS_PROBES){
+                ctx.collision_pipeline = make_pipeline(ctx.module_collision);
+            }
             ctx.pipelines_built = true;
         }
 
@@ -1329,30 +1323,21 @@ namespace rl_tools {
                 return {source.buffer, 0, VK_WHOLE_SIZE};
             };
             VkDescriptorBufferInfo buffer_infos[vk::bindings::COUNT];
+            buffer_infos[vk::bindings::OUTPUTS] = buffer_or_dummy(ctx.outputs);
             buffer_infos[vk::bindings::LAUNCH_PARAMS] = buffer_or_dummy(ctx.launch_params);
             buffer_infos[vk::bindings::CAMERAS_CLOSE] = buffer_or_dummy(ctx.cameras);
             buffer_infos[vk::bindings::CAMERAS_OPEN] = ctx.cameras_open.buffer != VK_NULL_HANDLE ? buffer_or_dummy(ctx.cameras_open) : buffer_or_dummy(ctx.cameras);
             buffer_infos[vk::bindings::CAMERAS_PREVIOUS] = ctx.cameras_previous.buffer != VK_NULL_HANDLE ? buffer_or_dummy(ctx.cameras_previous) : buffer_or_dummy(ctx.cameras);
-            buffer_infos[vk::bindings::FRAME_BUFFER] = buffer_or_dummy(ctx.frame_buffer);
             buffer_infos[vk::bindings::MESH_RECORDS] = buffer_or_dummy(ctx.mesh_records);
             buffer_infos[vk::bindings::SCENE_LIGHTS] = buffer_or_dummy(ctx.scene_lights);
             buffer_infos[vk::bindings::PROBE_DIRECTIONS] = buffer_or_dummy(ctx.probe_directions);
-            buffer_infos[vk::bindings::COLLISION_RESULTS] = buffer_or_dummy(ctx.collision_results);
-            buffer_infos[vk::bindings::DEPTH_BUFFER] = buffer_or_dummy(ctx.depth_buffer);
-            buffer_infos[vk::bindings::SEGMENTATION_BUFFER] = buffer_or_dummy(ctx.segmentation_buffer);
-            buffer_infos[vk::bindings::OBSERVATION] = buffer_or_dummy(ctx.observation);
             buffer_infos[vk::bindings::INSTANCE_RECORD_BASE] = buffer_or_dummy(ctx.instance_record_base);
             buffer_infos[vk::bindings::INSTANCE_DATA] = buffer_or_dummy(ctx.instance_data);
             buffer_infos[vk::bindings::INSTANCE_CLASSES] = buffer_or_dummy(ctx.instance_classes);
             buffer_infos[vk::bindings::OVERLAY_ATTACHMENTS] = buffer_or_dummy(ctx.overlay_attachments);
             buffer_infos[vk::bindings::OVERLAY_NUM_ACTIVE] = buffer_or_dummy(ctx.overlay_num_active);
             buffer_infos[vk::bindings::RGB_ACCUMULATOR] = buffer_or_dummy(ctx.rgb_accumulator);
-            buffer_infos[vk::bindings::NORMALS_BUFFER] = buffer_or_dummy(ctx.normals_buffer);
-            buffer_infos[vk::bindings::FLOW_BUFFER] = buffer_or_dummy(ctx.flow_buffer);
             buffer_infos[vk::bindings::FLOW_DELTAS] = buffer_or_dummy(ctx.flow_deltas);
-            buffer_infos[vk::bindings::FLOW_STATUS_BUFFER] = buffer_or_dummy(ctx.flow_status_buffer);
-            buffer_infos[vk::bindings::FLOW_FORWARD_BUFFER] = buffer_or_dummy(ctx.flow_forward_buffer);
-            buffer_infos[vk::bindings::FLOW_FORWARD_STATUS_BUFFER] = buffer_or_dummy(ctx.flow_forward_status_buffer);
             buffer_infos[vk::bindings::OVERLAY_NUM_ACTIVE_PREVIOUS] = buffer_or_dummy(ctx.overlay_num_active_previous);
 
             std::vector<VkWriteDescriptorSet> writes;
@@ -1467,7 +1452,7 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_NORMALS) {
                 record(ctx.cb_normals, ctx.normals_pipeline, fb_groups_x, fb_groups_y);
             }
-            if constexpr (SPEC::HAS_FLOW) {
+            if constexpr (SPEC::HAS_FLOW_BACKWARD) {
                 record(ctx.cb_flow, ctx.flow_pipeline, fb_groups_x, fb_groups_y);
             }
             if constexpr (SPEC::HAS_FLOW_FORWARD) {
@@ -1751,15 +1736,12 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void generate_probe_directions(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
-#if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "Probe rays disabled (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1)");
-        return;
-#else
         namespace vk = rendering::raytracing::backends::vulkan;
         auto& ctx = vk::context(renderer);
-        std::vector<float> dirs = rendering::raytracing::detail::generate_probe_direction_vectors<SPEC>(device);
-        std::memcpy(ctx.probe_directions.mapped, dirs.data(), dirs.size() * sizeof(float));
-#endif
+        if constexpr (SPEC::HAS_PROBES){
+            std::vector<float> dirs = rendering::raytracing::detail::generate_probe_direction_vectors<SPEC>(device);
+            std::memcpy(ctx.probe_directions.mapped, dirs.data(), dirs.size() * sizeof(float));
+        }
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1882,7 +1864,7 @@ namespace rl_tools {
                 vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, ctx.normals_pipeline);
                 vkCmdDispatch(command_buffer, fb_groups_x, fb_groups_y, 1);
             }
-            if constexpr (SPEC::HAS_FLOW){
+            if constexpr (SPEC::HAS_FLOW_BACKWARD){
                 vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, ctx.flow_pipeline);
                 vkCmdDispatch(command_buffer, fb_groups_x, fb_groups_y, 1);
             }
@@ -1911,7 +1893,7 @@ namespace rl_tools {
             SPEC::HAS_DEPTH ? ctx.cb_depth : VK_NULL_HANDLE,
             SPEC::HAS_SEGMENTATION ? ctx.cb_segmentation : VK_NULL_HANDLE,
             SPEC::HAS_NORMALS ? ctx.cb_normals : VK_NULL_HANDLE,
-            SPEC::HAS_FLOW ? ctx.cb_flow : VK_NULL_HANDLE,
+            SPEC::HAS_FLOW_BACKWARD ? ctx.cb_flow : VK_NULL_HANDLE,
             SPEC::HAS_FLOW_FORWARD ? ctx.cb_flow_forward : VK_NULL_HANDLE});
     }
 
@@ -1968,20 +1950,11 @@ namespace rl_tools {
             vkDeviceWaitIdle(ctx.device);
             vk::destroy_scene_resources(ctx);
             vk::destroy_buffer(ctx, ctx.launch_params);
+            vk::destroy_buffer(ctx, ctx.outputs);
             vk::destroy_buffer(ctx, ctx.cameras);
             vk::destroy_buffer(ctx, ctx.cameras_open);
             vk::destroy_buffer(ctx, ctx.cameras_previous);
-            vk::destroy_buffer(ctx, ctx.frame_buffer);
-            vk::destroy_buffer(ctx, ctx.depth_buffer);
-            vk::destroy_buffer(ctx, ctx.segmentation_buffer);
-            vk::destroy_buffer(ctx, ctx.normals_buffer);
-            vk::destroy_buffer(ctx, ctx.flow_buffer);
-            vk::destroy_buffer(ctx, ctx.flow_status_buffer);
-            vk::destroy_buffer(ctx, ctx.flow_forward_buffer);
-            vk::destroy_buffer(ctx, ctx.flow_forward_status_buffer);
             vk::destroy_buffer(ctx, ctx.flow_deltas);
-            vk::destroy_buffer(ctx, ctx.observation);
-            vk::destroy_buffer(ctx, ctx.collision_results);
             vk::destroy_buffer(ctx, ctx.probe_directions);
             vk::destroy_buffer(ctx, ctx.rgb_accumulator);
             vk::destroy_buffer(ctx, ctx.dummy);
@@ -2005,7 +1978,9 @@ namespace rl_tools {
             vkDestroyDescriptorSetLayout(ctx.device, ctx.descriptor_set_layout, nullptr);
             vkDestroySampler(ctx.device, ctx.sampler, nullptr);
             vkDestroyFence(ctx.device, ctx.fence_render, nullptr);
-            vkDestroyFence(ctx.device, ctx.fence_collision, nullptr);
+            if(ctx.fence_collision != VK_NULL_HANDLE){
+                vkDestroyFence(ctx.device, ctx.fence_collision, nullptr);
+            }
             vkDestroyFence(ctx.device, ctx.fence_update, nullptr);
             vkDestroyCommandPool(ctx.device, ctx.command_pool, nullptr);
             vkDestroyDevice(ctx.device, nullptr);
@@ -2019,31 +1994,12 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_CAMERA_PAIR) {
             renderer.cameras_open._data = nullptr;
         }
-        if constexpr (SPEC::HAS_RGB) {
-            renderer.frame_buffer._data = nullptr;
-        }
-        if constexpr (SPEC::HAS_DEPTH) {
-            renderer.depth_buffer._data = nullptr;
-        }
-        if constexpr (SPEC::HAS_SEGMENTATION) {
-            renderer.segmentation_buffer._data = nullptr;
-        }
-        if constexpr (SPEC::HAS_NORMALS) {
-            renderer.normals_buffer._data = nullptr;
-        }
-        if constexpr (SPEC::HAS_FLOW) {
+        for_each_output(device, renderer.outputs, [&](auto& buffer){
+            buffer.tensor._data = nullptr;
+        });
+        if constexpr (SPEC::HAS_FLOW){
             renderer.cameras_previous._data = nullptr;
-            renderer.flow_buffer._data = nullptr;
-            renderer.flow_status_buffer._data = nullptr;
         }
-        if constexpr (SPEC::HAS_FLOW_FORWARD) {
-            renderer.flow_forward_buffer._data = nullptr;
-            renderer.flow_forward_status_buffer._data = nullptr;
-        }
-        if constexpr (SPEC::HAS_OBSERVATION) {
-            renderer.observation._data = nullptr;
-        }
-        renderer.collision_results._data = nullptr;
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             free(device, renderer.transforms);
         }

@@ -98,7 +98,7 @@ namespace rl_tools {
             }
         }
         rendering::raytracing::ObjectAssembly assembly;
-        bool loaded = load<typename SPEC::SHADING, SPEC::OUTPUT_RGB>(render_device, assembly, path);
+        bool loaded = load<typename SPEC::SHADING, rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_RGB>(render_device, assembly, path);
         utils::assert_exit(device, loaded, "hyperdrone::register_pool_asset: failed to load the asset");
         auto handle = add(render_device, shared.library.pool, assembly);
         shared.pool_asset_paths.push_back(path);
@@ -233,8 +233,8 @@ namespace rl_tools {
             slot.corpus_index = first_scene + slot_i;
             malloc(render_device, slot.renderer, shared.library);
             rendering::Bundle<T> bundle;
-            using LOAD_MODE = utils::typing::conditional_t<SPEC::OUTPUT_SEGMENTATION, mode::rendering::SceneRoots<>, mode::Default<>>;
-            const bool scene_loaded = load<typename SPEC::SHADING, SPEC::OUTPUT_RGB>(render_device, dataset, corpus, slot.corpus_index, bundle, Mode<LOAD_MODE>{});
+            using LOAD_MODE = utils::typing::conditional_t<rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_SEGMENTATION, mode::rendering::SceneRoots<>, mode::Default<>>;
+            const bool scene_loaded = load<typename SPEC::SHADING, rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_RGB>(render_device, dataset, corpus, slot.corpus_index, bundle, Mode<LOAD_MODE>{});
             utils::assert_exit(device, scene_loaded, "hyperdrone::World: failed to load scene");
             slot.metadata = bundle.metadata;
             slot.scene_id = insert(render_device, shared.library, bundle);
@@ -271,14 +271,20 @@ namespace rl_tools {
         }
         world.active_slot = 0;
         world.scene_version = 1;
-        malloc(device, world.history);
-        malloc(device, world.prev_cameras);
+        if constexpr (WORLD::HAS_IMAGE_OBSERVATION){
+            malloc(device, world.history);
+        }
+        if constexpr (WORLD::RENDERER_SPEC::HAS_CAMERA_PAIR){
+            malloc(device, world.prev_cameras);
+            malloc(render_device, world.camera_staging_open);
+        }
         malloc(device, world.episode_start);
         malloc(device, world.render_reset);
         malloc(device, world.active_annotations);
         malloc(render_device, world.camera_staging_close);
-        malloc(render_device, world.camera_staging_previous);
-        malloc(render_device, world.camera_staging_open);
+        if constexpr (WORLD::RENDERER_SPEC::HAS_CAMERA_PAIR || WORLD::RENDERER_SPEC::HAS_FLOW){
+            malloc(render_device, world.camera_staging_previous);
+        }
         set_all(device, world.episode_start, (TI)0);
         set_all(device, world.render_reset, false);
         world.render_pending = false;
@@ -291,16 +297,23 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world) {
+        using WORLD = rl::environments::hyperdrone::World<SPEC>;
         auto& render_device = get_rendering_device(device);
         if (!world.slots.empty()) {
-            free(device, world.history);
-            free(device, world.prev_cameras);
+            if constexpr (rl::environments::hyperdrone::World<SPEC>::HAS_IMAGE_OBSERVATION){
+                free(device, world.history);
+            }
+            if constexpr (WORLD::RENDERER_SPEC::HAS_CAMERA_PAIR){
+                free(device, world.prev_cameras);
+                free(render_device, world.camera_staging_open);
+            }
             free(device, world.episode_start);
             free(device, world.render_reset);
             free(device, world.active_annotations);
             free(render_device, world.camera_staging_close);
-            free(render_device, world.camera_staging_previous);
-            free(render_device, world.camera_staging_open);
+            if constexpr (WORLD::RENDERER_SPEC::HAS_CAMERA_PAIR || WORLD::RENDERER_SPEC::HAS_FLOW){
+                free(render_device, world.camera_staging_previous);
+            }
         }
         for (auto& slot : world.slots) {
             free(render_device, slot.renderer);
@@ -430,7 +443,7 @@ namespace rl_tools {
                     close[rotor_i] = (float)agent_state.rotor_phase[rotor_i];
                 }
                 open[rotor_i] = close[rotor_i];
-                if constexpr (world::HasRotorPhase<typename WORLD::DYNAMICS_ENV::State>::VALUE && WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR) {
+                if constexpr (world::HasRotorPhase<typename WORLD::DYNAMICS_ENV::State>::VALUE && WORLD::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
                     const T dt = parameters.agents[agent_i].dynamics.integration.dt;
                     open[rotor_i] = (float)((T)agent_state.rotor_phase[rotor_i] - agent_state.rpm[rotor_i] * (T)2 * math::PI<T> / (T)60 * dt * parameters.shutter_fraction);
                 }
@@ -447,7 +460,7 @@ namespace rl_tools {
             const rendering::raytracing::OverlayIndex overlay{instance_i};
             const rendering::raytracing::OverlayPlacement region{world.drone_slot_offset + agent_i * world.drone_parts, world.drone_parts, 0};
             const auto placement = replace(device, renderer, overlay, region, world.drone_meshes[body.mesh]);
-            if constexpr (World<SPEC>::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR) {
+            if constexpr (World<SPEC>::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
                 set_transform_pair(device, renderer, overlay, placement, body.rig, base_open, base_close, coordinates_open, coordinates_close, placement_scale);
             } else {
                 set_transform(device, renderer, overlay, placement, body.rig, base_close, coordinates_close, placement_scale);
@@ -612,21 +625,21 @@ namespace rl_tools {
         static_assert(rl::environments::hyperdrone::check_world_instance_tensors<WORLD, PARAMETER_SPEC, STATE_SPEC>());
         static_assert(get<1>(typename ACTION_SPEC::SHAPE{}) == WORLD::ACTION_DIM);
         if(world.render_pending){
-            if constexpr (SPEC::HISTORY_LENGTH > 1){
+            if constexpr (WORLD::HAS_IMAGE_OBSERVATION && SPEC::HISTORY_LENGTH > 1){
                 render(device, world, parameters, states, world.render_reset);
             }
             else{
-                if constexpr (SPEC::OUTPUT_FLOW){
+                if constexpr (rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_FLOW){
                     prepare_render_inputs(device, world, parameters, states, world.render_reset);
                 }
                 reset_render_state(device, world, world.render_reset);
             }
         }
-        if constexpr (SPEC::OUTPUT_FLOW){
+        if constexpr (rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_FLOW){
             advance_flow(device, get_renderer(device, world));
         }
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
-            if constexpr (SPEC::ENABLE_MOTION_BLUR){
+            if constexpr (WORLD::RENDERER_SPEC::ENABLE_MOTION_BLUR){
                 const auto& instance_parameters = get_ref(device, parameters, instance_i);
                 const auto& state = get_ref(device, states, instance_i);
                 const typename SPEC::T aspect = static_cast<typename SPEC::T>(SPEC::CAM_WIDTH) / static_cast<typename SPEC::T>(SPEC::CAM_HEIGHT);
@@ -701,7 +714,7 @@ namespace rl_tools {
         using TI = typename SPEC::TI;
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
         static_assert(rl::environments::hyperdrone::check_world_instance_tensors<WORLD, PARAMETER_SPEC, STATE_SPEC>());
-        static_assert(SPEC::OUTPUT_RGB, "hyperdrone::World::render requires the RGB observation output");
+
         constexpr TI INSTANCES = WORLD::INSTANCES;
         constexpr TI NUM_CAMERAS = INSTANCES * WORLD::N_VIEWS;
         const T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
@@ -716,7 +729,7 @@ namespace rl_tools {
             set(device, world.camera_staging_close, rl::environments::hyperdrone::make_camera<DEVICE, T>(device, instance_parameters.agents[agent_i].cameras[mount_i], agent_state.orientation, agent_state.position, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin), camera_i);
         }
         copy(device, renderer.device, world.camera_staging_close, cameras(device, renderer));
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+        if constexpr (WORLD::RENDERER_SPEC::ENABLE_MOTION_BLUR) {
             copy(device, device, world.prev_cameras, world.camera_staging_previous);
             for (TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++) {
                 const TI instance_i = camera_i / WORLD::N_VIEWS;
@@ -754,7 +767,7 @@ namespace rl_tools {
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
         constexpr TI INSTANCES = WORLD::INSTANCES;
         auto& renderer = get_renderer(device, world);
-        if constexpr (SPEC::OUTPUT_FLOW){
+        if constexpr (rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_FLOW){
             const bool first = world.flow_scene_version != world.scene_version;
             if(!first){
                 copy(renderer.device, device, cameras_previous(device, renderer), world.camera_staging_previous);
@@ -780,7 +793,7 @@ namespace rl_tools {
                 set(device, world.episode_start, world.history_step - 1, instance_i);
             }
         }
-        if constexpr (SPEC::OUTPUT_FLOW){
+        if constexpr (rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_FLOW){
             world.flow_scene_version = world.scene_version;
         }
     }
@@ -801,15 +814,16 @@ namespace rl_tools {
         }
         render(device, renderer);
 
-        const TI history_slot = (world.history_step - 1) % SPEC::HISTORY_LENGTH;
-        {
+        if constexpr (WORLD::HAS_IMAGE_OBSERVATION){
+            const TI history_slot = (world.history_step - 1) % SPEC::HISTORY_LENGTH;
             constexpr TI CAM_PIXELS = SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT;
             std::vector<float> observation_staging(NUM_CAMERAS * CAM_PIXELS * 3);
             std::vector<float> frame_staging(NUM_CAMERAS * WORLD::FRAME_DIM);
             {
-                Tensor<tensor::Specification<float, TI, typename decltype(renderer.observation)::SPEC::SHAPE>> observation_alias;
+                auto& rgb = output(device, renderer, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>{});
+                Tensor<typename utils::typing::remove_reference_t<decltype(rgb)>::SPEC> observation_alias;
                 observation_alias._data = observation_staging.data();
-                copy(renderer.device, device, renderer.observation, observation_alias);
+                copy(renderer.device, device, rgb, observation_alias);
             }
             for (TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++) {
                 const auto& instance_parameters = get_ref(device, parameters, camera_i / WORLD::N_VIEWS);
@@ -838,6 +852,7 @@ namespace rl_tools {
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
         static_assert(rl::environments::hyperdrone::check_world_instance_tensors<WORLD, PARAMETER_SPEC, STATE_SPEC>());
         static_assert(get<0>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::INSTANCES);
+        static_assert(WORLD::HAS_IMAGE_OBSERVATION, "image observations require RGB<Float32> in OUTPUTS");
         static_assert(get<1>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::OBSERVATION_DIM);
         if(world.render_pending){
             render(device, world, parameters, states, world.render_reset);
@@ -876,7 +891,7 @@ namespace rl_tools {
     }
     template <typename DEVICE, typename SPEC, typename DATASET>
     void init_segmentation_taxonomy(DEVICE& device, rl::environments::hyperdrone::SharedContext<SPEC>& shared, const DATASET&){
-        if constexpr (SPEC::SEMANTIC_SEGMENTATION){
+        if constexpr (rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_SEMANTIC_SEGMENTATION){
             auto& render_device = get_rendering_device(device);
             std::shared_ptr<const rendering::SegmentationTaxonomy> taxonomy;
             std::string taxonomy_source;

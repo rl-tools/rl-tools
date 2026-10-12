@@ -232,12 +232,16 @@ namespace overlay_scenarios {
         static constexpr T_TI NUM_PROBES = 1;
         static constexpr T_T FOV = 80;
         using SHADING = rl_tools::rendering::raytracing::Low;
-        static constexpr bool OUTPUT_RGB = true;
-        static constexpr bool OUTPUT_DEPTH = true;
-        static constexpr bool OUTPUT_SEGMENTATION = true;
-        static constexpr bool OUTPUT_NORMALS = true;
-        static constexpr bool OUTPUT_FLOW = true;
-        static constexpr bool OUTPUT_FLOW_FORWARD = true;
+        using OUTPUTS = rl_tools::rendering::raytracing::outputs::List<
+            rl_tools::rendering::raytracing::outputs::RGB<>,
+            rl_tools::rendering::raytracing::outputs::Depth<>,
+            rl_tools::rendering::raytracing::outputs::Segmentation<rl_tools::rendering::raytracing::outputs::format::UInt32, rl_tools::rendering::raytracing::outputs::labels::Instance>,
+            rl_tools::rendering::raytracing::outputs::Normals<>,
+            rl_tools::rendering::raytracing::outputs::Flow<>,
+            rl_tools::rendering::raytracing::outputs::FlowStatus<>,
+            rl_tools::rendering::raytracing::outputs::Flow<rl_tools::rendering::raytracing::outputs::direction::Forward>,
+            rl_tools::rendering::raytracing::outputs::FlowStatus<rl_tools::rendering::raytracing::outputs::direction::Forward>,
+            rl_tools::rendering::raytracing::outputs::Probes>;
     };
 
     template <typename T_T, typename T_TI>

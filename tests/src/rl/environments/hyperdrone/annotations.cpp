@@ -10,6 +10,7 @@
 #include <string>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
 namespace l2f = rlt::rl::environments::l2f;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -172,9 +173,7 @@ namespace test_probe_batch_independence {
         static constexpr TI NUM_CAMERAS = T_NUM_CAMERAS;
         static constexpr TI NUM_PROBES = 8;
         using SHADING = rlt::rendering::raytracing::Low;
-        static constexpr bool OUTPUT_RGB = true;
-        static constexpr bool OUTPUT_DEPTH = false;
-        static constexpr bool OUTPUT_SEGMENTATION = false;
+        using OUTPUTS = rro::List<rro::Probes>;
     };
 
     template <TI NUM_CAMERAS, typename SPEC>

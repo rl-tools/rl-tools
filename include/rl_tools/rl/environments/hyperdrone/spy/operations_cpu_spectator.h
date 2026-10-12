@@ -49,9 +49,9 @@ namespace rl_tools {
         }
         render(device, renderer);
         result.pixels.resize(SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT);
-        Tensor<typename decltype(renderer.frame_buffer)::SPEC> frame_alias;
+        Tensor<typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rl_tools::rendering::raytracing::outputs::RGB<>{}))>::SPEC> frame_alias;
         frame_alias._data = result.pixels.data();
-        copy(renderer.device, device, frame_buffer(device, renderer), frame_alias);
+        copy(renderer.device, device, output(device, renderer, rl_tools::rendering::raytracing::outputs::RGB<>{}), frame_alias);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

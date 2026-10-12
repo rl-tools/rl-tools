@@ -30,6 +30,7 @@
 // writes are valid exactly after an update has consumed them — the sequence below encodes that rule.
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
 
 using DEVICE = rlt::devices::DefaultCPU;
 using T = float;
@@ -48,8 +49,7 @@ namespace producer_contract {
         static constexpr TI NUM_PROBES = 1;
         static constexpr T FOV = 80;
         using SHADING = rlt::rendering::raytracing::Low;
-        static constexpr bool OUTPUT_RGB = true;
-        static constexpr bool OUTPUT_DEPTH = true;
+        using OUTPUTS = rro::List<rro::RGB<>, rro::Depth<>, rro::Probes>;
         static constexpr TI NUM_OVERLAYS = 1;
         static constexpr TI MAX_OVERLAY_INSTANCES = 2;
         static constexpr TI MAX_OVERLAYS_PER_CAMERA = 1;
@@ -165,8 +165,8 @@ namespace producer_contract {
             rlt::render(device, renderer);
             rlt::synchronize(device, renderer);
             Frame frame;
-            golden::copy_out(renderer.device, device, rlt::frame_buffer(device, renderer), frame.rgb);
-            golden::copy_out(renderer.device, device, rlt::depth_buffer(device, renderer), frame.depth);
+            golden::copy_out(renderer.device, device, rlt::output(device, renderer, rro::RGB<>{}), frame.rgb);
+            golden::copy_out(renderer.device, device, rlt::output(device, renderer, rro::Depth<>{}), frame.depth);
             return frame;
         }
 

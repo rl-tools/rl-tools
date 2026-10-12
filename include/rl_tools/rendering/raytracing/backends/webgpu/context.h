@@ -5,6 +5,7 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_BACKENDS_WEBGPU_CONTEXT_H
 
 #include "../../types.h"
+#include "../../outputs/outputs.h"
 #include "../generic/operations_generic.h"
 
 #include <webgpu/webgpu.h>
@@ -12,9 +13,6 @@
 #include <vector>
 #include <cstdint>
 
-#ifndef RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-#define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 0
-#endif
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rendering::raytracing::backends::webgpu{
@@ -88,18 +86,10 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         uint32_t probe_directions_offset;
         uint32_t cameras_offset;         // shutter-close cameras, then the shutter-open set for camera-pair specs
         uint32_t cameras_previous_offset; // flow: the previous instant's camera set
-        uint32_t out_frame_buffer;       // u32 elements into OUTPUTS
-        uint32_t out_depth;
-        uint32_t out_segmentation;
-        uint32_t out_normals;
-        uint32_t out_flow;
-        uint32_t out_flow_status;
-        uint32_t out_flow_forward;
-        uint32_t out_flow_forward_status;
-        uint32_t out_observation;
-        uint32_t out_collision;
+        uint32_t output_offsets[(uint32_t)outputs::Slot::COUNT];
+        float output_scales[(uint32_t)outputs::Slot::COUNT];
     };
-    static_assert(sizeof(LaunchParams) == 192, "LaunchParams layout must match the WGSL declaration in device.wgsl");
+    static_assert(sizeof(LaunchParams) == 304, "LaunchParams layout must match the WGSL declaration in device.wgsl");
 
     struct TextureRef{
         uint32_t offset; // texel index into TEXTURE_DATA, ABSENT = no texture
@@ -153,13 +143,7 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         static constexpr uint32_t OVERLAY_META_WORDS = OVERLAY_REGIONS * (uint32_t)SPEC::NUM_OVERLAYS * 2;
         static constexpr uint32_t OVERLAY_PRIMITIVES_WORDS = OVERLAY_REGIONS * (uint32_t)SPEC::NUM_OVERLAYS * (uint32_t)SPEC::MAX_OVERLAY_INSTANCES;
         static constexpr uint32_t FLOW_DELTAS_WORDS = SPEC::HAS_FLOW_OVERLAYS ? 2 * (uint32_t)SPEC::NUM_OVERLAYS * (uint32_t)SPEC::MAX_OVERLAY_INSTANCES * 12 : 0;
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         static constexpr uint32_t PROBE_DIRECTIONS_WORDS = (uint32_t)SPEC::NUM_PROBES * 3;
-        static constexpr uint32_t COLLISION_WORDS = (uint32_t)SPEC::NUM_CAMERAS * (uint32_t)SPEC::NUM_PROBES * 2;
-#else
-        static constexpr uint32_t PROBE_DIRECTIONS_WORDS = 0;
-        static constexpr uint32_t COLLISION_WORDS = 0;
-#endif
         static constexpr uint32_t CAMERA_SET_WORDS = (uint32_t)SPEC::NUM_CAMERAS * 12;
         static constexpr uint32_t CAMERAS_WORDS = (1 + (SPEC::HAS_CAMERA_PAIR ? 1 : 0) + (SPEC::HAS_FLOW ? 1 : 0)) * CAMERA_SET_WORDS;
         static constexpr uint32_t CAMERAS_OFFSET = 0;
@@ -171,27 +155,7 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         static constexpr uint32_t PROBE_DIRECTIONS_OFFSET = FLOW_DELTAS_OFFSET + FLOW_DELTAS_WORDS;
         static constexpr uint32_t FRAME_INPUTS_WORDS = PROBE_DIRECTIONS_OFFSET + PROBE_DIRECTIONS_WORDS;
 
-        static constexpr uint32_t CAM_PIXEL_WORDS = (uint32_t)SPEC::NUM_CAMERAS * (uint32_t)SPEC::CAM_PIXELS;
-        static constexpr uint32_t FRAME_BUFFER_WORDS = SPEC::HAS_RGB ? CAM_PIXEL_WORDS : 0;
-        static constexpr uint32_t DEPTH_WORDS = SPEC::HAS_DEPTH ? CAM_PIXEL_WORDS : 0;
-        static constexpr uint32_t SEGMENTATION_WORDS = SPEC::HAS_SEGMENTATION ? CAM_PIXEL_WORDS : 0;
-        static constexpr uint32_t NORMALS_WORDS = SPEC::HAS_NORMALS ? CAM_PIXEL_WORDS * 3 : 0;
-        static constexpr uint32_t FLOW_WORDS = SPEC::HAS_FLOW ? CAM_PIXEL_WORDS * 2 : 0;
-        static constexpr uint32_t FLOW_STATUS_WORDS = SPEC::HAS_FLOW ? CAM_PIXEL_WORDS : 0;
-        static constexpr uint32_t FLOW_FORWARD_WORDS = SPEC::HAS_FLOW_FORWARD ? CAM_PIXEL_WORDS * 2 : 0;
-        static constexpr uint32_t FLOW_FORWARD_STATUS_WORDS = SPEC::HAS_FLOW_FORWARD ? CAM_PIXEL_WORDS : 0;
-        static constexpr uint32_t OBSERVATION_WORDS = SPEC::HAS_OBSERVATION ? CAM_PIXEL_WORDS * (uint32_t)SPEC::OBSERVATION_CHANNELS : 0;
-        static constexpr uint32_t FRAME_BUFFER_OFFSET = 0;
-        static constexpr uint32_t DEPTH_OFFSET = FRAME_BUFFER_OFFSET + FRAME_BUFFER_WORDS;
-        static constexpr uint32_t SEGMENTATION_OFFSET = DEPTH_OFFSET + DEPTH_WORDS;
-        static constexpr uint32_t NORMALS_OFFSET = SEGMENTATION_OFFSET + SEGMENTATION_WORDS;
-        static constexpr uint32_t FLOW_OFFSET = NORMALS_OFFSET + NORMALS_WORDS;
-        static constexpr uint32_t FLOW_STATUS_OFFSET = FLOW_OFFSET + FLOW_WORDS;
-        static constexpr uint32_t FLOW_FORWARD_OFFSET = FLOW_STATUS_OFFSET + FLOW_STATUS_WORDS;
-        static constexpr uint32_t FLOW_FORWARD_STATUS_OFFSET = FLOW_FORWARD_OFFSET + FLOW_FORWARD_WORDS;
-        static constexpr uint32_t OBSERVATION_OFFSET = FLOW_FORWARD_STATUS_OFFSET + FLOW_FORWARD_STATUS_WORDS;
-        static constexpr uint32_t COLLISION_OFFSET = OBSERVATION_OFFSET + OBSERVATION_WORDS;
-        static constexpr uint32_t OUTPUTS_WORDS = COLLISION_OFFSET + COLLISION_WORDS;
+        static constexpr uint32_t OUTPUTS_WORDS = outputs::Layout<SPEC>::WORDS;
     };
 
     struct BufferResource{
@@ -205,6 +169,7 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         BufferResource* staging = nullptr;
         void* destination = nullptr;
         size_t bytes = 0;
+        uint64_t offset = 0;
     };
 
     struct Context{
@@ -233,16 +198,7 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         BufferResource frame_inputs;
         BufferResource outputs;
 
-        BufferResource staging_frame_buffer;
-        BufferResource staging_depth;
-        BufferResource staging_segmentation;
-        BufferResource staging_normals;
-        BufferResource staging_flow;
-        BufferResource staging_flow_status;
-        BufferResource staging_flow_forward;
-        BufferResource staging_flow_forward_status;
-        BufferResource staging_observation;
-        BufferResource staging_collision;
+        BufferResource staging[(uint32_t)outputs::Slot::COUNT];
         std::vector<ReadbackTarget> render_readbacks;
         std::vector<ReadbackTarget> probe_readbacks;
         std::vector<float> flow_deltas_host; // flow: [2][slots][12], composed by update() and written into FRAME_INPUTS

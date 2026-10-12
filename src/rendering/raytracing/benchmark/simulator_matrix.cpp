@@ -1,4 +1,3 @@
-#define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 1
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
@@ -34,6 +33,7 @@
 #include <vector>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
 using namespace rl_tools;
 using CONFIG = rlt::rendering::raytracing::benchmark::Config;
 using BenchmarkMode = rlt::rendering::raytracing::benchmark::Mode;
@@ -60,8 +60,10 @@ template <bool T_OUTPUT_RGB, bool T_OUTPUT_DEPTH, TI T_WIDTH = CAM_WIDTH, TI T_H
 struct BenchmarkConfig: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_WIDTH = T_WIDTH, CAM_HEIGHT = T_HEIGHT, NUM_CAMERAS = T_NUM_CAMERAS, NUM_PROBES = 0;
     using SHADING = T_SHADING;
-    static constexpr bool OUTPUT_RGB = T_OUTPUT_RGB;
-    static constexpr bool OUTPUT_DEPTH = T_OUTPUT_DEPTH;
+    using OUTPUTS = typename rro::Concat<
+        rro::If<(T_OUTPUT_RGB), rro::RGB<>>,
+        rro::If<(T_OUTPUT_DEPTH), rro::Depth<>>
+    >::type;
     static constexpr bool ENABLE_ANTI_ALIASING = T_ENABLE_AA;
     static constexpr TI ANTI_ALIASING_GRID_SIZE = T_AA_GRID_SIZE;
 };

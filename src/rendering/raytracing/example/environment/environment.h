@@ -4,7 +4,7 @@
 #include <array>
 
 namespace rl_tools::rl::environments::raytracing_example {
-    template <typename T_T, typename T_TI, T_TI T_NUM_ENVS, T_TI T_CAM_WIDTH = 64, T_TI T_CAM_HEIGHT = 64, T_TI T_NUM_PROBES = 64, typename T_SHADING = rendering::raytracing::Medium, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1, bool T_OUTPUT_RGB = true, bool T_OUTPUT_DEPTH = false, bool T_OUTPUT_SEGMENTATION = false, bool T_OUTPUT_FLOW = false, bool T_OUTPUT_FLOW_FORWARD = false, T_TI T_NUM_OVERLAYS = 0, T_TI T_MAX_OVERLAY_INSTANCES = 0, T_TI T_MAX_OVERLAYS_PER_CAMERA = 0>
+    template <typename T_T, typename T_TI, T_TI T_NUM_ENVS, T_TI T_CAM_WIDTH = 64, T_TI T_CAM_HEIGHT = 64, T_TI T_NUM_PROBES = 64, typename T_SHADING = rendering::raytracing::Medium, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1, typename T_OUTPUTS = rendering::raytracing::outputs::List<rendering::raytracing::outputs::RGB<>, rendering::raytracing::outputs::Probes>, T_TI T_NUM_OVERLAYS = 0, T_TI T_MAX_OVERLAY_INSTANCES = 0, T_TI T_MAX_OVERLAYS_PER_CAMERA = 0>
     struct Specification {
         using T = T_T;
         using TI = T_TI;
@@ -18,17 +18,10 @@ namespace rl_tools::rl::environments::raytracing_example {
         static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;
         static constexpr bool ENABLE_ANTI_ALIASING = T_ENABLE_ANTI_ALIASING;
         static constexpr TI ANTI_ALIASING_GRID_SIZE = T_ANTI_ALIASING_GRID_SIZE;
-        static constexpr bool HAS_RGB = T_OUTPUT_RGB;
-        static constexpr bool HAS_DEPTH = T_OUTPUT_DEPTH;
-        static constexpr bool ENABLE_DEPTH = HAS_DEPTH;
         struct RENDERER_CONFIG: rendering::raytracing::config::Default<T, TI>{
             static constexpr TI CAM_WIDTH = T_CAM_WIDTH, CAM_HEIGHT = T_CAM_HEIGHT, NUM_CAMERAS = T_NUM_ENVS, NUM_PROBES = T_NUM_PROBES;
             using SHADING = T_SHADING;
-            static constexpr bool OUTPUT_RGB = T_OUTPUT_RGB;
-            static constexpr bool OUTPUT_DEPTH = T_OUTPUT_DEPTH;
-            static constexpr bool OUTPUT_SEGMENTATION = T_OUTPUT_SEGMENTATION;
-            static constexpr bool OUTPUT_FLOW = T_OUTPUT_FLOW;
-            static constexpr bool OUTPUT_FLOW_FORWARD = T_OUTPUT_FLOW_FORWARD;
+            using OUTPUTS = T_OUTPUTS;
             static constexpr TI NUM_OVERLAYS = T_NUM_OVERLAYS;
             static constexpr TI MAX_OVERLAY_INSTANCES = T_MAX_OVERLAY_INSTANCES;
             static constexpr TI MAX_OVERLAYS_PER_CAMERA = T_MAX_OVERLAYS_PER_CAMERA;
@@ -38,6 +31,9 @@ namespace rl_tools::rl::environments::raytracing_example {
             static constexpr TI ANTI_ALIASING_GRID_SIZE = T_ANTI_ALIASING_GRID_SIZE;
         };
         using RAYTRACING_SPEC = rendering::raytracing::Specification<RENDERER_CONFIG>;
+        static constexpr bool HAS_RGB = RAYTRACING_SPEC::HAS_RGB;
+        static constexpr bool HAS_DEPTH = RAYTRACING_SPEC::HAS_DEPTH;
+        static constexpr bool ENABLE_DEPTH = HAS_DEPTH;
     };
 
     enum class ObjectID : int {

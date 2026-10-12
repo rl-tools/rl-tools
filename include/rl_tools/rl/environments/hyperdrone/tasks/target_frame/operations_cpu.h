@@ -129,7 +129,7 @@ namespace rl_tools {
             if constexpr (BASE_SPEC::ENABLE_MOTION_BLUR) {
                 copy(device, renderer.device, world.camera_staging_close, cameras_open(device, renderer));
             }
-            if constexpr (BASE_SPEC::OUTPUT_FLOW){
+            if constexpr (NEXT_WORLD::RENDERER_SPEC::HAS_FLOW){
                 if(world.flow_scene_version != world.scene_version){
                     advance_flow(device, renderer);
                     if constexpr (NEXT_WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){
@@ -140,9 +140,9 @@ namespace rl_tools {
             render(device, renderer);
             std::vector<float> observation_staging(WORLD::INSTANCES * CAM_PIXELS * 3);
             {
-                Tensor<tensor::Specification<float, TI, typename decltype(renderer.observation)::SPEC::SHAPE>> observation_alias;
+                Tensor<tensor::Specification<float, TI, typename utils::typing::remove_reference_t<decltype(output(device, renderer, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>{}))>::SPEC::SHAPE>> observation_alias;
                 observation_alias._data = observation_staging.data();
-                copy(renderer.device, device, renderer.observation, observation_alias);
+                copy(renderer.device, device, output(device, renderer, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>{}), observation_alias);
             }
             for (TI setup_i = 0; setup_i < WORLD::INSTANCES; setup_i++) {
                 if (mask != nullptr && !mask[setup_i]) {

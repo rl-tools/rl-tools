@@ -22,9 +22,8 @@
 #include <fstream>
 #include <iostream>
 
-#ifndef RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-#define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 0
-#endif
+
+#include "outputs/operations_generic.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
@@ -34,7 +33,7 @@ namespace rl_tools {
 
     template <typename SPEC, typename DEVICE>
     void validate_semantic_segmentation(DEVICE& device, const rendering::Scene& scene, const rendering::AssetPool& pool){
-        if constexpr(SPEC::SEMANTIC_SEGMENTATION){
+        if constexpr(SPEC::HAS_SEMANTIC_SEGMENTATION){
             if constexpr(SPEC::ENABLE_OVERLAYS){
                 validate_semantic_segmentation(device, scene, pool);
             }
@@ -300,8 +299,8 @@ namespace rl_tools {
     template <typename SPEC, typename DEVICE>
     void announce_configuration(DEVICE& device){
         log(device, device.logger, devices::logging::Verbosity::debug, rendering::raytracing::LOG_PREFIX, "config: ", SPEC::NUM_CAMERAS, " camera(s) ", SPEC::CAM_WIDTH, "x", SPEC::CAM_HEIGHT,
-            " outputs[rgb=", SPEC::HAS_RGB, " depth=", SPEC::HAS_DEPTH, " segmentation=", SPEC::HAS_SEGMENTATION, (SPEC::SEMANTIC_SEGMENTATION ? " (semantic)" : ""), " normals=", SPEC::HAS_NORMALS, " flow=", SPEC::HAS_FLOW, " flow_forward=", SPEC::HAS_FLOW_FORWARD, "]",
-            " probes=", (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS ? 0 : SPEC::NUM_PROBES),
+            " outputs[rgb=", SPEC::HAS_RGB, " depth=", SPEC::HAS_DEPTH, " segmentation=", SPEC::HAS_SEGMENTATION, (SPEC::HAS_SEMANTIC_SEGMENTATION ? " (semantic)" : ""), " normals=", SPEC::HAS_NORMALS, " flow=", SPEC::HAS_FLOW, " flow_forward=", SPEC::HAS_FLOW_FORWARD, "]",
+            " probes=", SPEC::NUM_PROBES,
             " motion_blur_samples=", (SPEC::ENABLE_MOTION_BLUR ? SPEC::MOTION_BLUR_SAMPLES : 0),
             " anti_aliasing_grid=", (SPEC::ENABLE_ANTI_ALIASING ? SPEC::ANTI_ALIASING_GRID_SIZE : 0),
             " overlays=", SPEC::NUM_OVERLAYS, "x", SPEC::MAX_OVERLAY_INSTANCES, " overlays_per_camera=", SPEC::MAX_OVERLAYS_PER_CAMERA);
@@ -740,66 +739,15 @@ namespace rl_tools {
     // them in place (zero-copy); host readers stage through a memory-domain copy at readback
     // boundaries — copy(renderer.device, device, ...) — which orders itself after the
     // renderer's in-flight work
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    auto& frame_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        static_assert(SPEC::HAS_RGB, "frame_buffer requires an RGB-capable renderer specification");
-        return renderer.frame_buffer;
+    template <typename DEVICE, typename SPEC, typename BACKEND, typename OUTPUT>
+    RL_TOOLS_FUNCTION_PLACEMENT auto& output(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, OUTPUT descriptor){
+        return output(device, renderer.outputs, descriptor);
+    }
+    template <typename DEVICE, typename SPEC, typename BACKEND, typename OUTPUT>
+    RL_TOOLS_FUNCTION_PLACEMENT const auto& output(DEVICE& device, const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, OUTPUT descriptor){
+        return output(device, renderer.outputs, descriptor);
     }
 
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    auto& depth_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        static_assert(SPEC::HAS_DEPTH, "depth_buffer requires a depth-capable renderer specification");
-        return renderer.depth_buffer;
-    }
-
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    auto& segmentation_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        static_assert(SPEC::HAS_SEGMENTATION, "segmentation_buffer requires a segmentation-capable renderer specification");
-        return renderer.segmentation_buffer;
-    }
-
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    auto& normals_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        static_assert(SPEC::HAS_NORMALS, "normals_buffer requires a normals-capable renderer specification");
-        return renderer.normals_buffer;
-    }
-
-    // flow on the current grid: p_previous - p_current in pixels, with a FlowStatus per pixel
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    auto& flow_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        static_assert(SPEC::HAS_FLOW, "flow_buffer requires a flow-capable renderer specification");
-        return renderer.flow_buffer;
-    }
-
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    auto& flow_status_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        static_assert(SPEC::HAS_FLOW, "flow_status_buffer requires a flow-capable renderer specification");
-        return renderer.flow_status_buffer;
-    }
-
-    // forward flow on the previous grid: q_current - q_previous in pixels, with a FlowStatus per pixel
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    auto& flow_forward_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        static_assert(SPEC::HAS_FLOW_FORWARD, "flow_forward_buffer requires OUTPUT_FLOW_FORWARD in the renderer specification");
-        return renderer.flow_forward_buffer;
-    }
-
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    auto& flow_forward_status_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        static_assert(SPEC::HAS_FLOW_FORWARD, "flow_forward_status_buffer requires OUTPUT_FLOW_FORWARD in the renderer specification");
-        return renderer.flow_forward_status_buffer;
-    }
-
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    auto& collision_results(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        return renderer.collision_results;
-    }
-
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    auto& observation(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        static_assert(SPEC::HAS_OBSERVATION, "observation requires OUTPUT_OBSERVATION in the renderer specification");
-        return renderer.observation;
-    }
 
     // decodes a rendered segmentation id back to the object it references. Single owner of the
     // global id layout: scene instances occupy [0, S); overlay o's slot s sits at S + o*CAP + s;
@@ -810,7 +758,7 @@ namespace rl_tools {
     // consumers depend on that equivalence — treat any change to it as breaking.
     template <typename DEVICE, typename SPEC, typename BACKEND>
     const rendering::raytracing::Object* segmentation_object(DEVICE& device, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, uint32_t id){
-        static_assert(!SPEC::SEMANTIC_SEGMENTATION, "segmentation_object expects instance IDs, not semantic class IDs");
+        static_assert(SPEC::HAS_INSTANCE_SEGMENTATION, "segmentation_object requires an instance segmentation output");
         if(id == 0xFFFFFFFFu){
             return nullptr;
         }
@@ -896,15 +844,15 @@ namespace rl_tools {
             }
             return 0xFF000000u | ((uint32_t)(b * 255) << 16) | ((uint32_t)(g * 255) << 8) | (uint32_t)(r * 255);
         }
-        // pinned normals encoding, the single owner shared by save verbs and the golden corpus:
-        // each component maps through round((clamp(n, -1, 1) * 0.5 + 0.5) * 255). The miss value
-        // (0,0,0) encodes to (128,128,128), which no unit normal can reach (a unit vector has a
-        // component of magnitude >= 1/sqrt(3)). The double bias preserves float values immediately below a half-integer.
+        // Pinned normal colors require two f32 roundings before the double half-up bias.
+        // Volatile intermediates prevent fast-math reassociation; a zero normal maps to gray.
         inline uint32_t normal_to_rgba(const float normal[3]){
             uint32_t rgba = 0xFF000000u;
             for(int component = 0; component < 3; component++){
                 const float clamped = fminf(fmaxf(normal[component], -1.f), 1.f);
-                const uint32_t value = (uint32_t)((double)((clamped * 0.5f + 0.5f) * 255.f) + 0.5);
+                volatile float unit = clamped * 0.5f + 0.5f;
+                volatile float scaled = unit * 255.f;
+                const uint32_t value = (uint32_t)((double)scaled + 0.5);
                 rgba |= value << (8 * component);
             }
             return rgba;

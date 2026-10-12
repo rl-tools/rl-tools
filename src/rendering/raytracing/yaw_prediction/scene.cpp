@@ -6,6 +6,7 @@
 #include <cmath>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
 
 namespace rl_tools::rendering::raytracing::yaw_prediction {
 
@@ -217,6 +218,6 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
     }
 
     uint32_t* get_framebuffer_device_ptr(SceneHandle* handle) {
-        return rlt::data(rlt::frame_buffer(handle->device, *handle->env.renderer));
+        return rlt::data(rlt::output(handle->device, *handle->env.renderer, rro::RGB<>{}));
     }
 }

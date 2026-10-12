@@ -18,7 +18,7 @@ namespace test_multicamera {
         static constexpr typename BASE::TI HISTORY_LENGTH = 2;
         static constexpr bool ENABLE_MOTION_BLUR = true;
         static constexpr typename BASE::TI MOTION_BLUR_SAMPLES = 2;
-        static constexpr bool OUTPUT_FLOW = true;
+        using OUTPUTS = typename rl_tools::rendering::raytracing::outputs::Concat<typename BASE::OUTPUTS, rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::Flow<>, rl_tools::rendering::raytracing::outputs::FlowStatus<>>>::type;
         static constexpr typename BASE::T CAMERA_FOV_RANDOMIZATION_RANGE = 2;
     };
 
@@ -166,16 +166,16 @@ namespace test_multicamera {
         current_alias._data = current.data();
         opened_alias._data = opened.data();
         std::vector<float> rgb(NUM_CAMERAS * WORLD::FRAME_DIM);
-        Tensor<typename decltype(renderer.observation)::SPEC> rgb_alias;
+        Tensor<typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>{}))>::SPEC> rgb_alias;
         rgb_alias._data = rgb.data();
         std::vector<float> history(SPEC::HISTORY_LENGTH * NUM_CAMERAS * WORLD::FRAME_DIM);
         Tensor<typename WORLD::HISTORY_SPEC> history_alias;
         history_alias._data = history.data();
         std::vector<float> flow(NUM_CAMERAS * PIXELS * 2);
-        Tensor<typename decltype(renderer.flow_buffer)::SPEC> flow_alias;
+        Tensor<typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rl_tools::rendering::raytracing::outputs::Flow<>{}))>::SPEC> flow_alias;
         flow_alias._data = flow.data();
         std::vector<uint32_t> segmentation(NUM_CAMERAS * PIXELS);
-        Tensor<typename decltype(renderer.segmentation_buffer)::SPEC> segmentation_alias;
+        Tensor<typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rl_tools::rendering::raytracing::outputs::Segmentation<>{}))>::SPEC> segmentation_alias;
         segmentation_alias._data = segmentation.data();
         const uint32_t scene_instances = (uint32_t)shared.library.scenes.front().instances.size();
         for (TI frame = 0; frame < 3; frame++) {
@@ -234,10 +234,10 @@ namespace test_multicamera {
             copy(device, host, resident.observations_privileged, staging.observations_privileged);
             copy(renderer.device, host, cameras(device, renderer), current_alias);
             copy(renderer.device, host, cameras_open(device, renderer), opened_alias);
-            copy(renderer.device, host, renderer.observation, rgb_alias);
+            copy(renderer.device, host, output(device, renderer, rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>{}), rgb_alias);
             copy(device, host, world.history, history_alias);
-            copy(renderer.device, host, flow_buffer(device, renderer), flow_alias);
-            copy(renderer.device, host, segmentation_buffer(device, renderer), segmentation_alias);
+            copy(renderer.device, host, output(device, renderer, rl_tools::rendering::raytracing::outputs::Flow<>{}), flow_alias);
+            copy(renderer.device, host, output(device, renderer, rl_tools::rendering::raytracing::outputs::Segmentation<>{}), segmentation_alias);
             test_agent_parameters::check_rigs(host, device, world, shared, staging);
             for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
                 const auto& parameters = get_ref(host, staging.parameters, instance_i);

@@ -42,7 +42,7 @@ namespace rl_tools{
                 const auto& instance_parameters = get_ref(device, parameters, instance_i);
                 const auto& state = get_ref(device, states, instance_i);
                 T phase_open = state.gate_phase;
-                if constexpr(NEXT_WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR){
+                if constexpr(NEXT_WORLD::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
                     constexpr T TWO_PI = (T)2 * math::PI<T>;
                     const T dt = instance_parameters.agents[0].dynamics.integration.dt;
                     phase_open = state.gate_phase - TWO_PI * instance_parameters.gate_frequency * dt * instance_parameters.shutter_fraction;
@@ -143,7 +143,7 @@ namespace rl_tools{
         auto& renderer = get_renderer(device, world);
         float* transforms_rows = data(transforms(device, renderer));
         float* transforms_motion_rows = nullptr;
-        if constexpr (NEXT_WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR){
+        if constexpr (NEXT_WORLD::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
             transforms_motion_rows = data(transforms_motion(device, renderer));
         }
         constexpr TI BLOCKSIZE = 32;
@@ -169,7 +169,7 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         constexpr TI INSTANCES = rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>::INSTANCES;
-        if constexpr (NEXT_WORLD::SPEC::HISTORY_LENGTH > 1 || NEXT_WORLD::SPEC::OUTPUT_FLOW){
+        if constexpr (NEXT_WORLD::SPEC::HISTORY_LENGTH > 1 || NEXT_WORLD::RENDERER_SPEC::HAS_FLOW){
             if(world.render_pending){
                 prepare_entity_poses(device, world, parameters, states);
             }

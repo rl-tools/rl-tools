@@ -21,8 +21,10 @@ namespace {
     template <bool RGB>
     struct Config: rrt::config::Default<float, DEVICE::index_t>{
         static constexpr DEVICE::index_t CAM_WIDTH = 1, CAM_HEIGHT = 1, NUM_CAMERAS = 1, NUM_PROBES = 0;
-        static constexpr bool OUTPUT_RGB = RGB;
-        static constexpr bool OUTPUT_DEPTH = !RGB;
+        using OUTPUTS = typename rl_tools::rendering::raytracing::outputs::Concat<
+            rl_tools::rendering::raytracing::outputs::If<(RGB), rl_tools::rendering::raytracing::outputs::RGB<>>,
+            rl_tools::rendering::raytracing::outputs::If<(!RGB), rl_tools::rendering::raytracing::outputs::Depth<>>
+        >::type;
         using SHADING = rrt::Low;
     };
 
@@ -40,12 +42,12 @@ namespace {
         render(device, renderer);
         if constexpr(SPEC::HAS_RGB){
             std::vector<uint32_t> pixels;
-            golden::copy_out(renderer.device, device, frame_buffer(device, renderer), pixels);
+            golden::copy_out(renderer.device, device, output(device, renderer, rl_tools::rendering::raytracing::outputs::RGB<>{}), pixels);
             EXPECT_EQ(pixels, std::vector<uint32_t>{0xff0000ffu});
         }
         else{
             std::vector<float> depth;
-            golden::copy_out(renderer.device, device, depth_buffer(device, renderer), depth);
+            golden::copy_out(renderer.device, device, output(device, renderer, rl_tools::rendering::raytracing::outputs::Depth<>{}), depth);
             ASSERT_EQ(depth.size(), 1);
             EXPECT_FLOAT_EQ(depth[0], 3.0f);
         }

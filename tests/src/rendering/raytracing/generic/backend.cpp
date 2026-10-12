@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 
 namespace rlt = rl_tools;
+namespace out = rl_tools::rendering::raytracing::outputs;
 namespace generic = rl_tools::rendering::raytracing::backends::generic;
 
 using DEVICE = rlt::devices::DefaultCPU;
@@ -64,7 +65,13 @@ namespace {
         static constexpr TI MAX_OVERLAY_INSTANCES = 0;
         static constexpr TI MAX_OVERLAYS_PER_CAMERA = 0;
         static constexpr bool ENABLE_OVERLAYS = false;
-        static constexpr bool SEMANTIC_SEGMENTATION = false;
+        using OUTPUTS = out::List<out::RGB<>, out::Depth<>, out::Probes>;
+        static constexpr bool FUSE_AUXILIARY = false;
+        static constexpr bool HAS_DEPTH = true;
+        static constexpr bool HAS_INSTANCE_SEGMENTATION = false;
+        static constexpr bool HAS_SEMANTIC_SEGMENTATION = false;
+        static constexpr bool HAS_NORMALS = false;
+        static constexpr bool HAS_FLOW_BACKWARD = false;
     };
 
     struct CubeScene{
@@ -169,8 +176,9 @@ TEST(RENDERING_RAYTRACING_GENERIC, DEPTH_ANALYTIC){
     float depth = -1;
     cube.scene.cameras_close = &camera;
     cube.scene.cameras_open = &camera;
-    cube.scene.depth_buffer = &depth;
-    generic::render_depth_frame<DEVICE, SPEC>(device, cube.scene);
+    out::Buffers<SPEC, SPEC::OUTPUTS> buffers;
+    rlt::output(device, buffers, out::Depth<>{})._data = &depth;
+    generic::render_auxiliary_frame<DEVICE, SPEC>(device, cube.scene, buffers);
     EXPECT_FLOAT_EQ(depth, 4.0f); // camera at x=-5, face at x=-1
 }
 
@@ -190,8 +198,9 @@ TEST(RENDERING_RAYTRACING_GENERIC, COLLISION_ANALYTIC){
     cube.scene.cameras_close = &camera;
     cube.scene.cameras_open = &camera;
     cube.scene.probe_directions = probe_directions;
-    cube.scene.collision_results = results;
-    generic::render_collision<DEVICE, SPEC>(device, cube.scene);
+    out::Buffers<SPEC, SPEC::OUTPUTS> buffers;
+    rlt::output(device, buffers, out::Probes{})._data = results;
+    generic::render_collision<DEVICE, SPEC>(device, cube.scene, buffers);
     for(TI probe_i = 0; probe_i < 4; probe_i++){
         EXPECT_EQ(results[probe_i].hit, 1) << "probe " << probe_i;
         EXPECT_FLOAT_EQ(results[probe_i].distance, 1.0f) << "probe " << probe_i;
@@ -207,7 +216,7 @@ TEST(RENDERING_RAYTRACING_GENERIC, COLLISION_ANALYTIC){
     };
     cube.scene.cameras_close = &camera_away;
     cube.scene.probe_directions = probe_directions_away;
-    generic::render_collision<DEVICE, SPEC>(device, cube.scene);
+    generic::render_collision<DEVICE, SPEC>(device, cube.scene, buffers);
     EXPECT_EQ(results[0].hit, 0);
     EXPECT_TRUE(rlt::is_miss(results[0].distance));
     EXPECT_EQ(results[1].hit, 1);
@@ -226,7 +235,7 @@ TEST(RENDERING_RAYTRACING_GENERIC, COLLISION_ANALYTIC){
     };
     cube.scene.cameras_close = &camera_side;
     cube.scene.probe_directions = probe_directions_side;
-    generic::render_collision<DEVICE, SPEC>(device, cube.scene);
+    generic::render_collision<DEVICE, SPEC>(device, cube.scene, buffers);
     EXPECT_EQ(results[0].hit, 0);
     EXPECT_EQ(results[1].hit, 1);
     EXPECT_NEAR(results[1].distance, 4.0f, 1e-5f);
@@ -241,10 +250,12 @@ TEST(RENDERING_RAYTRACING_GENERIC, RGB_FLAT_AND_MISS){
     unsigned int pixel = 0;
     cube.scene.cameras_close = &camera;
     cube.scene.cameras_open = &camera;
-    cube.scene.frame_buffer = &pixel;
+
     {
         using SPEC = Spec<ShadingLow, 1>;
-        generic::render_frame<DEVICE, SPEC>(device, cube.scene);
+        out::Buffers<SPEC, SPEC::OUTPUTS> buffers;
+        rlt::output(device, buffers, out::RGB<>{})._data = &pixel;
+        generic::render_frame<DEVICE, SPEC>(device, cube.scene, buffers);
         // flat shading: exactly the mesh color, linear packing: (0.25, 0.5, 0.75) -> (64, 128, 192)
         EXPECT_EQ(pixel, 0xFFC08040u);
     }
@@ -252,7 +263,9 @@ TEST(RENDERING_RAYTRACING_GENERIC, RGB_FLAT_AND_MISS){
         // anti-aliasing over a flat surface must not change the result
         using SPEC = Spec<ShadingLow, 1, true, 2>;
         pixel = 0;
-        generic::render_frame<DEVICE, SPEC>(device, cube.scene);
+        out::Buffers<SPEC, SPEC::OUTPUTS> buffers;
+        rlt::output(device, buffers, out::RGB<>{})._data = &pixel;
+        generic::render_frame<DEVICE, SPEC>(device, cube.scene, buffers);
         EXPECT_EQ(pixel, 0xFFC08040u);
     }
     {
@@ -262,7 +275,9 @@ TEST(RENDERING_RAYTRACING_GENERIC, RGB_FLAT_AND_MISS){
         cube.scene.cameras_close = &camera_away;
         cube.scene.cameras_open = &camera_away;
         pixel = 0;
-        generic::render_frame<DEVICE, SPEC>(device, cube.scene);
+        out::Buffers<SPEC, SPEC::OUTPUTS> buffers;
+        rlt::output(device, buffers, out::RGB<>{})._data = &pixel;
+        generic::render_frame<DEVICE, SPEC>(device, cube.scene, buffers);
         EXPECT_EQ(pixel, 0xFF0000CCu);
     }
 }
