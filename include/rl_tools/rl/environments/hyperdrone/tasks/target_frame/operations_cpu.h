@@ -140,7 +140,7 @@ namespace rl_tools {
             render(device, renderer);
             std::vector<float> observation_staging(WORLD::INSTANCES * CAM_PIXELS * 3);
             {
-                Tensor<tensor::Specification<float, TI, typename utils::typing::remove_reference_t<decltype(output(device, renderer, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>{}))>::SPEC::SHAPE>> observation_alias;
+                Tensor<rendering::raytracing::outputs::TensorSpecification<typename WORLD::RENDERER_SPEC, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>> observation_alias;
                 observation_alias._data = observation_staging.data();
                 copy(renderer.device, device, output(device, renderer, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>{}), observation_alias);
             }

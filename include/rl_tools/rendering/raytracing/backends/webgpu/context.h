@@ -89,6 +89,7 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         uint32_t output_offsets[(uint32_t)outputs::Slot::COUNT];
         float output_scales[(uint32_t)outputs::Slot::COUNT];
     };
+    static_assert((uint32_t)outputs::Slot::COUNT == 19, "device.wgsl declares output_offsets and output_scales as array<_, 19> and the OUTPUT_* slot constants: update both with outputs::Slot");
     static_assert(sizeof(LaunchParams) == 304, "LaunchParams layout must match the WGSL declaration in device.wgsl");
 
     struct TextureRef{

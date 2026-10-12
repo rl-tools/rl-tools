@@ -123,7 +123,7 @@ void render_panel(DEVICE& device, Renderer<SPEC>& renderer, const rlt::rendering
     rlt::render(device, renderer);
 
     panel.resize(static_cast<size_t>(CAM_WIDTH) * static_cast<size_t>(CAM_HEIGHT));
-    rlt::Tensor<typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rro::RGB<>{}))>::SPEC> frame_alias;
+    rlt::Tensor<rro::TensorSpecification<SPEC, rro::RGB<>>> frame_alias;
     frame_alias._data = panel.data();
     rlt::copy(renderer.device, device, rlt::output(device, renderer, rro::RGB<>{}), frame_alias);
 }

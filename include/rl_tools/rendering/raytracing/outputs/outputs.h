@@ -41,6 +41,7 @@ namespace rl_tools::rendering::raytracing::outputs {
     struct FlowStatus { using DIRECTION = T_DIRECTION; using FORMAT = T_FORMAT; };
     struct Probes {};
 
+    // slot order is shader ABI: device.metal, device.comp and device.wgsl index fc_output_mask bits and output_offsets by these values
     enum class Slot: unsigned int {
         RGB_RGBA8, RGB_FLOAT32, DEPTH_FLOAT32, DEPTH_RGBA8,
         SEGMENTATION_UINT32, SEGMENTATION_RGBA8, SEMANTIC_UINT32, SEMANTIC_RGBA8,
@@ -188,6 +189,8 @@ namespace rl_tools::rendering::raytracing::outputs {
         using TENSOR_SPEC = tensor::Specification<typename Traits<OUTPUT>::T, typename SPEC::TI, typename Shape<SPEC, OUTPUT>::TYPE, true>;
         Tensor<TENSOR_SPEC> tensor;
     };
+    template <typename SPEC, typename OUTPUT>
+    using TensorSpecification = typename Buffer<SPEC, OUTPUT>::TENSOR_SPEC;
     template <typename SPEC, typename LIST>
     struct Buffers;
     template <typename SPEC, typename... OUTPUTS>

@@ -35,7 +35,7 @@ void yaw_transform(const T position[3], T yaw, float transform[12]){
 
 int render_and_save(DEVICE& device, Renderer& renderer, const std::string& output_prefix, const std::string& suffix){
     rlt::render(device, renderer);
-    rlt::Tensor<typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rro::RGB<>{}))>::SPEC> frame_buffer;
+    rlt::Tensor<rro::TensorSpecification<SPEC, rro::RGB<>>> frame_buffer;
     rlt::malloc(device, frame_buffer);
     rlt::copy(renderer.device, device, rlt::output(device, renderer, rro::RGB<>{}), frame_buffer);
     int status = 0;
