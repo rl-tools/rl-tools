@@ -9,7 +9,7 @@ import pytest
 from hyperdrone.env import EnvConfig, MultiEnvironment, ObservationLayout
 from hyperdrone._jit import source_root
 
-GOLDEN = Path(__file__).parent / "golden"
+GOLDEN = source_root() / "tests" / "data" / "rl" / "environments" / "hyperdrone" / "python_golden"
 
 # the generator's World runs on the host; a CUDA World draws from a different RNG engine
 CONFIG = EnvConfig(num_environments=1, instances_per_environment=2, width=16, height=16, fidelity="low", device="cpu")
@@ -33,6 +33,8 @@ def layout_from_json(layout):
 
 @pytest.fixture(scope="module")
 def scene_directory(tmp_path_factory):
+    if not (GOLDEN / "manifest.json").exists():
+        pytest.skip(f"no golden rollout at {GOLDEN}")
     manifest = json.loads((GOLDEN / "manifest.json").read_text())
     source = Path(os.environ.get("HYPERDRONE_TEST_SCENE_DIR", source_root() / "tests" / "data")) / manifest["scene"]
     if not source.exists():

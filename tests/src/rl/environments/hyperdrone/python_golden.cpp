@@ -40,7 +40,7 @@ int main(){
         std::fprintf(stderr, "scene not found: %s (run from the repo root, with test data downloaded)\n", scene.c_str());
         return 1;
     }
-    const fs::path output = fs::path("interface/python/hyperdrone/tests/env/golden");
+    const fs::path output = fs::path("tests/data/rl/environments/hyperdrone/python_golden");
     fs::create_directories(output);
 
     henv::Environment env;
