@@ -166,16 +166,16 @@ namespace test_multicamera {
         current_alias._data = current.data();
         opened_alias._data = opened.data();
         std::vector<float> rgb(NUM_CAMERAS * WORLD::FRAME_DIM);
-        Tensor<typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>{}))>::SPEC> rgb_alias;
+        Tensor<rl_tools::rendering::raytracing::outputs::TensorSpecification<typename WORLD::RENDERER_SPEC, rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>>> rgb_alias;
         rgb_alias._data = rgb.data();
         std::vector<float> history(SPEC::HISTORY_LENGTH * NUM_CAMERAS * WORLD::FRAME_DIM);
         Tensor<typename WORLD::HISTORY_SPEC> history_alias;
         history_alias._data = history.data();
         std::vector<float> flow(NUM_CAMERAS * PIXELS * 2);
-        Tensor<typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rl_tools::rendering::raytracing::outputs::Flow<>{}))>::SPEC> flow_alias;
+        Tensor<rl_tools::rendering::raytracing::outputs::TensorSpecification<typename WORLD::RENDERER_SPEC, rl_tools::rendering::raytracing::outputs::Flow<>>> flow_alias;
         flow_alias._data = flow.data();
         std::vector<uint32_t> segmentation(NUM_CAMERAS * PIXELS);
-        Tensor<typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rl_tools::rendering::raytracing::outputs::Segmentation<>{}))>::SPEC> segmentation_alias;
+        Tensor<rl_tools::rendering::raytracing::outputs::TensorSpecification<typename WORLD::RENDERER_SPEC, rl_tools::rendering::raytracing::outputs::Segmentation<>>> segmentation_alias;
         segmentation_alias._data = segmentation.data();
         const uint32_t scene_instances = (uint32_t)shared.library.scenes.front().instances.size();
         for (TI frame = 0; frame < 3; frame++) {

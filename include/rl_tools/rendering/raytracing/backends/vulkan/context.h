@@ -82,6 +82,7 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         uint32_t output_offsets[(uint32_t)outputs::Slot::COUNT];
         float output_scales[(uint32_t)outputs::Slot::COUNT];
     };
+    static_assert((uint32_t)outputs::Slot::COUNT == 19, "device.comp declares output_offsets[19], output_scales[19] and the OUTPUT_* slot constants: update both with outputs::Slot");
     static_assert(sizeof(LaunchParams) == 232, "LaunchParams layout must match the GLSL declaration in device.comp");
 
     struct MeshRecord{

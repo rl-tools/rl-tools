@@ -105,17 +105,17 @@ namespace {
         const auto color = read(device, renderer, descriptor);
         const auto status_color = read(device, renderer, outputs::FlowStatus<DIRECTION, outputs::format::RGBA8>{});
         for(size_t index = 0; index < status.size(); index++) {
-            const auto expected = status[index] == 0 ? rrt::detail::flow_to_rgba(flow[index * 2], flow[index * 2 + 1], FlowParameters::SCALE) : rrt::detail::flow_status_to_rgba(status[index]);
+            const auto expected = status[index] == 0 ? flow_color(device, flow[index * 2], flow[index * 2 + 1], FlowParameters::SCALE) : flow_status_color(device, status[index]);
             expect_color_near(color[index], expected);
-            EXPECT_EQ(status_color[index], rrt::detail::flow_status_to_rgba(status[index]));
+            EXPECT_EQ(status_color[index], flow_status_color(device, status[index]));
         }
     }
     template <typename SPEC>
     void check_joint(DEVICE& device, rrt::Renderer<SPEC, BACKEND>& renderer, unsigned int state) {
         const auto depth = read(device, renderer, outputs::Depth<>{});
-        const auto depth_color = read(device, renderer, DepthColor{});
+        const auto depth_colors = read(device, renderer, DepthColor{});
         const auto normals = read(device, renderer, outputs::Normals<>{});
-        const auto normal_color = read(device, renderer, outputs::Normals<outputs::format::RGBA8>{});
+        const auto normal_colors = read(device, renderer, outputs::Normals<outputs::format::RGBA8>{});
         const auto ids = read(device, renderer, outputs::Segmentation<>{});
         const auto id_color = read(device, renderer, outputs::Segmentation<outputs::format::RGBA8>{});
         const auto classes = read(device, renderer, outputs::Segmentation<outputs::format::UInt32, outputs::labels::Semantic>{});
@@ -125,12 +125,12 @@ namespace {
         for(size_t index = 0; index < depth.size(); index++) {
             EXPECT_NEAR(depth[index], 3.0f, 1e-4f);
             const uint32_t shade = uint32_t(std::clamp(depth[index] / DepthParameters::SCALE, 0.0f, 1.0f) * 255.0f);
-            expect_color_near(depth_color[index], 0xff000000u | shade | (shade << 8) | (shade << 16));
-            EXPECT_EQ(normal_color[index], rrt::detail::normal_to_rgba(normals.data() + index * 3));
+            expect_color_near(depth_colors[index], 0xff000000u | shade | (shade << 8) | (shade << 16));
+            EXPECT_EQ(normal_colors[index], normal_color(device, normals.data() + index * 3));
             EXPECT_EQ(ids[index], 0u);
             EXPECT_EQ(classes[index], 3u);
-            EXPECT_EQ(id_color[index], rrt::detail::segmentation_id_to_rgba(ids[index]));
-            EXPECT_EQ(class_color[index], rrt::detail::segmentation_id_to_rgba(classes[index]));
+            EXPECT_EQ(id_color[index], segmentation_color(device, ids[index]));
+            EXPECT_EQ(class_color[index], segmentation_color(device, classes[index]));
             EXPECT_EQ(rgb[index], 0xff0000ffu);
             EXPECT_FLOAT_EQ(rgb_float[index * 3], 1.0f);
             EXPECT_FLOAT_EQ(rgb_float[index * 3 + 1], 0.0f);
@@ -289,7 +289,7 @@ TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, ANGLED_NORMAL_COLOR) {
             for(size_t pixel = 0; pixel < colors.size(); pixel++) {
                 EXPECT_LT(normals[pixel * 3], 0.f);
                 EXPECT_GT(normals[pixel * 3 + 1], 0.f);
-                EXPECT_EQ(colors[pixel], rrt::detail::normal_to_rgba(normals.data() + pixel * 3)) << component << ":" << neighbor;
+                EXPECT_EQ(colors[pixel], normal_color(device, normals.data() + pixel * 3)) << component << ":" << neighbor;
             }
         }
     }

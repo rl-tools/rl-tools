@@ -879,7 +879,7 @@ int main(int argc, char** argv) {
                     rlt::copy(env.renderer->device, device, rlt::output(device, *env.renderer, rro::Flow<rro::direction::Forward>{}), flow_alias);
                 }
                 for (size_t pixel_i = 0; pixel_i < RENDER_PIXELS; pixel_i++) {
-                    view_staging[pixel_i] = rlt::rendering::raytracing::detail::flow_to_rgba(flow_staging[pixel_i * 2 + 0], flow_staging[pixel_i * 2 + 1], FLOW_DISPLAY_SCALE_PX);
+                    view_staging[pixel_i] = rlt::flow_color(device, flow_staging[pixel_i * 2 + 0], flow_staging[pixel_i * 2 + 1], FLOW_DISPLAY_SCALE_PX);
                 }
             }
             else {
@@ -893,7 +893,7 @@ int main(int argc, char** argv) {
                     rlt::copy(env.renderer->device, device, rlt::output(device, *env.renderer, rro::FlowStatus<rro::direction::Forward>{}), status_alias);
                 }
                 for (size_t pixel_i = 0; pixel_i < RENDER_PIXELS; pixel_i++) {
-                    view_staging[pixel_i] = rlt::rendering::raytracing::detail::flow_status_to_rgba(status_staging[pixel_i]);
+                    view_staging[pixel_i] = rlt::flow_status_color(device, status_staging[pixel_i]);
                 }
             }
             for (size_t row = 0; row < CAM_HEIGHT; row++) {
@@ -943,7 +943,7 @@ int main(int argc, char** argv) {
                 rlt::copy(env.renderer->device, device, rlt::output(device, *env.renderer, rro::Segmentation<>{}), segmentation_alias);
             }
             for (size_t pixel_i = 0; pixel_i < pixels.size(); pixel_i++) {
-                pixels[pixel_i] = rlt::rendering::raytracing::detail::segmentation_id_to_rgba(segmentation_staging[pixel_i]);
+                pixels[pixel_i] = rlt::segmentation_color(device, segmentation_staging[pixel_i]);
             }
         }
 #else

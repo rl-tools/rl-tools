@@ -555,10 +555,11 @@ TEST(RL_TOOLS_SCENE_SUITE, SEGMENTATION_ANALYTIC){
 }
 
 TEST(RL_TOOLS_SCENE_SUITE, COLOR_ENCODINGS){
+    DEVICE device;
     struct SegmentationCase { uint32_t id; uint32_t rgba; };
     const SegmentationCase segmentation_cases[] = {{0u, 0xFF0000FFu}, {1u, 0xFFFF4A00u}, {2u, 0xFF00FF94u}, {3u, 0xFFDF00FFu}, {16u, 0xFFAA00FFu}, {257u, 0xFFFC00FFu}, {0xFFFFFFFEu, 0xFF0000FFu}, {0xFFFFFFFFu, 0xFF000000u}};
     for(const auto& test : segmentation_cases){
-        EXPECT_EQ(rlt::rendering::raytracing::detail::segmentation_id_to_rgba(test.id), test.rgba) << test.id;
+        EXPECT_EQ(rlt::segmentation_color(device, test.id), test.rgba) << test.id;
     }
     struct NormalCase { float normal[3]; uint32_t rgba; };
     const NormalCase normal_cases[] = {
@@ -571,12 +572,12 @@ TEST(RL_TOOLS_SCENE_SUITE, COLOR_ENCODINGS){
         {{0.5f, -0.5f, 0.25f}, 0xFF9F40BFu}
     };
     for(const auto& test : normal_cases){
-        EXPECT_EQ(rlt::rendering::raytracing::detail::normal_to_rgba(test.normal), test.rgba);
+        EXPECT_EQ(rlt::normal_color(device, test.normal), test.rgba);
     }
     struct FlowCase { float u, v, scale; uint32_t rgba; };
     const FlowCase flow_cases[] = {{1, 0, 20, 0xFFFFFFF2u}, {0, 1, 20, 0xFFFFF2F8u}, {-1, 0, 20, 0xFFF2F2FFu}, {0, -1, 20, 0xFFF2FFF8u}, {0, 0, 20, 0xFFFFFFFFu}, {20, 0, 20, 0xFFFFFF00u}, {-20, -0.f, 20, 0xFF0000FFu}, {1, 2, 0, 0xFFFFFFFFu}};
     for(const auto& test : flow_cases){
-        EXPECT_EQ(rlt::rendering::raytracing::detail::flow_to_rgba(test.u, test.v, test.scale), test.rgba);
+        EXPECT_EQ(rlt::flow_color(device, test.u, test.v, test.scale), test.rgba);
     }
 }
 

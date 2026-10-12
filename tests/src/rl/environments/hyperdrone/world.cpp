@@ -307,7 +307,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, RENDER_PATH_EQUIVALENCE){
     constexpr TI CAM_PIXELS = WORLD_SPEC::CAM_WIDTH * WORLD_SPEC::CAM_HEIGHT;
     std::vector<float> manual_observation(NUM_CAMERAS * CAM_PIXELS * 3);
     {
-        rlt::Tensor<rlt::tensor::Specification<float, TI, typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rro::RGB<rro::format::Float32>{}))>::SPEC::SHAPE>> observation_alias;
+        rlt::Tensor<rro::TensorSpecification<typename WORLD::RENDERER_SPEC, rro::RGB<rro::format::Float32>>> observation_alias;
         observation_alias._data = manual_observation.data();
         rlt::copy(renderer.device, device, output(device, renderer, rro::RGB<rro::format::Float32>{}), observation_alias);
     }
@@ -506,8 +506,8 @@ namespace test_hyperdrone_acquisition {
             if constexpr (FLOW){
                 EXPECT_EQ(world.flow_scene_version, world.scene_version);
                 auto& renderer = get_renderer(device, world);
-                using FLOW_SPEC = typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rro::Flow<>{}))>::SPEC;
-                using STATUS_SPEC = typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rro::FlowStatus<>{}))>::SPEC;
+                using FLOW_SPEC = rro::TensorSpecification<typename WORLD_TYPE::RENDERER_SPEC, rro::Flow<>>;
+                using STATUS_SPEC = rro::TensorSpecification<typename WORLD_TYPE::RENDERER_SPEC, rro::FlowStatus<>>;
                 result.flow.resize(FLOW_SPEC::SIZE);
                 result.flow_status.resize(STATUS_SPEC::SIZE);
                 Tensor<FLOW_SPEC> flow_alias;

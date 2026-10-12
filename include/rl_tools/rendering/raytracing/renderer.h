@@ -79,6 +79,7 @@ namespace rl_tools {
             static_assert(CAM_WIDTH > 0 && CAM_HEIGHT > 0 && NUM_CAMERAS > 0, "camera geometry must be nonzero");
             static_assert(PLAN::HAS_IMAGE || HAS_PROBES, "the renderer must produce at least one output (an image target or collision probes)");
             static constexpr TI MOTION_BLUR_SAMPLES = CONFIG::MOTION_BLUR_SAMPLES;
+            // anti-aliasing and motion blur sample RGB only: without an RGB output both are disabled, which also drops the shutter-open camera set (HAS_CAMERA_PAIR)
             static constexpr bool ENABLE_MOTION_BLUR = HAS_RGB && CONFIG::ENABLE_MOTION_BLUR && MOTION_BLUR_SAMPLES > 1;
             static constexpr bool HAS_CAMERA_PAIR = ENABLE_MOTION_BLUR;
             static_assert(MOTION_BLUR_SAMPLES >= 1, "MOTION_BLUR_SAMPLES must be at least 1");

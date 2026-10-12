@@ -60,7 +60,7 @@ namespace rl_tools{
             constexpr typename SPEC::TI num_pixels = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
             std::vector<uint32_t> colored(num_pixels);
             for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
-                colored[pixel_i] = segmentation_id_to_rgba(segmentation[pixel_i]);
+                colored[pixel_i] = segmentation_color(device, segmentation[pixel_i]);
             }
             write_grid_png<SPEC>(device, colored.data(), filename);
         }
@@ -70,7 +70,7 @@ namespace rl_tools{
             constexpr typename SPEC::TI num_pixels = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
             std::vector<uint32_t> colored(num_pixels);
             for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
-                colored[pixel_i] = normal_to_rgba(&normals_host[pixel_i * 3]);
+                colored[pixel_i] = normal_color(device, &normals_host[pixel_i * 3]);
             }
             write_grid_png<SPEC>(device, colored.data(), filename);
         }
@@ -89,7 +89,7 @@ namespace rl_tools{
             }
             std::vector<uint32_t> colored(num_pixels);
             for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
-                colored[pixel_i] = flow_to_rgba(flow_host[pixel_i * 2 + 0], flow_host[pixel_i * 2 + 1], max_magnitude);
+                colored[pixel_i] = flow_color(device, flow_host[pixel_i * 2 + 0], flow_host[pixel_i * 2 + 1], max_magnitude);
             }
             write_grid_png<SPEC>(device, colored.data(), filename);
         }
@@ -99,7 +99,7 @@ namespace rl_tools{
             constexpr typename SPEC::TI num_pixels = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
             std::vector<uint32_t> colored(num_pixels);
             for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
-                colored[pixel_i] = flow_status_to_rgba(status_host[pixel_i]);
+                colored[pixel_i] = flow_status_color(device, status_host[pixel_i]);
             }
             write_grid_png<SPEC>(device, colored.data(), filename);
         }

@@ -410,8 +410,8 @@ namespace golden {
     }
 
     // pinned normals encoding: round((clamp(n, -1, 1) * 0.5 + 0.5) * 255) per channel — must
-    // match rendering::raytracing::detail::normal_to_rgba (operations_cpu_common.h), which owns
-    // the renderer-side save verbs. Encoded normals reuse the rgb diff/review machinery.
+    // match rl_tools::normal_color (rendering/raytracing/outputs/operations_generic.h), which owns
+    // the renderer outputs and save verbs. Encoded normals reuse the rgb diff/review machinery.
     inline uint32_t normal_rgba(const float normal[3]){
         uint8_t channels[3];
         for(int component = 0; component < 3; component++){

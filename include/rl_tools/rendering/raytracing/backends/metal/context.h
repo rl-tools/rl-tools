@@ -70,6 +70,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         constexpr int FLOW_SCALE = 17;
         constexpr int FLOW_FORWARD_SCALE = 18;
     }
+    static_assert((unsigned int)outputs::Slot::COUNT == 19, "device.metal derives its fc_* flags from fixed bit positions of OUTPUT_MASK: update both with outputs::Slot");
 
     struct LaunchParams{
         uint32_t fb_width;

@@ -154,7 +154,7 @@ namespace {
             world.scene_version++;
             auto& renderer = world.slots[scene].renderer;
             render(device, renderer);
-            Tensor<typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>{}))>::SPEC> observation_alias;
+            Tensor<rl_tools::rendering::raytracing::outputs::TensorSpecification<World::RENDERER_SPEC, rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>>> observation_alias;
             observation_alias._data = history.data();
             copy(renderer.device, device, output(device, renderer, rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>{}), observation_alias);
             world.history_step++;

@@ -284,7 +284,7 @@ int main(int argc, char** argv) {
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
 
-        rlt::Tensor<typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rro::RGB<>{}))>::SPEC> frame_alias;
+        rlt::Tensor<rro::TensorSpecification<SPEC, rro::RGB<>>> frame_alias;
         frame_alias._data = frame.data();
         rlt::copy(renderer.device, device, rlt::output(device, renderer, rro::RGB<>{}), frame_alias);
 
