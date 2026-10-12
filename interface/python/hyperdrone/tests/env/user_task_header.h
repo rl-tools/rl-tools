@@ -190,7 +190,7 @@ namespace rl_tools {
         using WORLD = hyperdrone_env_user::orbiter::World<TASK_SPEC>;
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         constexpr T TWO_PI = (T)2 * math::PI<T>;
-        if constexpr (NEXT_WORLD::SPEC::HISTORY_LENGTH > 1 || NEXT_WORLD::SPEC::OUTPUT_FLOW){
+        if constexpr (NEXT_WORLD::SPEC::HISTORY_LENGTH > 1 || NEXT_WORLD::RENDERER_SPEC::HAS_FLOW){
             if(world.render_pending){
                 prepare_entity_poses(device, world, parameters, states);
             }

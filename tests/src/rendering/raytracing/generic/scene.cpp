@@ -33,6 +33,8 @@
 #include <string>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
+using rlt::output;
 
 #ifdef RL_TOOLS_RENDERING_RAYTRACING_SCENE_TEST_ACTIVE_BACKEND
 using BACKEND = rlt::rendering::raytracing::backends::Default;
@@ -47,6 +49,7 @@ using rlt::rendering::raytracing::OverlayIndex;
 
 namespace {
     struct SPEC_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    using OUTPUTS = rro::List<rro::RGB<>, rro::Probes>;
         static constexpr TI CAM_WIDTH = 16, CAM_HEIGHT = 16, NUM_CAMERAS = 1, NUM_PROBES = 4;
         using SHADING = rlt::rendering::raytracing::Low;
     };
@@ -98,7 +101,7 @@ namespace {
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
         pixels.resize(RENDERER_SPEC::CAM_PIXELS);
-        read_output(device, renderer, rlt::frame_buffer(device, renderer), pixels.data());
+        read_output(device, renderer, rlt::output(device, renderer, rro::RGB<>{}), pixels.data());
     }
 
     void render_frame(DEVICE& device, Renderer& renderer, std::vector<uint32_t>& pixels){
@@ -111,11 +114,11 @@ namespace {
     struct DEPTH_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
         static constexpr TI CAM_WIDTH = 1, CAM_HEIGHT = 1, NUM_CAMERAS = 1, NUM_PROBES = 4;
         using SHADING = rlt::rendering::raytracing::Low;
-        static constexpr bool OUTPUT_RGB = false;
-        static constexpr bool OUTPUT_DEPTH = true;
+        using OUTPUTS = rro::List<rro::Depth<>, rro::Probes>;
     };
     using DEPTH_SPEC = rlt::rendering::raytracing::Specification<DEPTH_CONFIG>;
     struct PBR_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    using OUTPUTS = rro::List<rro::RGB<>, rro::Probes>;
         static constexpr TI CAM_WIDTH = 32, CAM_HEIGHT = 32, NUM_CAMERAS = 1, NUM_PROBES = 4;
         using SHADING = rlt::rendering::raytracing::VeryHigh;
     };
@@ -129,7 +132,7 @@ namespace {
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
         std::vector<float> depth(RENDERER_SPEC::CAM_PIXELS);
-        read_output(device, renderer, rlt::depth_buffer(device, renderer), depth.data());
+        read_output(device, renderer, rlt::output(device, renderer, rro::Depth<>{}), depth.data());
         return depth[(RENDERER_SPEC::CAM_HEIGHT / 2) * RENDERER_SPEC::CAM_WIDTH + RENDERER_SPEC::CAM_WIDTH / 2];
     }
 }
@@ -428,6 +431,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OBJECT_LIGHT_FOLLOWS_INSTANCE){
 }
 
 struct SPLIT_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    using OUTPUTS = rro::List<rro::RGB<>, rro::Probes>;
     static constexpr TI CAM_WIDTH = 128, CAM_HEIGHT = 128, NUM_CAMERAS = 1, NUM_PROBES = 4;
     using SHADING = rlt::rendering::raytracing::VeryHigh;
 };
@@ -436,8 +440,7 @@ using SPLIT_SPEC = rlt::rendering::raytracing::Specification<SPLIT_CONFIG>;
 struct SEGMENTATION_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_WIDTH = 32, CAM_HEIGHT = 32, NUM_CAMERAS = 1, NUM_PROBES = 4;
     using SHADING = rlt::rendering::raytracing::Low;
-    static constexpr bool OUTPUT_RGB = false;
-    static constexpr bool OUTPUT_SEGMENTATION = true;
+    using OUTPUTS = rro::List<rro::Segmentation<rro::format::UInt32, rro::labels::Instance>, rro::Probes>;
 };
 using SEGMENTATION_SPEC = rlt::rendering::raytracing::Specification<SEGMENTATION_CONFIG>;
 
@@ -505,8 +508,9 @@ namespace {
         set_test_camera(device, renderer, position, look_at);
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
+        using LABELS = rlt::utils::typing::conditional_t<RENDERER_SPEC::HAS_SEMANTIC_SEGMENTATION, rro::labels::Semantic, rro::labels::Instance>;
         std::vector<uint32_t> segmentation(RENDERER_SPEC::CAM_PIXELS);
-        read_output(device, renderer, rlt::segmentation_buffer(device, renderer), segmentation.data());
+        read_output(device, renderer, rlt::output(device, renderer, rro::Segmentation<rro::format::UInt32, LABELS>{}), segmentation.data());
         return segmentation;
     }
 }
@@ -579,8 +583,7 @@ TEST(RL_TOOLS_SCENE_SUITE, COLOR_ENCODINGS){
 struct NORMALS_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_WIDTH = 32, CAM_HEIGHT = 32, NUM_CAMERAS = 1, NUM_PROBES = 4;
     using SHADING = rlt::rendering::raytracing::Low;
-    static constexpr bool OUTPUT_RGB = false;
-    static constexpr bool OUTPUT_NORMALS = true;
+    using OUTPUTS = rro::List<rro::Normals<>, rro::Probes>;
 };
 using NORMALS_SPEC = rlt::rendering::raytracing::Specification<NORMALS_CONFIG>;
 
@@ -606,7 +609,7 @@ TEST(RL_TOOLS_SCENE_SUITE, NORMALS_ANALYTIC){
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
     std::vector<float> normals((size_t)NORMALS_SPEC::CAM_PIXELS * 3);
-    read_output(device, renderer, rlt::normals_buffer(device, renderer), normals.data());
+    read_output(device, renderer, rlt::output(device, renderer, rro::Normals<>{}), normals.data());
 
     const size_t center = (size_t)((NORMALS_SPEC::CAM_HEIGHT / 2) * NORMALS_SPEC::CAM_WIDTH + NORMALS_SPEC::CAM_WIDTH / 2) * 3;
     EXPECT_NEAR(normals[center + 0], -1.f, 1e-5f);
@@ -636,12 +639,17 @@ namespace {
     struct AuxiliaryConfig: rlt::rendering::raytracing::config::Default<T, TI>{
         static constexpr TI CAM_WIDTH = 17, CAM_HEIGHT = 13, NUM_CAMERAS = 1, NUM_PROBES = 1;
         using SHADING = rlt::rendering::raytracing::Low;
-        static constexpr bool OUTPUT_RGB = RGB;
-        static constexpr bool OUTPUT_DEPTH = OUTPUT == AuxiliaryOutput::ALL || OUTPUT == AuxiliaryOutput::DEPTH;
-        static constexpr bool OUTPUT_SEGMENTATION = OUTPUT == AuxiliaryOutput::ALL || OUTPUT == AuxiliaryOutput::SEGMENTATION;
-        static constexpr bool OUTPUT_NORMALS = OUTPUT == AuxiliaryOutput::ALL || OUTPUT == AuxiliaryOutput::NORMALS;
-        static constexpr bool OUTPUT_FLOW = OUTPUT == AuxiliaryOutput::ALL || OUTPUT == AuxiliaryOutput::FLOW;
-        static constexpr bool OUTPUT_FLOW_FORWARD = OUTPUT_FLOW;
+        using OUTPUTS = typename rro::Concat<
+            rro::If<(RGB), rro::RGB<>>,
+            rro::If<(OUTPUT == AuxiliaryOutput::ALL || OUTPUT == AuxiliaryOutput::DEPTH), rro::Depth<>>,
+            rro::If<(OUTPUT == AuxiliaryOutput::ALL || OUTPUT == AuxiliaryOutput::SEGMENTATION), rro::Segmentation<rro::format::UInt32, rro::labels::Instance>>,
+            rro::If<(OUTPUT == AuxiliaryOutput::ALL || OUTPUT == AuxiliaryOutput::NORMALS), rro::Normals<>>,
+            rro::If<(OUTPUT == AuxiliaryOutput::ALL || OUTPUT == AuxiliaryOutput::FLOW), rro::Flow<>>,
+            rro::If<(OUTPUT == AuxiliaryOutput::ALL || OUTPUT == AuxiliaryOutput::FLOW), rro::FlowStatus<>>,
+            rro::If<(OUTPUT == AuxiliaryOutput::ALL || OUTPUT == AuxiliaryOutput::FLOW), rro::Flow<rro::direction::Forward>>,
+            rro::If<(OUTPUT == AuxiliaryOutput::ALL || OUTPUT == AuxiliaryOutput::FLOW), rro::FlowStatus<rro::direction::Forward>>,
+            rro::List<rro::Probes>
+        >::type;
     };
 
     struct AuxiliaryFrame{
@@ -669,19 +677,19 @@ namespace {
         render(device, renderer);
         AuxiliaryFrame frame;
         if constexpr (SPEC::HAS_DEPTH){
-            golden::copy_out(renderer.device, device, depth_buffer(device, renderer), frame.depth);
+            golden::copy_out(renderer.device, device, output(device, renderer, rro::Depth<>{}), frame.depth);
         }
         if constexpr (SPEC::HAS_SEGMENTATION){
-            golden::copy_out(renderer.device, device, segmentation_buffer(device, renderer), frame.segmentation);
+            golden::copy_out(renderer.device, device, output(device, renderer, rro::Segmentation<>{}), frame.segmentation);
         }
         if constexpr (SPEC::HAS_NORMALS){
-            golden::copy_out(renderer.device, device, normals_buffer(device, renderer), frame.normals);
+            golden::copy_out(renderer.device, device, output(device, renderer, rro::Normals<>{}), frame.normals);
         }
         if constexpr (SPEC::HAS_FLOW){
-            golden::copy_out(renderer.device, device, flow_buffer(device, renderer), frame.flow);
-            golden::copy_out(renderer.device, device, flow_status_buffer(device, renderer), frame.flow_status);
-            golden::copy_out(renderer.device, device, flow_forward_buffer(device, renderer), frame.flow_forward);
-            golden::copy_out(renderer.device, device, flow_forward_status_buffer(device, renderer), frame.flow_forward_status);
+            golden::copy_out(renderer.device, device, output(device, renderer, rro::Flow<>{}), frame.flow);
+            golden::copy_out(renderer.device, device, output(device, renderer, rro::FlowStatus<>{}), frame.flow_status);
+            golden::copy_out(renderer.device, device, output(device, renderer, rro::Flow<rro::direction::Forward>{}), frame.flow_forward);
+            golden::copy_out(renderer.device, device, output(device, renderer, rro::FlowStatus<rro::direction::Forward>{}), frame.flow_forward_status);
         }
         free(device, renderer);
         return frame;
@@ -727,9 +735,7 @@ TEST(RL_TOOLS_SCENE_SUITE, AUXILIARY_OUTPUT_COMPOSITION){
 struct FLOW_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_WIDTH = 64, CAM_HEIGHT = 64, NUM_CAMERAS = 1, NUM_PROBES = 4;
     using SHADING = rlt::rendering::raytracing::Low;
-    static constexpr bool OUTPUT_RGB = false;
-    static constexpr bool OUTPUT_FLOW = true;
-    static constexpr bool OUTPUT_FLOW_FORWARD = true;
+    using OUTPUTS = rro::List<rro::Flow<>, rro::FlowStatus<>, rro::Flow<rro::direction::Forward>, rro::FlowStatus<rro::direction::Forward>, rro::Probes>;
 };
 using FLOW_SPEC = rlt::rendering::raytracing::Specification<FLOW_CONFIG>;
 struct FLOW_OVERLAY_CONFIG: FLOW_CONFIG{
@@ -792,10 +798,10 @@ namespace {
         frame.status.resize(RENDERER_SPEC::CAM_PIXELS);
         frame.forward.resize((size_t)RENDERER_SPEC::CAM_PIXELS * 2);
         frame.forward_status.resize(RENDERER_SPEC::CAM_PIXELS);
-        read_output(device, renderer, rlt::flow_buffer(device, renderer), frame.flow.data());
-        read_output(device, renderer, rlt::flow_status_buffer(device, renderer), frame.status.data());
-        read_output(device, renderer, rlt::flow_forward_buffer(device, renderer), frame.forward.data());
-        read_output(device, renderer, rlt::flow_forward_status_buffer(device, renderer), frame.forward_status.data());
+        read_output(device, renderer, rlt::output(device, renderer, rro::Flow<>{}), frame.flow.data());
+        read_output(device, renderer, rlt::output(device, renderer, rro::FlowStatus<>{}), frame.status.data());
+        read_output(device, renderer, rlt::output(device, renderer, rro::Flow<rro::direction::Forward>{}), frame.forward.data());
+        read_output(device, renderer, rlt::output(device, renderer, rro::FlowStatus<rro::direction::Forward>{}), frame.forward_status.data());
         return frame;
     }
 
@@ -1422,8 +1428,7 @@ namespace {
 struct OVERLAY_SEG_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_WIDTH = 32, CAM_HEIGHT = 32, NUM_CAMERAS = 2, NUM_PROBES = 4;
     using SHADING = rlt::rendering::raytracing::Low;
-    static constexpr bool OUTPUT_RGB = false;
-    static constexpr bool OUTPUT_SEGMENTATION = true;
+    using OUTPUTS = rro::List<rro::Segmentation<rro::format::UInt32, rro::labels::Instance>, rro::Probes>;
     static constexpr TI NUM_OVERLAYS = 2, MAX_OVERLAY_INSTANCES = 8, MAX_OVERLAYS_PER_CAMERA = 2;
 };
 using OVERLAY_SEG_SPEC = rlt::rendering::raytracing::Specification<OVERLAY_SEG_CONFIG>;
@@ -1469,7 +1474,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_ATTACHMENT_SCOPES){
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
     std::vector<uint32_t> segmentation_staging((size_t)decltype(renderer)::SPEC::NUM_CAMERAS * decltype(renderer)::SPEC::CAM_PIXELS);
-    read_output(device, renderer, rlt::segmentation_buffer(device, renderer), segmentation_staging.data());
+    read_output(device, renderer, rlt::output(device, renderer, rro::Segmentation<>{}), segmentation_staging.data());
     const uint32_t* segmentation = segmentation_staging.data();
 
     size_t counts[2][10] = {};
@@ -1499,7 +1504,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_ATTACHMENT_SCOPES){
     rlt::update(device, renderer);
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
-    read_output(device, renderer, rlt::segmentation_buffer(device, renderer), segmentation_staging.data());
+    read_output(device, renderer, rlt::output(device, renderer, rro::Segmentation<>{}), segmentation_staging.data());
     size_t detached_count = 0;
     for(TI pixel_i = 0; pixel_i < OVERLAY_SEG_SPEC::CAM_PIXELS; pixel_i++){
         detached_count += segmentation[pixel_i] == 1u;
@@ -1512,10 +1517,8 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_ATTACHMENT_SCOPES){
 struct SEMANTIC_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_WIDTH = 32, CAM_HEIGHT = 32, NUM_CAMERAS = 1, NUM_PROBES = 4;
     using SHADING = rlt::rendering::raytracing::Low;
-    static constexpr bool OUTPUT_RGB = false;
-    static constexpr bool OUTPUT_SEGMENTATION = true;
     static constexpr TI NUM_OVERLAYS = 1, MAX_OVERLAY_INSTANCES = 8, MAX_OVERLAYS_PER_CAMERA = 1;
-    static constexpr bool SEMANTIC_SEGMENTATION = true;
+    using OUTPUTS = rro::List<rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>, rro::Probes>;
 };
 using SEMANTIC_SPEC = rlt::rendering::raytracing::Specification<SEMANTIC_CONFIG>;
 
@@ -1527,7 +1530,6 @@ TEST(RL_TOOLS_SCENE_SUITE, SEMANTIC_VALIDATION_PRESERVES_RENDERER_AND_LIBRARY){
     using rlt::insert;
     using rlt::render;
     using rlt::synchronize;
-    using rlt::segmentation_buffer;
     DEVICE device;
     init(device);
     rlt::rendering::Bundle<T> bundle;
@@ -1545,7 +1547,7 @@ TEST(RL_TOOLS_SCENE_SUITE, SEMANTIC_VALIDATION_PRESERVES_RENDERER_AND_LIBRARY){
     render(device, renderer);
     synchronize(device, renderer);
     std::vector<uint32_t> before(SEMANTIC_SPEC::CAM_PIXELS), after(before.size());
-    read_output(device, renderer, segmentation_buffer(device, renderer), before.data());
+    read_output(device, renderer, output(device, renderer, rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>{}), before.data());
     const auto part_objects = renderer.asset_part_objects;
     const auto part_transforms = renderer.asset_part_transforms;
     const T ambient = renderer.ambient_color[0];
@@ -1579,7 +1581,7 @@ TEST(RL_TOOLS_SCENE_SUITE, SEMANTIC_VALIDATION_PRESERVES_RENDERER_AND_LIBRARY){
         EXPECT_EQ(renderer.asset_part_transforms, part_transforms);
         render(device, renderer);
         synchronize(device, renderer);
-        read_output(device, renderer, segmentation_buffer(device, renderer), after.data());
+        read_output(device, renderer, output(device, renderer, rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>{}), after.data());
         EXPECT_EQ(after, before);
 
         rlt::rendering::raytracing::AssetLibrary<SEMANTIC_SPEC, BACKEND> library;
@@ -1625,7 +1627,7 @@ TEST(RL_TOOLS_SCENE_SUITE, SEMANTIC_SEGMENTATION){
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
     std::vector<uint32_t> segmentation_staging((size_t)decltype(renderer)::SPEC::NUM_CAMERAS * decltype(renderer)::SPEC::CAM_PIXELS);
-    read_output(device, renderer, rlt::segmentation_buffer(device, renderer), segmentation_staging.data());
+    read_output(device, renderer, rlt::output(device, renderer, rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>{}), segmentation_staging.data());
     const uint32_t* segmentation = segmentation_staging.data();
 
     size_t scene_class_count = 0, overlay_class_count = 0, raw_instance_id_count = 0;
@@ -1644,8 +1646,7 @@ TEST(RL_TOOLS_SCENE_SUITE, SEMANTIC_SEGMENTATION){
 struct OVERLAY_DEPTH_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_WIDTH = 1, CAM_HEIGHT = 1, NUM_CAMERAS = 1, NUM_PROBES = 4;
     using SHADING = rlt::rendering::raytracing::Low;
-    static constexpr bool OUTPUT_RGB = false;
-    static constexpr bool OUTPUT_DEPTH = true;
+    using OUTPUTS = rro::List<rro::Depth<>, rro::Probes>;
     static constexpr TI NUM_OVERLAYS = 1, MAX_OVERLAY_INSTANCES = 8, MAX_OVERLAYS_PER_CAMERA = 1;
 };
 using OVERLAY_DEPTH_SPEC = rlt::rendering::raytracing::Specification<OVERLAY_DEPTH_CONFIG>;
@@ -1747,6 +1748,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_TRANSFORMS_TENSOR){
 }
 
 struct DYNAMIC_MB_DEPTH_CONFIG: OVERLAY_DEPTH_CONFIG{
+    using OUTPUTS = rro::List<rro::RGB<>, rro::Depth<>, rro::Probes>;
     static constexpr bool ENABLE_MOTION_BLUR = true;
     static constexpr TI MOTION_BLUR_SAMPLES = 2;
     static constexpr bool ENABLE_DYNAMIC_MOTION_BLUR = true;
@@ -1778,7 +1780,7 @@ namespace {
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
         float depth = 0;
-        read_output(device, renderer, rlt::depth_buffer(device, renderer), &depth);
+        read_output(device, renderer, rlt::output(device, renderer, rro::Depth<>{}), &depth);
         return depth;
     }
 }
@@ -2005,7 +2007,7 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_PRODUCER_SAMPLES){
 struct DYNAMIC_MB_SEG_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_WIDTH = 16, CAM_HEIGHT = 16, NUM_CAMERAS = 1, NUM_PROBES = 4;
     using SHADING = rlt::rendering::raytracing::Low;
-    static constexpr bool OUTPUT_SEGMENTATION = true;
+    using OUTPUTS = rro::List<rro::RGB<>, rro::Segmentation<rro::format::UInt32, rro::labels::Instance>, rro::Probes>;
     static constexpr TI NUM_OVERLAYS = 1, MAX_OVERLAY_INSTANCES = 8, MAX_OVERLAYS_PER_CAMERA = 1;
     static constexpr bool ENABLE_MOTION_BLUR = true;
     static constexpr TI MOTION_BLUR_SAMPLES = 2;
@@ -2047,7 +2049,7 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_SEGMENTATION_CLOSE){
     rlt::synchronize(device, renderer);
 
     std::vector<uint32_t> segmentation(DYNAMIC_MB_SEG_SPEC::CAM_PIXELS);
-    read_output(device, renderer, rlt::segmentation_buffer(device, renderer), segmentation.data());
+    read_output(device, renderer, rlt::output(device, renderer, rro::Segmentation<>{}), segmentation.data());
     const uint32_t cube_id = num_scene_instances + (uint32_t)cube.first_slot;
     constexpr TI CENTER = (DYNAMIC_MB_SEG_SPEC::CAM_HEIGHT / 2) * DYNAMIC_MB_SEG_SPEC::CAM_WIDTH + DYNAMIC_MB_SEG_SPEC::CAM_WIDTH / 2;
     EXPECT_EQ(segmentation[CENTER], cube_id);
@@ -2105,7 +2107,7 @@ TEST(RL_TOOLS_SCENE_SUITE, CAMERAS_TENSOR){
     rlt::synchronize(device, renderer);
     {
         float center_depth = 0;
-        read_output(device, renderer, rlt::depth_buffer(device, renderer), &center_depth);
+        read_output(device, renderer, rlt::output(device, renderer, rro::Depth<>{}), &center_depth);
         EXPECT_NEAR(center_depth, 6.0f, 1e-4f);
     }
 
@@ -2113,6 +2115,7 @@ TEST(RL_TOOLS_SCENE_SUITE, CAMERAS_TENSOR){
 }
 
 struct OVERLAY_RGB_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    using OUTPUTS = rro::List<rro::RGB<>, rro::Probes>;
     static constexpr TI CAM_WIDTH = 32, CAM_HEIGHT = 32, NUM_CAMERAS = 1, NUM_PROBES = 4;
     using SHADING = rlt::rendering::raytracing::Low;
     static constexpr TI NUM_OVERLAYS = 1, MAX_OVERLAY_INSTANCES = 8, MAX_OVERLAYS_PER_CAMERA = 1;
@@ -2173,6 +2176,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SPAWN_DESPAWN){
 }
 
 struct OVERLAY_PBR_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    using OUTPUTS = rro::List<rro::RGB<>, rro::Probes>;
     static constexpr TI CAM_WIDTH = 32, CAM_HEIGHT = 32, NUM_CAMERAS = 2, NUM_PROBES = 4;
     using SHADING = rlt::rendering::raytracing::VeryHigh;
     static constexpr TI NUM_OVERLAYS = 1, MAX_OVERLAY_INSTANCES = 8, MAX_OVERLAYS_PER_CAMERA = 1;
@@ -2217,7 +2221,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SECONDARY_RAYS){
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
     std::vector<uint32_t> pixel_staging((size_t)decltype(renderer)::SPEC::NUM_CAMERAS * decltype(renderer)::SPEC::CAM_PIXELS);
-    read_output(device, renderer, rlt::frame_buffer(device, renderer), pixel_staging.data());
+    read_output(device, renderer, rlt::output(device, renderer, rro::RGB<>{}), pixel_staging.data());
     const uint32_t* pixels = pixel_staging.data();
 
     long brightness[2] = {0, 0};
@@ -2232,6 +2236,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SECONDARY_RAYS){
 }
 
 struct OVERLAY_PROBE_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    using OUTPUTS = rro::List<rro::RGB<>, rro::Probes>;
     static constexpr TI CAM_WIDTH = 4, CAM_HEIGHT = 4, NUM_CAMERAS = 2, NUM_PROBES = 4;
     using SHADING = rlt::rendering::raytracing::Low;
     static constexpr TI NUM_OVERLAYS = 1, MAX_OVERLAY_INSTANCES = 8, MAX_OVERLAYS_PER_CAMERA = 1;
@@ -2266,9 +2271,9 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_PROBES){
     rlt::probe(device, renderer);
     rlt::synchronize(device, renderer);
     std::vector<rlt::rendering::raytracing::CollisionResult> probe_staging((size_t)OVERLAY_PROBE_SPEC::NUM_CAMERAS * OVERLAY_PROBE_SPEC::NUM_PROBES);
-    read_output(device, renderer, rlt::collision_results(device, renderer), probe_staging.data());
+    read_output(device, renderer, rlt::output(device, renderer, rro::Probes{}), probe_staging.data());
     const auto* probes = probe_staging.data();
-    ASSERT_NE(rlt::data(renderer.collision_results), nullptr);
+    ASSERT_NE(rlt::data(output(device, renderer, rro::Probes{})), nullptr);
     EXPECT_EQ(probes[0].hit, 1); // camera 0, forward probe: overlay cube at distance 2
     EXPECT_NEAR(probes[0].distance, 2.0f, 1e-4f);
     EXPECT_EQ(probes[OVERLAY_PROBE_SPEC::NUM_PROBES].hit, 0);
@@ -2278,6 +2283,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_PROBES){
 }
 
 struct OVERLAY_MANY_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    using OUTPUTS = rro::List<rro::RGB<>, rro::Probes>;
     static constexpr TI CAM_WIDTH = 4, CAM_HEIGHT = 4, NUM_CAMERAS = 1, NUM_PROBES = 4;
     using SHADING = rlt::rendering::raytracing::Low;
     static constexpr TI NUM_OVERLAYS = 64, MAX_OVERLAY_INSTANCES = 8, MAX_OVERLAYS_PER_CAMERA = 1;
@@ -2348,7 +2354,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_UPDATE_COST_SMOKE){
 namespace {
     struct DEPTH_IMAGE_CONFIG: DEPTH_CONFIG{
         static constexpr TI CAM_WIDTH = 16, CAM_HEIGHT = 16;
-        static constexpr bool OUTPUT_SEGMENTATION = true;
+        using OUTPUTS = rro::List<rro::Depth<>, rro::Segmentation<rro::format::UInt32, rro::labels::Instance>, rro::Probes>;
     };
     struct DEPTH_SAMPLED_CONFIG: DEPTH_IMAGE_CONFIG{
         static constexpr bool ENABLE_MOTION_BLUR = true;
@@ -2382,8 +2388,8 @@ namespace {
         render(device, renderer);
         std::vector<float> depth(SPEC::CAM_PIXELS);
         segmentation.resize(SPEC::CAM_PIXELS);
-        read_output(device, renderer, depth_buffer(device, renderer), depth.data());
-        read_output(device, renderer, segmentation_buffer(device, renderer), segmentation.data());
+        read_output(device, renderer, output(device, renderer, rro::Depth<>{}), depth.data());
+        read_output(device, renderer, output(device, renderer, rro::Segmentation<>{}), segmentation.data());
         free(device, renderer);
         return depth;
     }

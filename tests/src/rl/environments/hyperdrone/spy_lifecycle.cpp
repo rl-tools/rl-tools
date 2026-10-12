@@ -75,6 +75,7 @@ namespace {
         static constexpr size_t CAM_HEIGHT = 3;
         static constexpr size_t HISTORY_LENGTH = 1;
         static constexpr size_t MAX_ENTITY_SLOTS_PER_INSTANCE = 16;
+        using OUTPUTS = rendering::raytracing::outputs::List<rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>;
         static constexpr size_t NUM_PROBES = 0;
         static constexpr bool SELF_VISIBLE = true;
         static constexpr bool ENABLE_MOTION_BLUR = false;
@@ -153,9 +154,9 @@ namespace {
             world.scene_version++;
             auto& renderer = world.slots[scene].renderer;
             render(device, renderer);
-            Tensor<typename decltype(renderer.observation)::SPEC> observation_alias;
+            Tensor<typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>{}))>::SPEC> observation_alias;
             observation_alias._data = history.data();
-            copy(renderer.device, device, observation(device, renderer), observation_alias);
+            copy(renderer.device, device, output(device, renderer, rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>{}), observation_alias);
             world.history_step++;
             world.render_pending = false;
         }

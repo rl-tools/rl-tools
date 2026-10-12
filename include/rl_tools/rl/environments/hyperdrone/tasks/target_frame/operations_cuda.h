@@ -198,7 +198,7 @@ namespace rl_tools{
             if constexpr (BASE_SPEC::SELF_VISIBLE){
                 // the setup's drone at rest at the target pose, overwritten by the next frame's rows
                 float* transforms_motion_rows = nullptr;
-                if constexpr (TASK_SPEC::NEXT_WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR){
+                if constexpr (TASK_SPEC::NEXT_WORLD::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
                     transforms_motion_rows = data(transforms_motion(device, renderer));
                 }
                 constexpr TI BLOCKSIZE = 32;
@@ -216,10 +216,10 @@ namespace rl_tools{
                 }
                 cuda::bank_camera_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, setups, cameras_data, cameras_open_data, aspect);
             }
-            if constexpr (BASE_SPEC::OUTPUT_FLOW){
+            if constexpr (TASK_SPEC::NEXT_WORLD::RENDERER_SPEC::HAS_FLOW){
                 if(world.flow_scene_version != world.scene_version){
                     advance_flow_launch(device, renderer);
-                    if constexpr (TASK_SPEC::NEXT_WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){
+                    if constexpr (TASK_SPEC::TASK_SPEC::NEXT_WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){
                         update_launch(device, renderer);
                     }
                 }
@@ -228,7 +228,7 @@ namespace rl_tools{
             {
                 constexpr TI BLOCKSIZE = 256;
                 constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(WORLD::INSTANCES * CAM_PIXELS, BLOCKSIZE);
-                cuda::targets_scatter_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, data(renderer.observation), setups, mask, data(frames));
+                cuda::targets_scatter_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, data(output(device, renderer, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>{})), setups, mask, data(frames));
             }
             check_status(device);
         }

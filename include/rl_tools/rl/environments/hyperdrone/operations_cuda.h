@@ -80,7 +80,7 @@ namespace rl_tools{
                 const auto& agent_state = _agent_state<SPEC>(get_ref(device, states, instance_i), agent_i);
                 auto close = make_camera<DEVICE, T>(device, instance_parameters.agents[agent_i].cameras[mount_i], agent_state.orientation, agent_state.position, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin);
                 cameras[camera_i] = close;
-                if constexpr(SPEC::ENABLE_MOTION_BLUR){
+                if constexpr(rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::ENABLE_MOTION_BLUR){
                     bool reset = history_step <= 1 || get(device, reset_mask, instance_i);
                     cameras_open[camera_i] = reset ? close : interpolate_camera(close, prev_cameras[camera_i], instance_parameters.shutter_fraction);
                 }
@@ -100,7 +100,7 @@ namespace rl_tools{
             if(instance < WORLD::INSTANCES){
                 const bool reset = get(device, reset_mask, instance);
                 reset_episode_start(device, reset_mask, episode_start, history_step, instance);
-                if constexpr(SPEC::OUTPUT_FLOW){
+                if constexpr(rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_FLOW){
                     if(first || reset){
                         for(TI view = 0; view < WORLD::N_VIEWS; view++){
                             const TI camera = instance * WORLD::N_VIEWS + view;
@@ -174,7 +174,7 @@ namespace rl_tools{
                 TI camera_i = thread_i / CAM_PIXELS;
                 TI instance_i = camera_i / WORLD::N_VIEWS;
                 TI pixel_i = thread_i % CAM_PIXELS;
-                if constexpr(!SPEC::OUTPUT_FLOW){
+                if constexpr(!rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_FLOW){
                     if(pixel_i == 0 && camera_i % WORLD::N_VIEWS == 0){
                         reset_episode_start(device, reset_mask, episode_start, history_step, static_cast<typename SPEC::TI>(instance_i));
                     }
@@ -225,10 +225,10 @@ namespace rl_tools{
             static_assert(RNG::NUM_RNGS >= INSTANCES, "Please increase the number of CUDA RNGs");
             TI instance_i = threadIdx.x + blockIdx.x * blockDim.x;
             if(instance_i < INSTANCES){
-                if constexpr(SPEC::HISTORY_LENGTH == 1 && !SPEC::OUTPUT_FLOW){
+                if constexpr((SPEC::HISTORY_LENGTH == 1 || !WORLD::HAS_IMAGE_OBSERVATION) && !WORLD::RENDERER_SPEC::HAS_FLOW){
                     reset_episode_start(device, reset_mask, episode_start, history_step, static_cast<typename SPEC::TI>(instance_i));
                 }
-                if constexpr (SPEC::ENABLE_MOTION_BLUR){
+                if constexpr (rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::ENABLE_MOTION_BLUR){
                     const auto& instance_parameters = get_ref(device, parameters, instance_i);
                     const auto& state = get_ref(device, states, instance_i);
                     const typename SPEC::T aspect = static_cast<typename SPEC::T>(SPEC::CAM_WIDTH) / static_cast<typename SPEC::T>(SPEC::CAM_HEIGHT);
@@ -335,14 +335,14 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
-        static_assert(SPEC::OUTPUT_RGB, "hyperdrone::World::render requires the RGB observation output");
+
         constexpr TI INSTANCES = WORLD::INSTANCES;
         const T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
         devices::cuda::TAG<DEVICE, true> tag_device{};
         auto& renderer = get_renderer(device, world);
         if constexpr (SPEC::SELF_VISIBLE){
             float* transforms_motion_rows = nullptr;
-            if constexpr (WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR){
+            if constexpr (WORLD::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
                 transforms_motion_rows = data(transforms_motion(device, renderer));
             }
             constexpr TI BLOCKSIZE = 32;
@@ -355,7 +355,7 @@ namespace rl_tools{
             constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES * WORLD::N_VIEWS, BLOCKSIZE);
             auto* cameras_data = data(cameras(device, renderer));
             auto* cameras_open_data = cameras_data;
-            if constexpr(SPEC::ENABLE_MOTION_BLUR){
+            if constexpr(rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::ENABLE_MOTION_BLUR){
                 cameras_open_data = data(cameras_open(device, renderer));
             }
             rl::environments::hyperdrone::cuda::pose_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, parameters, states, reset_mask, cameras_data, cameras_open_data, data(world.prev_cameras), world.history_step, aspect);
@@ -369,7 +369,7 @@ namespace rl_tools{
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
         auto& renderer = get_renderer(device, world);
         rendering::raytracing::Camera<typename SPEC::T>* previous_cameras = nullptr;
-        if constexpr(SPEC::OUTPUT_FLOW){
+        if constexpr(rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_FLOW){
             previous_cameras = data(cameras_previous(device, renderer));
         }
         const float* current_transforms = nullptr;
@@ -383,7 +383,7 @@ namespace rl_tools{
         devices::cuda::TAG<DEVICE, true> tag_device{};
         rl::environments::hyperdrone::cuda::reset_render_state_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, reset_mask, world.flow_scene_version != world.scene_version, data(cameras(device, renderer)), previous_cameras, current_transforms, previous_transforms, data(world.episode_start), world.history_step);
         check_status(device);
-        if constexpr(SPEC::OUTPUT_FLOW){
+        if constexpr(rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_FLOW){
             world.flow_scene_version = world.scene_version;
         }
     }
@@ -393,7 +393,7 @@ namespace rl_tools{
             return;
         }
         prepare_render_inputs(device, world, parameters, states, reset_mask_input);
-        if constexpr(SPEC::OUTPUT_FLOW){
+        if constexpr(rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_FLOW || !rl::environments::hyperdrone::World<SPEC>::HAS_IMAGE_OBSERVATION){
             reset_render_state(device, world, world.render_reset);
         }
         using DEVICE = devices::CUDA<DEV_SPEC>;
@@ -407,12 +407,14 @@ namespace rl_tools{
             update_launch(device, renderer);
         }
         render_launch(device, renderer);
-        const TI history_slot = (world.history_step - 1) % SPEC::HISTORY_LENGTH;
-        float* history_row = data(world.history) + history_slot * INSTANCES * WORLD::N_VIEWS * WORLD::FRAME_DIM;
-        {
-            constexpr TI BLOCKSIZE = 256;
-            constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES * WORLD::N_VIEWS * CAM_PIXELS, BLOCKSIZE);
-            rl::environments::hyperdrone::cuda::scatter_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, data(renderer.observation), history_row, parameters, data(world.episode_start), world.render_reset, world.history_step);
+        if constexpr (WORLD::HAS_IMAGE_OBSERVATION){
+            const TI history_slot = (world.history_step - 1) % SPEC::HISTORY_LENGTH;
+            float* history_row = data(world.history) + history_slot * INSTANCES * WORLD::N_VIEWS * WORLD::FRAME_DIM;
+            {
+                constexpr TI BLOCKSIZE = 256;
+                constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES * WORLD::N_VIEWS * CAM_PIXELS, BLOCKSIZE);
+                rl::environments::hyperdrone::cuda::scatter_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, data(output(device, renderer, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>{})), history_row, parameters, data(world.episode_start), world.render_reset, world.history_step);
+            }
         }
         check_status(device);
         world.render_pending = false;
@@ -423,6 +425,7 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
         static_assert(get<0>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::INSTANCES);
+        static_assert(WORLD::HAS_IMAGE_OBSERVATION, "image observations require RGB<Float32> in OUTPUTS");
         static_assert(get<1>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::OBSERVATION_DIM);
         if(world.render_pending){
             render(device, world, parameters, states, world.render_reset);
@@ -459,17 +462,17 @@ namespace rl_tools{
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
         devices::cuda::TAG<DEVICE, true> tag_device{};
         if(world.render_pending){
-            if constexpr(SPEC::HISTORY_LENGTH > 1){
+            if constexpr(rl::environments::hyperdrone::World<SPEC>::HAS_IMAGE_OBSERVATION && SPEC::HISTORY_LENGTH > 1){
                 render(device, world, parameters, states, world.render_reset);
             }
             else{
-                if constexpr(SPEC::OUTPUT_FLOW){
+                if constexpr(rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_FLOW){
                     prepare_render_inputs(device, world, parameters, states, world.render_reset);
                     reset_render_state(device, world, world.render_reset);
                 }
             }
         }
-        if constexpr (SPEC::OUTPUT_FLOW){
+        if constexpr (rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_FLOW){
             advance_flow_launch(device, get_renderer(device, world));
         }
         auto world_rng = rl::environments::hyperdrone::cuda::instance_rng(device, world, rng);

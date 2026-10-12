@@ -1,4 +1,3 @@
-#define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 1
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
@@ -19,6 +18,8 @@
 #include <vector>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
+using rlt::output;
 using json = nlohmann::json;
 
 using T = float;
@@ -567,9 +568,9 @@ static bool render_trace(DEVICE& device, const Options& options, const std::stri
         rlt::render(device, renderer);
 
         std::vector<uint32_t> frame_staging((size_t)SPEC::CAM_PIXELS);
-        rlt::Tensor<typename decltype(renderer.frame_buffer)::SPEC> frame_alias;
+        rlt::Tensor<typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rro::RGB<>{}))>::SPEC> frame_alias;
         frame_alias._data = frame_staging.data();
-        rlt::copy(renderer.device, device, rlt::frame_buffer(device, renderer), frame_alias);
+        rlt::copy(renderer.device, device, rlt::output(device, renderer, rro::RGB<>{}), frame_alias);
         const uint32_t* fb_data = frame_staging.data();
         std::memcpy(frame.data(), fb_data, frame.size() * sizeof(uint32_t));
         if(!write_frame(pipe, frame, frame_i)) {

@@ -223,11 +223,19 @@ namespace rl_tools{
         }
     }
 
+    template <typename DEVICE, typename SPEC, typename BACKEND, typename OUTPUT>
+    void save_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, OUTPUT descriptor, const char* filename) {
+        static_assert(utils::typing::is_same_v<typename OUTPUT::FORMAT, rendering::raytracing::outputs::format::RGBA8>, "save_image requires an RGBA8 representation");
+        std::vector<uint32_t> pixels;
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, descriptor), pixels);
+        rendering::raytracing::detail::write_grid_png<SPEC>(device, pixels.data(), filename);
+    }
+
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void save_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
         static_assert(SPEC::HAS_RGB, "save_image requires an RGB-capable renderer specification");
         std::vector<uint32_t> frame_buffer_host;
-        rendering::raytracing::detail::save_staging(device, renderer, renderer.frame_buffer, frame_buffer_host);
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, rendering::raytracing::outputs::RGB<>{}), frame_buffer_host);
         rendering::raytracing::detail::write_grid_png<SPEC>(device, frame_buffer_host.data(), filename);
     }
 
@@ -235,17 +243,17 @@ namespace rl_tools{
     void save_segmentation_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
         static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
         std::vector<uint32_t> segmentation_host;
-        rendering::raytracing::detail::save_staging(device, renderer, renderer.segmentation_buffer, segmentation_host);
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::UInt32, utils::typing::conditional_t<SPEC::HAS_SEMANTIC_SEGMENTATION, rendering::raytracing::outputs::labels::Semantic, rendering::raytracing::outputs::labels::Instance>>{}), segmentation_host);
         rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(device, segmentation_host.data(), filename);
         std::ofstream metadata(std::string(filename) + ".json");
-        metadata << "{\"segmentation_mode\":\"" << (SPEC::SEMANTIC_SEGMENTATION ? "semantic" : "instance") << "\",\"background_id\":4294967295}\n";
+        metadata << "{\"segmentation_mode\":\"" << (SPEC::HAS_SEMANTIC_SEGMENTATION ? "semantic" : "instance") << "\",\"background_id\":4294967295}\n";
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void save_normals_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
         static_assert(SPEC::HAS_NORMALS, "save_normals_image requires a normals-capable renderer specification");
         std::vector<float> normals_host;
-        rendering::raytracing::detail::save_staging(device, renderer, renderer.normals_buffer, normals_host);
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, rendering::raytracing::outputs::Normals<>{}), normals_host);
         rendering::raytracing::detail::write_normals_grid_png<SPEC>(device, normals_host.data(), filename);
     }
 
@@ -253,7 +261,7 @@ namespace rl_tools{
     void save_flow_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
         static_assert(SPEC::HAS_FLOW, "save_flow_image requires a flow-capable renderer specification");
         std::vector<float> flow_host;
-        rendering::raytracing::detail::save_staging(device, renderer, renderer.flow_buffer, flow_host);
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, rendering::raytracing::outputs::Flow<>{}), flow_host);
         rendering::raytracing::detail::write_flow_grid_png<SPEC>(device, flow_host.data(), filename);
     }
 
@@ -261,7 +269,7 @@ namespace rl_tools{
     void save_flow_status_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
         static_assert(SPEC::HAS_FLOW, "save_flow_status_image requires a flow-capable renderer specification");
         std::vector<uint32_t> status_host;
-        rendering::raytracing::detail::save_staging(device, renderer, renderer.flow_status_buffer, status_host);
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, rendering::raytracing::outputs::FlowStatus<>{}), status_host);
         rendering::raytracing::detail::write_flow_status_grid_png<SPEC>(device, status_host.data(), filename);
     }
 
@@ -269,7 +277,7 @@ namespace rl_tools{
     void save_flow_forward_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
         static_assert(SPEC::HAS_FLOW_FORWARD, "save_flow_forward_image requires a forward-flow renderer specification");
         std::vector<float> flow_host;
-        rendering::raytracing::detail::save_staging(device, renderer, renderer.flow_forward_buffer, flow_host);
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, rendering::raytracing::outputs::Flow<rendering::raytracing::outputs::direction::Forward>{}), flow_host);
         rendering::raytracing::detail::write_flow_grid_png<SPEC>(device, flow_host.data(), filename);
     }
 
@@ -277,7 +285,7 @@ namespace rl_tools{
     void save_flow_forward_status_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
         static_assert(SPEC::HAS_FLOW_FORWARD, "save_flow_forward_status_image requires a forward-flow renderer specification");
         std::vector<uint32_t> status_host;
-        rendering::raytracing::detail::save_staging(device, renderer, renderer.flow_forward_status_buffer, status_host);
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, rendering::raytracing::outputs::FlowStatus<rendering::raytracing::outputs::direction::Forward>{}), status_host);
         rendering::raytracing::detail::write_flow_status_grid_png<SPEC>(device, status_host.data(), filename);
     }
 
@@ -285,7 +293,7 @@ namespace rl_tools{
     void save_depth_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
         static_assert(SPEC::HAS_DEPTH, "save_depth_image requires a depth-capable renderer specification");
         std::vector<float> depth_host;
-        rendering::raytracing::detail::save_staging(device, renderer, renderer.depth_buffer, depth_host);
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, rendering::raytracing::outputs::Depth<>{}), depth_host);
         rendering::raytracing::detail::write_depth_grid_png<SPEC>(device, depth_host.data(), filename);
     }
 
@@ -293,20 +301,17 @@ namespace rl_tools{
     void save_depth(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
         static_assert(SPEC::HAS_DEPTH, "save_depth requires a depth-capable renderer specification");
         std::vector<float> depth_host;
-        rendering::raytracing::detail::save_staging(device, renderer, renderer.depth_buffer, depth_host);
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, rendering::raytracing::outputs::Depth<>{}), depth_host);
         rendering::raytracing::detail::write_depth_bin<SPEC>(device, depth_host.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void save_probes(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
-#if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        (void)device; (void)renderer; (void)filename;
-        log(device, device.logger, devices::logging::Verbosity::warning, rendering::raytracing::LOG_PREFIX, "save_probes skipped: probe rays are disabled.");
-#else
+
         std::vector<rendering::raytracing::CollisionResult> collision_results_host;
-        rendering::raytracing::detail::save_staging(device, renderer, renderer.collision_results, collision_results_host);
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, rendering::raytracing::outputs::Probes{}), collision_results_host);
         rendering::raytracing::detail::write_probes_bin_and_log<SPEC>(device, collision_results_host.data(), filename);
-#endif
+
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

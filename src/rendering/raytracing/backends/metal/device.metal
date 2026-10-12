@@ -20,14 +20,36 @@ constant bool fc_metallic_reflections [[function_constant(7)]];
 constant bool fc_pbr_shading [[function_constant(8)]];
 constant bool fc_punctual_light_shadows [[function_constant(9)]];
 constant int fc_overlay_count [[function_constant(10)]];
-constant bool fc_semantic_segmentation [[function_constant(11)]];
-constant bool fc_has_observation [[function_constant(12)]];
+constant bool fc_has_rgb32f [[function_constant(12)]];
 // dynamic motion blur: the motion loop runs at submit level (one dispatch per sample against
 // per-sample overlay structure state); each pass reads its shutter time from the SHUTTER
 // binding and adds its linear mean into the accumulation buffers, resolved by resolve_outputs
 constant bool fc_dynamic_motion_blur [[function_constant(13)]];
 constant bool fc_resolve_rgb [[function_constant(14)]];
-constant bool fc_resolve_observation = fc_resolve_rgb && fc_has_observation;
+constant uint fc_output_mask [[function_constant(15)]];
+constant float fc_depth_scale [[function_constant(16)]];
+constant float fc_flow_scale [[function_constant(17)]];
+constant float fc_flow_forward_scale [[function_constant(18)]];
+constant bool fc_rgb8 = (fc_output_mask & (1u << 0u)) != 0u;
+constant bool fc_depth_raw = (fc_output_mask & (1u << 2u)) != 0u;
+constant bool fc_depth_color = (fc_output_mask & (1u << 3u)) != 0u;
+constant bool fc_instance_raw = (fc_output_mask & (1u << 4u)) != 0u;
+constant bool fc_instance_color = (fc_output_mask & (1u << 5u)) != 0u;
+constant bool fc_semantic_raw = (fc_output_mask & (1u << 6u)) != 0u;
+constant bool fc_semantic_color = (fc_output_mask & (1u << 7u)) != 0u;
+constant bool fc_normals_raw = (fc_output_mask & (1u << 8u)) != 0u;
+constant bool fc_normals_color = (fc_output_mask & (1u << 9u)) != 0u;
+constant bool fc_flow_raw = (fc_output_mask & (1u << 10u)) != 0u;
+constant bool fc_flow_color = (fc_output_mask & (1u << 11u)) != 0u;
+constant bool fc_flow_status_raw = (fc_output_mask & (1u << 12u)) != 0u;
+constant bool fc_flow_status_color = (fc_output_mask & (1u << 13u)) != 0u;
+constant bool fc_forward_raw = (fc_output_mask & (1u << 14u)) != 0u;
+constant bool fc_forward_color = (fc_output_mask & (1u << 15u)) != 0u;
+constant bool fc_forward_status_raw = (fc_output_mask & (1u << 16u)) != 0u;
+constant bool fc_forward_status_color = (fc_output_mask & (1u << 17u)) != 0u;
+constant bool fc_probes = (fc_output_mask & (1u << 18u)) != 0u;
+constant bool fc_resolve_rgb32f = fc_resolve_rgb && fc_has_rgb32f;
+constant bool fc_resolve_rgb8 = fc_resolve_rgb && fc_rgb8;
 
 struct LaunchParams{
     uint fb_width;
@@ -550,7 +572,7 @@ kernel void render_rgb(
     constant LaunchParams& params [[buffer(0)]],
     device const Camera* cameras_close [[buffer(1)]],
     device const Camera* cameras_open [[buffer(2)]],
-    device uint* fb [[buffer(3)]],
+    device uint* fb [[buffer(3), function_constant(fc_rgb8)]],
     device const MeshRecord* meshes [[buffer(4)]],
     device const SceneLight* scene_lights [[buffer(5)]],
     instance_acceleration_structure accel [[buffer(8)]],
@@ -558,7 +580,7 @@ kernel void render_rgb(
     device const InstanceData* instance_data [[buffer(10)]],
     device const OverlayStructure* overlays [[buffer(11)]],
     device const uint* overlay_attachments [[buffer(12)]],
-    device float* observation [[buffer(14), function_constant(fc_has_observation)]],
+    device float* rgb_float [[buffer(14), function_constant(fc_has_rgb32f)]],
     device float* rgb_accumulation [[buffer(15), function_constant(fc_dynamic_motion_blur)]],
     constant float& shutter [[buffer(17), function_constant(fc_dynamic_motion_blur)]],
     uint2 pixel_id [[thread_position_in_grid]])
@@ -611,28 +633,96 @@ kernel void render_rgb(
         rgb_accumulation[ctx.fb_offset * 3 + 2] += color.z;
         return;
     }
-    if (fc_has_observation) {
-        // the observation is the frame-buffer color before 8-bit quantization
+    if (fc_has_rgb32f) {
+        // the rgb_float is the frame-buffer color before 8-bit quantization
         float3 obs_color = clamp(color, 0.f, 1.f);
         if (fc_srgb_output) {
             obs_color = float3(linear_to_srgb(obs_color.x), linear_to_srgb(obs_color.y), linear_to_srgb(obs_color.z));
         }
-        observation[ctx.fb_offset * 3 + 0] = obs_color.x;
-        observation[ctx.fb_offset * 3 + 1] = obs_color.y;
-        observation[ctx.fb_offset * 3 + 2] = obs_color.z;
+        rgb_float[ctx.fb_offset * 3 + 0] = obs_color.x;
+        rgb_float[ctx.fb_offset * 3 + 1] = obs_color.y;
+        rgb_float[ctx.fb_offset * 3 + 2] = obs_color.z;
     }
-    if (fc_srgb_output) {
-        fb[ctx.fb_offset] = make_srgb_rgba_from_linear(color);
+    if (fc_rgb8) {
+        if (fc_srgb_output) {
+            fb[ctx.fb_offset] = make_srgb_rgba_from_linear(color);
+        }
+        else {
+            fb[ctx.fb_offset] = make_linear_rgba_from_linear(color);
+        }
     }
-    else {
-        fb[ctx.fb_offset] = make_linear_rgba_from_linear(color);
+}
+
+inline uint packed_color(uint3 color){
+    return 0xFF000000u | color.x | (color.y << 8u) | (color.z << 16u);
+}
+
+inline float3 hue_color(float hue){
+    const float x = 1.f - abs((hue - 2.f * floor(hue * .5f)) - 1.f);
+    switch(uint(hue) % 6u){
+        case 0u: { return float3(1.f, x, 0.f); }
+        case 1u: { return float3(x, 1.f, 0.f); }
+        case 2u: { return float3(0.f, 1.f, x); }
+        case 3u: { return float3(0.f, x, 1.f); }
+        case 4u: { return float3(x, 0.f, 1.f); }
+        default: { return float3(1.f, 0.f, x); }
     }
+}
+
+inline uint segmentation_color(uint id){
+    if(id == 0xFFFFFFFFu){
+        return 0xFF000000u;
+    }
+    const float scaled = float(id) * .61803398875f;
+    return packed_color(uint3(hue_color((scaled - floor(scaled)) * 6.f) * 255.f));
+}
+
+// Keep the CPU encoder's two f32 roundings and f64 half-up bias without Metal reassociation.
+inline uint normal_channel(float normal){
+    const uint bits = as_type<uint>(clamp(normal, -1.f, 1.f) * .5f + .5f);
+    if(bits < 0x3B000000u){
+        return 0u;
+    }
+    const uint product = ((bits & 0x7FFFFFu) | 0x800000u) * 255u;
+    const uint shift = product >= 0x80000000u ? 8u : 7u;
+    const uint whole = product >> shift;
+    const uint remainder = product & ((1u << shift) - 1u);
+    const uint midpoint = 1u << (shift - 1u);
+    const uint rounded = whole + uint(remainder > midpoint || (remainder == midpoint && (whole & 1u) != 0u));
+    const uint integer_shift = 150u - (bits >> 23u) - shift;
+    return (rounded + (1u << (integer_shift - 1u))) >> integer_shift;
+}
+
+inline uint normal_color(float3 normal){
+    return packed_color(uint3(normal_channel(normal.x), normal_channel(normal.y), normal_channel(normal.z)));
+}
+
+inline uint status_color(uint status){
+    switch(status){
+        case 0u: { return 0xFFFFFFFFu; }
+        case 1u: { return 0xFF000000u; }
+        case 2u: { return 0xFFFF00FFu; }
+        case 3u: { return 0xFFFF4020u; }
+        case 4u: { return 0xFF0090FFu; }
+        default: { return 0xFF0000FFu; }
+    }
+}
+
+inline uint flow_color(float2 flow, float scale){
+    if(all(flow == float2(0.f)) || scale <= 0.f){
+        return 0xFFFFFFFFu;
+    }
+    const float saturation = min(sqrt(flow.x * flow.x + flow.y * flow.y) / scale, 1.f);
+    const float angle = flow.x == 0.f ? (flow.y > 0.f ? 1.57079632679489661923f : -1.57079632679489661923f) : atan2(flow.y, flow.x);
+    const float hue = (angle / 6.28318530717958647692f + .5f) * 6.f;
+    return packed_color(uint3((float3(1.f) - saturation * (float3(1.f) - hue_color(hue))) * 255.f));
 }
 
 kernel void render_depth(
     constant LaunchParams& params [[buffer(0)]],
     device const Camera* cameras_close [[buffer(1)]],
-    device uint* depth_out [[buffer(3)]],
+    device uint* depth_out [[buffer(3), function_constant(fc_depth_raw)]],
+    device uint* depth_color_out [[buffer(16), function_constant(fc_depth_color)]],
     instance_acceleration_structure accel [[buffer(8)]],
     device const OverlayStructure* overlays [[buffer(11)]],
     device const uint* overlay_attachments [[buffer(12)]],
@@ -648,11 +738,16 @@ kernel void render_depth(
     const float3 normal = normalize(cross(float3(cam.dir_du), float3(cam.dir_dv)));
     ray r(float3(cam.pos), direction, 0.f, 1e30f);
     const auto hit = intersect_composed(accel, overlays, overlay_attachments, ctx.cam_idx, r, false);
-    if(hit.type == intersection_type::none){
-        depth_out[ctx.fb_offset] = 0x7f800000u;
+    float depth = as_type<float>(0x7f800000u);
+    if(hit.type != intersection_type::none){
+        depth = hit.distance * abs(dot(direction, normal));
     }
-    else{
-        depth_out[ctx.fb_offset] = as_type<uint>(hit.distance * abs(dot(direction, normal)));
+    if(fc_depth_raw){
+        depth_out[ctx.fb_offset] = as_type<uint>(depth);
+    }
+    if(fc_depth_color){
+        const uint shade = uint(clamp(depth / fc_depth_scale, 0.f, 1.f) * 255.f);
+        depth_color_out[ctx.fb_offset] = packed_color(uint3(shade));
     }
 }
 
@@ -660,8 +755,8 @@ kernel void render_depth(
 // with the same transfer curve + quantization as the single-dispatch path
 kernel void resolve_outputs(
     constant LaunchParams& params [[buffer(0)]],
-    device uint* fb [[buffer(3), function_constant(fc_resolve_rgb)]],
-    device float* observation [[buffer(14), function_constant(fc_resolve_observation)]],
+    device uint* fb [[buffer(3), function_constant(fc_resolve_rgb8)]],
+    device float* rgb_float [[buffer(14), function_constant(fc_resolve_rgb32f)]],
     device const float* rgb_accumulation [[buffer(15), function_constant(fc_resolve_rgb)]],
     uint2 pixel_id [[thread_position_in_grid]])
 {
@@ -674,20 +769,22 @@ kernel void resolve_outputs(
             rgb_accumulation[ctx.fb_offset * 3 + 0],
             rgb_accumulation[ctx.fb_offset * 3 + 1],
             rgb_accumulation[ctx.fb_offset * 3 + 2]) * inv_samples;
-        if (fc_resolve_observation) {
+        if (fc_resolve_rgb32f) {
             float3 obs_color = clamp(color, 0.f, 1.f);
             if (fc_srgb_output) {
                 obs_color = float3(linear_to_srgb(obs_color.x), linear_to_srgb(obs_color.y), linear_to_srgb(obs_color.z));
             }
-            observation[ctx.fb_offset * 3 + 0] = obs_color.x;
-            observation[ctx.fb_offset * 3 + 1] = obs_color.y;
-            observation[ctx.fb_offset * 3 + 2] = obs_color.z;
+            rgb_float[ctx.fb_offset * 3 + 0] = obs_color.x;
+            rgb_float[ctx.fb_offset * 3 + 1] = obs_color.y;
+            rgb_float[ctx.fb_offset * 3 + 2] = obs_color.z;
         }
-        if (fc_srgb_output) {
-            fb[ctx.fb_offset] = make_srgb_rgba_from_linear(color);
-        }
-        else {
-            fb[ctx.fb_offset] = make_linear_rgba_from_linear(color);
+        if (fc_resolve_rgb8) {
+            if (fc_srgb_output) {
+                fb[ctx.fb_offset] = make_srgb_rgba_from_linear(color);
+            }
+            else {
+                fb[ctx.fb_offset] = make_linear_rgba_from_linear(color);
+            }
         }
     }
 }
@@ -697,7 +794,10 @@ kernel void resolve_outputs(
 kernel void render_segmentation(
     constant LaunchParams& params [[buffer(0)]],
     device const Camera* cameras_close [[buffer(1)]],
-    device uint* segmentation_out [[buffer(3)]],
+    device uint* segmentation_out [[buffer(3), function_constant(fc_instance_raw)]],
+    device uint* segmentation_color_out [[buffer(16), function_constant(fc_instance_color)]],
+    device uint* semantic_out [[buffer(20), function_constant(fc_semantic_raw)]],
+    device uint* semantic_color_out [[buffer(18), function_constant(fc_semantic_color)]],
     instance_acceleration_structure accel [[buffer(8)]],
     device const OverlayStructure* overlays [[buffer(11)]],
     device const uint* overlay_attachments [[buffer(12)]],
@@ -714,7 +814,22 @@ kernel void render_segmentation(
 
     ray r(float3(cam.pos), direction, 0.f, 1e30f);
     intersection_result<triangle_data, instancing> hit = intersect_composed(accel, overlays, overlay_attachments, ctx.cam_idx, r, false);
-    segmentation_out[ctx.fb_offset] = hit.type == intersection_type::none ? 0xFFFFFFFFu : (fc_semantic_segmentation ? instance_classes[hit.user_instance_id] : (uint)hit.user_instance_id);
+    const uint id = hit.type == intersection_type::none ? 0xFFFFFFFFu : uint(hit.user_instance_id);
+    if(fc_instance_raw){
+        segmentation_out[ctx.fb_offset] = id;
+    }
+    if(fc_instance_color){
+        segmentation_color_out[ctx.fb_offset] = segmentation_color(id);
+    }
+    if(fc_semantic_raw || fc_semantic_color){
+        const uint semantic = id == 0xFFFFFFFFu ? id : instance_classes[id];
+        if(fc_semantic_raw){
+            semantic_out[ctx.fb_offset] = semantic;
+        }
+        if(fc_semantic_color){
+            semantic_color_out[ctx.fb_offset] = segmentation_color(semantic);
+        }
+    }
 }
 
 // single-sample by design: unit normals cannot be averaged, so anti-aliasing and motion blur
@@ -723,7 +838,8 @@ kernel void render_segmentation(
 kernel void render_normals(
     constant LaunchParams& params [[buffer(0)]],
     device const Camera* cameras_close [[buffer(1)]],
-    device float* normals_out [[buffer(3)]],
+    device float* normals_out [[buffer(3), function_constant(fc_normals_raw)]],
+    device uint* normals_color_out [[buffer(16), function_constant(fc_normals_color)]],
     device const MeshRecord* meshes [[buffer(4)]],
     instance_acceleration_structure accel [[buffer(8)]],
     device const uint* instance_record_base [[buffer(9)]],
@@ -760,9 +876,14 @@ kernel void render_normals(
             normal = -normal;
         }
     }
-    normals_out[ctx.fb_offset * 3 + 0] = normal.x;
-    normals_out[ctx.fb_offset * 3 + 1] = normal.y;
-    normals_out[ctx.fb_offset * 3 + 2] = normal.z;
+    if(fc_normals_raw){
+        normals_out[ctx.fb_offset * 3 + 0] = normal.x;
+        normals_out[ctx.fb_offset * 3 + 1] = normal.y;
+        normals_out[ctx.fb_offset * 3 + 2] = normal.z;
+    }
+    if(fc_normals_color){
+        normals_color_out[ctx.fb_offset] = normal_color(normal);
+    }
 }
 
 // FlowStatus codes (rl_tools/rendering/raytracing/types.h)
@@ -786,6 +907,8 @@ inline void flow_pixel(
     device const Camera* cameras_previous,
     device float* flow_out,
     device uint* flow_status_out,
+    device uint* flow_color_out,
+    device uint* flow_status_color_out,
     instance_acceleration_structure accel,
     device const OverlayStructure* overlays,
     device const OverlayStructure* overlays_previous,
@@ -819,7 +942,7 @@ inline void flow_pixel(
                           target_y * (float)params.cam_height - ((float)ctx.local_y + 0.5f));
             if (target_x < 0.f || target_x >= 1.f || target_y < 0.f || target_y >= 1.f) {
                 status = FLOW_STATUS_OUT_OF_FRAME;
-            } else {
+            } else if(source_previous ? (fc_forward_color || fc_forward_status_raw || fc_forward_status_color) : (fc_flow_color || fc_flow_status_raw || fc_flow_status_color)){
                 const float3 to_point = point - float3(cam_target.pos);
                 const float len = length(to_point);
                 const float3 visibility_direction = to_point * (1.f / len);
@@ -829,20 +952,32 @@ inline void flow_pixel(
             }
         }
     }
-    flow_out[ctx.fb_offset * 2 + 0] = flow.x;
-    flow_out[ctx.fb_offset * 2 + 1] = flow.y;
-    flow_status_out[ctx.fb_offset] = status;
+    if(source_previous ? fc_forward_raw : fc_flow_raw){
+        flow_out[ctx.fb_offset * 2 + 0] = flow.x;
+        flow_out[ctx.fb_offset * 2 + 1] = flow.y;
+    }
+    if(source_previous ? fc_forward_status_raw : fc_flow_status_raw){
+        flow_status_out[ctx.fb_offset] = status;
+    }
+    if(source_previous ? fc_forward_color : fc_flow_color){
+        flow_color_out[ctx.fb_offset] = status == FLOW_STATUS_VALID ? flow_color(flow, source_previous ? fc_flow_forward_scale : fc_flow_scale) : status_color(status);
+    }
+    if(source_previous ? fc_forward_status_color : fc_flow_status_color){
+        flow_status_color_out[ctx.fb_offset] = status_color(status);
+    }
 }
 
 kernel void render_flow(
     constant LaunchParams& params [[buffer(0)]],
     device const Camera* cameras_close [[buffer(1)]],
-    device float* flow_out [[buffer(3)]],
+    device float* flow_out [[buffer(3), function_constant(fc_flow_raw)]],
+    device uint* flow_color_out [[buffer(16), function_constant(fc_flow_color)]],
+    device uint* flow_status_color_out [[buffer(18), function_constant(fc_flow_status_color)]],
     instance_acceleration_structure accel [[buffer(8)]],
     device const OverlayStructure* overlays [[buffer(11)]],
     device const uint* overlay_attachments [[buffer(12)]],
     device const float* flow_deltas [[buffer(19)]],
-    device uint* flow_status_out [[buffer(20)]],
+    device uint* flow_status_out [[buffer(20), function_constant(fc_flow_status_raw)]],
     device const Camera* cameras_previous [[buffer(21)]],
     device const OverlayStructure* overlays_previous [[buffer(22)]],
     uint2 pixel_id [[thread_position_in_grid]])
@@ -850,18 +985,20 @@ kernel void render_flow(
     const PixelLaunchContext ctx = pixel_launch_context(params, pixel_id);
     if (!ctx.valid)
         return;
-    flow_pixel(false, params, cameras_close, cameras_previous, flow_out, flow_status_out, accel, overlays, overlays_previous, overlay_attachments, flow_deltas, ctx);
+    flow_pixel(false, params, cameras_close, cameras_previous, flow_out, flow_status_out, flow_color_out, flow_status_color_out, accel, overlays, overlays_previous, overlay_attachments, flow_deltas, ctx);
 }
 
 kernel void render_flow_forward(
     constant LaunchParams& params [[buffer(0)]],
     device const Camera* cameras_close [[buffer(1)]],
-    device float* flow_out [[buffer(3)]],
+    device float* flow_out [[buffer(3), function_constant(fc_forward_raw)]],
+    device uint* flow_color_out [[buffer(16), function_constant(fc_forward_color)]],
+    device uint* flow_status_color_out [[buffer(18), function_constant(fc_forward_status_color)]],
     instance_acceleration_structure accel [[buffer(8)]],
     device const OverlayStructure* overlays [[buffer(11)]],
     device const uint* overlay_attachments [[buffer(12)]],
     device const float* flow_deltas [[buffer(19)]],
-    device uint* flow_status_out [[buffer(20)]],
+    device uint* flow_status_out [[buffer(20), function_constant(fc_forward_status_raw)]],
     device const Camera* cameras_previous [[buffer(21)]],
     device const OverlayStructure* overlays_previous [[buffer(22)]],
     uint2 pixel_id [[thread_position_in_grid]])
@@ -869,7 +1006,7 @@ kernel void render_flow_forward(
     const PixelLaunchContext ctx = pixel_launch_context(params, pixel_id);
     if (!ctx.valid)
         return;
-    flow_pixel(true, params, cameras_close, cameras_previous, flow_out, flow_status_out, accel, overlays, overlays_previous, overlay_attachments, flow_deltas, ctx);
+    flow_pixel(true, params, cameras_close, cameras_previous, flow_out, flow_status_out, flow_color_out, flow_status_color_out, accel, overlays, overlays_previous, overlay_attachments, flow_deltas, ctx);
 }
 
 kernel void render_collision(

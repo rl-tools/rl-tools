@@ -53,6 +53,8 @@
 #include <vector>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
+using rlt::output;
 
 using T = float;
 using TI = int;
@@ -96,7 +98,11 @@ struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_HEIGHT = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_DYNAMIC_HEIGHT;
     static constexpr TI NUM_CAMERAS = ::NUM_CAMERAS, NUM_PROBES = ::NUM_PROBES;
     using SHADING = ::SHADING;
-    static constexpr bool OUTPUT_DEPTH = OUTPUT_DEPTH_ENABLED;
+    using OUTPUTS = typename rro::Concat<
+        rro::List<rro::RGB<>>,
+        rro::If<(OUTPUT_DEPTH_ENABLED), rro::Depth<>>,
+        rro::List<rro::Probes>
+    >::type;
     static constexpr bool ENABLE_MOTION_BLUR = ENABLE_MB;
     static constexpr TI MOTION_BLUR_SAMPLES = MB_SAMPLES;
     static constexpr bool ENABLE_ANTI_ALIASING = ENABLE_AA;
@@ -196,14 +202,14 @@ template <typename DEVICE, typename RENDERER>
 void consume_outputs(DEVICE& device, RENDERER& renderer, std::vector<uint32_t>& frame_staging, std::vector<float>& depth_staging){
     constexpr size_t pixel_count = (size_t)RENDERER::SPEC::NUM_CAMERAS * RENDERER::SPEC::CAM_PIXELS;
     frame_staging.resize(pixel_count);
-    rlt::Tensor<typename decltype(renderer.frame_buffer)::SPEC> frame_alias;
+    rlt::Tensor<typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rro::RGB<>{}))>::SPEC> frame_alias;
     frame_alias._data = frame_staging.data();
-    rlt::copy(renderer.device, device, rlt::frame_buffer(device, renderer), frame_alias);
+    rlt::copy(renderer.device, device, rlt::output(device, renderer, rro::RGB<>{}), frame_alias);
     if constexpr(RENDERER::SPEC::HAS_DEPTH){
         depth_staging.resize(pixel_count);
-        rlt::Tensor<typename decltype(renderer.depth_buffer)::SPEC> depth_alias;
+        rlt::Tensor<typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rro::Depth<>{}))>::SPEC> depth_alias;
         depth_alias._data = depth_staging.data();
-        rlt::copy(renderer.device, device, rlt::depth_buffer(device, renderer), depth_alias);
+        rlt::copy(renderer.device, device, rlt::output(device, renderer, rro::Depth<>{}), depth_alias);
     }
 }
 
@@ -307,9 +313,9 @@ int main(int ac, char** av){
         upload_poses(device, renderer, camera_staging.data(), camera_staging.data());
         rlt::probe(device, renderer);
         std::vector<rlt::rendering::raytracing::CollisionResult> probe_staging((size_t)NUM_CAMERAS * NUM_PROBES);
-        rlt::Tensor<typename decltype(renderer.collision_results)::SPEC> probe_alias;
+        rlt::Tensor<typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rro::Probes{}))>::SPEC> probe_alias;
         probe_alias._data = probe_staging.data();
-        rlt::copy(renderer.device, device, rlt::collision_results(device, renderer), probe_alias);
+        rlt::copy(renderer.device, device, rlt::output(device, renderer, rro::Probes{}), probe_alias);
         const auto* probe_results = probe_staging.data();
         for(TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++){
             T delta[3];

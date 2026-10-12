@@ -23,6 +23,7 @@ namespace {
         static constexpr size_t CAM_HEIGHT = 5;
         static constexpr size_t HISTORY_LENGTH = 1;
         static constexpr size_t MAX_ENTITY_SLOTS_PER_INSTANCE = 2;
+        using OUTPUTS = rendering::raytracing::outputs::List<rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>;
         static constexpr size_t NUM_PROBES = 0;
         static constexpr bool SELF_VISIBLE = false;
         static constexpr bool ENABLE_MOTION_BLUR = false;

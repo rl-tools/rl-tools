@@ -28,6 +28,12 @@ namespace rl_tools {
     }
 
     namespace rendering::raytracing::backends::metal{
+        using Slot = outputs::Slot;
+
+        inline MTL::Buffer* output_buffer(Context& ctx, Slot slot){
+            return slot == Slot::COUNT ? nullptr : ctx.outputs[(size_t)slot].get();
+        }
+
         template <typename SPEC>
         Context& context(rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
             return *renderer.backend;
@@ -57,19 +63,18 @@ namespace rl_tools {
             }
         }
 
-        // secondary_output: the flow passes' status buffer next to their flow OUTPUT
         template <typename SPEC>
-        void encode_fullscreen_pass(Context& ctx, MTL::CommandBuffer* command_buffer, MTL::ComputePipelineState* pipeline, MTL::Buffer* output, float shutter_t = 0.f, MTL::Buffer* secondary_output = nullptr){
+        void encode_fullscreen_pass(Context& ctx, MTL::CommandBuffer* command_buffer, MTL::ComputePipelineState* pipeline, Slot primary, float shutter_t = 0.f, Slot secondary = Slot::COUNT, Slot color = Slot::COUNT, Slot secondary_color = Slot::COUNT){
             MTL::ComputeCommandEncoder* encoder = command_buffer->computeCommandEncoder();
             encoder->setComputePipelineState(pipeline);
             encoder->setBuffer(ctx.launch_params.get(), 0, bindings::LAUNCH_PARAMS);
             encoder->setBuffer(ctx.cameras.get(), 0, bindings::CAMERAS_CLOSE);
             encoder->setBuffer(ctx.cameras_open.get() != nullptr ? ctx.cameras_open.get() : ctx.cameras.get(), 0, bindings::CAMERAS_OPEN);
             encoder->setBuffer(ctx.cameras_previous.get() != nullptr ? ctx.cameras_previous.get() : ctx.cameras.get(), 0, bindings::CAMERAS_PREVIOUS);
-            encoder->setBuffer(output, 0, bindings::OUTPUT);
-            if(secondary_output != nullptr){
-                encoder->setBuffer(secondary_output, 0, bindings::FLOW_STATUS_OUTPUT);
-            }
+            encoder->setBuffer(output_buffer(ctx, primary), 0, bindings::OUTPUT);
+            encoder->setBuffer(output_buffer(ctx, secondary), 0, bindings::SECONDARY_OUTPUT);
+            encoder->setBuffer(output_buffer(ctx, color), 0, bindings::COLOR_OUTPUT);
+            encoder->setBuffer(output_buffer(ctx, secondary_color), 0, bindings::SECONDARY_COLOR_OUTPUT);
             if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
                 if(ctx.rgb_accumulator.get() != nullptr){
                     encoder->setBuffer(ctx.rgb_accumulator.get(), 0, bindings::RGB_ACCUMULATOR);
@@ -87,8 +92,8 @@ namespace rl_tools {
             encoder->setBuffer(ctx.overlay_structures_previous.get() != nullptr ? ctx.overlay_structures_previous.get() : ctx.overlay_structures.get(), 0, bindings::OVERLAY_STRUCTURES_PREVIOUS);
             encoder->setBuffer(ctx.overlay_attachments.get(), 0, bindings::OVERLAY_ATTACHMENTS);
             encoder->setBuffer(ctx.instance_classes.get(), 0, bindings::INSTANCE_CLASSES);
-            if(ctx.observation.get() != nullptr){
-                encoder->setBuffer(ctx.observation.get(), 0, bindings::OBSERVATION);
+            if(output_buffer(ctx, Slot::RGB_FLOAT32) != nullptr){
+                encoder->setBuffer(output_buffer(ctx, Slot::RGB_FLOAT32), 0, bindings::RGB_FLOAT32);
             }
             if(ctx.flow_deltas.get() != nullptr){
                 encoder->setBuffer(ctx.flow_deltas.get(), 0, bindings::FLOW_DELTAS);
@@ -120,12 +125,12 @@ namespace rl_tools {
             MTL::ComputeCommandEncoder* encoder = command_buffer->computeCommandEncoder();
             encoder->setComputePipelineState(ctx.resolve_pipeline.get());
             encoder->setBuffer(ctx.launch_params.get(), 0, bindings::LAUNCH_PARAMS);
-            if constexpr (SPEC::HAS_RGB){
-                encoder->setBuffer(ctx.frame_buffer.get(), 0, bindings::OUTPUT);
-                encoder->setBuffer(ctx.rgb_accumulator.get(), 0, bindings::RGB_ACCUMULATOR);
+            if constexpr (SPEC::HAS_RGBA8){
+                encoder->setBuffer(output_buffer(ctx, Slot::RGB_RGBA8), 0, bindings::OUTPUT);
             }
-            if constexpr (SPEC::HAS_OBSERVATION){
-                encoder->setBuffer(ctx.observation.get(), 0, bindings::OBSERVATION);
+            encoder->setBuffer(ctx.rgb_accumulator.get(), 0, bindings::RGB_ACCUMULATOR);
+            if constexpr (SPEC::HAS_RGB32F){
+                encoder->setBuffer(output_buffer(ctx, Slot::RGB_FLOAT32), 0, bindings::RGB_FLOAT32);
             }
             encoder->dispatchThreads(MTL::Size::Make(SPEC::FB_WIDTH, SPEC::FB_HEIGHT, 1), MTL::Size::Make(8, 8, 1));
             encoder->endEncoding();
@@ -138,7 +143,7 @@ namespace rl_tools {
             encoder->setBuffer(ctx.launch_params.get(), 0, bindings::LAUNCH_PARAMS);
             encoder->setBuffer(ctx.cameras.get(), 0, bindings::CAMERAS_CLOSE);
             encoder->setBuffer(ctx.probe_directions.get(), 0, bindings::PROBE_DIRECTIONS);
-            encoder->setBuffer(ctx.collision_results.get(), 0, bindings::COLLISION_RESULTS);
+            encoder->setBuffer(output_buffer(ctx, Slot::PROBES), 0, bindings::COLLISION_RESULTS);
             encoder->setAccelerationStructure(ctx.acceleration_structure.get(), bindings::ACCELERATION_STRUCTURE);
             encoder->setBuffer(ctx.overlay_structures.get(), 0, bindings::OVERLAY_STRUCTURES);
             encoder->setBuffer(ctx.overlay_attachments.get(), 0, bindings::OVERLAY_ATTACHMENTS);
@@ -190,43 +195,26 @@ namespace rl_tools {
         }
 
         constexpr typename SPEC::TI cam_pixels = SPEC::CAM_PIXELS;
-        // the output tensors alias the shared MTLBuffers the kernels write (see frame_buffer/
-        // depth_buffer/segmentation_buffer/collision_results/observation accessors)
-        if constexpr (SPEC::HAS_RGB) {
-            ctx->frame_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t), MTL::ResourceStorageModeShared));
-            renderer.frame_buffer._data = (uint32_t*)ctx->frame_buffer->contents();
-        }
-        if constexpr (SPEC::HAS_DEPTH) {
-            ctx->depth_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(float), MTL::ResourceStorageModeShared));
-            renderer.depth_buffer._data = (float*)ctx->depth_buffer->contents();
-        }
-        if constexpr (SPEC::HAS_SEGMENTATION) {
-            ctx->segmentation_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t), MTL::ResourceStorageModeShared));
-            renderer.segmentation_buffer._data = (uint32_t*)ctx->segmentation_buffer->contents();
-        }
-        if constexpr (SPEC::HAS_NORMALS) {
-            ctx->normals_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * 3 * sizeof(float), MTL::ResourceStorageModeShared));
-            renderer.normals_buffer._data = (float*)ctx->normals_buffer->contents();
-        }
-        if constexpr (SPEC::HAS_FLOW) {
-            ctx->flow_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * 2 * sizeof(float), MTL::ResourceStorageModeShared));
-            renderer.flow_buffer._data = (float*)ctx->flow_buffer->contents();
-            ctx->flow_status_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t), MTL::ResourceStorageModeShared));
-            renderer.flow_status_buffer._data = (uint32_t*)ctx->flow_status_buffer->contents();
-            if constexpr (SPEC::HAS_FLOW_OVERLAYS) {
-                ctx->flow_deltas = NS::TransferPtr(ctx->device->newBuffer((size_t)2 * SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), MTL::ResourceStorageModeShared));
+        for_each_output(device, renderer.outputs, [&](auto& buffer) {
+            using BUFFER = utils::typing::remove_reference_t<decltype(buffer)>;
+            using OUTPUT = typename BUFFER::OUTPUT;
+            constexpr auto SLOT = rendering::raytracing::outputs::Traits<OUTPUT>::SLOT;
+            auto& resource = ctx->outputs[(size_t)SLOT];
+            resource = NS::TransferPtr(ctx->device->newBuffer(BUFFER::TENSOR_SPEC::SIZE_BYTES, MTL::ResourceStorageModeShared));
+            buffer.tensor._data = (typename BUFFER::TENSOR_SPEC::T*)resource->contents();
+            ctx->output_mask |= uint32_t(1) << (uint32_t)SLOT;
+            if constexpr (SLOT == rendering::raytracing::outputs::Slot::DEPTH_RGBA8) {
+                ctx->depth_scale = OUTPUT::PARAMETERS::SCALE;
             }
-        }
-        if constexpr (SPEC::HAS_FLOW_FORWARD) {
-            ctx->flow_forward_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * 2 * sizeof(float), MTL::ResourceStorageModeShared));
-            renderer.flow_forward_buffer._data = (float*)ctx->flow_forward_buffer->contents();
-            ctx->flow_forward_status_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t), MTL::ResourceStorageModeShared));
-            renderer.flow_forward_status_buffer._data = (uint32_t*)ctx->flow_forward_status_buffer->contents();
-        }
-        if constexpr (SPEC::HAS_OBSERVATION) {
-            static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The Metal raytracing backend requires OBSERVATION_T = float");
-            ctx->observation = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * SPEC::OBSERVATION_CHANNELS * sizeof(float), MTL::ResourceStorageModeShared));
-            renderer.observation._data = (float*)ctx->observation->contents();
+            if constexpr (SLOT == rendering::raytracing::outputs::Slot::FLOW_RGBA8) {
+                ctx->flow_scale = OUTPUT::PARAMETERS::SCALE;
+            }
+            if constexpr (SLOT == rendering::raytracing::outputs::Slot::FLOW_FORWARD_RGBA8) {
+                ctx->flow_forward_scale = OUTPUT::PARAMETERS::SCALE;
+            }
+        });
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS) {
+            ctx->flow_deltas = NS::TransferPtr(ctx->device->newBuffer((size_t)2 * SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), MTL::ResourceStorageModeShared));
         }
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
             // linear-radiance accumulators for the launch-level motion loop, resolved into the
@@ -236,10 +224,7 @@ namespace rl_tools {
                 renderer.rgb_accumulator._data = (float*)ctx->rgb_accumulator->contents();
             }
         }
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        ctx->collision_results = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES * sizeof(rendering::raytracing::CollisionResult), MTL::ResourceStorageModeShared));
-        renderer.collision_results._data = (rendering::raytracing::CollisionResult*)ctx->collision_results->contents();
-#endif
+
         ctx->launch_params = NS::TransferPtr(ctx->device->newBuffer(sizeof(metal::LaunchParams), MTL::ResourceStorageModeShared));
 
         // camera tensors alias the shared MTLBuffers the encoders bind (see cameras(device,
@@ -590,8 +575,7 @@ namespace rl_tools {
             bool pbr_shading = CONSTANTS::PBR_SHADING;
             bool punctual_light_shadows = CONSTANTS::PUNCTUAL_LIGHT_SHADOWS;
             int overlay_count = CONSTANTS::OVERLAY_COUNT;
-            bool semantic_segmentation = CONSTANTS::SEMANTIC_SEGMENTATION;
-            bool has_observation = CONSTANTS::HAS_OBSERVATION;
+            bool has_rgb32f = SPEC::HAS_RGB32F;
             bool dynamic_motion_blur = CONSTANTS::DYNAMIC_MOTION_BLUR;
             bool resolve_rgb = CONSTANTS::RESOLVE_RGB;
             constants->setConstantValue(&srgb_output, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::SRGB_OUTPUT);
@@ -605,10 +589,13 @@ namespace rl_tools {
             constants->setConstantValue(&pbr_shading, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::PBR_SHADING);
             constants->setConstantValue(&punctual_light_shadows, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::PUNCTUAL_LIGHT_SHADOWS);
             constants->setConstantValue(&overlay_count, MTL::DataTypeInt, (NS::UInteger)metal::function_constants::OVERLAY_COUNT);
-            constants->setConstantValue(&semantic_segmentation, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::SEMANTIC_SEGMENTATION);
-            constants->setConstantValue(&has_observation, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::HAS_OBSERVATION);
+            constants->setConstantValue(&has_rgb32f, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::HAS_RGB32F);
             constants->setConstantValue(&dynamic_motion_blur, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::DYNAMIC_MOTION_BLUR);
             constants->setConstantValue(&resolve_rgb, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::RESOLVE_RGB);
+            constants->setConstantValue(&ctx.output_mask, MTL::DataTypeUInt, (NS::UInteger)metal::function_constants::OUTPUT_MASK);
+            constants->setConstantValue(&ctx.depth_scale, MTL::DataTypeFloat, (NS::UInteger)metal::function_constants::DEPTH_SCALE);
+            constants->setConstantValue(&ctx.flow_scale, MTL::DataTypeFloat, (NS::UInteger)metal::function_constants::FLOW_SCALE);
+            constants->setConstantValue(&ctx.flow_forward_scale, MTL::DataTypeFloat, (NS::UInteger)metal::function_constants::FLOW_FORWARD_SCALE);
 
             auto make_pipeline = [&](const char* name) -> NS::SharedPtr<MTL::ComputePipelineState> {
                 NS::Error* error = nullptr;
@@ -638,7 +625,7 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_NORMALS) {
                 ctx.normals_pipeline = make_pipeline("render_normals");
             }
-            if constexpr (SPEC::HAS_FLOW) {
+            if constexpr (SPEC::HAS_FLOW_BACKWARD) {
                 ctx.flow_pipeline = make_pipeline("render_flow");
             }
             if constexpr (SPEC::HAS_FLOW_FORWARD) {
@@ -647,9 +634,9 @@ namespace rl_tools {
             if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
                 ctx.resolve_pipeline = make_pipeline("resolve_outputs");
             }
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-            ctx.collision_pipeline = make_pipeline("render_collision");
-#endif
+            if constexpr (SPEC::HAS_PROBES) {
+                ctx.collision_pipeline = make_pipeline("render_collision");
+            }
             ctx.pipelines_built = true;
         }
 
@@ -900,15 +887,12 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void generate_probe_directions(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
-#if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "Probe rays disabled (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1)");
-        return;
-#else
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        std::vector<float> dirs = rendering::raytracing::detail::generate_probe_direction_vectors<SPEC>(device);
-        ctx.probe_directions = NS::TransferPtr(ctx.device->newBuffer(dirs.data(), dirs.size() * sizeof(float), MTL::ResourceStorageModeShared));
-#endif
+        if constexpr(SPEC::HAS_PROBES){
+            namespace metal = rendering::raytracing::backends::metal;
+            auto& ctx = metal::context(renderer);
+            std::vector<float> dirs = rendering::raytracing::detail::generate_probe_direction_vectors<SPEC>(device);
+            ctx.probe_directions = NS::TransferPtr(ctx.device->newBuffer(dirs.data(), dirs.size() * sizeof(float), MTL::ResourceStorageModeShared));
+        }
     }
 
     // render produces the image outputs the spec declares; the collision-probe pass is the
@@ -968,24 +952,24 @@ namespace rl_tools {
                 encode_overlay_builds([&](TI overlay){ return ctx.overlay_sample_instance_descriptors[(size_t)sample * SPEC::NUM_OVERLAYS + overlay].get(); });
                 const float shutter_t = ((float)sample + 0.5f) / (float)SPEC::MOTION_BLUR_SAMPLES;
                 if constexpr (SPEC::HAS_RGB) {
-                    metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.rgb_pipeline.get(), ctx.frame_buffer.get(), shutter_t);
+                    metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.rgb_pipeline.get(), metal::Slot::RGB_RGBA8, shutter_t);
                 }
             }
             encode_overlay_builds([&](TI overlay){ return ctx.overlay_instance_descriptors[overlay].get(); });
             if constexpr (SPEC::HAS_DEPTH) {
-                metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.depth_pipeline.get(), ctx.depth_buffer.get());
+                metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.depth_pipeline.get(), metal::Slot::DEPTH_FLOAT32, 0.f, metal::Slot::COUNT, metal::Slot::DEPTH_RGBA8);
             }
             if constexpr (SPEC::HAS_SEGMENTATION) {
-                metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.segmentation_pipeline.get(), ctx.segmentation_buffer.get());
+                metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.segmentation_pipeline.get(), metal::Slot::SEGMENTATION_UINT32, 0.f, metal::Slot::SEMANTIC_UINT32, metal::Slot::SEGMENTATION_RGBA8, metal::Slot::SEMANTIC_RGBA8);
             }
             if constexpr (SPEC::HAS_NORMALS) {
-                metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.normals_pipeline.get(), ctx.normals_buffer.get());
+                metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.normals_pipeline.get(), metal::Slot::NORMALS_FLOAT32, 0.f, metal::Slot::COUNT, metal::Slot::NORMALS_RGBA8);
             }
-            if constexpr (SPEC::HAS_FLOW) {
-                metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.flow_pipeline.get(), ctx.flow_buffer.get(), 0.f, ctx.flow_status_buffer.get());
+            if constexpr (SPEC::HAS_FLOW_BACKWARD) {
+                metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.flow_pipeline.get(), metal::Slot::FLOW_FLOAT32, 0.f, metal::Slot::FLOW_STATUS_UINT32, metal::Slot::FLOW_RGBA8, metal::Slot::FLOW_STATUS_RGBA8);
             }
             if constexpr (SPEC::HAS_FLOW_FORWARD) {
-                metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.flow_forward_pipeline.get(), ctx.flow_forward_buffer.get(), 0.f, ctx.flow_forward_status_buffer.get());
+                metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.flow_forward_pipeline.get(), metal::Slot::FLOW_FORWARD_FLOAT32, 0.f, metal::Slot::FLOW_FORWARD_STATUS_UINT32, metal::Slot::FLOW_FORWARD_RGBA8, metal::Slot::FLOW_FORWARD_STATUS_RGBA8);
             }
             metal::encode_resolve_pass<SPEC>(ctx, command_buffer);
             command_buffer->commit();
@@ -994,22 +978,22 @@ namespace rl_tools {
             return;
         }
         if constexpr (SPEC::HAS_RGB) {
-            metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.rgb_pipeline.get(), ctx.frame_buffer.get());
+            metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.rgb_pipeline.get(), metal::Slot::RGB_RGBA8);
         }
         if constexpr (SPEC::HAS_DEPTH) {
-            metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.depth_pipeline.get(), ctx.depth_buffer.get());
+            metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.depth_pipeline.get(), metal::Slot::DEPTH_FLOAT32, 0.f, metal::Slot::COUNT, metal::Slot::DEPTH_RGBA8);
         }
         if constexpr (SPEC::HAS_SEGMENTATION) {
-            metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.segmentation_pipeline.get(), ctx.segmentation_buffer.get());
+            metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.segmentation_pipeline.get(), metal::Slot::SEGMENTATION_UINT32, 0.f, metal::Slot::SEMANTIC_UINT32, metal::Slot::SEGMENTATION_RGBA8, metal::Slot::SEMANTIC_RGBA8);
         }
         if constexpr (SPEC::HAS_NORMALS) {
-            metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.normals_pipeline.get(), ctx.normals_buffer.get());
+            metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.normals_pipeline.get(), metal::Slot::NORMALS_FLOAT32, 0.f, metal::Slot::COUNT, metal::Slot::NORMALS_RGBA8);
         }
-        if constexpr (SPEC::HAS_FLOW) {
-            metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.flow_pipeline.get(), ctx.flow_buffer.get(), 0.f, ctx.flow_status_buffer.get());
+        if constexpr (SPEC::HAS_FLOW_BACKWARD) {
+            metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.flow_pipeline.get(), metal::Slot::FLOW_FLOAT32, 0.f, metal::Slot::FLOW_STATUS_UINT32, metal::Slot::FLOW_RGBA8, metal::Slot::FLOW_STATUS_RGBA8);
         }
         if constexpr (SPEC::HAS_FLOW_FORWARD) {
-            metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.flow_forward_pipeline.get(), ctx.flow_forward_buffer.get(), 0.f, ctx.flow_forward_status_buffer.get());
+            metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.flow_forward_pipeline.get(), metal::Slot::FLOW_FORWARD_FLOAT32, 0.f, metal::Slot::FLOW_FORWARD_STATUS_UINT32, metal::Slot::FLOW_FORWARD_RGBA8, metal::Slot::FLOW_FORWARD_STATUS_RGBA8);
         }
         command_buffer->commit();
         ctx.in_flight = NS::RetainPtr(command_buffer);
@@ -1075,31 +1059,12 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_CAMERA_PAIR) {
             renderer.cameras_open._data = nullptr;
         }
-        if constexpr (SPEC::HAS_RGB) {
-            renderer.frame_buffer._data = nullptr;
-        }
-        if constexpr (SPEC::HAS_DEPTH) {
-            renderer.depth_buffer._data = nullptr;
-        }
-        if constexpr (SPEC::HAS_SEGMENTATION) {
-            renderer.segmentation_buffer._data = nullptr;
-        }
-        if constexpr (SPEC::HAS_NORMALS) {
-            renderer.normals_buffer._data = nullptr;
-        }
+        for_each_output(device, renderer.outputs, [&](auto& buffer) {
+            buffer.tensor._data = nullptr;
+        });
         if constexpr (SPEC::HAS_FLOW) {
             renderer.cameras_previous._data = nullptr;
-            renderer.flow_buffer._data = nullptr;
-            renderer.flow_status_buffer._data = nullptr;
         }
-        if constexpr (SPEC::HAS_FLOW_FORWARD) {
-            renderer.flow_forward_buffer._data = nullptr;
-            renderer.flow_forward_status_buffer._data = nullptr;
-        }
-        if constexpr (SPEC::HAS_OBSERVATION) {
-            renderer.observation._data = nullptr;
-        }
-        renderer.collision_results._data = nullptr;
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             free(device, renderer.transforms);
         }

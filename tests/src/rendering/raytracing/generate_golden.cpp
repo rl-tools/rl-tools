@@ -348,7 +348,7 @@ bool run_case(DEVICE& device, const std::string& output_dir) {
     if constexpr(SPEC::HAS_NORMALS) {
         ok = write_geometry<CASE>(output_dir, rendered) && ok;
     }
-    if constexpr(SPEC::SEMANTIC_SEGMENTATION){
+    if constexpr(SPEC::HAS_SEMANTIC_SEGMENTATION){
         ok = write_semantic<CASE>(output_dir, rendered) && ok;
     }
     if constexpr(SPEC::HAS_FLOW) {

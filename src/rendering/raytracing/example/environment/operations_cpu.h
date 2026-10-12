@@ -190,7 +190,7 @@ namespace rl_tools {
         render(device, *env.renderer);
 
         std::vector<uint32_t> frame_staging((size_t)SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT);
-        auto frame_camera_0 = view(device, frame_buffer(device, *env.renderer), 0);
+        auto frame_camera_0 = view(device, output(device, *env.renderer, rl_tools::rendering::raytracing::outputs::RGB<>{}), 0);
         Tensor<tensor::Specification<uint32_t, typename SPEC::TI, typename decltype(frame_camera_0)::SPEC::SHAPE>> frame_alias;
         frame_alias._data = frame_staging.data();
         copy(env.renderer->device, device, frame_camera_0, frame_alias);
@@ -258,6 +258,6 @@ namespace rl_tools {
         }
         copy(device, env.renderer->device, env.camera_staging, cameras(device, *env.renderer));
         render(device, *env.renderer);
-        copy(env.renderer->device, device, frame_buffer(device, *env.renderer), out_pixels);
+        copy(env.renderer->device, device, output(device, *env.renderer, rl_tools::rendering::raytracing::outputs::RGB<>{}), out_pixels);
     }
 }

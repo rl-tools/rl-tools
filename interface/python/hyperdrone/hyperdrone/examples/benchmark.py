@@ -3,7 +3,7 @@
 `rendering_raytracing_sim_benchmark_medium` with no arguments:
 
   4096 cameras @ 64x64, medium fidelity, RGB output, collision probes compiled out
-  (num_probes=0, the C++ target's probe-ray macro), AA/MB off, fov 80 degrees,
+  (num_probes=0), AA/MB off, fov 80 degrees,
   all cameras at the fixed FLU eye position [-3.92, -5.67, 1.0] inside the ProcTHOR
   house, per-camera orientations sampled once from a seeded distribution
   (uniform_so3 default), 2s untimed warmup, then a timed async render_launch loop with a

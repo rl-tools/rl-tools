@@ -146,7 +146,7 @@ namespace rl_tools {
             const auto& state = get_ref(device, states, instance_i);
             float pose[12];
             rl::environments::hyperdrone::tasks::moving_gate::gate_pose(device, instance_parameters, state.gate_phase, pose);
-            if constexpr (NEXT_WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR) {
+            if constexpr (NEXT_WORLD::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
                 float pose_open[12];
                 const T dt = instance_parameters.agents[0].dynamics.integration.dt;
                 constexpr T TWO_PI = (T)2 * math::PI<T>;
@@ -177,7 +177,7 @@ namespace rl_tools {
         using TI = typename TASK_SPEC::TI;
         using WORLD = rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>;
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
-        if constexpr (NEXT_WORLD::SPEC::HISTORY_LENGTH > 1 || NEXT_WORLD::SPEC::OUTPUT_FLOW){
+        if constexpr (NEXT_WORLD::SPEC::HISTORY_LENGTH > 1 || NEXT_WORLD::RENDERER_SPEC::HAS_FLOW){
             if(world.render_pending){
                 prepare_entity_poses(device, world, parameters, states);
             }

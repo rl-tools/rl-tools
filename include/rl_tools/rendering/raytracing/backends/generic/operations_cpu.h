@@ -127,12 +127,7 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_CAMERA_PAIR) {
             malloc(device, renderer.cameras_open);
         }
-        if constexpr (SPEC::HAS_RGB) {
-            malloc(device, renderer.frame_buffer);
-        }
-        if constexpr (SPEC::HAS_DEPTH) {
-            malloc(device, renderer.depth_buffer);
-        }
+        malloc(device, renderer.outputs);
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             malloc(device, renderer.transforms);
             rendering::raytracing::detail::malloc_overlay_staging(renderer);
@@ -151,9 +146,6 @@ namespace rl_tools {
                 malloc(device, renderer.rgb_accumulator);
             }
         }
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        malloc(device, renderer.collision_results);
-#endif
 
         auto* backend_state = new rendering::raytracing::backends::RendererState<rendering::raytracing::backends::Generic, SPEC>{};
         renderer.backend = backend_state;
@@ -165,38 +157,8 @@ namespace rl_tools {
         else {
             backend_state->scene.cameras_open = data(renderer.cameras);
         }
-        // the renderer-owned output tensors are the render targets — no staging copy
-        if constexpr (SPEC::HAS_RGB) {
-            backend_state->scene.frame_buffer = data(renderer.frame_buffer);
-        }
-        if constexpr (SPEC::HAS_DEPTH) {
-            backend_state->scene.depth_buffer = data(renderer.depth_buffer);
-        }
-        if constexpr (SPEC::HAS_SEGMENTATION) {
-            malloc(device, renderer.segmentation_buffer);
-            backend_state->scene.segmentation_buffer = data(renderer.segmentation_buffer);
-        }
-        if constexpr (SPEC::HAS_NORMALS) {
-            malloc(device, renderer.normals_buffer);
-            backend_state->scene.normals_buffer = data(renderer.normals_buffer);
-        }
         if constexpr (SPEC::HAS_FLOW) {
-            malloc(device, renderer.flow_buffer);
-            malloc(device, renderer.flow_status_buffer);
-            backend_state->scene.flow_buffer = data(renderer.flow_buffer);
-            backend_state->scene.flow_status_buffer = data(renderer.flow_status_buffer);
             backend_state->scene.cameras_previous = data(renderer.cameras_previous);
-        }
-        if constexpr (SPEC::HAS_FLOW_FORWARD) {
-            malloc(device, renderer.flow_forward_buffer);
-            malloc(device, renderer.flow_forward_status_buffer);
-            backend_state->scene.flow_forward_buffer = data(renderer.flow_forward_buffer);
-            backend_state->scene.flow_forward_status_buffer = data(renderer.flow_forward_status_buffer);
-        }
-        if constexpr (SPEC::HAS_OBSERVATION) {
-            static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The generic raytracing backend requires OBSERVATION_T = float");
-            malloc(device, renderer.observation);
-            backend_state->scene.observation = data(renderer.observation);
         }
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
             if constexpr (SPEC::HAS_RGB) {
@@ -234,9 +196,6 @@ namespace rl_tools {
                 backend_state->scene.flow_deltas = backend_state->flow_deltas.data();
             }
         }
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        backend_state->scene.collision_results = data(renderer.collision_results);
-#endif
         rendering::raytracing::detail::announce_backend(device, renderer);
     }
 
@@ -561,15 +520,12 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void generate_probe_directions(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
-#if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "Probe rays disabled (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1)");
-        return;
-#else
-        namespace generic = rendering::raytracing::backends::generic;
-        auto& backend_state = generic::state(renderer);
-        backend_state.probe_directions = rendering::raytracing::detail::generate_probe_direction_vectors<SPEC>(device);
-        backend_state.scene.probe_directions = backend_state.probe_directions.data();
-#endif
+        if constexpr (SPEC::HAS_PROBES) {
+            namespace generic = rendering::raytracing::backends::generic;
+            auto& backend_state = generic::state(renderer);
+            backend_state.probe_directions = rendering::raytracing::detail::generate_probe_direction_vectors<SPEC>(device);
+            backend_state.scene.probe_directions = backend_state.probe_directions.data();
+        }
     }
 
     // render produces the image outputs the spec declares; the collision-probe pass is the
@@ -597,42 +553,17 @@ namespace rl_tools {
             }
             generic::rebuild_overlay_instances(device, renderer, data(renderer.transforms));
             if constexpr (SPEC::HAS_RGB) {
-                generic::resolve_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
+                generic::resolve_frame<DEVICE, SPEC>(device, generic::state(renderer).scene, renderer.outputs);
             }
-            if constexpr (SPEC::HAS_DEPTH) {
-                generic::render_depth_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
-            }
-            if constexpr (SPEC::HAS_SEGMENTATION) {
-                generic::render_segmentation_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
-            }
-            if constexpr (SPEC::HAS_NORMALS) {
-                generic::render_normals_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
-            }
-            if constexpr (SPEC::HAS_FLOW) {
-                generic::render_flow_frame<DEVICE, SPEC, false>(device, generic::state(renderer).scene);
-            }
-            if constexpr (SPEC::HAS_FLOW_FORWARD) {
-                generic::render_flow_frame<DEVICE, SPEC, true>(device, generic::state(renderer).scene);
-            }
-            return;
         }
-        if constexpr (SPEC::HAS_RGB) {
-            generic::render_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
+        else if constexpr (SPEC::HAS_RGB) {
+            generic::render_frame<DEVICE, SPEC>(device, generic::state(renderer).scene, renderer.outputs);
         }
-        if constexpr (SPEC::HAS_DEPTH) {
-            generic::render_depth_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
-        }
-        if constexpr (SPEC::HAS_SEGMENTATION) {
-            generic::render_segmentation_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
-        }
-        if constexpr (SPEC::HAS_NORMALS) {
-            generic::render_normals_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
-        }
-        if constexpr (SPEC::HAS_FLOW) {
-            generic::render_flow_frame<DEVICE, SPEC, false>(device, generic::state(renderer).scene);
+        if constexpr (SPEC::HAS_AUXILIARY && !SPEC::FUSE_AUXILIARY) {
+            generic::render_auxiliary_frame<DEVICE, SPEC>(device, generic::state(renderer).scene, renderer.outputs);
         }
         if constexpr (SPEC::HAS_FLOW_FORWARD) {
-            generic::render_flow_frame<DEVICE, SPEC, true>(device, generic::state(renderer).scene);
+            generic::render_auxiliary_frame<DEVICE, SPEC, true>(device, generic::state(renderer).scene, renderer.outputs);
         }
     }
 
@@ -643,9 +574,9 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void probe_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
         namespace generic = rendering::raytracing::backends::generic;
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        generic::render_collision<DEVICE, SPEC>(device, generic::state(renderer).scene);
-#endif
+        if constexpr (SPEC::HAS_PROBES) {
+            generic::render_collision<DEVICE, SPEC>(device, generic::state(renderer).scene, renderer.outputs);
+        }
     }
 
     template <typename DEVICE, typename SPEC>
@@ -667,32 +598,12 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_CAMERA_PAIR) {
             free(device, renderer.cameras_open);
         }
-        if constexpr (SPEC::HAS_RGB) {
-            free(device, renderer.frame_buffer);
-        }
-        if constexpr (SPEC::HAS_DEPTH) {
-            free(device, renderer.depth_buffer);
-        }
-        if constexpr (SPEC::HAS_SEGMENTATION) {
-            free(device, renderer.segmentation_buffer);
-        }
-        if constexpr (SPEC::HAS_NORMALS) {
-            free(device, renderer.normals_buffer);
-        }
+        free(device, renderer.outputs);
         if constexpr (SPEC::HAS_FLOW) {
             free(device, renderer.cameras_previous);
-            free(device, renderer.flow_buffer);
-            free(device, renderer.flow_status_buffer);
-        }
-        if constexpr (SPEC::HAS_FLOW_FORWARD) {
-            free(device, renderer.flow_forward_buffer);
-            free(device, renderer.flow_forward_status_buffer);
         }
         if constexpr (SPEC::HAS_FLOW_OVERLAYS) {
             free(device, renderer.transforms_previous);
-        }
-        if constexpr (SPEC::HAS_OBSERVATION) {
-            free(device, renderer.observation);
         }
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             free(device, renderer.transforms);
@@ -703,9 +614,7 @@ namespace rl_tools {
                 free(device, renderer.rgb_accumulator);
             }
         }
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        free(device, renderer.collision_results);
-#endif
+
     }
 
 }

@@ -136,11 +136,7 @@ def test_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, semanti
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 16;
         static constexpr bool ENABLE_MOTION_BLUR = true;
         static constexpr TI MOTION_BLUR_SAMPLES = 2;
-        static constexpr bool OUTPUT_DEPTH = true;
-        static constexpr bool OUTPUT_SEGMENTATION = true;
-        static constexpr bool SEMANTIC_SEGMENTATION = {'true' if semantic else 'false'};
-        static constexpr bool OUTPUT_NORMALS = true;
-        static constexpr bool OUTPUT_FLOW = true;
+        using OUTPUTS = rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>, rl_tools::rendering::raytracing::outputs::Depth<>, rl_tools::rendering::raytracing::outputs::Segmentation<rl_tools::rendering::raytracing::outputs::format::UInt32, rl_tools::utils::typing::conditional_t<({'true' if semantic else 'false'}), rl_tools::rendering::raytracing::outputs::labels::Semantic, rl_tools::rendering::raytracing::outputs::labels::Instance>>, rl_tools::rendering::raytracing::outputs::Normals<>, rl_tools::rendering::raytracing::outputs::Flow<>, rl_tools::rendering::raytracing::outputs::FlowStatus<>, rl_tools::rendering::raytracing::outputs::Probes>;
 """)
     header.write_text(source)
     with pytest.raises(ValueError, match="spec_header defines"):

@@ -32,13 +32,9 @@
 namespace HYPERDRONE_MODULE_NAME {
     using rl_tools::view_range;
     using rl_tools::render;
+    using rl_tools::output;
     using rl_tools::get_renderer;
     using rl_tools::copy;
-    using rl_tools::depth_buffer;
-    using rl_tools::segmentation_buffer;
-    using rl_tools::normals_buffer;
-    using rl_tools::flow_buffer;
-    using rl_tools::flow_status_buffer;
     using rl_tools::request_render;
 
 #if HYPERDRONE_ENV_DEVICE_CUDA
@@ -236,7 +232,7 @@ namespace HYPERDRONE_MODULE_NAME {
                 const std::string name = "hyperdrone: drone " + std::to_string(drone_i) + " (" + drone.asset + ")";
                 std::string path;
                 rlt::rendering::raytracing::ObjectAssembly assembly;
-                if(drone.asset.empty() || !rlt::rendering::datasets::resolve_reference(impl.host(), drone.asset, path) || !rlt::load<typename SPEC::SHADING, SPEC::OUTPUT_RGB>(impl.host(), assembly, path)){
+                if(drone.asset.empty() || !rlt::rendering::datasets::resolve_reference(impl.host(), drone.asset, path) || !rlt::load<typename SPEC::SHADING, WORLD::RENDERER_SPEC::HAS_RGB>(impl.host(), assembly, path)){
                     throw std::invalid_argument(name + ": failed to load the asset");
                 }
                 rlt::rl::environments::hyperdrone::DroneBody<SPEC> body;
@@ -358,7 +354,7 @@ namespace HYPERDRONE_MODULE_NAME {
         const TI drone_parts = check_drones(*impl);
         if constexpr (HasGateAssetPath<WORLD>::VALUE){
             rlt::rendering::raytracing::ObjectAssembly assembly;
-            if(!rlt::load<typename WORLD::SPEC::SHADING, WORLD::SPEC::OUTPUT_RGB>(impl->host(), assembly, assets.at("gate")) || assembly.parts.empty()){
+            if(!rlt::load<typename WORLD::SPEC::SHADING, WORLD::RENDERER_SPEC::HAS_RGB>(impl->host(), assembly, assets.at("gate")) || assembly.parts.empty()){
                 throw std::invalid_argument("hyperdrone: failed to load the gate asset");
             }
             if(assembly.parts.size() > WORLD::SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE - drone_parts){
@@ -666,24 +662,24 @@ namespace HYPERDRONE_MODULE_NAME {
     }
 
     void Environment::depth(float* out, bool resident){
-        read_image_output<WORLD::RENDERER_SPEC::HAS_DEPTH>(*impl, out, resident, "depth",
-            [](auto& device, auto& renderer) -> auto& { return depth_buffer(device, renderer); });
+        read_image_output<rro::contains<OUTPUTS, rro::Depth<>>::value>(*impl, out, resident, "depth",
+            [](auto& device, auto& renderer) -> auto& { return output(device, renderer, rl_tools::rendering::raytracing::outputs::Depth<>{}); });
     }
     void Environment::segmentation(uint32_t* out, bool resident){
-        read_image_output<WORLD::RENDERER_SPEC::HAS_SEGMENTATION>(*impl, out, resident, "segmentation",
-            [](auto& device, auto& renderer) -> auto& { return segmentation_buffer(device, renderer); });
+        read_image_output<rro::contains<OUTPUTS, SEGMENTATION_OUTPUT>::value>(*impl, out, resident, "segmentation",
+            [](auto& device, auto& renderer) -> auto& { return output(device, renderer, SEGMENTATION_OUTPUT{}); });
     }
     void Environment::normals(float* out, bool resident){
-        read_image_output<WORLD::RENDERER_SPEC::HAS_NORMALS>(*impl, out, resident, "normals",
-            [](auto& device, auto& renderer) -> auto& { return normals_buffer(device, renderer); });
+        read_image_output<rro::contains<OUTPUTS, rro::Normals<>>::value>(*impl, out, resident, "normals",
+            [](auto& device, auto& renderer) -> auto& { return output(device, renderer, rl_tools::rendering::raytracing::outputs::Normals<>{}); });
     }
     void Environment::flow(float* out, bool resident){
-        read_image_output<WORLD::RENDERER_SPEC::HAS_FLOW>(*impl, out, resident, "flow",
-            [](auto& device, auto& renderer) -> auto& { return flow_buffer(device, renderer); });
+        read_image_output<rro::contains<OUTPUTS, rro::Flow<>>::value>(*impl, out, resident, "flow",
+            [](auto& device, auto& renderer) -> auto& { return output(device, renderer, rl_tools::rendering::raytracing::outputs::Flow<>{}); });
     }
     void Environment::flow_status(uint32_t* out, bool resident){
-        read_image_output<WORLD::RENDERER_SPEC::HAS_FLOW>(*impl, out, resident, "flow_status",
-            [](auto& device, auto& renderer) -> auto& { return flow_status_buffer(device, renderer); });
+        read_image_output<rro::contains<OUTPUTS, rro::FlowStatus<>>::value>(*impl, out, resident, "flow_status",
+            [](auto& device, auto& renderer) -> auto& { return output(device, renderer, rl_tools::rendering::raytracing::outputs::FlowStatus<>{}); });
     }
     void Environment::observe(float* out, bool resident){
         impl->require_sampled("observe");

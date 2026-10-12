@@ -11,6 +11,7 @@
 #include <string>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using T = float;
@@ -20,8 +21,7 @@ using TI = typename DEVICE::index_t;
 struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_WIDTH = 256, CAM_HEIGHT = 256, NUM_CAMERAS = 1, NUM_PROBES = 1;
     using SHADING = rlt::rendering::raytracing::Low;
-    static constexpr bool OUTPUT_FLOW = true;
-    static constexpr bool OUTPUT_FLOW_FORWARD = true;
+    using OUTPUTS = rro::List<rro::RGB<>, rro::Flow<>, rro::FlowStatus<>, rro::Flow<rro::direction::Forward>, rro::FlowStatus<rro::direction::Forward>, rro::Probes>;
     static constexpr TI NUM_OVERLAYS = 1;
     static constexpr TI MAX_OVERLAY_INSTANCES = 1;
     static constexpr TI MAX_OVERLAYS_PER_CAMERA = 1;

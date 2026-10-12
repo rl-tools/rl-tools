@@ -3,7 +3,6 @@
 // cameras, cameras_open) in place on the render stream. The host's only per-frame role is
 // enqueueing that kernel and the renderer verbs; the framebuffer readback exists solely to
 // feed the mp4 pipes — a training loop would read observation() in place instead.
-#define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 1
 
 #include <rl_tools/operations/cuda.h>
 #include <rl_tools/operations/cpu_mux.h>
@@ -23,6 +22,7 @@
 #include <vector>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
 namespace lissajous = rl_tools::rl::environments::l2f::parameters::trajectories::lissajous;
 
 using T = float;
@@ -40,7 +40,7 @@ static constexpr TI THIRD_PERSON_CAMERA = 1;
 struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_WIDTH = ::CAM_WIDTH, CAM_HEIGHT = ::CAM_HEIGHT, NUM_CAMERAS = ::NUM_CAMERAS, NUM_PROBES = ::NUM_PROBES;
     using SHADING = rlt::rendering::raytracing::High;
-    static constexpr bool OUTPUT_RGB = true;
+    using OUTPUTS = rro::List<rro::RGB<>>;
     static constexpr bool ENABLE_ANTI_ALIASING = true;
     static constexpr TI ANTI_ALIASING_GRID_SIZE = 2;
     static constexpr TI NUM_OVERLAYS = 1;
@@ -324,7 +324,7 @@ int main(int argc, char** argv) {
         rlt::render_sync(device, renderer);
 
         // consumer only: the video pipe needs the frames on the host
-        cudaMemcpy(frame.data(), rlt::data(rlt::frame_buffer(device, renderer)), frame.size() * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+        cudaMemcpy(frame.data(), rlt::data(rlt::output(device, renderer, rro::RGB<>{})), frame.size() * sizeof(uint32_t), cudaMemcpyDeviceToHost);
 
         if (video) {
             const size_t bytes = CAM_PIXELS * sizeof(uint32_t);

@@ -220,7 +220,7 @@ namespace rl_tools::rendering::datasets::annotations {
             const T half_extent[3] = {(T)metadata.half_extent[0], (T)metadata.half_extent[1], (T)metadata.half_extent[2]};
 
             log(device, device.logger, devices::logging::Verbosity::debug, rendering::datasets::LOG_PREFIX, "annotations::free_space: center=[", center[0], ",", center[1], ",", center[2], "] half_extent=[", half_extent[0], ",", half_extent[1], ",", half_extent[2], "]");
-            utils::assert_exit(device, data(collision_results(device, probe_target)) != nullptr, "annotations::free_space: collision results buffer is null");
+            utils::assert_exit(device, data(output(device, probe_target, rendering::raytracing::outputs::Probes{})) != nullptr, "annotations::free_space: collision results buffer is null");
 
             constexpr T PI = static_cast<T>(3.14159265358979323846);
             const T min_clearance = (T)parameters.min_clearance;
@@ -239,7 +239,7 @@ namespace rl_tools::rendering::datasets::annotations {
             std::array<FreeSpacePosition<T>, NUM_CAMERAS> batch_positions{};
             Tensor<typename decltype(probe_target.cameras)::SPEC> camera_staging;
             malloc(device, camera_staging);
-            Tensor<typename decltype(probe_target.collision_results)::SPEC> probe_staging;
+            Tensor<typename rendering::raytracing::outputs::Buffer<typename PROBE::SPEC, rendering::raytracing::outputs::Probes>::TENSOR_SPEC> probe_staging;
             malloc(device, probe_staging);
             std::uint64_t tested = 0, no_hits = 0, failed_hit_ratio = 0, failed_avg_dist = 0, failed_min_dist = 0;
             T best_min_hit_dist = 0;
@@ -276,7 +276,7 @@ namespace rl_tools::rendering::datasets::annotations {
                 copy(device, probe_target.device, camera_staging, cameras(device, probe_target));
                 probe(device, probe_target);
 
-                copy(probe_target.device, device, collision_results(device, probe_target), probe_staging);
+                copy(probe_target.device, device, output(device, probe_target, rendering::raytracing::outputs::Probes{}), probe_staging);
                 const rendering::CollisionResult* probe_results = data(probe_staging);
                 for (std::uint64_t camera_i = 0; camera_i < NUM_CAMERAS && tested < max_candidates && table.size() < min_required; camera_i++) {
                     const rendering::CollisionResult* camera_probes = probe_results + static_cast<size_t>(camera_i) * static_cast<size_t>(NUM_PROBES);

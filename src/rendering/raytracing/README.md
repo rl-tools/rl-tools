@@ -1,7 +1,7 @@
 # Raytracing Renderer
 
 Batch raytracing for visual RL: N cameras over one static scene plus per-camera dynamic
-overlays, rendered by one of four backends (OptiX, Vulkan, Metal, generic CPU) behind a single
+overlays, rendered by one of five backends (OptiX, Vulkan, Metal, WebGPU, generic CPU) behind a single
 `Renderer<SPEC, BACKEND>` interface (`BACKEND` defaults to the configured backend).
 Everything is wired for a training step in which dynamics,
 rendering, and observation never touch the CPU: the host's only per-step role is issuing
@@ -27,16 +27,14 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   `transforms_motion()` (dynamic motion blur: per-sample overlay transforms, sample-major so
   slab `s` shares the `transforms()` layout),
   `cameras_previous()`/`transforms_previous()` (flow: the previous instant),
-  `frame_buffer()`, `depth_buffer()`, `segmentation_buffer()`, `normals_buffer()`,
-  `flow_buffer()`/`flow_status_buffer()`, `flow_forward_buffer()`/`flow_forward_status_buffer()`,
-  `collision_results()`, `observation()`. Residency is a
+  and `output(device, renderer, descriptor)`. Residency is a
   backend property: CUDA device memory on OptiX, host on generic and WebGPU (WebGPU settles
   outputs from staging at the sync boundary), shared/mapped on Metal/Vulkan.
 - **Data moves via tensor copies and kernels.** No raw backend handles or `cudaStream_t` appear in
   public signatures. Device producers (extraction kernels) write the input tensors in place;
   device consumers read the output tensors in place; host readers/writers cross the residency
   boundary with a regular tensor copy against the renderer's memory-domain device:
-  `rlt::copy(renderer.device, device, rlt::frame_buffer(device, renderer), host_tensor)`
+  `rlt::copy(renderer.device, device, rlt::output(device, renderer, outputs::RGB<>{}), host_tensor)`
   (readback) and `rlt::copy(device, renderer.device, host_tensor, rlt::cameras(device, renderer))`
   (upload). `renderer.device` (`backends::Device<BACKEND>`, populated in `malloc`) carries only
   what the copy needs — the renderer-owned streams on OptiX, the in-flight context on
@@ -49,16 +47,21 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   wait on `device.stream` via an event, so producer kernels need no user-facing stream plumbing;
   `stream(device, renderer)` exists for power users. Write inputs only between frames — a launch
   in flight may still be reading them.
-- **Spec-driven observation output.** With `OUTPUT_OBSERVATION`, the RGB ray gen writes float
-  pixels (frame-buffer color before 8-bit quantization) directly to `observation()` — no
-  format-conversion pass. The packed `uint32` frame buffer remains the video/golden output.
-- **Depth output.** `depth_buffer()` contains metric camera-forward distance (+X in FLU), traced at pixel center and shutter close independently of RGB anti-aliasing or motion blur. Depth and collision-probe misses are positive infinity; probe hit flags remain the validity mask.
-- **Normals output.** With `OUTPUT_NORMALS`, a segmentation-style single-sample pass
-  (shutter-close camera, pixel-center ray) writes the world-frame (FLU) geometric unit normal
-  of the hit surface, oriented against the ray, as float3 per pixel to `normals_buffer()`
-  (miss = zero). Unit normals cannot be averaged, so anti-aliasing and motion-blur settings do
-  not apply, and the pass stays out of the dynamic-motion-blur accumulate/resolve machinery.
-- **Flow output.** With `OUTPUT_FLOW`, a single-sample pass writes the backward optical flow of the current frame to `flow_buffer()` (float2 per pixel, in pixels, sub-pixel exact) and a `FlowStatus` code per pixel to `flow_status_buffer()` (uint32). The renderer holds two instants of the published state: `cameras()`/`transforms()` are the current instant and `cameras_previous()`/`transforms_previous()` the previous one, each with its own resident overlay acceleration structures. Per pixel the pass traces the pixel-centre ray against the current instant, carries the hit point by its instance's rigid motion between the instants (composed per overlay slot at `update`; scene geometry and objects that did not move contribute pure camera flow), projects it through the previous camera and shoots a visibility ray from the previous camera towards the carried point against the previous instant. The status resolves in priority order: `MISS` (no hit; flow zero), `BEHIND` (carried point at or behind the other camera; flow zero), `OUT_OF_FRAME` (projects outside the other image; visibility not tested), `OCCLUDED` (a closer hit along the visibility ray within the relative margin `FLOW_VISIBILITY_EPSILON`), `VALID`. The flow value is the displacement to add to a pixel to reach its correspondence (`p_previous - p_current`) and is retained on `OUT_OF_FRAME` and `OCCLUDED`, so the status is the mask. `OUTPUT_FLOW_FORWARD` adds the mirrored pass on the previous camera grid (`flow_forward_buffer()`/`flow_forward_status_buffer()`, `p_current - p_previous`), which is what a bidirectional-consistency consumer needs. Host verbs: `spawn` initialises previous == current, the `set_transform*` verbs touch only the current instant, and `advance_flow` publishes the current instant as the previous one (cameras and poses; resident rows copy at once, rows the host has written but not yet published stage through their mirror at the next `update`). The frame-to-frame steady state is `advance_flow` → move/write → `update` → `render`; producers that keep last frame's state themselves write `cameras_previous()` and the `transforms_previous()` rows they own directly, under the same ownership contract as `transforms()`. Not modelled: attachment changes between the instants, non-rigid motion beyond per-part articulation, rolling shutter, and flow through motion-blur sample poses. Examples: `src/rendering/raytracing/example/flow.cpp` (one steady-state step to PNGs) and the `rendering_raytracing_interactive_flow` viewer (walk the scene with an orbiting cube; RGB on the left half, flow on the right half, Tab cycles backward flow, backward status, forward flow and forward status).
+- **Outputs determine storage and work.** `Config::OUTPUTS` is a compile-time list of descriptors;
+  `Specification::PLAN` derives producers, history, and representations. The generic backend
+  dispatches encoders through C++ overloads; GPU backends lower the same plan into their shader
+  constants and bindings. Raw and colored forms share the quantity calculation, and requesting
+  only a colored form allocates no raw image. AA and motion blur apply only to RGB.
+- **Flow has two independent directions.** Backward flow is `p_previous - p_current` on the
+  current grid; forward flow is `p_current - p_previous` on the previous grid. Either direction
+  requires previous cameras and overlay poses, but neither requires the other output. A flow
+  vector alone omits the visibility ray; status or colored flow adds it. Status priority is
+  `MISS`, `BEHIND`, `OUT_OF_FRAME`, `OCCLUDED`, `VALID`; vectors are zero for the first two
+  and retain their geometric displacement for the others. Visibility uses the relative margin
+  `FLOW_VISIBILITY_EPSILON`. `advance_flow` → move/write → `update` → `render` publishes the
+  two instants; explicit producers can instead write `cameras_previous()` and
+  `transforms_previous()`. Spawn initializes previous equal to current. Attachment changes,
+  non-rigid motion, rolling shutter, and flow through motion-blur samples are not modeled.
 - **Determinism is a contract.** Fixed seed ⇒ identical results, no atomics. The global
   instance-id layout (scene instances `[0,S)`, overlay `o` slot `s` at `S + o*MAX + s`) is
   cross-backend API surface consumed by segmentation.
@@ -98,6 +101,52 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   a memcpy into the host-resident tensors (residency is a backend property; Vulkan's and Metal's
   per-frame instance-descriptor composition is CPU-side by architecture). End-to-end example:
   `src/rendering/raytracing/example/drone_device.cu`.
+
+## Declaring outputs
+
+```cpp
+namespace outputs = rl_tools::rendering::raytracing::outputs;
+struct Config: rl_tools::rendering::raytracing::config::Default<float, unsigned int> {
+    static constexpr unsigned int CAM_WIDTH = 128, CAM_HEIGHT = 128, NUM_CAMERAS = 1;
+    static constexpr unsigned int NUM_PROBES = 0;
+    using OUTPUTS = outputs::List<
+        outputs::RGB<outputs::format::Float32>,
+        outputs::Depth<outputs::format::RGBA8>,
+        outputs::Flow<outputs::direction::Forward>>;
+};
+// After malloc/init/render:
+auto& depth_preview = output(device, renderer, outputs::Depth<outputs::format::RGBA8>{});
+```
+
+An undeclared descriptor is a compile error. Each descriptor selects a tensor shape and scalar
+without a channel-specific accessor. List order is arbitrary; one quantity/representation slot
+may appear once. `outputs::Concat` and `outputs::If` compose lists. The default requests only
+packed RGB; probes must be explicit and require `NUM_PROBES > 0`.
+
+| Descriptor | Raw representation and shape | RGBA8 representation |
+|---|---|---|
+| `RGB<FORMAT>` | Float32 `[N,H,W,3]`, shading transfer curve before quantization | Default; packed uint32 `[N,H,W]` |
+| `Depth<FORMAT, PARAMETERS>` | Default Float32 `[N,H,W]`, camera-forward metres; miss = +infinity | Grayscale from 0 to `PARAMETERS::SCALE` metres (default 10); miss = white |
+| `Segmentation<FORMAT, LABELS>` | Default UInt32 `[N,H,W]`; `labels::Instance` or `labels::Semantic`; miss = 0xffffffff | Pinned ID palette; miss = black |
+| `Normals<FORMAT>` | Default Float32 `[N,H,W,3]`, world FLU unit normal against the ray; miss = zero | Pinned component mapping; miss = gray |
+| `Flow<DIRECTION, FORMAT, PARAMETERS>` | Default backward Float32 `[N,H,W,2]`, pixel displacement | Hue = direction, saturation = magnitude / `PARAMETERS::SCALE` (default 20 pixels); invalid pixels use status colors |
+| `FlowStatus<DIRECTION, FORMAT>` | Default backward UInt32 `[N,H,W]` | Pinned status palette |
+| `Probes` | `CollisionResult` `[N,NUM_PROBES]`, distance and hit flag | — |
+
+Depth, labels, normals, and flow use pixel centers at shutter close independently of RGB
+sampling. Instance and semantic labels may coexist. `DepthParameters` and `FlowParameters`
+provide display-scale defaults; the full configured descriptor, including its parameter type,
+is the accessor key. `save_image(device, renderer, descriptor, filename)` saves any declared
+RGBA8 image. Existing documented raw export helpers retain their image normalization and
+binary formats for the examples and golden tooling that consume them.
+
+| Consumer | Constraint on the design |
+|---|---|
+| HyperDrone CPU/CUDA training, rigs, tasks, spectators | Float RGB and image history only when requested; explicit probes; backend-resident tensor copies |
+| Browser display | Packed display outputs directly from the rendering backend; no CPU conversion or raw intermediate |
+| Python Render/Env | Existing Python names, shapes, and dtypes map to explicit descriptor lists |
+| Native interactive viewer, dataset annotation, examples, benchmarks, goldens | Stable raw values, instance IDs, export formats, and deterministic workloads |
+| Generic, Metal, OptiX, Vulkan, WebGPU | Shared plan and accessor; native allocation, shader lowering, and synchronization remain backend operations |
 
 ## Lifecycle
 
@@ -143,7 +192,7 @@ extract_cameras_kernel<<<..., device.stream>>>(..., rlt::data(rlt::cameras(devic
 rlt::update_launch(device, renderer);   // overlays: fill kernel + TLAS rebuilds (both instants with flow)
 rlt::render_launch(device, renderer);   // waits device.stream internally (CUDA device arg)
 rlt::probe_launch(device, renderer);
-// consumers read rlt::data(rlt::observation(device, renderer)), rlt::data(rlt::flow_buffer(device, renderer)) etc. in place
+// consumers read data(output(device, renderer, descriptor)) in place
 ```
 
 The host-verb form of the same step (`advance_flow` → `set_transform`/camera upload → `update` → `render`) is `src/rendering/raytracing/example/flow.cpp`.

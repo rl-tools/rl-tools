@@ -50,6 +50,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame {
     struct World: T_TASK_SPEC::NEXT_WORLD {
         using TASK_SPEC = T_TASK_SPEC;
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
+        static_assert(NEXT_WORLD::HAS_IMAGE_OBSERVATION, "target-frame tasks require RGB<Float32> in OUTPUTS");
         using T = typename NEXT_WORLD::T;
         using TI = typename NEXT_WORLD::TI;
 

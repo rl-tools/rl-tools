@@ -17,6 +17,7 @@
 #include "multicamera_test.h"
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
 namespace l2f = rlt::rl::environments::l2f;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -82,7 +83,7 @@ namespace test_multi_agent_cuda {
         using SHADING = rlt::rendering::raytracing::Low;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 16;
         static constexpr bool SELF_VISIBLE = true;
-        static constexpr bool OUTPUT_SEGMENTATION = true;
+        using OUTPUTS = rro::List<rro::RGB<rro::format::Float32>, rro::Segmentation<rro::format::UInt32, rro::labels::Instance>, rro::Probes>;
     };
     using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
     constexpr TI INSTANCES = WORLD::INSTANCES;
@@ -273,7 +274,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT_CUDA, HETEROGENEOUS_AGENTS_
         rlt::Tensor<rlt::tensor::Specification<uint32_t, TI, rlt::tensor::Shape<TI, NUM_CAMERAS, WORLD_SPEC::CAM_HEIGHT, WORLD_SPEC::CAM_WIDTH>>> alias;
         alias._data = segmentation.data();
         auto& renderer = rlt::get_renderer(device, world);
-        rlt::copy(renderer.device, device, rlt::segmentation_buffer(device, renderer), alias);
+        rlt::copy(renderer.device, device, rlt::output(device, renderer, rro::Segmentation<>{}), alias);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             const uint32_t other_first = S + (uint32_t)(instance_i * MAX_SLOTS + world.drone_slot_offset + world.drone_parts);
             const uint32_t other_end = other_first + (uint32_t)world.drone_parts;

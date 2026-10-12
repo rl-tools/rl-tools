@@ -1,4 +1,3 @@
-#define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 0
 
 #include <rl_tools/operations/cpu_mux.h>
 
@@ -25,6 +24,7 @@
 #include <vector>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
 using json = nlohmann::json;
 
 using T = float;
@@ -1560,9 +1560,9 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
             rlt::render(device, *env.renderer);
             std::vector<float> depth_staging(frame.size());
             {
-                rlt::Tensor<typename decltype(env.renderer->depth_buffer)::SPEC> depth_alias;
+                rlt::Tensor<typename rlt::utils::typing::remove_reference_t<decltype(rlt::output(device, *env.renderer, rro::Depth<>{}))>::SPEC> depth_alias;
                 depth_alias._data = depth_staging.data();
-                rlt::copy(env.renderer->device, device, rlt::depth_buffer(device, *env.renderer), depth_alias);
+                rlt::copy(env.renderer->device, device, rlt::output(device, *env.renderer, rro::Depth<>{}), depth_alias);
             }
             const float miss_depth = env.renderer->max_ray_length > 0 ? env.renderer->max_ray_length : 1e30f;
             float min_depth = std::numeric_limits<float>::max();
@@ -1573,9 +1573,9 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
         else {
             rlt::render(device, *env.renderer);
             {
-                rlt::Tensor<typename decltype(env.renderer->frame_buffer)::SPEC> frame_alias;
+                rlt::Tensor<typename rlt::utils::typing::remove_reference_t<decltype(rlt::output(device, *env.renderer, rro::RGB<>{}))>::SPEC> frame_alias;
                 frame_alias._data = frame.data();
-                rlt::copy(env.renderer->device, device, rlt::frame_buffer(device, *env.renderer), frame_alias);
+                rlt::copy(env.renderer->device, device, rlt::output(device, *env.renderer, rro::RGB<>{}), frame_alias);
         }
         }
         if(options.write_frames && !write_rgb_image_frame(frame_filename(record.frames_dir, frame_i, png_frames), frame, rgb_frame, WIDTH, HEIGHT, png_frames)) {
@@ -1739,7 +1739,7 @@ static bool render_selected_settings_for_resolution(rlt::devices::DEVICE_FACTORY
         ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "low", records.back()) && ok;
     }
     if(should_render_depth(options)) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, WIDTH, HEIGHT, NUM_PROBES, rlt::rendering::raytracing::Medium, false, 1, ENABLE_AA, AA_GRID_SIZE, false, true>;
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, WIDTH, HEIGHT, NUM_PROBES, rlt::rendering::raytracing::Medium, false, 1, ENABLE_AA, AA_GRID_SIZE, rro::List<rro::Depth<>, rro::Probes>>;
         records.emplace_back();
         ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "depth", "", records.back()) && ok;
     }

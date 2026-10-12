@@ -40,6 +40,7 @@
 #endif
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
 
 // Each configuration needs a distinct C++ type in nanobind's shared type registry.
 namespace HYPERDRONE_MODULE_NAME {
@@ -103,12 +104,15 @@ namespace HYPERDRONE_MODULE_NAME {
 #error "unknown HYPERDRONE_ENV_PRESET"
 #endif
     struct WORLD_SPEC: PRESET_SPEC {
-        static constexpr bool OUTPUT_RGB = HYPERDRONE_ENV_OUTPUT_RGB != 0;
-        static constexpr bool OUTPUT_DEPTH = HYPERDRONE_ENV_OUTPUT_DEPTH != 0;
-        static constexpr bool OUTPUT_SEGMENTATION = HYPERDRONE_ENV_OUTPUT_SEGMENTATION != 0;
-        static constexpr bool OUTPUT_NORMALS = HYPERDRONE_ENV_OUTPUT_NORMALS != 0;
-        static constexpr bool OUTPUT_FLOW = HYPERDRONE_ENV_OUTPUT_FLOW != 0;
-        static constexpr bool SEMANTIC_SEGMENTATION = HYPERDRONE_ENV_SEMANTIC_SEGMENTATION != 0;
+        using OUTPUTS = typename rro::Concat<
+            rro::If<(HYPERDRONE_ENV_OUTPUT_RGB != 0), rro::RGB<rro::format::Float32>>,
+            rro::If<(HYPERDRONE_ENV_OUTPUT_DEPTH != 0), rro::Depth<>>,
+            rro::If<(HYPERDRONE_ENV_OUTPUT_SEGMENTATION != 0), rro::Segmentation<rro::format::UInt32, rl_tools::utils::typing::conditional_t<(HYPERDRONE_ENV_SEMANTIC_SEGMENTATION != 0), rro::labels::Semantic, rro::labels::Instance>>>,
+            rro::If<(HYPERDRONE_ENV_OUTPUT_NORMALS != 0), rro::Normals<>>,
+            rro::If<(HYPERDRONE_ENV_OUTPUT_FLOW != 0), rro::Flow<>>,
+            rro::If<(HYPERDRONE_ENV_OUTPUT_FLOW != 0), rro::FlowStatus<>>,
+            rro::List<rro::Probes>
+        >::type;
         static constexpr TI INSTANCES_PER_ENVIRONMENT = HYPERDRONE_ENV_INSTANCES;
         static constexpr TI N_AGENTS = HYPERDRONE_ENV_N_AGENTS;
         static constexpr TI N_CAMERA_AGENTS = HYPERDRONE_ENV_N_CAMERA_AGENTS;
@@ -144,6 +148,15 @@ namespace HYPERDRONE_MODULE_NAME {
 #error "unknown HYPERDRONE_ENV_TASK"
 #endif
 #endif
+
+    using OUTPUTS = typename WORLD::RENDERER_SPEC::OUTPUTS;
+    using SEGMENTATION_OUTPUT = rro::Segmentation<rro::format::UInt32, rlt::utils::typing::conditional_t<
+        rro::contains<OUTPUTS, rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>>::value,
+        rro::labels::Semantic, rro::labels::Instance>>;
+    static_assert(WORLD::HAS_IMAGE_OBSERVATION, "Python environment observations require RGB<Float32> in OUTPUTS");
+    static_assert(!(rro::contains<OUTPUTS, rro::Segmentation<>>::value
+        && rro::contains<OUTPUTS, rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>>::value),
+        "Python environments expose one segmentation output: configure Instance or Semantic labels");
 
     constexpr TI NUM_ENVIRONMENTS = HYPERDRONE_ENV_NUM_ENVIRONMENTS;
     using ENV = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, NUM_ENVIRONMENTS>;

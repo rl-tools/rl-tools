@@ -1,4 +1,3 @@
-#define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 1
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
@@ -17,6 +16,8 @@
 #include <vector>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
+using rlt::output;
 
 using T = float;
 static constexpr T FOV = 80;
@@ -122,9 +123,9 @@ void render_panel(DEVICE& device, Renderer<SPEC>& renderer, const rlt::rendering
     rlt::render(device, renderer);
 
     panel.resize(static_cast<size_t>(CAM_WIDTH) * static_cast<size_t>(CAM_HEIGHT));
-    rlt::Tensor<typename decltype(renderer.frame_buffer)::SPEC> frame_alias;
+    rlt::Tensor<typename rl_tools::utils::typing::remove_reference_t<decltype(output(device, renderer, rro::RGB<>{}))>::SPEC> frame_alias;
     frame_alias._data = panel.data();
-    rlt::copy(renderer.device, device, rlt::frame_buffer(device, renderer), frame_alias);
+    rlt::copy(renderer.device, device, rlt::output(device, renderer, rro::RGB<>{}), frame_alias);
 }
 
 void copy_panel(const std::vector<uint32_t>& panel, std::vector<uint32_t>& frame, TI panel_i) {

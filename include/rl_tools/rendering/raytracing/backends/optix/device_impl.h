@@ -50,6 +50,61 @@ namespace rl_tools
     return owl::make_rgba(color);
   }
 
+  inline __device__ uint32_t packed_auxiliary_color(unsigned int r, unsigned int g, unsigned int b){
+    return 0xFF000000u | r | (g << 8u) | (b << 16u);
+  }
+
+  inline __device__ owl::vec3f auxiliary_hue(float hue){
+    const float x = 1.f - fabsf((hue - 2.f * floorf(hue * .5f)) - 1.f);
+    switch((unsigned int)hue % 6u){
+      case 0u: { return owl::vec3f(1.f, x, 0.f); }
+      case 1u: { return owl::vec3f(x, 1.f, 0.f); }
+      case 2u: { return owl::vec3f(0.f, 1.f, x); }
+      case 3u: { return owl::vec3f(0.f, x, 1.f); }
+      case 4u: { return owl::vec3f(x, 0.f, 1.f); }
+      default: { return owl::vec3f(1.f, 0.f, x); }
+    }
+  }
+
+  inline __device__ uint32_t segmentation_color(unsigned int id){
+    if(id == 0xFFFFFFFFu){
+      return 0xFF000000u;
+    }
+    const float scaled = float(id) * .61803398875f;
+    const owl::vec3f color = auxiliary_hue((scaled - floorf(scaled)) * 6.f) * 255.f;
+    return packed_auxiliary_color((unsigned int)color.x, (unsigned int)color.y, (unsigned int)color.z);
+  }
+
+  inline __device__ unsigned int normal_channel(float normal){
+    const float unit = __fadd_rn(__fmul_rn(fminf(fmaxf(normal, -1.f), 1.f), .5f), .5f);
+    return (unsigned int)((double)__fmul_rn(unit, 255.f) + .5);
+  }
+
+  inline __device__ uint32_t normal_color(float x, float y, float z){
+    return packed_auxiliary_color(normal_channel(x), normal_channel(y), normal_channel(z));
+  }
+
+  inline __device__ uint32_t status_color(unsigned int status){
+    switch(status){
+      case 0u: { return 0xFFFFFFFFu; }
+      case 1u: { return 0xFF000000u; }
+      case 2u: { return 0xFFFF00FFu; }
+      case 3u: { return 0xFFFF4020u; }
+      case 4u: { return 0xFF0090FFu; }
+      default: { return 0xFF0000FFu; }
+    }
+  }
+
+  inline __device__ uint32_t flow_color(float u, float v, float scale){
+    if((u == 0.f && v == 0.f) || scale <= 0.f){
+      return 0xFFFFFFFFu;
+    }
+    const float saturation = fminf(sqrtf(u * u + v * v) / scale, 1.f);
+    const float hue = (atan2f(v, u) / 6.28318530717958647692f + .5f) * 6.f;
+    const owl::vec3f color = (owl::vec3f(1.f) - saturation * (owl::vec3f(1.f) - auxiliary_hue(hue))) * 255.f;
+    return packed_auxiliary_color((unsigned int)color.x, (unsigned int)color.y, (unsigned int)color.z);
+  }
+
   inline __device__ owl::vec3f lerp_camera_vec(const owl::vec3f &a, const owl::vec3f &b, float t)
   {
     return (1.f - t) * a + t * b;
@@ -208,11 +263,13 @@ namespace rl_tools
           obs[2] = fminf(fmaxf(color.z, 0.f), 1.f);
         }
       }
-      if constexpr (T_SRGB_OUTPUT) {
-        self.fb_ptr[ctx.fb_offset] = make_srgb_rgba_from_linear(color);
-      }
-      else {
-        self.fb_ptr[ctx.fb_offset] = make_linear_rgba_from_linear(color);
+      if(self.fb_ptr != nullptr){
+        if constexpr (T_SRGB_OUTPUT) {
+          self.fb_ptr[ctx.fb_offset] = make_srgb_rgba_from_linear(color);
+        }
+        else {
+          self.fb_ptr[ctx.fb_offset] = make_linear_rgba_from_linear(color);
+        }
       }
     }
   };
@@ -365,11 +422,13 @@ namespace rl_tools
     const owl::vec3f normal = normalize(cross(cam.dir_du, cam.dir_dv));
     bool hit = false;
     const float distance = trace_depth_distance_composed(self.world, ctx.cam_idx, cam.pos, direction, 1e30f, hit);
-    if(hit){
-      self.depth_ptr[ctx.fb_offset] = distance * fabsf(dot(direction, normal));
+    const float depth = hit ? distance * fabsf(dot(direction, normal)) : __uint_as_float(0x7f800000u);
+    if(self.depth_ptr != nullptr){
+      self.depth_ptr[ctx.fb_offset] = depth;
     }
-    else{
-      store_miss(self.depth_ptr[ctx.fb_offset]);
+    if(self.color_ptr != nullptr){
+      const unsigned int shade = (unsigned int)(fminf(fmaxf(depth / self.color_scale, 0.f), 1.f) * 255.f);
+      self.color_ptr[ctx.fb_offset] = packed_auxiliary_color(shade, shade, shade);
     }
   }
 #endif
@@ -885,7 +944,7 @@ namespace rl_tools
         flow_v = target_y * (float)self.cam_size.y - ((float)local_y + 0.5f);
         if (target_x < 0.f || target_x >= 1.f || target_y < 0.f || target_y >= 1.f) {
           status = FlowStatus::OUT_OF_FRAME;
-        } else {
+        } else if(self.status_ptr != nullptr || self.status_color_ptr != nullptr || self.color_ptr != nullptr){
           const owl::vec3f to_point = point - owl::vec3f(cam_target.pos);
           const float length = sqrtf(dot(to_point, to_point));
           const owl::vec3f visibility_direction = to_point * (1.f / length);
@@ -894,9 +953,19 @@ namespace rl_tools
         }
       }
     }
-    self.flow_ptr[fb_offset * 2 + 0] = flow_u;
-    self.flow_ptr[fb_offset * 2 + 1] = flow_v;
-    self.status_ptr[fb_offset] = status;
+    if(self.flow_ptr != nullptr){
+      self.flow_ptr[fb_offset * 2 + 0] = flow_u;
+      self.flow_ptr[fb_offset * 2 + 1] = flow_v;
+    }
+    if(self.status_ptr != nullptr){
+      self.status_ptr[fb_offset] = status;
+    }
+    if(self.color_ptr != nullptr){
+      self.color_ptr[fb_offset] = status == FlowStatus::VALID ? flow_color(flow_u, flow_v, self.color_scale) : status_color(status);
+    }
+    if(self.status_color_ptr != nullptr){
+      self.status_color_ptr[fb_offset] = status_color(status);
+    }
   }
 
   OPTIX_RAYGEN_PROGRAM(flowRayGen)()
@@ -980,9 +1049,14 @@ namespace rl_tools
           2, NUM_RAY_TYPES, 1,
           u0, u1, u2, u3);
     }
-    self.normals_ptr[fb_offset * 3 + 0] = __uint_as_float(u1);
-    self.normals_ptr[fb_offset * 3 + 1] = __uint_as_float(u2);
-    self.normals_ptr[fb_offset * 3 + 2] = __uint_as_float(u3);
+    if(self.normals_ptr != nullptr){
+      self.normals_ptr[fb_offset * 3 + 0] = __uint_as_float(u1);
+      self.normals_ptr[fb_offset * 3 + 1] = __uint_as_float(u2);
+      self.normals_ptr[fb_offset * 3 + 2] = __uint_as_float(u3);
+    }
+    if(self.color_ptr != nullptr){
+      self.color_ptr[fb_offset] = normal_color(__uint_as_float(u1), __uint_as_float(u2), __uint_as_float(u3));
+    }
   }
 #endif
 
@@ -1038,7 +1112,21 @@ namespace rl_tools
           1, NUM_RAY_TYPES, 1,
           u0, u1, u2);
     }
-    self.seg_ptr[fb_offset] = (optixLaunchParams.semantic_segmentation && u2 != 0xFFFFFFFFu) ? optixLaunchParams.instance_classes[u2] : u2;
+    if(self.seg_ptr != nullptr){
+      self.seg_ptr[fb_offset] = u2;
+    }
+    if(self.color_ptr != nullptr){
+      self.color_ptr[fb_offset] = segmentation_color(u2);
+    }
+    if(self.semantic_ptr != nullptr || self.semantic_color_ptr != nullptr){
+      const unsigned int semantic = u2 == 0xFFFFFFFFu ? u2 : optixLaunchParams.instance_classes[u2];
+      if(self.semantic_ptr != nullptr){
+        self.semantic_ptr[fb_offset] = semantic;
+      }
+      if(self.semantic_color_ptr != nullptr){
+        self.semantic_color_ptr[fb_offset] = segmentation_color(semantic);
+      }
+    }
   }
 #endif
 }

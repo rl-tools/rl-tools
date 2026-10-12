@@ -13,6 +13,7 @@
 #include <vector>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
 namespace l2f = rlt::rl::environments::l2f;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -74,7 +75,7 @@ namespace test_self_visible_cuda {
         using SHADING = rlt::rendering::raytracing::Low;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 8;
         static constexpr bool SELF_VISIBLE = true;
-        static constexpr bool OUTPUT_SEGMENTATION = true;
+        using OUTPUTS = rro::List<rro::RGB<rro::format::Float32>, rro::Segmentation<rro::format::UInt32, rro::labels::Instance>, rro::Probes>;
     };
     using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
     constexpr TI INSTANCES = WORLD::INSTANCES;
@@ -222,7 +223,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, OWN_DRONE_AND_ARTICU
         rlt::Tensor<rlt::tensor::Specification<uint32_t, TI, rlt::tensor::Shape<TI, INSTANCES, WORLD_SPEC::CAM_HEIGHT, WORLD_SPEC::CAM_WIDTH>>> alias;
         alias._data = segmentation.data();
         auto& renderer = rlt::get_renderer(device, world);
-        rlt::copy(renderer.device, device, rlt::segmentation_buffer(device, renderer), alias);
+        rlt::copy(renderer.device, device, rlt::output(device, renderer, rro::Segmentation<>{}), alias);
         for(TI camera_i = 0; camera_i < INSTANCES; camera_i++){
             const uint32_t own_first = S + (uint32_t)(camera_i * MAX_SLOTS);
             const uint32_t own_end = own_first + (uint32_t)MAX_SLOTS;

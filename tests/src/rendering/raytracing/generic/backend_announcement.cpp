@@ -10,6 +10,7 @@
 #include <iterator>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
 namespace rrt = rl_tools::rendering::raytracing;
 
 namespace {
@@ -22,8 +23,7 @@ namespace {
         static constexpr TI CAM_HEIGHT = 1;
         static constexpr TI NUM_CAMERAS = 1;
         static constexpr TI NUM_PROBES = 1;
-        static constexpr bool OUTPUT_RGB = false;
-        static constexpr bool OUTPUT_DEPTH = true;
+        using OUTPUTS = rro::List<rro::Depth<>, rro::Probes>;
         using SHADING = rrt::Low;
     };
 

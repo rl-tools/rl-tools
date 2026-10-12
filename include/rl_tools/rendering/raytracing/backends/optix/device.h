@@ -109,6 +109,8 @@ namespace rl_tools {
         int    num_cameras;
         OptixTraversableHandle world;
         OptixCameraData *cameras;
+        uint32_t *color_ptr;
+        float color_scale;
     };
 
 
@@ -124,7 +126,6 @@ namespace rl_tools {
         int cam_height;                 // recover the camera index for composed secondaries
         int grid_cols;
         unsigned int *instance_classes; // per global instance id (semantic segmentation)
-        int semantic_segmentation;
     };
 
     /* variables for the miss program */
@@ -157,6 +158,9 @@ namespace rl_tools {
         int    num_cameras;
         OptixTraversableHandle world;
         OptixCameraData *cameras;
+        uint32_t *color_ptr;
+        uint32_t *semantic_ptr;
+        uint32_t *semantic_color_ptr;
     };
 
     struct NormalsRayGenData
@@ -168,6 +172,7 @@ namespace rl_tools {
         int    num_cameras;
         OptixTraversableHandle world;
         OptixCameraData *cameras;
+        uint32_t *color_ptr;
     };
 
     // one flow pass between the two instants, direction-neutral: the backward pass traces the
@@ -187,6 +192,9 @@ namespace rl_tools {
         const float *flow_deltas;                   // this direction's [slots][12] slab carrying source hits to the target instant, null without overlays
         unsigned int source_first_overlay_instance; // first global id of the source instant's overlay range
         int source_previous;                        // 1: source = previous instant (forward pass)
+        uint32_t *color_ptr;
+        uint32_t *status_color_ptr;
+        float color_scale;
     };
 
     struct CollisionRayGenData

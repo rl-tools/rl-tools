@@ -23,6 +23,7 @@
 #endif
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
 
 using DEVICE = rlt::devices::DefaultCPU;
 using T = float;
@@ -42,7 +43,7 @@ namespace {
         static constexpr TI NUM_CAMERAS = 2;
         static constexpr TI NUM_PROBES = 1;  // probe 0 = camera forward
         using SHADING = rlt::rendering::raytracing::Low;
-        static constexpr bool OUTPUT_RGB = true;
+        using OUTPUTS = rro::List<rro::RGB<>, rro::Probes>;
         static constexpr TI NUM_OVERLAYS = 1;
         static constexpr TI MAX_OVERLAY_INSTANCES = 1;
         static constexpr TI MAX_OVERLAYS_PER_CAMERA = 1;
@@ -57,7 +58,7 @@ namespace {
     std::vector<rlt::rendering::raytracing::CollisionResult> probe_forward(DEVICE& device, RENDERER& renderer){
         rlt::probe(device, renderer);
         std::vector<rlt::rendering::raytracing::CollisionResult> results;
-        golden::copy_out(renderer.device, device, rlt::collision_results(device, renderer), results);
+        golden::copy_out(renderer.device, device, rlt::output(device, renderer, rro::Probes{}), results);
         return results;
     }
 }

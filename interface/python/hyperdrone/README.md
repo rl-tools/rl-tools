@@ -407,9 +407,7 @@ auxiliary channels in `MultiEnvironment`, with RGB policy observations. Its acce
 repeated reads reuse the capture. Flow retains each due capture even when it is unread, follows task frame cadence, and resets per instance or on scene changes. The first/reset capture
 has zero motion. `semantic_segmentation=True` selects classes, and `env.outputs` /
 `env.segmentation_mode` describe the compiled configuration. Normals use the renderer’s scene
-FLU frame; instance IDs are local to each environment’s active renderer. Custom `spec_header` Worlds set
-`OUTPUT_DEPTH`, `OUTPUT_SEGMENTATION`, `SEMANTIC_SEGMENTATION`, `OUTPUT_NORMALS`, and `OUTPUT_FLOW`
-in their specification; leave the corresponding Python options at their defaults.
+FLU frame; instance IDs are local to each environment’s active renderer. Custom `spec_header` Worlds declare their renderer `OUTPUTS` list, including float RGB for policy observations and `Probes` for scene annotations; leave the corresponding Python options at their defaults.
 
 `EnvConfig(dataset="glb")` (the default) uses the taxonomy authored in the GLBs;
 `dataset="procthor"` requires each scene to declare `ai2thor-hab` when semantic output is enabled.

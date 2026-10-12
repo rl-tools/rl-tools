@@ -54,9 +54,6 @@ namespace rl_tools {
 
     namespace rendering::raytracing::backends::webgpu{
         template <typename SPEC>
-        constexpr bool FUSE_AUXILIARY = SPEC::HAS_RGB && !SPEC::ENABLE_ANTI_ALIASING && !SPEC::ENABLE_MOTION_BLUR && (SPEC::HAS_DEPTH || SPEC::HAS_SEGMENTATION || SPEC::HAS_NORMALS || SPEC::HAS_FLOW);
-
-        template <typename SPEC>
         Context& context(rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
             return *renderer.backend;
         }
@@ -346,30 +343,9 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_CAMERA_PAIR) {
             malloc(device, renderer.cameras_open);
         }
-        if constexpr (SPEC::HAS_RGB) {
-            malloc(device, renderer.frame_buffer);
-        }
-        if constexpr (SPEC::HAS_DEPTH) {
-            malloc(device, renderer.depth_buffer);
-        }
-        if constexpr (SPEC::HAS_SEGMENTATION) {
-            malloc(device, renderer.segmentation_buffer);
-        }
-        if constexpr (SPEC::HAS_NORMALS) {
-            malloc(device, renderer.normals_buffer);
-        }
+        malloc(device, renderer.outputs);
         if constexpr (SPEC::HAS_FLOW) {
             malloc(device, renderer.cameras_previous);
-            malloc(device, renderer.flow_buffer);
-            malloc(device, renderer.flow_status_buffer);
-        }
-        if constexpr (SPEC::HAS_FLOW_FORWARD) {
-            malloc(device, renderer.flow_forward_buffer);
-            malloc(device, renderer.flow_forward_status_buffer);
-        }
-        if constexpr (SPEC::HAS_OBSERVATION) {
-            static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The WebGPU raytracing backend requires OBSERVATION_T = float");
-            malloc(device, renderer.observation);
         }
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             malloc(device, renderer.transforms);
@@ -383,9 +359,6 @@ namespace rl_tools {
             malloc(device, renderer.transforms_motion);
             std::memset(data(renderer.transforms_motion), 0, decltype(renderer.transforms_motion)::SPEC::SIZE_BYTES);
         }
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        malloc(device, renderer.collision_results);
-#endif
 
         renderer.backend = new rendering::raytracing::backends::RendererState<rendering::raytracing::backends::Webgpu, SPEC>{};
         renderer.device.context = renderer.backend;
@@ -575,18 +548,12 @@ namespace rl_tools {
                 constant("fc_overlay_capacity", (double)CONSTANTS::OVERLAY_CAPACITY),
             };
             auto flow_constants = collision_constants;
+            flow_constants.push_back(constant("fc_output_mask", (double)SPEC::PLAN::MASK));
             flow_constants.insert(flow_constants.end(), {
                 constant("fc_motion_samples", (double)CONSTANTS::MOTION_SAMPLES),
                 constant("fc_dynamic_motion_blur", CONSTANTS::DYNAMIC_MOTION_BLUR ? 1.0 : 0.0),
             });
             auto auxiliary_constants = flow_constants;
-            auxiliary_constants.insert(auxiliary_constants.end(), {
-                constant("fc_semantic_segmentation", CONSTANTS::SEMANTIC_SEGMENTATION ? 1.0 : 0.0),
-                constant("fc_has_depth", SPEC::HAS_DEPTH ? 1.0 : 0.0),
-                constant("fc_has_segmentation", SPEC::HAS_SEGMENTATION ? 1.0 : 0.0),
-                constant("fc_has_normals", SPEC::HAS_NORMALS ? 1.0 : 0.0),
-                constant("fc_has_flow", SPEC::HAS_FLOW ? 1.0 : 0.0),
-            });
             auto rgb_constants = auxiliary_constants;
             rgb_constants.insert(rgb_constants.end(), {
                 constant("fc_srgb_output", CONSTANTS::SRGB_OUTPUT ? 1.0 : 0.0),
@@ -598,8 +565,7 @@ namespace rl_tools {
                 constant("fc_metallic_reflections", CONSTANTS::METALLIC_REFLECTIONS ? 1.0 : 0.0),
                 constant("fc_pbr_shading", CONSTANTS::PBR_SHADING ? 1.0 : 0.0),
                 constant("fc_punctual_light_shadows", CONSTANTS::PUNCTUAL_LIGHT_SHADOWS ? 1.0 : 0.0),
-                constant("fc_has_observation", CONSTANTS::HAS_OBSERVATION ? 1.0 : 0.0),
-                constant("fc_fuse_auxiliary", wg::FUSE_AUXILIARY<SPEC> ? 1.0 : 0.0),
+                constant("fc_fuse_auxiliary", SPEC::FUSE_AUXILIARY ? 1.0 : 0.0),
             });
             auto make_pipeline = [&](const char* entry_point, const std::vector<WGPUConstantEntry>& constants) -> WGPUComputePipeline {
                 WGPUComputePipelineDescriptor descriptor{};
@@ -615,15 +581,15 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_RGB) {
                 ctx->rgb_pipeline = make_pipeline("main_rgb", rgb_constants);
             }
-            if constexpr ((SPEC::HAS_DEPTH || SPEC::HAS_SEGMENTATION || SPEC::HAS_NORMALS || SPEC::HAS_FLOW) && !wg::FUSE_AUXILIARY<SPEC>) {
+            if constexpr (SPEC::HAS_AUXILIARY && !SPEC::FUSE_AUXILIARY) {
                 ctx->auxiliary_pipeline = make_pipeline("main_auxiliary", auxiliary_constants);
             }
             if constexpr (SPEC::HAS_FLOW_FORWARD) {
                 ctx->flow_forward_pipeline = make_pipeline("main_flow_forward", flow_constants);
             }
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-            ctx->collision_pipeline = make_pipeline("main_collision", collision_constants);
-#endif
+            if constexpr (SPEC::HAS_PROBES){
+                ctx->collision_pipeline = make_pipeline("main_collision", collision_constants);
+            }
             ctx->pipelines_built = true;
         }
 
@@ -634,58 +600,15 @@ namespace rl_tools {
         ctx->launch_params = wg::create_buffer(device, *ctx, sizeof(wg::LaunchParams), STORAGE_UPLOAD);
         ctx->frame_inputs = wg::create_buffer(device, *ctx, (size_t)LAYOUT::FRAME_INPUTS_WORDS * sizeof(uint32_t), STORAGE_UPLOAD);
         ctx->outputs = wg::create_buffer(device, *ctx, (size_t)LAYOUT::OUTPUTS_WORDS * sizeof(uint32_t), STORAGE_OUTPUT);
-        if constexpr (SPEC::HAS_RGB) {
-            ctx->staging_frame_buffer = wg::create_buffer(device, *ctx, (size_t)LAYOUT::FRAME_BUFFER_WORDS * sizeof(uint32_t), STAGING);
-        }
-        if constexpr (SPEC::HAS_DEPTH) {
-            ctx->staging_depth = wg::create_buffer(device, *ctx, (size_t)LAYOUT::DEPTH_WORDS * sizeof(uint32_t), STAGING);
-        }
-        if constexpr (SPEC::HAS_SEGMENTATION) {
-            ctx->staging_segmentation = wg::create_buffer(device, *ctx, (size_t)LAYOUT::SEGMENTATION_WORDS * sizeof(uint32_t), STAGING);
-        }
-        if constexpr (SPEC::HAS_NORMALS) {
-            ctx->staging_normals = wg::create_buffer(device, *ctx, (size_t)LAYOUT::NORMALS_WORDS * sizeof(uint32_t), STAGING);
-        }
-        if constexpr (SPEC::HAS_FLOW) {
-            ctx->staging_flow = wg::create_buffer(device, *ctx, (size_t)LAYOUT::FLOW_WORDS * sizeof(uint32_t), STAGING);
-            ctx->staging_flow_status = wg::create_buffer(device, *ctx, (size_t)LAYOUT::FLOW_STATUS_WORDS * sizeof(uint32_t), STAGING);
-        }
-        if constexpr (SPEC::HAS_FLOW_FORWARD) {
-            ctx->staging_flow_forward = wg::create_buffer(device, *ctx, (size_t)LAYOUT::FLOW_FORWARD_WORDS * sizeof(uint32_t), STAGING);
-            ctx->staging_flow_forward_status = wg::create_buffer(device, *ctx, (size_t)LAYOUT::FLOW_FORWARD_STATUS_WORDS * sizeof(uint32_t), STAGING);
-        }
-        if constexpr (SPEC::HAS_OBSERVATION) {
-            ctx->staging_observation = wg::create_buffer(device, *ctx, (size_t)LAYOUT::OBSERVATION_WORDS * sizeof(uint32_t), STAGING);
-        }
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        ctx->staging_collision = wg::create_buffer(device, *ctx, (size_t)LAYOUT::COLLISION_WORDS * sizeof(uint32_t), STAGING);
-#endif
-        if constexpr (SPEC::HAS_RGB) {
-            ctx->render_readbacks.push_back({&ctx->staging_frame_buffer, data(renderer.frame_buffer), decltype(renderer.frame_buffer)::SPEC::SIZE_BYTES});
-        }
-        if constexpr (SPEC::HAS_DEPTH) {
-            ctx->render_readbacks.push_back({&ctx->staging_depth, data(renderer.depth_buffer), decltype(renderer.depth_buffer)::SPEC::SIZE_BYTES});
-        }
-        if constexpr (SPEC::HAS_SEGMENTATION) {
-            ctx->render_readbacks.push_back({&ctx->staging_segmentation, data(renderer.segmentation_buffer), decltype(renderer.segmentation_buffer)::SPEC::SIZE_BYTES});
-        }
-        if constexpr (SPEC::HAS_NORMALS) {
-            ctx->render_readbacks.push_back({&ctx->staging_normals, data(renderer.normals_buffer), decltype(renderer.normals_buffer)::SPEC::SIZE_BYTES});
-        }
-        if constexpr (SPEC::HAS_FLOW) {
-            ctx->render_readbacks.push_back({&ctx->staging_flow, data(renderer.flow_buffer), decltype(renderer.flow_buffer)::SPEC::SIZE_BYTES});
-            ctx->render_readbacks.push_back({&ctx->staging_flow_status, data(renderer.flow_status_buffer), decltype(renderer.flow_status_buffer)::SPEC::SIZE_BYTES});
-        }
-        if constexpr (SPEC::HAS_FLOW_FORWARD) {
-            ctx->render_readbacks.push_back({&ctx->staging_flow_forward, data(renderer.flow_forward_buffer), decltype(renderer.flow_forward_buffer)::SPEC::SIZE_BYTES});
-            ctx->render_readbacks.push_back({&ctx->staging_flow_forward_status, data(renderer.flow_forward_status_buffer), decltype(renderer.flow_forward_status_buffer)::SPEC::SIZE_BYTES});
-        }
-        if constexpr (SPEC::HAS_OBSERVATION) {
-            ctx->render_readbacks.push_back({&ctx->staging_observation, data(renderer.observation), decltype(renderer.observation)::SPEC::SIZE_BYTES});
-        }
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        ctx->probe_readbacks.push_back({&ctx->staging_collision, data(renderer.collision_results), decltype(renderer.collision_results)::SPEC::SIZE_BYTES});
-#endif
+        for_each_output(device, renderer.outputs, [&](auto& buffer){
+            using OUTPUT = decltype(output_type(buffer));
+            constexpr auto SLOT = rendering::raytracing::outputs::Traits<OUTPUT>::SLOT;
+            constexpr uint32_t INDEX = (uint32_t)SLOT;
+            constexpr size_t BYTES = decltype(buffer.tensor)::SPEC::SIZE_BYTES;
+            ctx->staging[INDEX] = wg::create_buffer(device, *ctx, BYTES, STAGING);
+            auto& targets = SLOT == rendering::raytracing::outputs::Slot::PROBES ? ctx->probe_readbacks : ctx->render_readbacks;
+            targets.push_back({&ctx->staging[INDEX], data(buffer.tensor), BYTES, rendering::raytracing::outputs::Layout<SPEC>::template offset<OUTPUT>()});
+        });
         rendering::raytracing::detail::announce_backend(device, renderer);
     }
 
@@ -1031,16 +954,16 @@ namespace rl_tools {
             params.probe_directions_offset = LAYOUT::PROBE_DIRECTIONS_OFFSET;
             params.cameras_offset = LAYOUT::CAMERAS_OFFSET;
             params.cameras_previous_offset = LAYOUT::CAMERAS_PREVIOUS_OFFSET;
-            params.out_frame_buffer = LAYOUT::FRAME_BUFFER_OFFSET;
-            params.out_depth = LAYOUT::DEPTH_OFFSET;
-            params.out_segmentation = LAYOUT::SEGMENTATION_OFFSET;
-            params.out_normals = LAYOUT::NORMALS_OFFSET;
-            params.out_flow = LAYOUT::FLOW_OFFSET;
-            params.out_flow_status = LAYOUT::FLOW_STATUS_OFFSET;
-            params.out_flow_forward = LAYOUT::FLOW_FORWARD_OFFSET;
-            params.out_flow_forward_status = LAYOUT::FLOW_FORWARD_STATUS_OFFSET;
-            params.out_observation = LAYOUT::OBSERVATION_OFFSET;
-            params.out_collision = LAYOUT::COLLISION_OFFSET;
+            for(uint32_t slot = 0; slot < (uint32_t)rendering::raytracing::outputs::Slot::COUNT; slot++){
+                params.output_offsets[slot] = rendering::raytracing::outputs::Layout<SPEC>::SLOT_OFFSETS[slot];
+            }
+            for_each_output(device, renderer.outputs, [&](auto& buffer){
+                using OUTPUT = decltype(output_type(buffer));
+                constexpr auto SLOT = rendering::raytracing::outputs::Traits<OUTPUT>::SLOT;
+                if constexpr (SLOT == rendering::raytracing::outputs::Slot::DEPTH_RGBA8 || SLOT == rendering::raytracing::outputs::Slot::FLOW_RGBA8 || SLOT == rendering::raytracing::outputs::Slot::FLOW_FORWARD_RGBA8){
+                    params.output_scales[(uint32_t)SLOT] = OUTPUT::PARAMETERS::SCALE;
+                }
+            });
             wgpuQueueWriteBuffer(ctx.queue, ctx.launch_params.buffer, 0, &params, sizeof(params));
         }
         upload(ctx.instance_data, ctx.instance_data_host.data(), ctx.instance_data_host.size() * sizeof(wg::InstanceData));
@@ -1181,15 +1104,12 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void generate_probe_directions(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
-#if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "Probe rays disabled (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1)");
-        return;
-#else
         namespace wg = rendering::raytracing::backends::webgpu;
         auto& ctx = wg::context(renderer);
-        std::vector<float> directions = rendering::raytracing::detail::generate_probe_direction_vectors<SPEC>(device);
-        wgpuQueueWriteBuffer(ctx.queue, ctx.frame_inputs.buffer, (uint64_t)wg::BufferLayout<SPEC>::PROBE_DIRECTIONS_OFFSET * sizeof(uint32_t), directions.data(), directions.size() * sizeof(float));
-#endif
+        if constexpr (SPEC::HAS_PROBES){
+            std::vector<float> directions = rendering::raytracing::detail::generate_probe_direction_vectors<SPEC>(device);
+            wgpuQueueWriteBuffer(ctx.queue, ctx.frame_inputs.buffer, (uint64_t)wg::BufferLayout<SPEC>::PROBE_DIRECTIONS_OFFSET * sizeof(uint32_t), directions.data(), directions.size() * sizeof(float));
+        }
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1222,7 +1142,7 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_RGB){
                 dispatch(ctx.rgb_pipeline);
             }
-            if constexpr ((SPEC::HAS_DEPTH || SPEC::HAS_SEGMENTATION || SPEC::HAS_NORMALS || SPEC::HAS_FLOW) && !wg::FUSE_AUXILIARY<SPEC>){
+            if constexpr (SPEC::HAS_AUXILIARY && !SPEC::FUSE_AUXILIARY){
                 dispatch(ctx.auxiliary_pipeline);
             }
             if constexpr (SPEC::HAS_FLOW_FORWARD){
@@ -1231,28 +1151,8 @@ namespace rl_tools {
             wgpuComputePassEncoderEnd(pass);
             wgpuComputePassEncoderRelease(pass);
         }
-        if constexpr (SPEC::HAS_RGB){
-            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::FRAME_BUFFER_OFFSET * sizeof(uint32_t), ctx.staging_frame_buffer.buffer, 0, (uint64_t)LAYOUT::FRAME_BUFFER_WORDS * sizeof(uint32_t));
-        }
-        if constexpr (SPEC::HAS_DEPTH){
-            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::DEPTH_OFFSET * sizeof(uint32_t), ctx.staging_depth.buffer, 0, (uint64_t)LAYOUT::DEPTH_WORDS * sizeof(uint32_t));
-        }
-        if constexpr (SPEC::HAS_SEGMENTATION){
-            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::SEGMENTATION_OFFSET * sizeof(uint32_t), ctx.staging_segmentation.buffer, 0, (uint64_t)LAYOUT::SEGMENTATION_WORDS * sizeof(uint32_t));
-        }
-        if constexpr (SPEC::HAS_NORMALS){
-            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::NORMALS_OFFSET * sizeof(uint32_t), ctx.staging_normals.buffer, 0, (uint64_t)LAYOUT::NORMALS_WORDS * sizeof(uint32_t));
-        }
-        if constexpr (SPEC::HAS_FLOW){
-            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::FLOW_OFFSET * sizeof(uint32_t), ctx.staging_flow.buffer, 0, (uint64_t)LAYOUT::FLOW_WORDS * sizeof(uint32_t));
-            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::FLOW_STATUS_OFFSET * sizeof(uint32_t), ctx.staging_flow_status.buffer, 0, (uint64_t)LAYOUT::FLOW_STATUS_WORDS * sizeof(uint32_t));
-        }
-        if constexpr (SPEC::HAS_FLOW_FORWARD){
-            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::FLOW_FORWARD_OFFSET * sizeof(uint32_t), ctx.staging_flow_forward.buffer, 0, (uint64_t)LAYOUT::FLOW_FORWARD_WORDS * sizeof(uint32_t));
-            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::FLOW_FORWARD_STATUS_OFFSET * sizeof(uint32_t), ctx.staging_flow_forward_status.buffer, 0, (uint64_t)LAYOUT::FLOW_FORWARD_STATUS_WORDS * sizeof(uint32_t));
-        }
-        if constexpr (SPEC::HAS_OBSERVATION){
-            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::OBSERVATION_OFFSET * sizeof(uint32_t), ctx.staging_observation.buffer, 0, (uint64_t)LAYOUT::OBSERVATION_WORDS * sizeof(uint32_t));
+        for(const auto& target : ctx.render_readbacks){
+            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, target.offset, target.staging->buffer, 0, target.bytes);
         }
         WGPUCommandBuffer command_buffer = wgpuCommandEncoderFinish(encoder, nullptr);
         wgpuCommandEncoderRelease(encoder);
@@ -1288,7 +1188,9 @@ namespace rl_tools {
             wgpuComputePassEncoderEnd(pass);
             wgpuComputePassEncoderRelease(pass);
         }
-        wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)wg::BufferLayout<SPEC>::COLLISION_OFFSET * sizeof(uint32_t), ctx.staging_collision.buffer, 0, (uint64_t)wg::BufferLayout<SPEC>::COLLISION_WORDS * sizeof(uint32_t));
+        for(const auto& target : ctx.probe_readbacks){
+            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, target.offset, target.staging->buffer, 0, target.bytes);
+        }
         WGPUCommandBuffer command_buffer = wgpuCommandEncoderFinish(encoder, nullptr);
         wgpuCommandEncoderRelease(encoder);
         wgpuQueueSubmit(ctx.queue, 1, &command_buffer);
@@ -1327,16 +1229,9 @@ namespace rl_tools {
             wg::destroy_buffer(ctx.launch_params);
             wg::destroy_buffer(ctx.frame_inputs);
             wg::destroy_buffer(ctx.outputs);
-            wg::destroy_buffer(ctx.staging_frame_buffer);
-            wg::destroy_buffer(ctx.staging_depth);
-            wg::destroy_buffer(ctx.staging_segmentation);
-            wg::destroy_buffer(ctx.staging_normals);
-            wg::destroy_buffer(ctx.staging_flow);
-            wg::destroy_buffer(ctx.staging_flow_status);
-            wg::destroy_buffer(ctx.staging_flow_forward);
-            wg::destroy_buffer(ctx.staging_flow_forward_status);
-            wg::destroy_buffer(ctx.staging_observation);
-            wg::destroy_buffer(ctx.staging_collision);
+            for(auto& staging : ctx.staging){
+                wg::destroy_buffer(staging);
+            }
             if(ctx.rgb_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.rgb_pipeline); }
             if(ctx.auxiliary_pipeline != nullptr){
                 wgpuComputePipelineRelease(ctx.auxiliary_pipeline);
@@ -1358,29 +1253,9 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_CAMERA_PAIR) {
             free(device, renderer.cameras_open);
         }
-        if constexpr (SPEC::HAS_RGB) {
-            free(device, renderer.frame_buffer);
-        }
-        if constexpr (SPEC::HAS_DEPTH) {
-            free(device, renderer.depth_buffer);
-        }
-        if constexpr (SPEC::HAS_SEGMENTATION) {
-            free(device, renderer.segmentation_buffer);
-        }
-        if constexpr (SPEC::HAS_NORMALS) {
-            free(device, renderer.normals_buffer);
-        }
+        free(device, renderer.outputs);
         if constexpr (SPEC::HAS_FLOW) {
             free(device, renderer.cameras_previous);
-            free(device, renderer.flow_buffer);
-            free(device, renderer.flow_status_buffer);
-        }
-        if constexpr (SPEC::HAS_FLOW_FORWARD) {
-            free(device, renderer.flow_forward_buffer);
-            free(device, renderer.flow_forward_status_buffer);
-        }
-        if constexpr (SPEC::HAS_OBSERVATION) {
-            free(device, renderer.observation);
         }
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             free(device, renderer.transforms);
@@ -1391,9 +1266,6 @@ namespace rl_tools {
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
             free(device, renderer.transforms_motion);
         }
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        free(device, renderer.collision_results);
-#endif
     }
 
 }

@@ -228,7 +228,9 @@ namespace rl_tools::rendering::raytracing::backends::optix{
                     observation[(size_t)pixel * 3 + 1] = color[1];
                     observation[(size_t)pixel * 3 + 2] = color[2];
                 }
-                frame_buffer[pixel] = (resolve_make_8bit(color[0]) << 0) | (resolve_make_8bit(color[1]) << 8) | (resolve_make_8bit(color[2]) << 16) | (0xffu << 24);
+                if(frame_buffer != nullptr){
+                    frame_buffer[pixel] = (resolve_make_8bit(color[0]) << 0) | (resolve_make_8bit(color[1]) << 8) | (resolve_make_8bit(color[2]) << 16) | (0xffu << 24);
+                }
             }
         }
     }

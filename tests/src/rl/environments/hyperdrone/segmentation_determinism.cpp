@@ -10,6 +10,7 @@
 #include <vector>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
 namespace l2f = rlt::rl::environments::l2f;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -67,7 +68,7 @@ namespace test_segmentation_determinism {
         static constexpr TI CAM_HEIGHT = 32;
         using SHADING = rlt::rendering::raytracing::Low;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 8;
-        static constexpr bool OUTPUT_SEGMENTATION = true;
+        using OUTPUTS = rro::List<rro::RGB<rro::format::Float32>, rro::Segmentation<rro::format::UInt32, rro::labels::Instance>, rro::Probes>;
     };
     using BASE_WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
     struct TASK_SPEC: rlt::rl::environments::hyperdrone::tasks::moving_gate::Specification<BASE_WORLD> {};
@@ -144,7 +145,7 @@ static Capture run(DEVICE& device){
         rlt::Tensor<rlt::tensor::Specification<uint32_t, TI, rlt::tensor::Shape<TI, INSTANCES, WORLD_SPEC::CAM_HEIGHT, WORLD_SPEC::CAM_WIDTH>>> alias;
         alias._data = capture.segmentation.data();
         auto& renderer = rlt::get_renderer(device, world);
-        rlt::copy(renderer.device, device, rlt::segmentation_buffer(device, renderer), alias);
+        rlt::copy(renderer.device, device, rlt::output(device, renderer, rro::Segmentation<>{}), alias);
     }
 
     rlt::free(device, parameters);
@@ -198,7 +199,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SEGMENTATION, ID_LAYOUT_AND_DETERMINISM
 
 namespace test_shared_taxonomy {
     struct SPEC: WORLD_SPEC {
-        static constexpr bool SEMANTIC_SEGMENTATION = true;
+        using OUTPUTS = rro::List<rro::RGB<rro::format::Float32>, rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>, rro::Probes>;
     };
     using SHARED = rlt::rl::environments::hyperdrone::SharedContext<SPEC>;
 

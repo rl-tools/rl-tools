@@ -5,6 +5,7 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_BACKENDS_METAL_CONTEXT_H
 
 #include "../../types.h"
+#include "../../outputs/outputs.h"
 
 // Some third-party headers (e.g. tensorboard_logger) inject `using tensorflow::Event;` at global
 // scope; without these forward declarations metal-cpp's `class Event*` member declarations would
@@ -39,11 +40,13 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         constexpr int OVERLAY_STRUCTURES = 11;
         constexpr int OVERLAY_ATTACHMENTS = 12;
         constexpr int INSTANCE_CLASSES = 13;
-        constexpr int OBSERVATION = 14;
+        constexpr int RGB_FLOAT32 = 14;
         constexpr int RGB_ACCUMULATOR = 15;
+        constexpr int COLOR_OUTPUT = 16;
         constexpr int SHUTTER = 17;
+        constexpr int SECONDARY_COLOR_OUTPUT = 18;
         constexpr int FLOW_DELTAS = 19;               // internal [2][slots][12] delta table composed by update()
-        constexpr int FLOW_STATUS_OUTPUT = 20;        // FlowStatus per pixel next to the flow OUTPUT
+        constexpr int SECONDARY_OUTPUT = 20;
         constexpr int CAMERAS_PREVIOUS = 21;
         constexpr int OVERLAY_STRUCTURES_PREVIOUS = 22; // the previous instant's overlay structures (flow visibility / forward primaries)
     }
@@ -59,10 +62,13 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         constexpr int PBR_SHADING = 8;
         constexpr int PUNCTUAL_LIGHT_SHADOWS = 9;
         constexpr int OVERLAY_COUNT = 10;
-        constexpr int SEMANTIC_SEGMENTATION = 11;
-        constexpr int HAS_OBSERVATION = 12;
+        constexpr int HAS_RGB32F = 12;
         constexpr int DYNAMIC_MOTION_BLUR = 13;
         constexpr int RESOLVE_RGB = 14;
+        constexpr int OUTPUT_MASK = 15;
+        constexpr int DEPTH_SCALE = 16;
+        constexpr int FLOW_SCALE = 17;
+        constexpr int FLOW_FORWARD_SCALE = 18;
     }
 
     struct LaunchParams{
@@ -168,18 +174,13 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         NS::SharedPtr<MTL::Buffer> cameras;
         NS::SharedPtr<MTL::Buffer> cameras_open;
         NS::SharedPtr<MTL::Buffer> cameras_previous;
-        NS::SharedPtr<MTL::Buffer> frame_buffer;
-        NS::SharedPtr<MTL::Buffer> depth_buffer;
+        NS::SharedPtr<MTL::Buffer> outputs[(size_t)outputs::Slot::COUNT];
+        uint32_t output_mask = 0;
+        float depth_scale = 10.f;
+        float flow_scale = 20.f;
+        float flow_forward_scale = 20.f;
         NS::SharedPtr<MTL::Buffer> rgb_accumulator;
-        NS::SharedPtr<MTL::Buffer> segmentation_buffer;
-        NS::SharedPtr<MTL::Buffer> normals_buffer;
-        NS::SharedPtr<MTL::Buffer> flow_buffer;
-        NS::SharedPtr<MTL::Buffer> flow_status_buffer;
-        NS::SharedPtr<MTL::Buffer> flow_forward_buffer;
-        NS::SharedPtr<MTL::Buffer> flow_forward_status_buffer;
         NS::SharedPtr<MTL::Buffer> flow_deltas;
-        NS::SharedPtr<MTL::Buffer> observation;
-        NS::SharedPtr<MTL::Buffer> collision_results;
         NS::SharedPtr<MTL::Buffer> probe_directions;
         NS::SharedPtr<MTL::Buffer> launch_params;
         NS::SharedPtr<MTL::CommandBuffer> in_flight;

@@ -20,11 +20,16 @@ namespace test_moving_gate_acquisition {
         static constexpr TI CAM_HEIGHT = 13;
         static constexpr TI HISTORY_LENGTH = HISTORY;
         static constexpr bool SELF_VISIBLE = false;
-        static constexpr bool OUTPUT_RGB = true;
-        static constexpr bool OUTPUT_DEPTH = true;
-        static constexpr bool OUTPUT_SEGMENTATION = true;
-        static constexpr bool OUTPUT_NORMALS = true;
-        static constexpr bool OUTPUT_FLOW = FLOW;
+        using OUTPUTS = typename rl_tools::rendering::raytracing::outputs::Concat<
+            rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>>,
+            rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::RGB<>>,
+            rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::Depth<>>,
+            rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::Segmentation<rl_tools::rendering::raytracing::outputs::format::UInt32, rl_tools::rendering::raytracing::outputs::labels::Instance>>,
+            rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::Normals<>>,
+            rl_tools::rendering::raytracing::outputs::If<(FLOW), rl_tools::rendering::raytracing::outputs::Flow<>>,
+            rl_tools::rendering::raytracing::outputs::If<(FLOW), rl_tools::rendering::raytracing::outputs::FlowStatus<>>,
+            rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::Probes>
+        >::type;
         static constexpr bool ENABLE_MOTION_BLUR = true;
         static constexpr TI MOTION_BLUR_SAMPLES = 4;
     };
@@ -121,7 +126,7 @@ namespace test_moving_gate_acquisition {
         auto retained_image = [&](){
             std::vector<unsigned char> snapshot;
             auto& renderer = get_renderer(device, world);
-            append_tensor(host, renderer.device, frame_buffer(device, renderer), snapshot);
+            append_tensor(host, renderer.device, output(device, renderer, rl_tools::rendering::raytracing::outputs::RGB<>{}), snapshot);
             append_tensor(host, device, world.history, snapshot);
             return snapshot;
         };
@@ -163,10 +168,10 @@ namespace test_moving_gate_acquisition {
                         }
                     }
                 };
-                append_tensor(host, renderer.device, frame_buffer(device, renderer), snapshot["rgba"]);
-                append_tensor(host, renderer.device, depth_buffer(device, renderer), snapshot["depth"]);
-                const auto ids = append_tensor(host, renderer.device, segmentation_buffer(device, renderer), snapshot["segmentation"]);
-                append_tensor(host, renderer.device, normals_buffer(device, renderer), snapshot["normals"]);
+                append_tensor(host, renderer.device, output(device, renderer, rl_tools::rendering::raytracing::outputs::RGB<>{}), snapshot["rgba"]);
+                append_tensor(host, renderer.device, output(device, renderer, rl_tools::rendering::raytracing::outputs::Depth<>{}), snapshot["depth"]);
+                const auto ids = append_tensor(host, renderer.device, output(device, renderer, rl_tools::rendering::raytracing::outputs::Segmentation<>{}), snapshot["segmentation"]);
+                append_tensor(host, renderer.device, output(device, renderer, rl_tools::rendering::raytracing::outputs::Normals<>{}), snapshot["normals"]);
                 append_poses(transforms(device, renderer), "transforms");
                 append_tensor(host, device, observations, snapshot["observation"]);
                 append_tensor(host, device, world.history, snapshot["history"]);
@@ -175,8 +180,8 @@ namespace test_moving_gate_acquisition {
                 EXPECT_EQ(episode_start[1], 0);
                 EXPECT_FALSE(world.render_pending);
                 if constexpr (FLOW){
-                    const auto flow = append_tensor(host, renderer.device, flow_buffer(device, renderer), snapshot["flow"]);
-                    const auto status = append_tensor(host, renderer.device, flow_status_buffer(device, renderer), snapshot["flow_status"]);
+                    const auto flow = append_tensor(host, renderer.device, output(device, renderer, rl_tools::rendering::raytracing::outputs::Flow<>{}), snapshot["flow"]);
+                    const auto status = append_tensor(host, renderer.device, output(device, renderer, rl_tools::rendering::raytracing::outputs::FlowStatus<>{}), snapshot["flow_status"]);
                     append_poses(transforms_previous(device, renderer), "transforms_previous");
                     EXPECT_EQ(world.flow_scene_version, world.scene_version);
                     bool moving_gate_flow = false;

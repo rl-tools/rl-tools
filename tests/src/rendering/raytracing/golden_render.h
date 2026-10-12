@@ -13,6 +13,7 @@
 #include <vector>
 
 namespace golden {
+    namespace outputs = rl_tools::rendering::raytracing::outputs;
     template <typename T>
     struct Rendered {
         std::vector<uint32_t> frame_buffer;
@@ -165,7 +166,7 @@ namespace golden {
             return false;
         }
         out.num_instances = bundle.scene.instances.size();
-        if constexpr(SPEC::SEMANTIC_SEGMENTATION){
+        if constexpr(SPEC::HAS_SEMANTIC_SEGMENTATION){
             using rl_tools::segmentation_taxonomy;
             const auto taxonomy = segmentation_taxonomy(device, bundle.scene);
             if(!taxonomy){
@@ -221,33 +222,38 @@ namespace golden {
             }
             rl_tools::update(device, renderer);
         }
-        rl_tools::generate_probe_directions(device, renderer);
+        if constexpr(SPEC::HAS_PROBES){
+            rl_tools::generate_probe_directions(device, renderer);
+        }
         rl_tools::render(device, renderer);
-        rl_tools::probe(device, renderer);
+        if constexpr(SPEC::HAS_PROBES){
+            rl_tools::probe(device, renderer);
+        }
         rl_tools::synchronize(device, renderer);
 
         if constexpr(SPEC::HAS_RGB) {
-            copy_out(renderer.device, device, rl_tools::frame_buffer(device, renderer), out.frame_buffer);
+            copy_out(renderer.device, device, rl_tools::output(device, renderer, rl_tools::rendering::raytracing::outputs::RGB<>{}), out.frame_buffer);
         }
         if constexpr(SPEC::HAS_DEPTH) {
-            copy_out(renderer.device, device, rl_tools::depth_buffer(device, renderer), out.depth_buffer);
+            copy_out(renderer.device, device, rl_tools::output(device, renderer, rl_tools::rendering::raytracing::outputs::Depth<>{}), out.depth_buffer);
         }
         if constexpr(SPEC::HAS_NORMALS) {
-            copy_out(renderer.device, device, rl_tools::normals_buffer(device, renderer), out.normals);
+            copy_out(renderer.device, device, rl_tools::output(device, renderer, rl_tools::rendering::raytracing::outputs::Normals<>{}), out.normals);
         }
         if constexpr(SPEC::HAS_FLOW) {
-            copy_out(renderer.device, device, rl_tools::flow_buffer(device, renderer), out.flow);
-            copy_out(renderer.device, device, rl_tools::flow_status_buffer(device, renderer), out.flow_status);
+            copy_out(renderer.device, device, rl_tools::output(device, renderer, rl_tools::rendering::raytracing::outputs::Flow<>{}), out.flow);
+            copy_out(renderer.device, device, rl_tools::output(device, renderer, rl_tools::rendering::raytracing::outputs::FlowStatus<>{}), out.flow_status);
         }
         if constexpr(SPEC::HAS_FLOW_FORWARD) {
-            copy_out(renderer.device, device, rl_tools::flow_forward_buffer(device, renderer), out.flow_forward);
-            copy_out(renderer.device, device, rl_tools::flow_forward_status_buffer(device, renderer), out.flow_forward_status);
+            copy_out(renderer.device, device, rl_tools::output(device, renderer, rl_tools::rendering::raytracing::outputs::Flow<rl_tools::rendering::raytracing::outputs::direction::Forward>{}), out.flow_forward);
+            copy_out(renderer.device, device, rl_tools::output(device, renderer, rl_tools::rendering::raytracing::outputs::FlowStatus<rl_tools::rendering::raytracing::outputs::direction::Forward>{}), out.flow_forward_status);
         }
         if constexpr(SPEC::HAS_SEGMENTATION) {
-            copy_out(renderer.device, device, rl_tools::segmentation_buffer(device, renderer), out.segmentation);
+            using LABELS = rl_tools::utils::typing::conditional_t<SPEC::HAS_SEMANTIC_SEGMENTATION, outputs::labels::Semantic, outputs::labels::Instance>;
+            copy_out(renderer.device, device, rl_tools::output(device, renderer, outputs::Segmentation<outputs::format::UInt32, LABELS>{}), out.segmentation);
         }
-        if(rl_tools::data(renderer.collision_results) != nullptr) {
-            copy_out(renderer.device, device, rl_tools::collision_results(device, renderer), out.probes);
+        if constexpr(SPEC::HAS_PROBES){
+            copy_out(renderer.device, device, rl_tools::output(device, renderer, rl_tools::rendering::raytracing::outputs::Probes{}), out.probes);
         }
         out.max_depth = renderer.max_ray_length > 0 ? renderer.max_ray_length : static_cast<T>(1e30);
 

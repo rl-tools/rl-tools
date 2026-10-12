@@ -146,8 +146,7 @@ def test_unnamed_and_nonsemantic(tmp_path):
 def test_custom_world_metadata(tmp_path):
     source = (Path(__file__).parent / "user_spec_header.h").read_text()
     source = source.replace("        static constexpr TI MAX_DRONES = 3;", """
-        static constexpr bool OUTPUT_SEGMENTATION = true;
-        static constexpr bool SEMANTIC_SEGMENTATION = true;
+        using OUTPUTS = rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>, rl_tools::rendering::raytracing::outputs::Segmentation<rl_tools::rendering::raytracing::outputs::format::UInt32, rl_tools::rendering::raytracing::outputs::labels::Semantic>, rl_tools::rendering::raytracing::outputs::Probes>;
 """)
     header = tmp_path / "semantic.h"
     header.write_text(source)

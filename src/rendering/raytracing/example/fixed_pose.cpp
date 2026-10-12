@@ -1,4 +1,3 @@
-#define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 1
 
 #ifndef RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_SHADING
 #define RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_SHADING 3
@@ -23,6 +22,7 @@
 #include <string>
 
 namespace rlt = rl_tools;
+namespace rro = rlt::rendering::raytracing::outputs;
 
 using T = float;
 static constexpr T FOV = 80;
@@ -50,8 +50,10 @@ static constexpr bool OUTPUT_DEPTH = RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_OU
 struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_WIDTH = ::CAM_WIDTH, CAM_HEIGHT = ::CAM_HEIGHT, NUM_CAMERAS = ::NUM_CAMERAS, NUM_PROBES = ::NUM_PROBES;
     using SHADING = ::SHADING;
-    static constexpr bool OUTPUT_RGB = ::OUTPUT_RGB;
-    static constexpr bool OUTPUT_DEPTH = ::OUTPUT_DEPTH;
+    using OUTPUTS = typename rro::Concat<
+        rro::If<(::OUTPUT_RGB), rro::RGB<>>,
+        rro::If<(::OUTPUT_DEPTH), rro::Depth<>>
+    >::type;
     static constexpr bool ENABLE_ANTI_ALIASING = true;
     static constexpr TI ANTI_ALIASING_GRID_SIZE = 2;
 };
