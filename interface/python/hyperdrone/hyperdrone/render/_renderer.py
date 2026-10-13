@@ -77,8 +77,9 @@ class Renderer:
         num_cameras: Fixed camera batch size (>= 1); camera uploads must match it.
         num_probes: Collision rays per camera, run separately through probe().
             0 compiles the probe pass out; probe methods then raise.
-        output: A channel name or tuple of "rgb", "depth", "segmentation", "normals",
-            and "flow".
+        output: A channel name or tuple of "rgb", "depth", "instance_segmentation",
+            "semantic_segmentation", "normals", and "flow". The two segmentations label each
+            pixel with its instance ID or its object's segmentation_class and may be combined.
             Depth is camera-forward metric distance. render() produces every selected output.
         fidelity: RGB shading preset: "low" (flat, untextured colour), "medium"
             (textures, normal-based shading, metallic reflections, checker background),
@@ -93,8 +94,6 @@ class Renderer:
         max_overlay_instances: Instance slots per overlay. Multipart assets consume
             one slot per part.
         max_overlays_per_camera: Maximum overlay groups attached to one camera.
-        semantic_segmentation: Write per-object segmentation_class values instead
-            of instance IDs; requires the segmentation channel.
         dynamic_motion_blur: Blur overlay motion as well as camera motion, using
             shutter-open/close transforms supplied by set_transform_pair() or per-part
             samples supplied by set_motion_transforms(). Requires overlays and
@@ -109,7 +108,7 @@ class Renderer:
     def __init__(self, width, height, *, num_cameras=1, num_probes=1, output="rgb", fidelity="high",
                  motion_blur_samples=1, anti_aliasing_grid=1,
                  num_overlays=0, max_overlay_instances=0, max_overlays_per_camera=0,
-                 semantic_segmentation=False, dynamic_motion_blur=False):
+                 dynamic_motion_blur=False):
         if isinstance(fidelity, str):
             fidelity = fidelity.lower()
         self.config = RendererConfig(
@@ -124,7 +123,6 @@ class Renderer:
             num_overlays=num_overlays,
             max_overlay_instances=max_overlay_instances,
             max_overlays_per_camera=max_overlays_per_camera,
-            semantic_segmentation=bool(semantic_segmentation),
             dynamic_motion_blur=bool(dynamic_motion_blur),
         )
         self._renderer = load_renderer(self.config).Renderer()
@@ -292,13 +290,13 @@ class Renderer:
         """Camera-forward metric depth at pixel centre and shutter close; misses are +inf."""
         return self._image_output("depth", np.float32, 1, out)
 
-    @property
-    def segmentation_mode(self):
-        return "semantic" if self.config.semantic_segmentation else "instance"
+    def instance_segmentation(self, *, out=None):
+        """uint32 instance IDs at shutter close; misses are 0xFFFFFFFF."""
+        return self._image_output("instance_segmentation", np.uint32, 1, out)
 
-    def segmentation(self, *, out=None):
-        """uint32 instance IDs or semantic classes at shutter close; misses are 0xFFFFFFFF."""
-        return self._image_output("segmentation", np.uint32, 1, out)
+    def semantic_segmentation(self, *, out=None):
+        """uint32 semantic classes at shutter close; misses are 0xFFFFFFFF."""
+        return self._image_output("semantic_segmentation", np.uint32, 1, out)
 
     def normals(self, *, out=None):
         """World-FLU geometric normals facing against the ray, float32 (N, H, W, 3); misses are zero."""
@@ -335,9 +333,13 @@ class Renderer:
         """DLPack producer over the live depth buffer; see frame_dlpack for semantics."""
         return _DLPackBuffer(self, self._renderer.depth_dlpack, self._renderer.buffer_device_type(), self._renderer.buffer_device_id())
 
-    def segmentation_dlpack(self):
-        """DLPack producer over the live segmentation buffer; see frame_dlpack."""
-        return _DLPackBuffer(self, self._renderer.segmentation_dlpack, self._renderer.buffer_device_type(), self._renderer.buffer_device_id())
+    def instance_segmentation_dlpack(self):
+        """DLPack producer over the live instance segmentation buffer; see frame_dlpack."""
+        return _DLPackBuffer(self, self._renderer.instance_segmentation_dlpack, self._renderer.buffer_device_type(), self._renderer.buffer_device_id())
+
+    def semantic_segmentation_dlpack(self):
+        """DLPack producer over the live semantic segmentation buffer; see frame_dlpack."""
+        return _DLPackBuffer(self, self._renderer.semantic_segmentation_dlpack, self._renderer.buffer_device_type(), self._renderer.buffer_device_id())
 
     def normals_dlpack(self):
         """DLPack producer over the live normals buffer; see frame_dlpack."""

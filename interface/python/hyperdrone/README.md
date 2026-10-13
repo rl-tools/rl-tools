@@ -377,13 +377,14 @@ dataset = render.datasets.Train200()
 scene = render.load_scene(dataset["ProcTHOR-Train-1"].reference)
 ```
 
-Select any combination with `output=("rgb", "depth", "segmentation", "normals", "flow")`.
+Select any combination with `output=("rgb", "depth", "instance_segmentation", "semantic_segmentation", "normals", "flow")`.
 Outputs other than RGB are:
 
 | Accessor | dtype | Per-camera shape | Contract |
 |---|---|---|---|
 | `depth()` | float32 | `(H, W)` | Camera-forward depth from the pixel-centre shutter-close ray; miss `+inf` |
-| `segmentation()` | uint32 | `(H, W)` | Instance IDs or semantic classes; miss `0xFFFFFFFF` |
+| `instance_segmentation()` | uint32 | `(H, W)` | Instance IDs; miss `0xFFFFFFFF` |
+| `semantic_segmentation()` | uint32 | `(H, W)` | Semantic classes (`segmentation_class`); miss `0xFFFFFFFF` |
 | `normals()` | float32 | `(H, W, 3)` | World-FLU geometric unit normal facing against the ray; miss zero |
 | `flow()` | float32 | `(H, W, 2)` | Current-to-previous `(dx, dy)` displacement in pixels, positive along image columns/rows |
 | `flow_status()` | uint32 | `(H, W)` | `render.FlowStatus`: VALID, MISS, BEHIND, OUT_OF_FRAME, OCCLUDED |
@@ -402,13 +403,12 @@ renderer.render()
 flow, status = renderer.flow(), renderer.flow_status()
 ```
 
-`EnvConfig(output=("rgb", "depth", "segmentation", "normals", "flow"))` enables the same
+`EnvConfig(output=("rgb", "depth", "instance_segmentation", "normals", "flow"))` enables the same
 auxiliary channels in `MultiEnvironment`, with RGB policy observations. Its accessors accept
 `out=` (NumPy, or CUDA arrays on a CUDA World) and return
 `(total_instances, num_views, H, W[, channels])`. They render pending frames as `observe()` does;
 repeated reads reuse the capture. Flow retains each due capture even when it is unread, follows task frame cadence, and resets per instance or on scene changes. The first/reset capture
-has zero motion. `semantic_segmentation=True` selects classes, and `env.outputs` /
-`env.segmentation_mode` describe the compiled configuration. Normals use the renderer’s scene
+has zero motion. `env.outputs` describes the compiled configuration. Normals use the renderer’s scene
 FLU frame; instance IDs are local to each environment’s active renderer. Custom `spec_header` Worlds declare their renderer `OUTPUTS` list, including float RGB for policy observations and `Probes` for scene annotations; leave the corresponding Python options at their defaults.
 
 `EnvConfig(dataset="glb")` (the default) uses the taxonomy authored in the GLBs;
@@ -419,12 +419,12 @@ taxonomy, then shares its immutable dictionary across them. Conflicting names or
 mappings fail initialization; IDs are preserved. Scene rotation does not change the dictionary.
 
 ```python
-config = EnvConfig(dataset="procthor", output=("rgb", "segmentation"), semantic_segmentation=True)
+config = EnvConfig(dataset="procthor", output=("rgb", "semantic_segmentation"))
 env = MultiEnvironment(scenes, config=config)
 classes = env.segmentation_classes  # dict[int, str], an independent copy
 taxonomy = env.segmentation_taxonomy  # "ai2thor-hab"
 env.reset()
-labels = env.segmentation()
+labels = env.semantic_segmentation()
 names_present = {int(id): classes.get(int(id), "Background") for id in np.unique(labels)}
 env.close()
 ```
@@ -433,15 +433,14 @@ These properties return `{}` and `""` when semantic output is disabled or all cl
 unnamed. Unnamed objects in a named taxonomy must use IDs in that dictionary. The reserved
 background ID `0xFFFFFFFF` is excluded from the dictionary.
 
-For labelled ProcTHOR rendering, preserve GLB root instances and select the output meaning:
+For labelled ProcTHOR rendering, preserve GLB root instances; instance and semantic labels can be rendered together:
 
 ```python
 scene = render.load_scene(procthor_scene_path(), rgb=False, preserve_instances=True)
-renderer = render.Renderer(width=512, height=512, output="segmentation",
-                           semantic_segmentation=True)  # False selects instance IDs
+renderer = render.Renderer(width=512, height=512, output=("instance_segmentation", "semantic_segmentation"))
 renderer.init(scene)
 # Set cameras and render as usual.
-labels = renderer.segmentation()  # uint32; renderer.segmentation_mode identifies the mode
+instances, labels = renderer.instance_segmentation(), renderer.semantic_segmentation()  # uint32
 classes = scene.segmentation_classes  # {class_id: name}, taxonomy: scene.segmentation_taxonomy
 ```
 

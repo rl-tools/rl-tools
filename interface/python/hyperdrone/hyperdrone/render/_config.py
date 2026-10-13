@@ -21,7 +21,6 @@ class RendererConfig:
     num_overlays: int
     max_overlay_instances: int
     max_overlays_per_camera: int
-    semantic_segmentation: bool
     dynamic_motion_blur: bool = False
 
     def __post_init__(self):
@@ -43,8 +42,6 @@ class RendererConfig:
         overlay_values = (self.num_overlays, self.max_overlay_instances, self.max_overlays_per_camera)
         if any(value > 0 for value in overlay_values) and not all(value > 0 for value in overlay_values):
             raise ValueError("overlay parameters (num_overlays, max_overlay_instances, max_overlays_per_camera) must be all zero or all nonzero")
-        if self.semantic_segmentation and "segmentation" not in self.output:
-            raise ValueError("semantic_segmentation requires a segmentation output mode")
         if self.dynamic_motion_blur and (self.motion_blur_samples < 2 or self.num_overlays == 0):
             raise ValueError("dynamic_motion_blur requires motion_blur_samples >= 2 and overlays")
 
@@ -71,6 +68,5 @@ class RendererConfig:
             "HYPERDRONE_RENDER_NUM_OVERLAYS": self.num_overlays,
             "HYPERDRONE_RENDER_MAX_OVERLAY_INSTANCES": self.max_overlay_instances,
             "HYPERDRONE_RENDER_MAX_OVERLAYS_PER_CAMERA": self.max_overlays_per_camera,
-            "HYPERDRONE_RENDER_SEMANTIC_SEGMENTATION": 1 if self.semantic_segmentation else 0,
             "HYPERDRONE_RENDER_DYNAMIC_MB": 1 if self.dynamic_motion_blur else 0,
         }

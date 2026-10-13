@@ -12,7 +12,7 @@ from hyperdrone.env import EnvConfig, MultiEnvironment
 
 
 CONFIG = EnvConfig(instances_per_environment=2, width=16, height=16, fidelity="low",
-                   output=("rgb", "segmentation"), semantic_segmentation=True, device="cpu")
+                   output=("rgb", "semantic_segmentation"), device="cpu")
 CLASSES = {0: "Unknown", 7: "Room"}
 
 
@@ -74,10 +74,10 @@ def test_shared_taxonomy_and_rotation(tmp_path, device):
             with pytest.raises(AttributeError):
                 env.segmentation_classes = {}
             env.reset()
-            np.testing.assert_array_equal(env.segmentation(), 7)
+            np.testing.assert_array_equal(env.semantic_segmentation(), 7)
             env.rotate_scene()
             env.reset()
-            np.testing.assert_array_equal(env.segmentation(), 7)
+            np.testing.assert_array_equal(env.semantic_segmentation(), 7)
             assert env.segmentation_taxonomy == "test"
             assert env.segmentation_classes == CLASSES
         finally:
@@ -130,12 +130,12 @@ def test_unnamed_and_nonsemantic(tmp_path):
         assert env.segmentation_taxonomy == ""
         assert env.segmentation_classes == {}
         env.reset()
-        np.testing.assert_array_equal(env.segmentation(), 0)
+        np.testing.assert_array_equal(env.semantic_segmentation(), 0)
     finally:
         env.close()
     scenes = [room_glb(tmp_path / "one.glb"), room_glb(tmp_path / "two.glb", taxonomy="other")]
-    for output in ("rgb", ("rgb", "segmentation")):
-        env = MultiEnvironment(scenes, config=replace(CONFIG, output=output, semantic_segmentation=False, dataset="procthor"))
+    for output in ("rgb", ("rgb", "instance_segmentation")):
+        env = MultiEnvironment(scenes, config=replace(CONFIG, output=output, dataset="procthor"))
         try:
             assert env.segmentation_taxonomy == ""
             assert env.segmentation_classes == {}
@@ -161,6 +161,6 @@ def test_custom_world_metadata(tmp_path):
         assert env.segmentation_taxonomy == "ai2thor-hab"
         assert env.segmentation_classes == CLASSES
         env.reset()
-        assert set(np.unique(env.segmentation())).issubset({0, 7, 0xFFFFFFFF})
+        assert set(np.unique(env.semantic_segmentation())).issubset({0, 7, 0xFFFFFFFF})
     finally:
         env.close()

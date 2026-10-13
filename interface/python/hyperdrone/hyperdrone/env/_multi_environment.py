@@ -68,7 +68,6 @@ class EnvConfig:
     device: str = None
     motion_blur_samples: int = 1
     output: tuple = ("rgb",)
-    semantic_segmentation: bool = False
     dataset: str = "glb"
 
     def __post_init__(self):
@@ -80,8 +79,6 @@ class EnvConfig:
         object.__setattr__(self, "output", normalize_outputs(self.output))
         if "rgb" not in self.output:
             raise ValueError("hyperdrone: environment observations require rgb output")
-        if self.semantic_segmentation and "segmentation" not in self.output:
-            raise ValueError("hyperdrone: semantic_segmentation requires segmentation output")
         if self.dataset not in DATASETS:
             raise ValueError(f"hyperdrone: unknown dataset {self.dataset!r} (one of {sorted(DATASETS)})")
         if self.preset not in PRESETS:
@@ -113,8 +110,8 @@ class EnvConfig:
                 raise ValueError("hyperdrone: task 'visual_inertial_localization' has no CUDA verbs — use device='cpu'")
         if self.spec_header is not None:
             defaults = EnvConfig()
-            if self.output != defaults.output or self.semantic_segmentation:
-                raise ValueError("hyperdrone: spec_header defines the outputs; leave output and semantic_segmentation at their defaults")
+            if self.output != defaults.output:
+                raise ValueError("hyperdrone: spec_header defines the outputs; leave output at its default")
             superseded = [item.name for item in fields(self) if item.name not in ("num_environments", "spec_header", "device", "dataset") and getattr(self, item.name) != getattr(defaults, item.name)]
             if superseded:
                 raise ValueError(f"hyperdrone: spec_header supersedes {', '.join(superseded)}; leave these fields at their defaults")
@@ -137,7 +134,6 @@ class EnvConfig:
     def defines(self):
         values = {
             **output_defines(self.output, "HYPERDRONE_ENV"),
-            "HYPERDRONE_ENV_SEMANTIC_SEGMENTATION": int(self.semantic_segmentation),
             "HYPERDRONE_ENV_DATASET": DATASETS[self.dataset],
             "HYPERDRONE_ENV_NUM_ENVIRONMENTS": self.num_environments,
             "HYPERDRONE_ENV_INSTANCES": self.instances_per_environment,
@@ -288,7 +284,6 @@ class MultiEnvironment:
         self._module = jit.module(component(), self.config)
         self._synchronized_resets = self._module.synchronized_resets
         self.outputs = self._module.outputs
-        self.segmentation_mode = self._module.segmentation_mode
         for name, value in self._module.dimensions.items():
             setattr(self, name, value)
         if len(drones) > self.max_drone_types:
@@ -550,9 +545,13 @@ class MultiEnvironment:
         """Camera-forward depth at pixel centres and shutter close, float32 (total_instances, num_views, H, W); misses are +inf. Acquires pending frames."""
         return self._render_output("depth", np.float32, 1, out)
 
-    def segmentation(self, *, out=None):
-        """Instance IDs or semantic classes, uint32 (total_instances, num_views, H, W); miss=0xFFFFFFFF."""
-        return self._render_output("segmentation", np.uint32, 1, out)
+    def instance_segmentation(self, *, out=None):
+        """Instance IDs, uint32 (total_instances, num_views, H, W); miss=0xFFFFFFFF."""
+        return self._render_output("instance_segmentation", np.uint32, 1, out)
+
+    def semantic_segmentation(self, *, out=None):
+        """Semantic classes, uint32 (total_instances, num_views, H, W); miss=0xFFFFFFFF."""
+        return self._render_output("semantic_segmentation", np.uint32, 1, out)
 
     @property
     def segmentation_classes(self):

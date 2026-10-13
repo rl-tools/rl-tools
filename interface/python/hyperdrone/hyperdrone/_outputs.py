@@ -1,7 +1,7 @@
 from enum import IntEnum
 
 
-CHANNELS = ("rgb", "depth", "segmentation", "normals", "flow")
+CHANNELS = ("rgb", "depth", "instance_segmentation", "semantic_segmentation", "normals", "flow")
 VALID_MOTION_BLUR_SAMPLES = (1, 2, 4, 8, 16, 32)
 
 

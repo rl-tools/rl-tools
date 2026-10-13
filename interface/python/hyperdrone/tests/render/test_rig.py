@@ -123,7 +123,7 @@ def assembly():
 
 def setup_renderer(motion=False):
     renderer = render.Renderer(width=32, height=32, num_cameras=1, num_probes=0,
-                               output=("rgb", "depth", "segmentation"), fidelity="low", num_overlays=2,
+                               output=("rgb", "depth", "instance_segmentation"), fidelity="low", num_overlays=2,
                                max_overlay_instances=4, max_overlays_per_camera=2,
                                motion_blur_samples=4 if motion else 1, dynamic_motion_blur=motion)
     asset = assembly()
@@ -161,7 +161,7 @@ def test_per_part_and_whole_tensor_submission():
     renderer.set_transforms(second, [pose(30), pose(4, 0.6)])
     renderer.update()
     renderer.render()
-    ids = set(np.unique(renderer.segmentation()[0]))
+    ids = set(np.unique(renderer.instance_segmentation()[0]))
     assert 1 in ids and 6 in ids and 2 not in ids and 5 not in ids
     poses = np.full((2, 4, 3, 4), np.nan, dtype=np.float32)
     poses[0, 0], poses[0, 1] = pose(30), pose(3, -0.6)
@@ -169,7 +169,7 @@ def test_per_part_and_whole_tensor_submission():
     renderer.set_all_transforms(poses)
     renderer.update()
     renderer.render()
-    ids = set(np.unique(renderer.segmentation()[0]))
+    ids = set(np.unique(renderer.instance_segmentation()[0]))
     assert 2 in ids and 5 in ids and 1 not in ids and 6 not in ids
     with pytest.raises(ValueError):
         renderer.set_transforms(first, [pose(3)])
@@ -204,7 +204,7 @@ def test_motion_submission_matches_static_average():
     renderer.update()
     renderer.render()
     np.testing.assert_array_equal(renderer.depth(), captured_depth)
-    assert renderer.segmentation()[0, 16, 16] == 1  # the close pose is what segmentation sees
+    assert renderer.instance_segmentation()[0, 16, 16] == 1  # the close pose is what segmentation sees
     renderer.set_transforms(placement, rig.evaluate(coordinates=[0]))
     renderer.update()
     renderer.render()

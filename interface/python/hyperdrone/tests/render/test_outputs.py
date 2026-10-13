@@ -8,19 +8,17 @@ from hyperdrone import render
 from test_render import make_scene, make_quad, look_forward
 
 
-OUTPUTS = ("rgb", "depth", "segmentation", "normals", "flow")
+OUTPUTS = ("rgb", "depth", "instance_segmentation", "semantic_segmentation", "normals", "flow")
 
 
 def test_output_selection():
-    config = render.RendererConfig(width=16, height=16, num_cameras=1, num_probes=0, fidelity="low", output=OUTPUTS, motion_blur_samples=1, anti_aliasing_grid=1, num_overlays=0, max_overlay_instances=0, max_overlays_per_camera=0, semantic_segmentation=False)
+    config = render.RendererConfig(width=16, height=16, num_cameras=1, num_probes=0, fidelity="low", output=OUTPUTS, motion_blur_samples=1, anti_aliasing_grid=1, num_overlays=0, max_overlay_instances=0, max_overlays_per_camera=0)
     assert config == replace(config, output=tuple(reversed(OUTPUTS)) + ("flow",))
     assert config.key() == replace(config, output=list(reversed(OUTPUTS))).key()
-    assert replace(config, output=("rgb", "depth", "segmentation")).output == OUTPUTS[:3]
+    assert replace(config, output=("rgb", "depth", "instance_segmentation")).output == OUTPUTS[:3]
     for invalid in ((), ("velocity",), ("flow", 1), 3):
         with pytest.raises(ValueError):
             replace(config, output=invalid)
-    with pytest.raises(ValueError, match="segmentation"):
-        replace(config, output="normals", semantic_segmentation=True)
     assert [int(code) for code in render.FlowStatus] == list(range(5))
 
 
@@ -32,8 +30,8 @@ def test_typed_outputs_and_views(output):
     look_forward(renderer)
     renderer.render_launch()
     renderer.render_sync()
-    for name, channels, dtype in (("depth", 1, np.float32), ("segmentation", 1, np.uint32),
-                                  ("normals", 3, np.float32), ("flow", 2, np.float32),
+    for name, channels, dtype in (("depth", 1, np.float32), ("instance_segmentation", 1, np.uint32),
+                                  ("semantic_segmentation", 1, np.uint32), ("normals", 3, np.float32), ("flow", 2, np.float32),
                                   ("flow_status", 1, np.uint32)):
         accessor = getattr(renderer, name)
         if ("flow" if name == "flow_status" else name) not in output:
@@ -95,8 +93,7 @@ def test_object_flow_and_semantic_labels():
     obj.add_mesh(make_quad(0, half_size=0.5))
     asset = pool.add_object(obj)
     renderer = render.Renderer(width=32, height=32, num_probes=0, output=OUTPUTS, fidelity="low",
-                               semantic_segmentation=True, num_overlays=1,
-                               max_overlay_instances=1, max_overlays_per_camera=1)
+                               num_overlays=1, max_overlay_instances=1, max_overlays_per_camera=1)
     renderer.init(scene, asset_pool=pool)
     look_forward(renderer)
     renderer.attach(0, 0)
@@ -108,7 +105,7 @@ def test_object_flow_and_semantic_labels():
     renderer.set_transform(placement, render.make_transform(position=(2, 0.2, 0)))
     renderer.update()
     renderer.render()
-    assert renderer.segmentation()[0, 16, 16] == 23
+    assert renderer.semantic_segmentation()[0, 16, 16] == 23
     focal = 32 / (2 * np.tan(np.deg2rad(30)))
     np.testing.assert_allclose(renderer.flow()[0, 16, 16], [focal * 0.2 / 2, 0], atol=1e-4)
     assert np.any(renderer.flow_status() == render.FlowStatus.OCCLUDED)
@@ -124,6 +121,6 @@ def test_cuda_output_dlpack():
     renderer.init(make_scene())
     look_forward(renderer)
     renderer.render()
-    for name in ("depth", "segmentation", "normals", "flow", "flow_status"):
+    for name in ("depth", "instance_segmentation", "semantic_segmentation", "normals", "flow", "flow_status"):
         output = torch.from_dlpack(getattr(renderer, name + "_dlpack")())
         np.testing.assert_array_equal(output.cpu().numpy(), getattr(renderer, name)())

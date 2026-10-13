@@ -107,7 +107,8 @@ namespace HYPERDRONE_MODULE_NAME {
         using OUTPUTS = typename rro::Concat<
             rro::If<(HYPERDRONE_ENV_OUTPUT_RGB != 0), rro::RGB<rro::format::Float32>>,
             rro::If<(HYPERDRONE_ENV_OUTPUT_DEPTH != 0), rro::Depth<>>,
-            rro::If<(HYPERDRONE_ENV_OUTPUT_SEGMENTATION != 0), rro::Segmentation<rro::format::UInt32, rl_tools::utils::typing::conditional_t<(HYPERDRONE_ENV_SEMANTIC_SEGMENTATION != 0), rro::labels::Semantic, rro::labels::Instance>>>,
+            rro::If<(HYPERDRONE_ENV_OUTPUT_INSTANCE_SEGMENTATION != 0), rro::Segmentation<rro::format::UInt32, rro::labels::Instance>>,
+            rro::If<(HYPERDRONE_ENV_OUTPUT_SEMANTIC_SEGMENTATION != 0), rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>>,
             rro::If<(HYPERDRONE_ENV_OUTPUT_NORMALS != 0), rro::Normals<>>,
             rro::If<(HYPERDRONE_ENV_OUTPUT_FLOW != 0), rro::Flow<>>,
             rro::If<(HYPERDRONE_ENV_OUTPUT_FLOW != 0), rro::FlowStatus<>>,
@@ -150,13 +151,9 @@ namespace HYPERDRONE_MODULE_NAME {
 #endif
 
     using OUTPUTS = typename WORLD::RENDERER_SPEC::OUTPUTS;
-    using SEGMENTATION_OUTPUT = rro::Segmentation<rro::format::UInt32, rlt::utils::typing::conditional_t<
-        rro::contains<OUTPUTS, rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>>::value,
-        rro::labels::Semantic, rro::labels::Instance>>;
+    using INSTANCE_SEGMENTATION = rro::Segmentation<rro::format::UInt32, rro::labels::Instance>;
+    using SEMANTIC_SEGMENTATION = rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>;
     static_assert(WORLD::HAS_IMAGE_OBSERVATION, "Python environment observations require RGB<Float32> in OUTPUTS");
-    static_assert(!(rro::contains<OUTPUTS, rro::Segmentation<>>::value
-        && rro::contains<OUTPUTS, rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>>::value),
-        "Python environments expose one segmentation output: configure Instance or Semantic labels");
 
     constexpr TI NUM_ENVIRONMENTS = HYPERDRONE_ENV_NUM_ENVIRONMENTS;
     using ENV = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, NUM_ENVIRONMENTS>;
@@ -212,7 +209,8 @@ namespace HYPERDRONE_MODULE_NAME {
         void step(const float* actions, bool resident);
         void observe(float* out, bool resident);
         void depth(float* out, bool resident);
-        void segmentation(uint32_t* out, bool resident);
+        void instance_segmentation(uint32_t* out, bool resident);
+        void semantic_segmentation(uint32_t* out, bool resident);
         void normals(float* out, bool resident);
         void flow(float* out, bool resident);
         void flow_status(uint32_t* out, bool resident);

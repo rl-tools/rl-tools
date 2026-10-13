@@ -665,9 +665,13 @@ namespace HYPERDRONE_MODULE_NAME {
         read_image_output<rro::contains<OUTPUTS, rro::Depth<>>::value>(*impl, out, resident, "depth",
             [](auto& device, auto& renderer) -> auto& { return output(device, renderer, rl_tools::rendering::raytracing::outputs::Depth<>{}); });
     }
-    void Environment::segmentation(uint32_t* out, bool resident){
-        read_image_output<rro::contains<OUTPUTS, SEGMENTATION_OUTPUT>::value>(*impl, out, resident, "segmentation",
-            [](auto& device, auto& renderer) -> auto& { return output(device, renderer, SEGMENTATION_OUTPUT{}); });
+    void Environment::instance_segmentation(uint32_t* out, bool resident){
+        read_image_output<rro::contains<OUTPUTS, INSTANCE_SEGMENTATION>::value>(*impl, out, resident, "instance_segmentation",
+            [](auto& device, auto& renderer) -> auto& { return output(device, renderer, INSTANCE_SEGMENTATION{}); });
+    }
+    void Environment::semantic_segmentation(uint32_t* out, bool resident){
+        read_image_output<rro::contains<OUTPUTS, SEMANTIC_SEGMENTATION>::value>(*impl, out, resident, "semantic_segmentation",
+            [](auto& device, auto& renderer) -> auto& { return output(device, renderer, SEMANTIC_SEGMENTATION{}); });
     }
     void Environment::normals(float* out, bool resident){
         read_image_output<rro::contains<OUTPUTS, rro::Normals<>>::value>(*impl, out, resident, "normals",

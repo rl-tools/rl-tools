@@ -122,8 +122,11 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     if(rro::contains<OUTPUTS, rro::Depth<>>::value){
         outputs.append("depth");
     }
-    if(rro::contains<OUTPUTS, SEGMENTATION_OUTPUT>::value){
-        outputs.append("segmentation");
+    if(rro::contains<OUTPUTS, INSTANCE_SEGMENTATION>::value){
+        outputs.append("instance_segmentation");
+    }
+    if(rro::contains<OUTPUTS, SEMANTIC_SEGMENTATION>::value){
+        outputs.append("semantic_segmentation");
     }
     if(rro::contains<OUTPUTS, rro::Normals<>>::value){
         outputs.append("normals");
@@ -132,7 +135,6 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
         outputs.append("flow");
     }
     m.attr("outputs") = nb::tuple(outputs);
-    m.attr("segmentation_mode") = rro::contains<OUTPUTS, rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>>::value ? "semantic" : "instance";
 
     auto environment_class = nb::class_<Environment>(m, "Environment");
     environment_class
@@ -183,7 +185,8 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     bind_output<&Environment::observe_privileged, WORLD::OBSERVATION_DIM_PRIVILEGED>(environment_class, "observe_privileged");
     bind_output<&Environment::rewards, 1>(environment_class, "rewards");
     bind_image_output<float, &Environment::depth, 1>(environment_class, "depth");
-    bind_image_output<uint32_t, &Environment::segmentation, 1>(environment_class, "segmentation");
+    bind_image_output<uint32_t, &Environment::instance_segmentation, 1>(environment_class, "instance_segmentation");
+    bind_image_output<uint32_t, &Environment::semantic_segmentation, 1>(environment_class, "semantic_segmentation");
     bind_image_output<float, &Environment::normals, 3>(environment_class, "normals");
     bind_image_output<float, &Environment::flow, 2>(environment_class, "flow");
     bind_image_output<uint32_t, &Environment::flow_status, 1>(environment_class, "flow_status");

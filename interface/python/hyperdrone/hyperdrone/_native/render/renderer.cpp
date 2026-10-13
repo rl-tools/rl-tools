@@ -37,8 +37,11 @@
 #ifndef HYPERDRONE_RENDER_OUTPUT_DEPTH
 #error "HYPERDRONE_RENDER_OUTPUT_DEPTH must be defined"
 #endif
-#ifndef HYPERDRONE_RENDER_OUTPUT_SEGMENTATION
-#error "HYPERDRONE_RENDER_OUTPUT_SEGMENTATION must be defined"
+#ifndef HYPERDRONE_RENDER_OUTPUT_INSTANCE_SEGMENTATION
+#error "HYPERDRONE_RENDER_OUTPUT_INSTANCE_SEGMENTATION must be defined"
+#endif
+#ifndef HYPERDRONE_RENDER_OUTPUT_SEMANTIC_SEGMENTATION
+#error "HYPERDRONE_RENDER_OUTPUT_SEMANTIC_SEGMENTATION must be defined"
 #endif
 #ifndef HYPERDRONE_RENDER_OUTPUT_NORMALS
 #error "HYPERDRONE_RENDER_OUTPUT_NORMALS must be defined"
@@ -63,9 +66,6 @@
 #endif
 #ifndef HYPERDRONE_RENDER_MAX_OVERLAYS_PER_CAMERA
 #define HYPERDRONE_RENDER_MAX_OVERLAYS_PER_CAMERA 0
-#endif
-#ifndef HYPERDRONE_RENDER_SEMANTIC_SEGMENTATION
-#define HYPERDRONE_RENDER_SEMANTIC_SEGMENTATION 0
 #endif
 #ifndef HYPERDRONE_RENDER_DYNAMIC_MB
 #define HYPERDRONE_RENDER_DYNAMIC_MB 0
@@ -93,9 +93,6 @@ namespace HYPERDRONE_MODULE_NAME {
 
     static constexpr bool PROBES_ENABLED = HYPERDRONE_RENDER_NUM_PROBES > 0;
 
-    using SEGMENTATION_LABELS = rl_tools::utils::typing::conditional_t<(HYPERDRONE_RENDER_SEMANTIC_SEGMENTATION != 0), rro::labels::Semantic, rro::labels::Instance>;
-    using SEGMENTATION_OUTPUT = rro::Segmentation<rro::format::UInt32, SEGMENTATION_LABELS>;
-
     struct RendererConfiguration: rrt::config::Default<T, TI>{
         static constexpr TI CAM_WIDTH = HYPERDRONE_RENDER_WIDTH;
         static constexpr TI CAM_HEIGHT = HYPERDRONE_RENDER_HEIGHT;
@@ -105,7 +102,8 @@ namespace HYPERDRONE_MODULE_NAME {
         using OUTPUTS = typename rro::Concat<
             rro::If<(HYPERDRONE_RENDER_OUTPUT_RGB != 0), rro::RGB<>>,
             rro::If<(HYPERDRONE_RENDER_OUTPUT_DEPTH != 0), rro::Depth<>>,
-            rro::If<(HYPERDRONE_RENDER_OUTPUT_SEGMENTATION != 0), SEGMENTATION_OUTPUT>,
+            rro::If<(HYPERDRONE_RENDER_OUTPUT_INSTANCE_SEGMENTATION != 0), rro::Segmentation<rro::format::UInt32, rro::labels::Instance>>,
+            rro::If<(HYPERDRONE_RENDER_OUTPUT_SEMANTIC_SEGMENTATION != 0), rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>>,
             rro::If<(HYPERDRONE_RENDER_OUTPUT_NORMALS != 0), rro::Normals<>>,
             rro::If<(HYPERDRONE_RENDER_OUTPUT_FLOW != 0), rro::Flow<>>,
             rro::If<(HYPERDRONE_RENDER_OUTPUT_FLOW != 0), rro::FlowStatus<>>,
@@ -785,8 +783,10 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     using Renderer = HYPERDRONE_MODULE_NAME::Renderer<HYPERDRONE_MODULE_NAME::RENDERER_SPEC>;
     using SPEC = Renderer::SPEC;
     auto renderer_class = nb::class_<Renderer>(m, "Renderer");
-    bind_image_output<SPEC::HAS_SEGMENTATION, uint32_t, 1>(renderer_class, "segmentation",
-        [](auto& self) -> auto& { return output(self.device, self.renderer, HYPERDRONE_MODULE_NAME::SEGMENTATION_OUTPUT{}); });
+    bind_image_output<SPEC::HAS_INSTANCE_SEGMENTATION, uint32_t, 1>(renderer_class, "instance_segmentation",
+        [](auto& self) -> auto& { return output(self.device, self.renderer, rro::Segmentation<rro::format::UInt32, rro::labels::Instance>{}); });
+    bind_image_output<SPEC::HAS_SEMANTIC_SEGMENTATION, uint32_t, 1>(renderer_class, "semantic_segmentation",
+        [](auto& self) -> auto& { return output(self.device, self.renderer, rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>{}); });
     bind_image_output<SPEC::HAS_NORMALS, float, 3>(renderer_class, "normals",
         [](auto& self) -> auto& { return output(self.device, self.renderer, rro::Normals<>{}); });
     bind_image_output<SPEC::HAS_FLOW, float, 2>(renderer_class, "flow",

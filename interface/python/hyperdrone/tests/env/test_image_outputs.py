@@ -8,7 +8,7 @@ from hyperdrone.env import EnvConfig, MultiEnvironment
 from test_multi_environment import rigged_asset_path, scene_directory
 
 
-OUTPUTS = ("rgb", "depth", "segmentation", "normals", "flow")
+OUTPUTS = ("rgb", "depth", "instance_segmentation", "normals", "flow")
 CONFIG = EnvConfig(instances_per_environment=2, width=16, height=16, fidelity="low", output=OUTPUTS)
 
 
@@ -18,8 +18,6 @@ def test_environment_output_config():
     assert CONFIG.key() != replace(CONFIG, num_cameras_per_agent=2).key()
     with pytest.raises(ValueError, match="require rgb"):
         replace(CONFIG, output="depth")
-    with pytest.raises(ValueError, match="segmentation"):
-        replace(CONFIG, output="rgb", semantic_segmentation=True)
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
@@ -33,12 +31,11 @@ def test_environment_capture_and_partial_reset(scene_directory, device, task, ca
         env.reset()
         assert env.outputs == OUTPUTS
         assert env.image_channels == 3
-        assert env.segmentation_mode == "instance"
-        assert np.unique(env.segmentation()).size > 1
+        assert np.unique(env.instance_segmentation()).size > 1
         normals = env.normals()
         np.testing.assert_allclose(np.linalg.norm(normals, axis=-1), 1, atol=2e-5)
         np.testing.assert_allclose(env.flow(), 0, atol=2e-4)
-        for name, channels, dtype in (("depth", 1, np.float32), ("segmentation", 1, np.uint32),
+        for name, channels, dtype in (("depth", 1, np.float32), ("instance_segmentation", 1, np.uint32),
                                       ("normals", 3, np.float32), ("flow", 2, np.float32),
                                       ("flow_status", 1, np.uint32)):
             accessor = getattr(env, name)
@@ -109,7 +106,7 @@ def test_environment_cuda_image_outputs(scene_directory):
         env.reset()
         stream = torch.cuda.Stream()
         env.stream = stream.cuda_stream
-        for name in ("depth", "segmentation", "normals", "flow", "flow_status"):
+        for name in ("depth", "instance_segmentation", "normals", "flow", "flow_status"):
             accessor = getattr(env, name)
             expected = accessor()
             with torch.cuda.stream(stream):
@@ -120,9 +117,8 @@ def test_environment_cuda_image_outputs(scene_directory):
         env.close()
 
 
-@pytest.mark.parametrize("semantic", [False, True])
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, semantic, device):
+def test_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, device):
     if device == "cuda" and render._backend() != "optix":
         pytest.skip("CUDA Worlds require OptiX")
     from pathlib import Path
@@ -136,15 +132,14 @@ def test_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, semanti
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 16;
         static constexpr bool ENABLE_MOTION_BLUR = true;
         static constexpr TI MOTION_BLUR_SAMPLES = 2;
-        using OUTPUTS = rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>, rl_tools::rendering::raytracing::outputs::Depth<>, rl_tools::rendering::raytracing::outputs::Segmentation<rl_tools::rendering::raytracing::outputs::format::UInt32, rl_tools::utils::typing::conditional_t<({'true' if semantic else 'false'}), rl_tools::rendering::raytracing::outputs::labels::Semantic, rl_tools::rendering::raytracing::outputs::labels::Instance>>, rl_tools::rendering::raytracing::outputs::Normals<>, rl_tools::rendering::raytracing::outputs::Flow<>, rl_tools::rendering::raytracing::outputs::FlowStatus<>, rl_tools::rendering::raytracing::outputs::Probes>;
+        using OUTPUTS = rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>, rl_tools::rendering::raytracing::outputs::Depth<>, rl_tools::rendering::raytracing::outputs::Segmentation<rl_tools::rendering::raytracing::outputs::format::UInt32, rl_tools::rendering::raytracing::outputs::labels::Instance>, rl_tools::rendering::raytracing::outputs::Segmentation<rl_tools::rendering::raytracing::outputs::format::UInt32, rl_tools::rendering::raytracing::outputs::labels::Semantic>, rl_tools::rendering::raytracing::outputs::Normals<>, rl_tools::rendering::raytracing::outputs::Flow<>, rl_tools::rendering::raytracing::outputs::FlowStatus<>, rl_tools::rendering::raytracing::outputs::Probes>;
 """)
     header.write_text(source)
     with pytest.raises(ValueError, match="spec_header defines"):
         EnvConfig(spec_header=str(header), output=OUTPUTS)
     env = MultiEnvironment(scene_directory, config=EnvConfig(spec_header=str(header), device=device), drone_asset=str(asset), seed=4)
     try:
-        assert env.outputs == OUTPUTS
-        assert env.segmentation_mode == ("semantic" if semantic else "instance")
+        assert env.outputs == ("rgb", "depth", "instance_segmentation", "semantic_segmentation", "normals", "flow")
         assert (env.num_agents, env.num_camera_agents, env.num_cameras_per_agent, env.num_views) == (2, 1, 2, 2)
         assert env.action_dim == 8
         env.reset()
@@ -160,6 +155,7 @@ def test_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, semanti
         np.testing.assert_allclose(env.flow()[0], 0, atol=1e-3)
         assert not np.isnan(env.depth()).any()
         assert np.isfinite(env.normals()).all()
+        np.testing.assert_array_equal(env.instance_segmentation() == 0xFFFFFFFF, env.semantic_segmentation() == 0xFFFFFFFF)
     finally:
         env.close()
 

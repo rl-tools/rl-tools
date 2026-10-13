@@ -219,11 +219,11 @@ def test_segmentation():
         wall = render.Object(name=f"wall_{index}")
         wall.add_mesh(make_quad_span(2.0, y_low, y_high))
         scene.add_object(wall)
-    renderer = render.Renderer(width=32, height=32, num_cameras=1, output="segmentation", fidelity="low")
+    renderer = render.Renderer(width=32, height=32, num_cameras=1, output="instance_segmentation", fidelity="low")
     renderer.init(scene)
     look_forward(renderer)
     renderer.render()
-    segmentation = renderer.segmentation()
+    segmentation = renderer.instance_segmentation()
     left = segmentation[0, 16, 8]    # image x grows toward -Y, so +Y (instance 1) is on the left
     right = segmentation[0, 16, 24]
     assert (left, right) == (1, 0)
@@ -246,7 +246,7 @@ def test_collision_probes():
 
 @pytest.mark.parametrize("asynchronous", [False, True])
 def test_render_and_probe_are_independent(asynchronous):
-    renderer = render.Renderer(width=16, height=16, output=("rgb", "depth", "segmentation"), fidelity="low")
+    renderer = render.Renderer(width=16, height=16, output=("rgb", "depth", "instance_segmentation"), fidelity="low")
     renderer.init(make_scene(3.0))
     look_forward(renderer)
     renderer.generate_probe_directions()
@@ -267,13 +267,13 @@ def test_render_and_probe_are_independent(asynchronous):
     run("render")
     assert abs(renderer.depth()[0, 8, 8] - 2.0) < 1e-2
     assert renderer.frame()[0, 8, 8, 0] > 100
-    assert renderer.segmentation()[0, 8, 8] == 0
+    assert renderer.instance_segmentation()[0, 8, 8] == 0
     distances, hits = renderer.collisions()
     np.testing.assert_array_equal(distances, initial_distances)
     np.testing.assert_array_equal(hits, initial_hits)
     depth = renderer.depth()
     frame = renderer.frame()
-    segmentation = renderer.segmentation()
+    segmentation = renderer.instance_segmentation()
 
     renderer.set_cameras(renderer.camera(position=(2, 0, 0), look_at=(3, 0, 0)))
     run("probe")
@@ -282,7 +282,7 @@ def test_render_and_probe_are_independent(asynchronous):
     assert abs(distances[0, 0] - 1.0) < 1e-2
     np.testing.assert_array_equal(renderer.depth(), depth)
     np.testing.assert_array_equal(renderer.frame(), frame)
-    np.testing.assert_array_equal(renderer.segmentation(), segmentation)
+    np.testing.assert_array_equal(renderer.instance_segmentation(), segmentation)
 
 
 def test_no_probes_compiles_the_probe_pass_out():
@@ -390,7 +390,7 @@ def test_overlay_pipeline(tmp_path):
         height=48,
         num_cameras=2,
         num_probes=2,
-        output=("rgb", "depth", "segmentation"),
+        output=("rgb", "depth", "instance_segmentation"),
         fidelity="low",
         num_overlays=2,
         max_overlay_instances=2,
@@ -407,7 +407,7 @@ def test_overlay_pipeline(tmp_path):
     renderer.render()
 
     instance_id = scene.num_instances + placement.first_slot
-    segmentation_live = renderer.segmentation()
+    segmentation_live = renderer.instance_segmentation()
     first_mask = segmentation_live[0] == instance_id
     assert first_mask.sum() > 4
     assert not np.any(segmentation_live[1] == instance_id)
@@ -418,7 +418,7 @@ def test_overlay_pipeline(tmp_path):
     renderer.update()
     renderer.render_launch()
     renderer.render_sync()
-    second_view = renderer.segmentation(out=segmentation_live)
+    second_view = renderer.instance_segmentation(out=segmentation_live)
     second_mask = second_view[0] == instance_id
     assert np.shares_memory(segmentation_live, second_view)
     assert second_mask.sum() > 4
@@ -428,14 +428,14 @@ def test_overlay_pipeline(tmp_path):
     renderer.attach(1, 0)
     renderer.update()
     renderer.render()
-    segmentation = renderer.segmentation()
+    segmentation = renderer.instance_segmentation()
     assert not np.any(segmentation[0] == instance_id)
     assert np.any(segmentation[1] == instance_id)
 
     renderer.despawn(placement)
     renderer.update()
     renderer.render()
-    assert not np.any(renderer.segmentation() == instance_id)
+    assert not np.any(renderer.instance_segmentation() == instance_id)
     assert renderer.can_spawn(0, asset)
     replacement = renderer.spawn(0, asset, render.make_transform(position=(4.0, -0.75, 0.0)))
     assert replacement.first_slot == placement.first_slot
@@ -444,7 +444,7 @@ def test_overlay_pipeline(tmp_path):
         renderer.set_transform(placement, render.make_transform())
     renderer.update()
     renderer.render()
-    assert np.any(renderer.segmentation()[1] == instance_id)
+    assert np.any(renderer.instance_segmentation()[1] == instance_id)
 
     assert not renderer.can_spawn(0, assembly_asset)
     renderer.despawn(replacement)
@@ -459,7 +459,7 @@ def test_overlay_pipeline(tmp_path):
     renderer.set_transforms(assembly_placement, poses)
     renderer.update()
     renderer.render()
-    segmentation = renderer.segmentation()
+    segmentation = renderer.instance_segmentation()
     assert np.any(segmentation[1] == instance_id)
     assert np.any(segmentation[1] == instance_id + 1)
     assert not np.any(segmentation[0] == instance_id)
@@ -476,12 +476,11 @@ def test_semantic_segmentation_with_overlay():
     renderer = render.Renderer(
         width=24,
         height=24,
-        output="segmentation",
+        output="semantic_segmentation",
         fidelity="low",
         num_overlays=1,
         max_overlay_instances=1,
         max_overlays_per_camera=1,
-        semantic_segmentation=True,
     )
     renderer.init(scene, asset_pool=asset_pool)
     look_forward(renderer)
@@ -489,7 +488,7 @@ def test_semantic_segmentation_with_overlay():
     renderer.spawn(0, asset, render.make_transform(position=(4.0, 0.0, 0.0)))
     renderer.update()
     renderer.render()
-    classes = renderer.segmentation()
+    classes = renderer.semantic_segmentation()
     assert np.any(classes == 7)
     assert np.any(classes == 23)
 
@@ -498,7 +497,7 @@ def test_jit_cache_reuse():
     config = render.RendererConfig(
         width=16, height=16, num_cameras=1, num_probes=1, fidelity="low", output=("depth",),
         motion_blur_samples=1, anti_aliasing_grid=1, num_overlays=0,
-        max_overlay_instances=0, max_overlays_per_camera=0, semantic_segmentation=False,
+        max_overlay_instances=0, max_overlays_per_camera=0,
     )
     from hyperdrone.render import _component
     library = jit.build_dir(_component.component()) / "jit" / f"render_{config.key()}.so"
@@ -845,24 +844,24 @@ def labelled_glb(tmp_path):
     return path
 
 
-@pytest.mark.parametrize('semantic', [False, True])
-def test_loaded_instance_and_semantic_labels(labelled_glb, semantic):
+def test_loaded_instance_and_semantic_labels(labelled_glb):
     scene = render.load_scene(labelled_glb, rgb=False, preserve_instances=True)
     assert scene.num_instances == 4
     assert scene.segmentation_taxonomy == 'test'
     assert scene.segmentation_classes == {0: 'Unknown', 21: 'Chair', 162: 'Wall'}
     renderer = render.Renderer(width=24, height=24, num_cameras=4, fidelity='low',
-                               output='segmentation', semantic_segmentation=semantic)
+                               output=('instance_segmentation', 'semantic_segmentation'))
     renderer.init(scene)
     cameras = [renderer.camera(position=(0, 1.5-i, 0), look_at=(2, 1.5-i, 0)) for i in range(4)]
     renderer.set_cameras(np.array(cameras, dtype=np.float32))
     renderer.render()
-    labels = renderer.segmentation()
-    assert renderer.segmentation_mode == ('semantic' if semantic else 'instance')
-    assert labels[:, 12, 12].tolist() == ([21, 21, 162, 0] if semantic else [0, 1, 2, 3])
-    assert np.any(labels == 0xffffffff)
-    if not semantic:
-        assert scene.object_name(scene.instance_object(int(labels[1, 12, 12]))) == 'object-1'
+    instances, classes = renderer.instance_segmentation(), renderer.semantic_segmentation()
+    assert instances[:, 12, 12].tolist() == [0, 1, 2, 3]
+    assert classes[:, 12, 12].tolist() == [21, 21, 162, 0]
+    misses = instances == 0xffffffff
+    assert misses.any()
+    np.testing.assert_array_equal(classes == 0xffffffff, misses)
+    assert scene.object_name(scene.instance_object(int(instances[1, 12, 12]))) == 'object-1'
 
 
 def test_loaded_semantics_survive_assembly_and_pool(labelled_glb):
@@ -876,9 +875,8 @@ def test_loaded_semantics_survive_assembly_and_pool(labelled_glb):
     assert scene.segmentation_taxonomy == 'test'
     pool = render.AssetPool()
     asset = pool.add_assembly(assembly)
-    renderer = render.Renderer(width=24, height=24, fidelity='low', output='segmentation',
-                               semantic_segmentation=True, num_overlays=1,
-                               max_overlay_instances=4, max_overlays_per_camera=1)
+    renderer = render.Renderer(width=24, height=24, fidelity='low', output='semantic_segmentation',
+                               num_overlays=1, max_overlay_instances=4, max_overlays_per_camera=1)
     renderer.init(scene, asset_pool=pool)
     renderer.attach(0, 0)
     handle = renderer.spawn(0, asset, render.make_transform(position=(-1, 0, 0)))
@@ -886,18 +884,17 @@ def test_loaded_semantics_survive_assembly_and_pool(labelled_glb):
     renderer.set_cameras(camera[None])
     renderer.update()
     renderer.render()
-    assert renderer.segmentation()[0, 12, 12] == 21
+    assert renderer.semantic_segmentation()[0, 12, 12] == 21
     renderer.set_transform(handle, render.make_transform(position=(-1, 2, 0)))
     renderer.update()
     renderer.render()
-    assert renderer.segmentation()[0, 12, 12] == 162
+    assert renderer.semantic_segmentation()[0, 12, 12] == 162
 
 
 def test_welded_semantics_rejected(labelled_glb):
     scene = render.load_scene(labelled_glb, rgb=False)
     assert scene.num_instances == 1
-    renderer = render.Renderer(width=24, height=24, fidelity='low', output='segmentation',
-                               semantic_segmentation=True)
+    renderer = render.Renderer(width=24, height=24, fidelity='low', output='semantic_segmentation')
     with pytest.raises(ValueError, match='welded classes'):
         renderer.init(scene)
 
@@ -931,9 +928,8 @@ def test_explicit_class_assignment_repairs_welded_labels(labelled_glb, target):
         asset = pool.add_object(obj)
         pool.set_object_segmentation_class(asset, 0, 21)
         assert pool.object_segmentation_class(asset, 0) == 21
-    renderer = render.Renderer(width=24, height=24, fidelity='low', output='segmentation',
-                               semantic_segmentation=True, num_overlays=1,
-                               max_overlay_instances=4, max_overlays_per_camera=1)
+    renderer = render.Renderer(width=24, height=24, fidelity='low', output='semantic_segmentation',
+                               num_overlays=1, max_overlay_instances=4, max_overlays_per_camera=1)
     renderer.init(scene, asset_pool=pool)
     if pool is not None:
         renderer.attach(0, 0)
@@ -942,13 +938,12 @@ def test_explicit_class_assignment_repairs_welded_labels(labelled_glb, target):
     camera = renderer.camera(position=(0, 1.5, 0), look_at=(2, 1.5, 0))
     renderer.set_cameras(camera[None])
     renderer.render()
-    assert renderer.segmentation()[0, 12, 12] == 21
+    assert renderer.semantic_segmentation()[0, 12, 12] == 21
 
 
 def test_failed_semantic_init_can_be_retried(labelled_glb):
     scene = render.load_scene(labelled_glb, rgb=False)
-    renderer = render.Renderer(width=24, height=24, fidelity='low', output='segmentation',
-                               semantic_segmentation=True)
+    renderer = render.Renderer(width=24, height=24, fidelity='low', output='semantic_segmentation')
     with pytest.raises(ValueError, match='welded classes'):
         renderer.init(scene)
     assert renderer._scene is None
@@ -957,7 +952,7 @@ def test_failed_semantic_init_can_be_retried(labelled_glb):
     camera = renderer.camera(position=(0, 1.5, 0), look_at=(2, 1.5, 0))
     renderer.set_cameras(camera[None])
     renderer.render()
-    assert renderer.segmentation()[0, 12, 12] == 21
+    assert renderer.semantic_segmentation()[0, 12, 12] == 21
 
 
 def test_label_remapping_across_scene_and_pool(labelled_glb):
@@ -981,9 +976,8 @@ def test_label_remapping_across_scene_and_pool(labelled_glb):
     assert [scene.object_segmentation_class(i) for i in range(4)] == [2147483648, 2147483648, 4294967294, 0]
     assert [assembly.segmentation_class(i) for i in range(4)] == [2147483648, 2147483648, 4294967294, 0]
     assert [pool.object_segmentation_class(asset, i) for i in range(4)] == [2147483648, 2147483648, 4294967294, 0]
-    renderer = render.Renderer(width=24, height=24, fidelity='low', output='segmentation',
-                               semantic_segmentation=True, num_overlays=1,
-                               max_overlay_instances=4, max_overlays_per_camera=1)
+    renderer = render.Renderer(width=24, height=24, fidelity='low', output='semantic_segmentation',
+                               num_overlays=1, max_overlay_instances=4, max_overlays_per_camera=1)
     renderer.init(scene, asset_pool=pool)
     renderer.attach(0, 0)
     handle = renderer.spawn(0, asset, render.make_transform(position=(-1, 0, 0)))
@@ -991,11 +985,11 @@ def test_label_remapping_across_scene_and_pool(labelled_glb):
     renderer.set_cameras(camera[None])
     renderer.update()
     renderer.render()
-    assert renderer.segmentation()[0, 12, 12] == 2147483648
+    assert renderer.semantic_segmentation()[0, 12, 12] == 2147483648
     renderer.set_transform(handle, render.make_transform(position=(-1, 2, 0)))
     renderer.update()
     renderer.render()
-    assert renderer.segmentation()[0, 12, 12] == 4294967294
+    assert renderer.semantic_segmentation()[0, 12, 12] == 4294967294
 
 
 def test_object_and_pool_remapping_is_explicit(labelled_glb):
@@ -1030,7 +1024,7 @@ def test_overlay_handles_validate_complete_allocation():
     scene = make_scene(8)
     pool = render.AssetPool()
     asset = pool.add_mesh(make_quad(0))
-    renderer = render.Renderer(8, 8, output="segmentation", num_overlays=2, max_overlay_instances=2, max_overlays_per_camera=1)
+    renderer = render.Renderer(8, 8, output="instance_segmentation", num_overlays=2, max_overlay_instances=2, max_overlays_per_camera=1)
     renderer.init(scene, asset_pool=pool)
     first = renderer.spawn(0, asset, render.make_transform(position=(2, 0, 0)))
     neighbor = renderer.spawn(0, asset, render.make_transform(position=(3, 0, 0)))
@@ -1042,7 +1036,7 @@ def test_overlay_handles_validate_complete_allocation():
                 verb()
     with pytest.raises(TypeError, match="OverlayPlacement"):
         renderer.despawn((0, 1, 0))
-    other = render.Renderer(8, 8, output="segmentation", num_overlays=2, max_overlay_instances=2, max_overlays_per_camera=1)
+    other = render.Renderer(8, 8, output="instance_segmentation", num_overlays=2, max_overlay_instances=2, max_overlays_per_camera=1)
     with pytest.raises(ValueError, match="another renderer"):
         other.despawn(first)
     renderer.despawn(first)
@@ -1097,7 +1091,7 @@ def test_renderer_dimensions_fail_before_build(name, value):
         render.Renderer(**options)
 
 
-@pytest.mark.parametrize("name,dtype,channels", [("frame", np.uint8, 4), ("frame_raw", np.uint32, 1), ("depth", np.float32, 1), ("segmentation", np.uint32, 1), ("normals", np.float32, 3), ("flow", np.float32, 2), ("flow_status", np.uint32, 1)])
+@pytest.mark.parametrize("name,dtype,channels", [("frame", np.uint8, 4), ("frame_raw", np.uint32, 1), ("depth", np.float32, 1), ("instance_segmentation", np.uint32, 1), ("semantic_segmentation", np.uint32, 1), ("normals", np.float32, 3), ("flow", np.float32, 2), ("flow_status", np.uint32, 1)])
 def test_output_rejects_invalid_arrays_before_native(name, dtype, channels):
     renderer = object.__new__(render.Renderer)
     from types import SimpleNamespace
@@ -1115,14 +1109,14 @@ def test_output_rejects_invalid_arrays_before_native(name, dtype, channels):
 
 
 def test_depth_is_axial_close_sample_and_misses_are_infinite():
-    renderer = render.Renderer(16, 16, output=("depth", "segmentation"), motion_blur_samples=4, anti_aliasing_grid=2)
+    renderer = render.Renderer(16, 16, output=("depth", "instance_segmentation"), motion_blur_samples=4, anti_aliasing_grid=2)
     renderer.init(make_scene(3))
     camera_open = renderer.camera((0, 0, 0), (1, 0, 0))
     camera_close = renderer.camera((-1, 0, 0), (1, 0, 0))
     renderer.set_motion_blur_cameras(camera_open, camera_close)
     renderer.render()
     depth = renderer.depth()
-    hit = renderer.segmentation() != 0xFFFFFFFF
+    hit = renderer.instance_segmentation() != 0xFFFFFFFF
     assert hit.any() and (~hit).any()
     np.testing.assert_allclose(depth[hit], 4, atol=1e-6)
     assert np.isposinf(depth[~hit]).all()
