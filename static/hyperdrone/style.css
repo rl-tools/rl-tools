@@ -73,9 +73,13 @@ body.ready:not(.controlling) .control-hint { display: flex; }
 .flight-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 7px 16px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--ink); }
 .instructions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 12px; color: var(--muted); font-size: 10px; }
 .instructions > span { display: inline-flex; align-items: center; gap: 4px; }
-.pose-readout { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); font: 10px/1.5 var(--mono); }
-.pose-readout > span { display: inline-flex; align-items: baseline; gap: 6px; }
+#pose-readout { position: relative; display: flex; flex-wrap: wrap; gap: 4px 14px; min-height: 0; margin-left: auto; padding: 0; border: 0; background: transparent; color: var(--muted); font: 9px/1.5 var(--mono); text-align: left; opacity: 1; }
+#pose-readout > span { display: inline-flex; align-items: baseline; gap: 6px; }
+#pose-readout::after { content: "Copied"; position: absolute; bottom: calc(100% + 4px); left: 50%; padding: 3px 6px; border: 1px solid var(--ink); background: #fff; color: var(--ink); font: 10px/1 var(--mono); text-transform: uppercase; pointer-events: none; opacity: 0; transform: translate(-50%, 3px); transition: opacity .15s, transform .15s; }
+#pose-readout.copied::after { opacity: 1; transform: translate(-50%, 0); }
 .pose-values { color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.powered-by { display: flex; flex-direction: column; gap: 2px; color: var(--muted); font: 8px/1 var(--mono); text-transform: uppercase; }
+.powered-by img { display: block; width: auto; height: 12px; }
 kbd { display: inline-block; min-width: 18px; padding: 1px 4px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 10px/1.5 var(--mono); text-align: center; }
 .instructions kbd:last-of-type { margin-right: 3px; }
 #flight-tuning, #frame-rate-tuning, #rendering-settings { width: min(400px, calc(100% - 24px)); max-height: calc(100% - 24px); padding: 18px; border: 1px solid var(--ink); color: inherit; background: #fff; }
@@ -115,7 +119,7 @@ kbd { display: inline-block; min-width: 18px; padding: 1px 4px; border: 1px soli
 .touch-ui .session-controls { gap: 8px; }
 .touch-ui #fps { min-width: 64px; }
 @media (min-width: 800px) {
-    main { max-width: clamp(680px, calc((100dvh - 269px) * 64 / 27), 1200px); }
+    main { max-width: clamp(680px, calc((100dvh - 276px) * 64 / 27), 1200px); }
 }
 @media (max-width: 799px) {
     .sensor-views { grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -24,6 +24,7 @@ const reset_button = document.getElementById("reset");
 const flight_state = document.getElementById("flight-state");
 const position_readout = document.getElementById("position-readout");
 const orientation_readout = document.getElementById("orientation-readout");
+const pose_readout = document.getElementById("pose-readout");
 const tuning_panel = document.getElementById("flight-tuning");
 const position_offset = document.getElementById("position-offset");
 const velocity_target = document.getElementById("velocity-target");
@@ -54,6 +55,7 @@ let failed = false;
 let touch_control = false;
 let mouse_control_requested = false;
 let images = null;
+let drone_pose = null;
 let frame_count = 0;
 let fps_window_start = performance.now();
 let fps_window_frames = 0;
@@ -196,8 +198,12 @@ function set_status(text){
     }
 }
 
+function round_values(values, digits){
+    return values.map(value => Number(value.toFixed(digits)));
+}
+
 function format_pose(values, digits){
-    return `(${values.map(value => Number(value.toFixed(digits)).toFixed(digits)).join(", ")})`;
+    return `(${values.map(value => value.toFixed(digits)).join(", ")})`;
 }
 
 function settings_open(){
@@ -227,6 +233,7 @@ function update_flight_state(){
     document.body.classList.toggle("mouse-controlling", controlling && mouse_has_control());
     release_button.hidden = !controlling || !touch_control;
     tuning_button.disabled = !ready;
+    pose_readout.disabled = !ready;
     for(const id of ["left-stick", "right-stick"]){
         document.getElementById(id).setAttribute("aria-disabled", String(!controlling || !touch_control));
     }
@@ -381,6 +388,18 @@ function open_tuning(){
     release_controls();
 }
 tuning_button.addEventListener("click", open_tuning);
+pose_readout.addEventListener("click", async () => {
+    try{
+        await navigator.clipboard.writeText(JSON.stringify(drone_pose));
+        pose_readout.classList.add("copied");
+        setTimeout(() => pose_readout.classList.remove("copied"), 1200);
+    }
+    catch(error){
+        set_status("The pose could not be copied to the clipboard.");
+        console.warn(error);
+        setTimeout(update_flight_state, 2000);
+    }
+});
 rendering_button.addEventListener("click", () => {
     tuning_panel.close();
     frame_rate_panel.close();
@@ -539,8 +558,9 @@ async function main(){
                 images[view].data.set(heap.subarray(begin, begin + image_bytes));
                 contexts[view].putImageData(images[view], 0, 0);
             }
-            position_readout.textContent = format_pose([x, y, z], 2);
-            orientation_readout.textContent = format_pose([qw, qx, qy, qz], 4);
+            drone_pose = {position: round_values([x, y, z], 2), orientation: round_values([qw, qx, qy, qz], 3)};
+            position_readout.textContent = format_pose(drone_pose.position, 2);
+            orientation_readout.textContent = format_pose(drone_pose.orientation, 3);
             if(!ready){
                 ready = true;
                 reset_button.disabled = false;
