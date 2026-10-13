@@ -61,7 +61,8 @@ progress { display: block; width: 100%; height: 4px; margin-top: 6px; accent-col
 figcaption { display: flex; flex: 1; align-items: center; justify-content: space-between; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--surface); font-size: 12px; font-weight: 600; }
 .view-format { color: var(--muted); font: 10px var(--mono); white-space: nowrap; }
 canvas { display: block; flex-shrink: 0; width: 100%; height: auto; aspect-ratio: 16 / 9; background: var(--surface); }
-.camera-frame { position: relative; }
+.camera-frame, .segmentation-frame { position: relative; }
+#segmentation-tooltip { position: absolute; width: max-content; max-width: calc(100% - 12px); padding: 4px 7px; border: 1px solid var(--ink); background: var(--surface); color: var(--ink); font-size: 12px; overflow-wrap: anywhere; pointer-events: none; }
 .camera-frame canvas { cursor: pointer; outline: none; }
 body.mouse-controlling .camera-frame canvas { cursor: none; }
 .control-hint { display: none; position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); flex-direction: column; gap: 5px; width: max-content; max-width: calc(100% - 24px); padding: 11px 13px; border: 1px solid var(--ink); background: rgb(255 255 255 / 75%); pointer-events: none; user-select: none; }

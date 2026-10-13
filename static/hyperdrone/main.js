@@ -47,6 +47,8 @@ const render_apply = document.getElementById("render-apply");
 const render_availability = document.getElementById("render-availability");
 const canvases = ["camera0", "camera1", "depth", "segmentation", "normals", "flow"].map(id => document.getElementById(id));
 const contexts = canvases.map(canvas => canvas.getContext("2d"));
+const segmentation_canvas = document.getElementById("segmentation");
+const segmentation_tooltip = document.getElementById("segmentation-tooltip");
 const keys = new Set();
 let yaw_delta = 0;
 let reset_requested = false;
@@ -55,6 +57,9 @@ let failed = false;
 let touch_control = false;
 let mouse_control_requested = false;
 let images = null;
+let segmentation_classes = {};
+let segmentation_ids = null;
+let segmentation_cursor = null;
 let drone_pose = null;
 let frame_count = 0;
 let fps_window_start = performance.now();
@@ -64,6 +69,42 @@ let default_render_configuration = null;
 const left_stick = create_touch_stick(document.getElementById("left-stick"), () => touch_control && has_control());
 const right_stick = create_touch_stick(document.getElementById("right-stick"), () => touch_control && has_control());
 document.body.classList.toggle("touch-ui", navigator.maxTouchPoints > 0);
+
+function hide_segmentation_hover(){
+    segmentation_cursor = null;
+    segmentation_tooltip.hidden = true;
+}
+
+function update_segmentation_hover(){
+    if(!ready || failed || document.hidden || document.pointerLockElement || settings_open() || segmentation_ids === null || segmentation_cursor === null){
+        segmentation_tooltip.hidden = true;
+        return;
+    }
+    const rect = segmentation_canvas.getBoundingClientRect();
+    const x = segmentation_cursor.x - rect.left;
+    const y = segmentation_cursor.y - rect.top;
+    if(x < 0 || y < 0 || x >= rect.width || y >= rect.height){
+        hide_segmentation_hover();
+        return;
+    }
+    const column = Math.floor(x * segmentation_canvas.width / rect.width);
+    const row = Math.floor(y * segmentation_canvas.height / rect.height);
+    const id = segmentation_ids[row * segmentation_canvas.width + column];
+    segmentation_tooltip.textContent = id === 0xffffffff ? "No surface" : segmentation_classes[id];
+    segmentation_tooltip.hidden = false;
+    segmentation_tooltip.style.left = `${Math.max(0, Math.min(x + 10, rect.width - segmentation_tooltip.offsetWidth))}px`;
+    segmentation_tooltip.style.top = `${Math.max(0, Math.min(y + 10, rect.height - segmentation_tooltip.offsetHeight))}px`;
+}
+
+segmentation_canvas.addEventListener("pointermove", event => {
+    if(event.pointerType === "mouse"){
+        segmentation_cursor = {x: event.clientX, y: event.clientY};
+        update_segmentation_hover();
+    }
+});
+segmentation_canvas.addEventListener("pointerleave", hide_segmentation_hover);
+segmentation_canvas.addEventListener("pointercancel", hide_segmentation_hover);
+window.addEventListener("scroll", update_segmentation_hover, true);
 
 for(const select of [scene_select, drone_select]){
     select.addEventListener("change", () => {
@@ -322,6 +363,7 @@ for(const canvas of canvases.slice(0, 2)){
     });
 }
 document.addEventListener("pointerlockchange", () => {
+    hide_segmentation_hover();
     if(mouse_has_control() && !mouse_control_requested){
         document.exitPointerLock();
         return;
@@ -365,6 +407,7 @@ document.addEventListener("mousemove", event => {
     }
 });
 function release_controls(){
+    hide_segmentation_hover();
     touch_control = false;
     mouse_control_requested = false;
     clear_input();
@@ -379,6 +422,7 @@ window.addEventListener("resize", () => {
     if(touch_control){
         release_controls();
     }
+    update_segmentation_hover();
 });
 release_button.addEventListener("click", release_controls);
 function open_tuning(){
@@ -540,11 +584,13 @@ async function main(){
                 : "";
         },
         rlt_input: poll_input,
-        rlt_present: (pointer, width, height, num_views, x, y, z, qw, qx, qy, qz) => {
+        rlt_segmentation_classes: classes => { segmentation_classes = classes; },
+        rlt_present: (pointer, width, height, num_views, x, y, z, qw, qx, qy, qz, segmentation_pointer) => {
             if(num_views !== canvases.length){
                 throw new Error(`Expected ${canvases.length} camera outputs; received ${num_views}. Rebuild the HyperDrone browser module.`);
             }
             if(images === null || images[0].width !== width || images[0].height !== height){
+                segmentation_ids = new Uint32Array(width * height);
                 images = contexts.map((context, index) => {
                     canvases[index].width = width;
                     canvases[index].height = height;
@@ -552,6 +598,7 @@ async function main(){
                 });
             }
             const heap = module.HEAPU8;
+            segmentation_ids.set(new Uint32Array(heap.buffer, heap.byteOffset + segmentation_pointer, width * height));
             const image_bytes = width * height * 4;
             for(let view = 0; view < num_views; view++){
                 const begin = pointer + view * image_bytes;
@@ -569,6 +616,7 @@ async function main(){
                 fps_window_start = performance.now();
                 fps_window_frames = 0;
             }
+            update_segmentation_hover();
             frame_count++;
             fps_window_frames++;
             const now = performance.now();
@@ -582,7 +630,7 @@ async function main(){
             }
         },
     });
-    if(module._demo_api_version?.() !== 7){
+    if(module._demo_api_version?.() !== 8){
         throw new Error("The page and simulation bundle are incompatible. Deploy the matching blob/build files and update the pinned revision in download_blob.sh.");
     }
     const configuration = setup_rendering(JSON.parse(module.ccall("demo_configurations", "string", [], [])));

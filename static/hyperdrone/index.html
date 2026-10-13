@@ -94,7 +94,10 @@
                 </figure>
                 <figure class="view">
                     <figcaption title="A color for each object class"><span>Semantic segmentation</span></figcaption>
-                    <canvas id="segmentation" width="480" height="270" aria-label="Onboard semantic segmentation"></canvas>
+                    <div class="segmentation-frame">
+                        <canvas id="segmentation" width="480" height="270" aria-label="Onboard semantic segmentation. Hover to inspect the class." aria-describedby="segmentation-tooltip"></canvas>
+                        <span id="segmentation-tooltip" role="tooltip" hidden></span>
+                    </div>
                 </figure>
                 <figure class="view">
                     <figcaption title="Surface orientation in world coordinates"><span>Surface normals</span><span class="view-format">XYZ</span></figcaption>

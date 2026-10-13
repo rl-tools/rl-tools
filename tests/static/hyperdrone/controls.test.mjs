@@ -17,19 +17,22 @@ function send(target, type, fields = {}){
     return event;
 }
 
-const default_configuration = {id: "high-mb4-aa1-480x270", fidelity: "high", motion_blur: true, antialiasing: false, width: 480, height: 270};
+const default_configuration = {id: "high-mb1-aa1-960x540", fidelity: "high", motion_blur: false, antialiasing: false, width: 960, height: 540, num_agents: 8};
+const other_positions = Array.from({length: 7}, (_, index) => [index + 1, 0, 1]);
 const configurations = [];
 for(const fidelity of ["low", "medium", "high", "very-high"]){
     for(const motion_blur of [false, true]){
         for(const antialiasing of [false, true]){
             for(const [width, height] of [[480, 270], [960, 540]]){
-                configurations.push({id: `${fidelity}-mb${motion_blur ? 4 : 1}-aa${antialiasing ? 2 : 1}-${width}x${height}`, fidelity, motion_blur, antialiasing, width, height});
+                for(const num_agents of [1, 8]){
+                    configurations.push({id: `${fidelity}-mb${motion_blur ? 4 : 1}-aa${antialiasing ? 2 : 1}-${width}x${height}`, fidelity, motion_blur, antialiasing, width, height, num_agents});
+                }
             }
         }
     }
 }
 
-function fixture({defer_mouse_lock = false, search = "", catalog = configurations, api_version = 5, fpv_position = [0.08, 0, 0.08]} = {}){
+function fixture({defer_mouse_lock = false, search = "", catalog = configurations, api_version = 8, fpv_position = [0.08, 0, 0.08]} = {}){
     const document = new EventTarget();
     const window = new EventTarget();
     const classes = new Set();
@@ -46,6 +49,10 @@ function fixture({defer_mouse_lock = false, search = "", catalog = configuration
     };
     window.location = {search};
     window.isSecureContext = true;
+    window.matchMedia = () => ({matches: false});
+    window.innerWidth = 1280;
+    window.innerHeight = 800;
+    window.devicePixelRatio = 2;
     document.createElement = () => ({});
     const elements = new Map();
     const pending_locks = [];
@@ -58,6 +65,7 @@ function fixture({defer_mouse_lock = false, search = "", catalog = configuration
         element.disabled = /\bdisabled\b/.test(match[0]);
         element.hidden = /\bhidden\b/.test(match[0]);
         element.open = false;
+        element.style = {};
         element.attributes = new Map();
         element.options = [];
         element.setAttribute = (name, value) => element.attributes.set(name, value);
@@ -71,6 +79,9 @@ function fixture({defer_mouse_lock = false, search = "", catalog = configuration
         element.replaceChildren = () => { element.options = []; element.value = ""; };
         element.showModal = () => { element.open = true; };
         element.close = () => { element.open = false; send(element, "close"); };
+        element.checkValidity = () => element.value !== "" && Number.isInteger(Number(element.value))
+            && Number(element.value) >= Number(element.min) && Number(element.value) <= Number(element.max);
+        element.reportValidity = element.checkValidity;
         const drawing = {
             createImageData: (width, height) => ({width, height, data: new Uint8ClampedArray(width * height * 4)}),
             putImageData: image => { element.image = image; },
@@ -84,6 +95,8 @@ function fixture({defer_mouse_lock = false, search = "", catalog = configuration
             send(element, "lostpointercapture", {pointerId: id});
         };
         element.getBoundingClientRect = () => ({left: 0, top: 0, width: 120, height: 120});
+        element.offsetWidth = 100;
+        element.offsetHeight = 24;
         element.querySelector = () => ({
             style: {setProperty(){}},
             getBoundingClientRect: () => ({width: 20, height: 20}),
@@ -146,7 +159,7 @@ function fixture({defer_mouse_lock = false, search = "", catalog = configuration
             events.push(path);
             return {ok: true, json: async () => path === "registry.json"
                 ? {drones: [{name: "ARPL", reference: "drone", dynamics_index: 3, fpv_position}], policy: {reference: "policy"}}
-                : {scene: scenes[0].name, reference: scenes[0].reference, position: [0, 0, 1], yaw_degrees: 0}};
+                : {scene: scenes[0].name, reference: scenes[0].reference, position: [0, 0, 1], yaw_degrees: 0, other_positions}};
         },
     });
     vm.runInContext(`${source}\nglobalThis.controls = {poll_input, main: () => main().catch(show_error), start(){ ready = true; update_flight_state(); }};`, context);
@@ -159,20 +172,27 @@ function fixture({defer_mouse_lock = false, search = "", catalog = configuration
         pending_locks.shift()();
     };
     return {
-        document, window, classes, element, click, poll, axes, grant_mouse_lock, errors, calls, events,
+        document, window, classes, element, click, poll, axes, grant_mouse_lock, errors, calls, events, module,
         pending_mouse_locks: () => pending_locks.length,
         start: context.controls.start,
         load(reason){ abort_reason = reason; return context.controls.main(); },
         abort: reason => module_options.onAbort(reason),
         motor_layout: (deviation, wheelbase, threshold) => module_options.rlt_motor_layout(deviation, wheelbase, threshold),
-        present(width, height, num_views = 6){
+        segmentation_classes: classes => module_options.rlt_segmentation_classes(classes),
+        present(width, height, num_views = 6, ids = new Uint32Array(width * height), reuse_heap = false){
             const pointer = 32;
             const image_bytes = width * height * 4;
-            module.HEAPU8 = new Uint8Array(pointer + num_views * image_bytes);
+            const segmentation_pointer = pointer + num_views * image_bytes;
+            if(!reuse_heap){
+                module.HEAPU8 = new Uint8Array(segmentation_pointer + image_bytes);
+            }
             for(let view = 0; view < num_views; view++){
                 module.HEAPU8.fill(view + 1, pointer + view * image_bytes, pointer + (view + 1) * image_bytes);
             }
-            module_options.rlt_present(pointer, width, height, num_views, 0, 0, 1, 1, 0, 0, 0);
+            const heap_ids = new Uint32Array(module.HEAPU8.buffer, segmentation_pointer, width * height);
+            heap_ids.set(ids);
+            module_options.rlt_present(pointer, width, height, num_views, 0, 0, 1, 1, 0, 0, 0, segmentation_pointer);
+            return heap_ids;
         },
     };
 }
@@ -190,6 +210,7 @@ function select_rendering(f, configuration){
         ["render-motion-blur", String(configuration.motion_blur)],
         ["render-antialiasing", String(configuration.antialiasing)],
         ["render-resolution", `${configuration.width}x${configuration.height}`],
+        ["render-agents", String(configuration.num_agents)],
     ]){
         f.element(id).value = value;
         send(f.element(id), "change");
@@ -202,8 +223,8 @@ test("the full rendering catalog supplies the existing default and every compile
     assert.deepEqual(f.errors, []);
     assert.deepEqual(f.calls.find(call => call.name === "demo_run"), {
         name: "demo_run", return_type: "number",
-        argument_types: ["string", "string", "string", "number", "number", "string", "string"],
-        args: ["/scene.glb", "/drone.glb", "/policy.tar", 3, 0, JSON.stringify({fpv_position: [0.08, 0, 0.08], position: [0, 0, 1], yaw: 0}), default_configuration.id],
+        argument_types: ["string", "string", "number", "string", "string"],
+        args: ["/scene.glb", "/policy.tar", 0, JSON.stringify({num_agents: 8, seed: 1337, drones: [{path: "/drone-0.glb", dynamics_index: 3, fpv_position: [0.08, 0, 0.08]}], position: [0, 0, 1], yaw: 0, other_positions}), default_configuration.id],
     });
     assert.ok(f.events.indexOf("demo_configurations") < f.events.findIndex(event => event.startsWith("asset:")));
     assert.deepEqual(f.element("render-fidelity").options.map(option => option.value), ["low", "medium", "high", "very-high"]);
@@ -213,6 +234,7 @@ test("the full rendering catalog supplies the existing default and every compile
         assert.equal(f.element("render-apply").disabled, false, configuration.id);
         f.click("render-apply");
         assert.equal(new URLSearchParams(f.window.location.search).get("render"), configuration.id);
+        assert.equal(new URLSearchParams(f.window.location.search).get("agents"), String(configuration.num_agents));
     }
 });
 
@@ -223,7 +245,7 @@ test("a single-configuration build selects its only configuration and disables f
     assert.deepEqual(f.errors, []);
     assert.equal(f.calls.find(call => call.name === "demo_run").args.at(-1), only.id);
     assert.equal(f.element("rendering").disabled, false);
-    for(const id of ["render-fidelity", "render-motion-blur", "render-antialiasing", "render-resolution"]){
+    for(const id of ["render-fidelity", "render-motion-blur", "render-antialiasing", "render-resolution", "render-agents"]){
         assert.equal(f.element(id).disabled, true, id);
         assert.equal(f.element(id).options.length, 1, id);
     }
@@ -233,7 +255,7 @@ test("a single-configuration build selects its only configuration and disables f
 });
 
 test("a sparse catalog validates complete tuples while leaving disconnected configurations reachable", async () => {
-    const other = configurations.find(configuration => configuration.id === "low-mb1-aa2-960x540");
+    const other = configurations.find(configuration => configuration.id === "low-mb4-aa2-480x270" && configuration.num_agents === 8);
     const f = fixture({catalog: [other, default_configuration]});
     await f.load();
     assert.equal(f.calls.find(call => call.name === "demo_run").args.at(-1), default_configuration.id);
@@ -255,7 +277,7 @@ test("a sparse catalog validates complete tuples while leaving disconnected conf
     assert.equal(f.element("render-fidelity").value, default_configuration.fidelity);
     assert.equal(f.element("render-motion-blur").value, String(default_configuration.motion_blur));
     assert.equal(f.element("render-antialiasing").value, String(default_configuration.antialiasing));
-    assert.equal(f.element("render-resolution").value, "480x270");
+    assert.equal(f.element("render-resolution").value, "960x540");
     assert.equal(f.element("render-apply").disabled, false);
 });
 
@@ -265,7 +287,7 @@ test("URL rendering choices reach WASM and survive scene and airframe changes", 
     await f.load();
     const run = f.calls.find(call => call.name === "demo_run");
     assert.equal(run.args.at(-1), selected.id);
-    assert.equal(run.args[4], 2);
+    assert.equal(run.args[2], 2);
     assert.equal(f.element("render-resolution").value, "960x540");
     f.element("scene").value = "ProcTHOR-Train-107";
     send(f.element("scene"), "change");
@@ -284,7 +306,7 @@ test("URL rendering choices reach WASM and survive scene and airframe changes", 
 });
 
 test("an unavailable URL rendering choice can be corrected before downloading scene assets", async () => {
-    for(const requested of ["not-compiled", ""]){
+    for(const requested of ["not-compiled", "high-mb1-aa1-123x456"]){
         const f = fixture({search: `?render=${requested}&frames=2`});
         await f.load();
         assert.equal(f.element("error").hidden, false);
@@ -302,8 +324,17 @@ test("an unavailable URL rendering choice can be corrected before downloading sc
     }
 });
 
+test("an empty rendering URL choice selects the default configuration", async () => {
+    const f = fixture({search: "?render=&frames=2"});
+    await f.load();
+    assert.deepEqual(f.errors, []);
+    const run = f.calls.find(call => call.name === "demo_run");
+    assert.equal(run.args.at(-1), default_configuration.id);
+    assert.equal(run.args[2], 2);
+});
+
 test("empty or incompatible bundles fail before fetching scene assets", async () => {
-    for(const options of [{catalog: []}, {api_version: 1}, {api_version: 2}, {api_version: 3}, {api_version: 4}]){
+    for(const options of [{catalog: []}, ...[1, 2, 3, 4, 5, 6, 7].map(api_version => ({api_version}))]){
         const f = fixture(options);
         await f.load();
         assert.equal(f.element("error").hidden, false);
@@ -397,7 +428,9 @@ test("each airframe mount reaches a sampled scene without overriding its spawn",
     const f = fixture({search: "?scene=ProcTHOR-Train-107", fpv_position});
     await f.load();
     assert.deepEqual(f.errors, []);
-    assert.deepEqual(JSON.parse(f.calls.find(call => call.name === "demo_run").args[5]), {fpv_position});
+    assert.deepEqual(JSON.parse(f.calls.find(call => call.name === "demo_run").args[3]), {
+        num_agents: 8, seed: 1337, drones: [{path: "/drone-0.glb", dynamics_index: 3, fpv_position}],
+    });
 });
 
 test("invalid airframe mounts fail before fetching assets", async () => {
@@ -426,6 +459,180 @@ test("all six outputs resize and retain distinct image strides at both rendering
     }
     assert.throws(() => f.present(480, 270, 5), /Expected 6 camera outputs/);
 });
+
+test("semantic hover uses exact unsigned IDs and authored labels, including class zero and misses", async () => {
+    const f = fixture();
+    await f.load();
+    const canvas = f.element("segmentation");
+    const tooltip = f.element("segmentation-tooltip");
+    canvas.getBoundingClientRect = () => ({left: 100, top: 40, width: 500, height: 100});
+    f.segmentation_classes({0: "Unannotated", 1: "Wall", 257: "Chair <wood>", 2147483649: "Drone"});
+    send(canvas, "pointermove", {pointerType: "mouse", clientX: 150, clientY: 90});
+    assert.equal(tooltip.hidden, true);
+    f.present(5, 1, 6, [0, 1, 257, 2147483649, 0xffffffff]);
+    for(const [index, label] of ["Unannotated", "Wall", "Chair <wood>", "Drone", "No surface"].entries()){
+        send(canvas, "pointermove", {pointerType: "mouse", clientX: 150 + index * 100, clientY: 90});
+        assert.equal(tooltip.hidden, false);
+        assert.equal(tooltip.textContent, label);
+    }
+    assert.equal(f.document.pointerLockElement, null);
+    assert.equal(f.classes.has("controlling"), false);
+    assert.deepEqual(f.axes(), [0, 0, 0, 0, 0]);
+});
+
+test("semantic hover maps CSS coordinates to every image corner at both resolutions", async () => {
+    const f = fixture();
+    await f.load();
+    f.segmentation_classes({1: "Top left", 2: "Top right", 3: "Bottom left", 4: "Bottom right"});
+    const canvas = f.element("segmentation");
+    const tooltip = f.element("segmentation-tooltip");
+    canvas.getBoundingClientRect = () => ({left: 100, top: 40, width: 240, height: 135});
+    for(const [width, height] of [[480, 270], [960, 540], [480, 270]]){
+        const ids = new Uint32Array(width * height);
+        ids[0] = 1;
+        ids[width - 1] = 2;
+        ids[(height - 1) * width] = 3;
+        ids[width * height - 1] = 4;
+        f.present(width, height, 6, ids);
+        for(const [clientX, clientY, label] of [
+            [100, 40, "Top left"], [339.99, 40, "Top right"],
+            [100, 174.99, "Bottom left"], [339.99, 174.99, "Bottom right"],
+        ]){
+            send(canvas, "pointermove", {pointerType: "mouse", clientX, clientY});
+            assert.equal(tooltip.hidden, false);
+            assert.equal(tooltip.textContent, label);
+        }
+        for(const [clientX, clientY] of [[99.99, 40], [100, 39.99], [340, 40], [100, 175]]){
+            send(canvas, "pointermove", {pointerType: "mouse", clientX, clientY});
+            assert.equal(tooltip.hidden, true);
+        }
+    }
+});
+
+test("semantic hover snapshots presented IDs and follows stationary pointers across fresh frames and memory growth", async () => {
+    const f = fixture({search: "?frames=1"});
+    await f.load();
+    f.segmentation_classes({1: "Wall", 2: "Table", 3: "Drone"});
+    const canvas = f.element("segmentation");
+    const tooltip = f.element("segmentation-tooltip");
+    const heap_ids = f.present(2, 1, 6, [1, 2]);
+    send(canvas, "pointermove", {pointerType: "mouse", clientX: 30, clientY: 60});
+    assert.equal(tooltip.textContent, "Wall");
+    assert.equal(f.element("status").textContent, "Rendered 1 frames");
+    heap_ids.fill(3);
+    send(canvas, "pointermove", {pointerType: "mouse", clientX: 30, clientY: 60});
+    assert.equal(tooltip.textContent, "Wall");
+    f.present(2, 1, 6, [2, 1], true);
+    assert.equal(tooltip.textContent, "Table");
+    const previous_heap = f.module.HEAPU8.buffer;
+    f.present(4, 2, 6, Array(8).fill(3));
+    assert.notEqual(f.module.HEAPU8.buffer, previous_heap);
+    assert.equal(tooltip.hidden, false);
+    assert.equal(tooltip.textContent, "Drone");
+    f.module.HEAPU8 = new Uint8Array(2048);
+    send(canvas, "pointermove", {pointerType: "mouse", clientX: 90, clientY: 60});
+    assert.equal(tooltip.textContent, "Drone");
+});
+
+test("semantic hover recalculates a stationary pointer after resizing and scrolling", async () => {
+    const f = fixture();
+    await f.load();
+    f.segmentation_classes({1: "Wall", 2: "Table"});
+    f.present(2, 2, 6, [1, 1, 1, 2]);
+    const canvas = f.element("segmentation");
+    const tooltip = f.element("segmentation-tooltip");
+    let rect = {left: 100, top: 40, width: 200, height: 100};
+    canvas.getBoundingClientRect = () => rect;
+    send(canvas, "pointermove", {pointerType: "mouse", clientX: 160, clientY: 80});
+    assert.equal(tooltip.textContent, "Wall");
+    rect = {...rect, width: 100, height: 50};
+    send(f.window, "resize");
+    assert.equal(tooltip.hidden, false);
+    assert.equal(tooltip.textContent, "Table");
+    rect = {...rect, left: 150, top: 70};
+    send(f.window, "scroll");
+    assert.equal(tooltip.textContent, "Wall");
+    rect = {...rect, left: 200};
+    send(f.window, "scroll");
+    assert.equal(tooltip.hidden, true);
+});
+
+test("semantic hover ignores touch and pen events and leaves flight controls unchanged", async () => {
+    const f = fixture();
+    await f.load();
+    f.segmentation_classes({1: "Wall"});
+    f.present(1, 1, 6, [1]);
+    const canvas = f.element("segmentation");
+    const tooltip = f.element("segmentation-tooltip");
+    touch_flight(f);
+    for(const pointerType of ["touch", "pen"]){
+        send(canvas, "pointermove", {pointerType});
+        assert.equal(tooltip.hidden, true);
+        assert.deepEqual(f.axes(), [1, 0, 0, 0, -0.5]);
+    }
+    f.click("release-control");
+    send(canvas, "pointermove", {pointerType: "mouse"});
+    assert.equal(tooltip.hidden, false);
+    f.click("camera0", "mouse");
+    assert.equal(tooltip.hidden, true);
+    send(canvas, "pointermove", {pointerType: "mouse"});
+    assert.equal(tooltip.hidden, true);
+    send(f.document, "keydown", {code: "KeyW"});
+    assert.deepEqual(f.axes(), [1, 0, 0, 0, 0]);
+    f.document.exitPointerLock();
+    send(canvas, "pointermove", {pointerType: "mouse"});
+    assert.equal(tooltip.hidden, false);
+    assert.equal(tooltip.textContent, "Wall");
+    assert.deepEqual(f.axes(), [0, 0, 0, 0, 0]);
+});
+
+for(const event of ["pointerleave", "pointercancel", "blur", "pagehide", "hidden", "abort"]){
+    test(`${event} clears semantic hover and prevents the next frame from restoring it`, async () => {
+        const f = fixture();
+        await f.load();
+        f.segmentation_classes({1: "Wall"});
+        f.present(1, 1, 6, [1]);
+        const canvas = f.element("segmentation");
+        const tooltip = f.element("segmentation-tooltip");
+        send(canvas, "pointermove", {pointerType: "mouse"});
+        assert.equal(tooltip.hidden, false);
+        if(event === "hidden"){
+            f.document.hidden = true;
+            send(f.document, "visibilitychange");
+        }
+        else if(event === "abort"){
+            f.abort("render failure");
+        }
+        else{
+            send(event.startsWith("pointer") ? canvas : f.window, event);
+        }
+        assert.equal(tooltip.hidden, true);
+        f.present(1, 1, 6, [1]);
+        assert.equal(tooltip.hidden, true);
+    });
+}
+
+for(const [button, dialog] of [["rendering", "rendering-settings"], ["touch-tuning", "flight-tuning"], ["fps", "frame-rate-tuning"]]){
+    test(`${dialog} suppresses semantic hover until dismissed`, async () => {
+        const f = fixture();
+        await f.load();
+        f.segmentation_classes({1: "Wall"});
+        f.present(1, 1, 6, [1]);
+        const canvas = f.element("segmentation");
+        const tooltip = f.element("segmentation-tooltip");
+        send(canvas, "pointermove", {pointerType: "mouse"});
+        assert.equal(tooltip.hidden, false);
+        f.click(button);
+        assert.equal(tooltip.hidden, true);
+        send(canvas, "pointermove", {pointerType: "mouse"});
+        f.present(1, 1, 6, [1]);
+        assert.equal(tooltip.hidden, true);
+        f.element(dialog).close();
+        send(canvas, "pointermove", {pointerType: "mouse"});
+        assert.equal(tooltip.hidden, false);
+        assert.equal(tooltip.textContent, "Wall");
+    });
+}
 
 for(const mode of ["touch", "mouse", "pending mouse"]){
     test(`Rendering releases ${mode} control and blocks recapture until dismissed`, async () => {

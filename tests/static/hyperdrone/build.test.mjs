@@ -7,7 +7,7 @@ import {fileURLToPath} from "node:url";
 import {test} from "node:test";
 
 const script = fileURLToPath(new URL("../../../src/rl/environments/hyperdrone/web/build.sh", import.meta.url));
-const default_configuration = "high-mb4-aa1-480x270";
+const default_configuration = "high-mb1-aa1-960x540-agents8";
 
 function fixture(t){
     const root = mkdtempSync(join(tmpdir(), "hyperdrone-build-"));
@@ -47,8 +47,8 @@ function fixture(t){
         },
         compiled(){
             const fidelity = {Low: "low", Medium: "medium", High: "high", VeryHigh: "very-high"};
-            return [...readFileSync(header, "utf8").matchAll(/Config<rendering::raytracing::(\w+),\s*(\d+),\s*(\d+),\s*(\d+)>/g)]
-                .map(([, shading, motion, aa, scale]) => `${fidelity[shading]}-mb${motion}-aa${aa}-${480 * scale}x${270 * scale}`);
+            return [...readFileSync(header, "utf8").matchAll(/Config<rendering::raytracing::(\w+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)>/g)]
+                .map(([, shading, motion, aa, scale, agents]) => `${fidelity[shading]}-mb${motion}-aa${aa}-${480 * scale}x${270 * scale}-agents${agents}`);
         },
     };
 }
@@ -66,10 +66,10 @@ test("full, single, and sparse builds generate exactly the selected instantiatio
     const listed = f.run("--list-configurations");
     assert.equal(listed.status, 0, listed.stderr);
     const supported = listed.stdout.trim().split("\n");
-    assert.equal(supported.length, 32);
-    assert.equal(new Set(supported).size, 32);
+    assert.equal(supported.length, 64);
+    assert.equal(new Set(supported).size, 64);
     assert.ok(supported.includes(default_configuration));
-    const sparse = ["very-high-mb4-aa2-960x540", "low-mb1-aa1-480x270"];
+    const sparse = ["very-high-mb4-aa2-960x540-agents8", "low-mb1-aa1-480x270-agents1"];
     for(const args of [[], [default_configuration], sparse]){
         const result = f.run(...args);
         assert.equal(result.status, 0, result.stderr);
@@ -84,7 +84,7 @@ test("full, single, and sparse builds generate exactly the selected instantiatio
 
 test("job options work before, between, and after configurations and override toolchain limits", t => {
     const f = fixture(t);
-    const selected = [default_configuration, "low-mb1-aa1-480x270"];
+    const selected = [default_configuration, "low-mb1-aa1-480x270-agents1"];
     for(const args of [
         ["-j12", ...selected],
         [selected[0], "-j", "12", selected[1]],
@@ -97,7 +97,7 @@ test("job options work before, between, and after configurations and override to
     }
     const result = f.run("-j", "12");
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(f.compiled().length, 32);
+    assert.equal(f.compiled().length, 64);
     assert_jobs(f, 12);
 });
 

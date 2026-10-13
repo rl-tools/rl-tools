@@ -44,6 +44,7 @@ namespace rl_tools::rl::environments::hyperdrone::web {
             rendering::raytracing::outputs::RGB<>,
             rendering::raytracing::outputs::Depth<rendering::raytracing::outputs::format::RGBA8>,
             rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::RGBA8, rendering::raytracing::outputs::labels::Semantic>,
+            rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::UInt32, rendering::raytracing::outputs::labels::Semantic>,
             rendering::raytracing::outputs::Normals<rendering::raytracing::outputs::format::RGBA8>,
             rendering::raytracing::outputs::Flow<rendering::raytracing::outputs::direction::Backward, rendering::raytracing::outputs::format::RGBA8>,
             rendering::raytracing::outputs::Probes>;
@@ -98,6 +99,7 @@ namespace rl_tools::rl::environments::hyperdrone::web {
     struct Buffer {
         static constexpr TI PIXELS = CONFIG::CAM_WIDTH * CONFIG::CAM_HEIGHT;
         std::vector<uint32_t> rgba = std::vector<uint32_t>(VIEWS * PIXELS);
+        std::vector<uint32_t> segmentation = std::vector<uint32_t>(PIXELS);
     };
 }
 
@@ -348,6 +350,7 @@ namespace rl_tools {
         copy(renderer.device, device, rgb, alias);
         copy_onboard(device, renderer, output(device, renderer, rendering::raytracing::outputs::Depth<rendering::raytracing::outputs::format::RGBA8>{}), buffer.rgba.data() + 2 * PIXELS);
         copy_onboard(device, renderer, output(device, renderer, rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::RGBA8, rendering::raytracing::outputs::labels::Semantic>{}), buffer.rgba.data() + 3 * PIXELS);
+        copy_onboard(device, renderer, output(device, renderer, rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::UInt32, rendering::raytracing::outputs::labels::Semantic>{}), buffer.segmentation.data());
         copy_onboard(device, renderer, output(device, renderer, rendering::raytracing::outputs::Normals<rendering::raytracing::outputs::format::RGBA8>{}), buffer.rgba.data() + 4 * PIXELS);
         copy_onboard(device, renderer, output(device, renderer, rendering::raytracing::outputs::Flow<rendering::raytracing::outputs::direction::Backward, rendering::raytracing::outputs::format::RGBA8>{}), buffer.rgba.data() + 5 * PIXELS);
     }
@@ -385,10 +388,10 @@ static void present(web::DEVICE& device, const web::State<CONFIG>& state, const 
     quaternion_multiplication<web::DEVICE, web::T>(scene_orientation, physical.orientation, orientation);
     EM_ASM({
         if(Module.rlt_present) {
-            Module.rlt_present($0, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+            Module.rlt_present($0, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
         }
     }, buffer.rgba.data(), (int)CONFIG::CAM_WIDTH, (int)CONFIG::CAM_HEIGHT, (int)web::VIEWS,
-        position[0], position[1], position[2], orientation[0], orientation[1], orientation[2], orientation[3]);
+        position[0], position[1], position[2], orientation[0], orientation[1], orientation[2], orientation[3], buffer.segmentation.data());
 }
 
 template <typename CONFIG>
@@ -414,7 +417,7 @@ static std::string configuration_catalog(web::Configurations<CONFIGS...>) {
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE int demo_api_version() {
-    return 7;
+    return 8;
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE const char* demo_configurations() {
@@ -450,6 +453,14 @@ static int run(const char* scene_path, const char* policy_path, int max_frames, 
     status("Loading the scene and finding a clear starting position ...");
     state.seed = seed;
     init(device, state, scene_path, drones);
+    auto classes = nlohmann::json::object();
+    for(const auto& entry: state.environment.shared.segmentation_taxonomy->classes) {
+        classes[std::to_string(entry.first)] = entry.second;
+    }
+    const std::string class_names = classes.dump();
+    EM_ASM({
+        Module.rlt_segmentation_classes(JSON.parse(UTF8ToString($0)));
+    }, class_names.c_str());
     const auto& rig = state.environment.shared.drone_bodies[0].rig;
     EM_ASM({
         Module.rlt_motor_layout($0, $1, $2);
