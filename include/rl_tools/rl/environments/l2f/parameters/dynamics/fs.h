@@ -106,6 +106,7 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
             0.44905530730868937,
             // action limit
             {0.0, 1.0}, // about [0.5thrust2weight, 2.5thrust2weight]
+            10000, // max_rpm: visual convention shared with the web demo, the notebooks and the paper figures; replace with the measured full-scale rotor speed
         };
     }
 }

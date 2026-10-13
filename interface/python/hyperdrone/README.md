@@ -23,6 +23,7 @@ the golden-rollout generator.
 
 | Notebook | Open in Colab |
 |---|---|
+| [Overview](hyperdrone/examples/Overview.ipynb) | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rl-tools/rl-tools/blob/master/interface/python/hyperdrone/hyperdrone/examples/Overview.ipynb) |
 | [HyperDrone](hyperdrone/examples/HyperDrone.ipynb) | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rl-tools/rl-tools/blob/master/interface/python/hyperdrone/hyperdrone/examples/HyperDrone.ipynb#scrollTo=g-cDv8bdN7j9) |
 | [Benchmark](hyperdrone/examples/Benchmark.ipynb) | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rl-tools/rl-tools/blob/master/interface/python/hyperdrone/hyperdrone/examples/Benchmark.ipynb) |
 | [Renderer](hyperdrone/examples/Renderer.ipynb) | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rl-tools/rl-tools/blob/master/interface/python/hyperdrone/hyperdrone/examples/Renderer.ipynb) |
@@ -146,6 +147,7 @@ sim.reset()                          # nominal state; reset(sample_states=True) 
 sim.step(actions)                    # (N, 4) float32 in [-1, 1], host or CUDA tensor
 sim.state["position"]                # independent host copy
 sim.state_dlpack("position")         # live backend buffer
+sim.rotor_rpm()                      # (N, 4) rotor speeds in RPM, motor_command through max_rpm
 sim.observe()                        # (N, 18): position, row-major body-to-world rotation, velocities
 sim.set_instance_parameters({"dynamics": {"dynamics": {"mass": 1.2}}}, mask=selected)
 sim.instance_parameters()            # per-drone values; overrides last until each drone's next reset
@@ -155,7 +157,7 @@ cameras = sim.camera_bases_dlpack(fov=100, aspect=renderer.aspect)
 renderer.set_cameras(cameras, stream=sim.stream)
 ```
 
-`Sim` defaults to `device="cpu"`; choose `"cuda"` or `"auto"` explicitly. Seed at construction, then `reset(mask=None, *, sample_states=False)` advances the sampling sequence only for selected drones. Observation noise uses a separate stream from stepping. The shared parameter schema matches the environment's `"dynamics"` tree; integration `dt` is fixed at construction and available as read-only `sim.dt`. Per-drone overrides affect `dynamics.dynamics`; a reset restores that drone's nominal parameters. `motor_command` is the rotor command in the model's action-limit units, not measured RPM. A process can load one dynamics variant.
+`Sim` defaults to `device="cpu"`; choose `"cuda"` or `"auto"` explicitly. Seed at construction, then `reset(mask=None, *, sample_states=False)` advances the sampling sequence only for selected drones. Observation noise uses a separate stream from stepping. The shared parameter schema matches the environment's `"dynamics"` tree; integration `dt` is fixed at construction and available as read-only `sim.dt`. Per-drone overrides affect `dynamics.dynamics`; a reset restores that drone's nominal parameters. `motor_command` is the rotor command in the model's action-limit units; `sim.rotor_rpm()` converts it to rotor speed in RPM through the model's `max_rpm`, the speed at `action_limit.max` (linear through zero), which every registry entry declares and `set_instance_parameters` can override. A process can load one dynamics variant.
 
 Host accessors return independent snapshots; names ending in `_dlpack()` expose live storage. Drive each object on its construction CUDA device, and finish consuming a borrowed buffer before the producer overwrites it. `Sim` orders DLPack exports onto the consumer's stream. Camera bases have shape `(N, 12)` and concatenate `position`, `dir_00`, `dir_du`, and `dir_dv` world-FLU vectors; the pixel-centre ray is `normalize(dir_00 + (x+0.5)/width * dir_du + (y+0.5)/height * dir_dv)`; `aspect` is required when constructing them.
 
@@ -233,7 +235,7 @@ extension ladder:
 body/prop_* GLB via `drone_asset=`; `hyperdrone.env.Rotorcraft(assembly, rotor_positions=...,
 rotor_torque_directions=...)` is the same rig as a `render.Rig` for manual composition: every
 `prop_*` part spins about its hub, and given the dynamics rotor layout (`sim.parameters["dynamics"]["dynamics"]`)
-coordinate i is the phase of rotor i spinning against its reaction torque, so `sim.state["motor_command"]` supplies motor command values for a chosen visual spin calibration; without rotors the props follow part order and the
+coordinate i is the phase of rotor i spinning against its reaction torque, so `sim.rotor_rpm()` supplies the speeds whose integral over the step advances the coordinates; without rotors the props follow part order and the
 Quad-X convention, front-right CCW — and `"x500_fpv_imu"`, the same platform stepping at
 IMU rate), `task=` names the wrapper (`"target_frame"`, `"moving_gate"`,
 `"visual_inertial_localization"`), `num_agents=` enables multi-agent, `num_camera_agents=` selects the prefix with cameras, `num_cameras_per_agent=` sets their camera count, and `EnvConfig(spec_header=...)` pins
@@ -256,7 +258,7 @@ rejects drone and camera overrides for this task; a replayed spawn re-renders it
 
 `EnvConfig(motion_blur_samples=8)` enables camera and propeller motion blur for presets and tasks; valid counts are 1 (default, disabled), 2, 4, 8, 16, and 32. Custom spec headers control `ENABLE_MOTION_BLUR` and `MOTION_BLUR_SAMPLES` directly.
 
-For repeatable shots, capture `points = env.spawn_points()` after a reset and save the returned dictionaries, then use `env.reset(mask, spawn_points=points)` with one entry per selected instance (a host mask). Each entry pins the active scene by content hash, one drone-table index per agent in `"drone"`, scene translation/yaw, per-agent pose (`xyz, wxyz`), and shutter fraction. The reset uses constructor-supplied drone dynamics and camera mounts; velocity/motor initialization and task-specific randomization still follow their configured ranges. Scene changes remain explicit through `rotate_scene()`, which requires resetting every instance before further use; a shot for a different active scene is rejected.
+For repeatable shots, capture `points = env.spawn_points()` after a reset and save the returned dictionaries, then use `env.reset(mask, spawn_points=points)` with one entry per selected instance (a host mask). Each entry pins the active scene by content hash (the bare hash as recorded, or the constructor's reference form, `conta:HASH` or a store manifest entry), one drone-table index per agent in `"drone"`, scene translation/yaw, per-agent pose (`xyz, wxyz`), and shutter fraction. The reset uses constructor-supplied drone dynamics and camera mounts; velocity/motor initialization and task-specific randomization still follow their configured ranges. Scene changes remain explicit through `rotate_scene()`, which requires resetting every instance before further use; a shot for a different active scene is rejected.
 
 Manual composition of `Sim` and `Renderer` (no MDP — rendering research, data
 generation) remains first-class: see `python -m hyperdrone.examples.drone_flythrough`

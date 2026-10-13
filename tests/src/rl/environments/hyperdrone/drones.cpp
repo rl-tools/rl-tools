@@ -137,6 +137,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, ROTOR_COORDINATES_WITH_MOTION_B
     BLUR_WORLD::Parameters parameters;
     BLUR_WORLD::DYNAMICS_ENV::State state{};
     parameters.shutter_fraction = (T)0.5;
+    parameters.agents[0].dynamics.dynamics.max_rpm = parameters.agents[0].dynamics.dynamics.action_limit.max; // identity calibration: the motor state reads as RPM
     for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
         state.rotor_phase[rotor_i] = (T)0.3 * (T)(rotor_i + 1);
         state.rpm[rotor_i] = (T)60 * (T)(rotor_i + 1);
@@ -195,6 +196,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, BODY_SWAP_PRESERVES_WRAPPER_AND
     const auto wrapper_object = renderer.overlays[0].slots[0].object;
     BLUR_WORLD::Parameters parameters;
     parameters.shutter_fraction = 1;
+    for(TI agent_i = 0; agent_i < BLUR_SPEC::N_AGENTS; agent_i++){
+        parameters.agents[agent_i].dynamics.dynamics.max_rpm = parameters.agents[agent_i].dynamics.dynamics.action_limit.max; // identity calibration: the motor state reads as RPM
+    }
     BLUR_WORLD::DYNAMICS_ENV::State state{};
     state.orientation[0] = 1;
     for(TI rotor_i = 0; rotor_i < 4; rotor_i++){

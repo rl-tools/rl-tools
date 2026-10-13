@@ -157,13 +157,6 @@ namespace rl_tools {
                     dynamics = models::registry<models::REGISTRY::soft, PARAMETER_SPEC>;
                     break;
             }
-            constexpr T RPM_SCALE = 10000;
-            dynamics.action_limit.min *= RPM_SCALE;
-            dynamics.action_limit.max *= RPM_SCALE;
-            for(TI motor = 0; motor < 4; motor++) {
-                dynamics.rotor_thrust_coefficients[motor][1] /= RPM_SCALE;
-                dynamics.rotor_thrust_coefficients[motor][2] /= RPM_SCALE * RPM_SCALE;
-            }
             drone.cameras[0].fov = 80;
             for(TI dim = 0; dim < 3; dim++) {
                 drone.cameras[0].mount.pose.position[dim] = entry.fpv_position[dim];

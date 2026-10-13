@@ -105,6 +105,7 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
             0.749141384950337, //julia sqrt((mass * 9.81/4 - thrust_curve[1])/thrust_curve[3])
             // action limit
             {0.0, 1.0},
+            10000, // max_rpm: visual convention shared with the web demo, the notebooks and the paper figures; replace with the measured full-scale rotor speed
         };
 
     }

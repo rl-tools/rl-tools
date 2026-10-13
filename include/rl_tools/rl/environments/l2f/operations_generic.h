@@ -64,6 +64,14 @@ namespace rl_tools
         //        parameters = SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
     }
     namespace rl::environments::l2f{
+        template<typename DEVICE, typename PARAMETERS, typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT T rotor_rpm_from_command(DEVICE&, const PARAMETERS& parameters, T command){
+            return command * parameters.dynamics.max_rpm / parameters.dynamics.action_limit.max;
+        }
+        template<typename DEVICE, typename PARAMETERS, typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT T rotor_angular_velocity_from_command(DEVICE& device, const PARAMETERS& parameters, T command){
+            return rotor_rpm_from_command(device, parameters, command) * ((T)2 * math::PI<T> / (T)60);
+        }
         template<typename DEVICE, typename PARAMETERS, typename T, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT T rotor_thrust_from_command(DEVICE&, const PARAMETERS& parameters, TI rotor_i, T command){
             return parameters.dynamics.rotor_thrust_coefficients[rotor_i][0] + parameters.dynamics.rotor_thrust_coefficients[rotor_i][1] * command + parameters.dynamics.rotor_thrust_coefficients[rotor_i][2] * command * command;

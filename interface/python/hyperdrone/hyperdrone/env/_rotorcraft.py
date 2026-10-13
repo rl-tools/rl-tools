@@ -17,7 +17,7 @@ class Rotorcraft(render.Rig):
     any other part rides the body. Without rotors, coordinate i is the phase of the i-th
     prop_* part and the spin follows the Quad-X convention (front-right CCW). With a
     dynamics model's rotor_positions and rotor_torque_directions, both (num_rotors, 3) as in
-    sim.parameters["dynamics"]["dynamics"], each hub pairs with its nearest rotor: coordinate i is then the phase of rotor i, spinning against the rotor's reaction torque. Coordinates are radians; convert motor_command to a visual angular speed before integration."""
+    sim.parameters["dynamics"]["dynamics"], each hub pairs with its nearest rotor: coordinate i is then the phase of rotor i, spinning against the rotor's reaction torque. Coordinates are radians; integrate sim.rotor_rpm() * 2 * pi / 60 over the time step to advance them."""
 
     def __init__(self, assembly, *, rotor_positions=None, rotor_torque_directions=None):
         if (rotor_positions is None) != (rotor_torque_directions is None):

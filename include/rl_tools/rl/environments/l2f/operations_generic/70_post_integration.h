@@ -357,7 +357,7 @@ namespace rl_tools::rl::environments::l2f{
         post_integration(device, env, parameters, static_cast<const typename STATE::NEXT_COMPONENT&>(state), action, static_cast<typename STATE::NEXT_COMPONENT&>(next_state), rng);
         constexpr T TWO_PI = (T)2 * math::PI<T>;
         for(TI rotor_i = 0; rotor_i < STATE::ACTION_DIM; rotor_i++){
-            T phase = state.rotor_phase[rotor_i] + next_state.rpm[rotor_i] * (TWO_PI / (T)60) * parameters.integration.dt;
+            T phase = state.rotor_phase[rotor_i] + rotor_angular_velocity_from_command(device, parameters, next_state.rpm[rotor_i]) * parameters.integration.dt;
             phase = phase - math::floor(device.math, phase / TWO_PI) * TWO_PI;
             next_state.rotor_phase[rotor_i] = phase;
         }

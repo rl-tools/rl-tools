@@ -133,6 +133,20 @@ def test_parameter_roundtrip_and_physics(sim):
     np.testing.assert_allclose([entry["dynamics"]["dynamics"]["mass"] for entry in sim.instance_parameters()], nominal_mass)
 
 
+def test_rotor_rpm_calibration(sim):
+    sim.reset()
+    dynamics_parameters = sim.parameters["dynamics"]["dynamics"]
+    assert dynamics_parameters["max_rpm"] > 0
+    scale = dynamics_parameters["max_rpm"] / dynamics_parameters["action_limit"]["max"]
+    np.testing.assert_allclose(sim.rotor_rpm(), sim.state["motor_command"] * scale, rtol=1e-6)
+    mask = np.arange(N) < N // 2
+    sim.set_instance_parameters({"dynamics": {"dynamics": {"max_rpm": 2 * dynamics_parameters["max_rpm"]}}}, mask)
+    expected = sim.state["motor_command"] * scale * np.where(mask, 2.0, 1.0)[:, None]
+    np.testing.assert_allclose(sim.rotor_rpm(), expected, rtol=1e-6)
+    sim.reset(mask)
+    np.testing.assert_allclose(sim.rotor_rpm(), sim.state["motor_command"] * scale, rtol=1e-6)
+
+
 def test_all_model_presets():
     for model in dynamics.MODELS:
         sim = dynamics.Sim(N, parameters={"dynamics": {"dynamics": {"model": model}}})

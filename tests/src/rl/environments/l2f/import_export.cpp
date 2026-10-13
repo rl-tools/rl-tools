@@ -205,6 +205,13 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, FROM_JSON_REJECTS_ROTOR_COUNT_MISMATCH){
 namespace {
     namespace l2f = rlt::rl::environments::l2f;
 
+    template <l2f::parameters::dynamics::REGISTRY MODEL>
+    void check_registry_max_rpm(){
+        using SPEC = l2f::Specification<T, TI>;
+        constexpr auto dynamics = l2f::parameters::dynamics::registry<MODEL, SPEC>;
+        EXPECT_GT(dynamics.max_rpm, (T)0) << "registry entry " << (int)MODEL << " has no rotor speed calibration";
+    }
+
     template <typename SCALAR, l2f::parameters::dynamics::REGISTRY MODEL>
     void check_estimated_brushless_dynamics(SCALAR mass, SCALAR wheelbase){
         using rlt::abs_diff;
@@ -293,4 +300,43 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, ESTIMATED_BRUSHLESS_DYNAMICS_FLOAT){
 TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, ESTIMATED_BRUSHLESS_DYNAMICS_DOUBLE){
     check_estimated_brushless_dynamics<double, l2f::parameters::dynamics::REGISTRY::crazyflie_brushless>(0.0423, 0.1);
     check_estimated_brushless_dynamics<double, l2f::parameters::dynamics::REGISTRY::savagebee_pusher>(0.1554, 0.12);
+}
+
+
+// every registry entry declares the rotor speed at action_limit.max, and the conversion to RPM
+// is linear through zero and survives the JSON round trip
+TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, REGISTRY_MAX_RPM){
+    using REGISTRY = l2f::parameters::dynamics::REGISTRY;
+    check_registry_max_rpm<REGISTRY::crazyflie>();
+    check_registry_max_rpm<REGISTRY::crazyflie_openmv>();
+    check_registry_max_rpm<REGISTRY::mrs>();
+    check_registry_max_rpm<REGISTRY::x500>();
+    check_registry_max_rpm<REGISTRY::x500_real>();
+    check_registry_max_rpm<REGISTRY::x500_sim>();
+    check_registry_max_rpm<REGISTRY::arpl>();
+    check_registry_max_rpm<REGISTRY::fs_base>();
+    check_registry_max_rpm<REGISTRY::flightmare>();
+    check_registry_max_rpm<REGISTRY::soft>();
+    check_registry_max_rpm<REGISTRY::soft_rigid>();
+    check_registry_max_rpm<REGISTRY::crazyflie_brushless>();
+    check_registry_max_rpm<REGISTRY::savagebee_pusher>();
+
+    DEVICE device;
+    rlt::init(device);
+    ENVIRONMENT environment;
+    auto parameters = environment.parameters;
+    parameters.dynamics = l2f::parameters::dynamics::registry<REGISTRY::x500, ENVIRONMENT_SPEC>;
+    EXPECT_EQ(parameters.dynamics.action_limit.max, (T)1);
+    EXPECT_EQ(l2f::rotor_rpm_from_command(device, parameters, (T)0), (T)0);
+    EXPECT_EQ(l2f::rotor_rpm_from_command(device, parameters, (T)0.5), parameters.dynamics.max_rpm / (T)2);
+    EXPECT_NEAR(l2f::rotor_angular_velocity_from_command(device, parameters, (T)1), parameters.dynamics.max_rpm * (T)2 * rlt::math::PI<T> / (T)60, 1e-9);
+    const auto exported = nlohmann::json::parse(rlt::json(device, environment, parameters.dynamics));
+    EXPECT_EQ(exported.at("max_rpm").get<T>(), parameters.dynamics.max_rpm);
+    ENVIRONMENT::Parameters::Dynamics restored{};
+    rlt::from_json(device, environment, exported, restored);
+    EXPECT_EQ(restored.max_rpm, parameters.dynamics.max_rpm);
+    auto legacy = exported;
+    legacy.erase("max_rpm");
+    rlt::from_json(device, environment, legacy, restored);
+    EXPECT_EQ(restored.max_rpm, (T)0);
 }

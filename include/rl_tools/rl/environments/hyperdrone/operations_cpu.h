@@ -445,7 +445,7 @@ namespace rl_tools {
                 open[rotor_i] = close[rotor_i];
                 if constexpr (world::HasRotorPhase<typename WORLD::DYNAMICS_ENV::State>::VALUE && WORLD::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
                     const T dt = parameters.agents[agent_i].dynamics.integration.dt;
-                    open[rotor_i] = (float)((T)agent_state.rotor_phase[rotor_i] - agent_state.rpm[rotor_i] * (T)2 * math::PI<T> / (T)60 * dt * parameters.shutter_fraction);
+                    open[rotor_i] = (float)((T)agent_state.rotor_phase[rotor_i] - rotor_angular_velocity_from_command(device, parameters.agents[agent_i].dynamics, agent_state.rpm[rotor_i]) * dt * parameters.shutter_fraction);
                 }
             }
         }

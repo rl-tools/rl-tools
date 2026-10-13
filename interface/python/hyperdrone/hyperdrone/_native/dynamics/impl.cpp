@@ -536,6 +536,15 @@ namespace hyperdrone_dynamics_impl {
             upload_states_and_publish();
         }
 
+        void read_rotor_rpm(float* out_host) override {
+            download_states();
+            for(TI drone = 0; drone < NUM_DRONES; drone++){
+                for(TI rotor_i = 0; rotor_i < ACTION_DIM; rotor_i++){
+                    out_host[drone * ACTION_DIM + rotor_i] = rotor_rpm_from_command(device_cpu, parameters[drone], states[drone].rpm[rotor_i]);
+                }
+            }
+        }
+
         void update_observations() override {
 #if defined(HYPERDRONE_DYNAMICS_CUDA)
             kernel_observe<<<GRID_DIM, BLOCK_DIM, 0, cuda_stream>>>(device_cuda, device_envs, device_parameters,

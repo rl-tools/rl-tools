@@ -288,7 +288,8 @@ namespace rl_tools{
         json_string += "\"action_limit\": {";
         json_string += "\"min\": " + rl::environments::l2f::detail::lossless_to_string<T>(parameters.action_limit.min) + ", ";
         json_string += "\"max\": " + rl::environments::l2f::detail::lossless_to_string<T>(parameters.action_limit.max);
-        json_string += "}"; // closing action_limit
+        json_string += "}, "; // closing action_limit
+        json_string += "\"max_rpm\": " + rl::environments::l2f::detail::lossless_to_string<T>(parameters.max_rpm);
         json_string += "}"; // closing main JSON
         return json_string;
     }
@@ -916,6 +917,7 @@ namespace rl_tools{
         parameters.hovering_throttle_relative = json_object["hovering_throttle_relative"];
         parameters.action_limit.min = json_object["action_limit"]["min"];
         parameters.action_limit.max = json_object["action_limit"]["max"];
+        parameters.max_rpm = json_object.value("max_rpm", decltype(parameters.max_rpm){0}); // absent in parameter files written before the field existed
     }
     template <typename DEVICE, typename SPEC, typename T>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::IMU<T>& parameters) {

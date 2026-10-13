@@ -104,6 +104,7 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
             0.5,
             // action limit
             {0, 1.0},
+            28647.88975654116, // max_rpm: 1.0 is 3000 rad/s of the mrs fit (normalized by 3000 above)
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

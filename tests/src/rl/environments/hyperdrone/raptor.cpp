@@ -215,13 +215,6 @@ namespace {
         FLIGHT_ENV env;
         auto parameters = env.parameters;
         parameters.dynamics = l2f::parameters::dynamics::registry<MODEL, FLIGHT_CONFIG::PARAMETERS_SPEC>;
-        constexpr T RPM_SCALE = 10000;
-        parameters.dynamics.action_limit.min *= RPM_SCALE;
-        parameters.dynamics.action_limit.max *= RPM_SCALE;
-        for (TI motor = 0; motor < 4; motor++) {
-            parameters.dynamics.rotor_thrust_coefficients[motor][1] /= RPM_SCALE;
-            parameters.dynamics.rotor_thrust_coefficients[motor][2] /= RPM_SCALE * RPM_SCALE;
-        }
         FLIGHT_ENV::State state, next;
         initial_state(device, env, parameters, state);
         constexpr auto canonical = l2f::parameters::dynamics::registry<l2f::parameters::dynamics::REGISTRY::x500, FLIGHT_CONFIG::PARAMETERS_SPEC>;

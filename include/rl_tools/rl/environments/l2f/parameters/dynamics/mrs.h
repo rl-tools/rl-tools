@@ -103,6 +103,7 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
             1636.011825401871,
             // action limit
             {0, 2000},
+            19098.59317102744, // max_rpm: the 2000 rad/s action limit in RPM (the motor units of the Flightmare fit this entry comes from)
     };
 
 }

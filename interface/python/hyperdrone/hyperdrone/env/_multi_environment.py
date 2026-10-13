@@ -185,6 +185,15 @@ def _is_conta_reference(value):
     return isinstance(value, dict) or (isinstance(value, str) and value.startswith("conta:"))
 
 
+def _scene_hash(value):
+    """The content hash a spawn point pins: the bare hash spawn_points() records, a "conta:HASH" reference or a store manifest entry."""
+    if isinstance(value, dict):
+        value = value.get("hash")
+    if not isinstance(value, str):
+        raise ValueError("hyperdrone: spawn scene must be a content hash, a conta:HASH reference or a store manifest entry")
+    return value[len("conta:"):] if value.startswith("conta:") else value
+
+
 def _resolve_asset(asset):
     if asset is None:
         return None
@@ -457,7 +466,7 @@ class MultiEnvironment:
         return json.loads(self._environment.spawn_points())
 
     def reset(self, mask=None, *, spawn_points=None):
-        """Resets the selected instances (default: all), optionally replaying one recorded spawn per selected instance (a host mask then). Replayed spawns fly their entry's nominal drone parameters (target frames follow the replayed placement); velocities, motor speeds and task-specific state still follow their configured initialization."""
+        """Resets the selected instances (default: all), optionally replaying one recorded spawn per selected instance (a host mask then). A spawn's "scene" is the content hash spawn_points() records or the same reference form the constructor takes ("conta:HASH" or a store manifest entry). Replayed spawns fly their entry's nominal drone parameters (target frames follow the replayed placement); velocities, motor speeds and task-specific state still follow their configured initialization."""
         if spawn_points is None:
             self._environment.reset(None if mask is None else self._input(mask, bool, (self.total_instances,)))
             return
@@ -466,11 +475,12 @@ class MultiEnvironment:
         mask = self._host_mask(mask)
         if len(spawn_points) != int(mask.sum()):
             raise ValueError("hyperdrone: provide one spawn per selected instance")
+        spawn_points = [{**spawn, "scene": _scene_hash(spawn["scene"])} if isinstance(spawn, dict) and "scene" in spawn else spawn for spawn in spawn_points]
         for spawn in spawn_points:
             if set(spawn) != {"scene", "drone", "scene_translation", "scene_yaw", "poses", "shutter_fraction"}:
                 raise ValueError("hyperdrone: invalid spawn fields (use spawn_points() to capture them)")
-            if not isinstance(spawn["drone"], list) or len(spawn["drone"]) != self.num_agents or any(type(drone) is not int for drone in spawn["drone"]) or not isinstance(spawn["scene"], str):
-                raise ValueError("hyperdrone: spawn needs one integer drone index per agent and a scene content hash")
+            if not isinstance(spawn["drone"], list) or len(spawn["drone"]) != self.num_agents or any(type(drone) is not int for drone in spawn["drone"]):
+                raise ValueError("hyperdrone: spawn needs one integer drone index per agent")
             for name, shape in (("scene_translation", (3,)), ("scene_yaw", (2,)), ("poses", (self.num_agents, 7)), ("shutter_fraction", ())):
                 values = np.asarray(spawn[name], dtype=float)
                 if values.shape != shape or not np.isfinite(values).all():

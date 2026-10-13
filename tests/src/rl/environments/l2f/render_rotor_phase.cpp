@@ -99,7 +99,7 @@ TEST(L2F_RENDER_ROTOR_PHASE, PHASE_INTEGRATION_AND_WRAP){
     for(TI step_i = 0; step_i < 200; step_i++){
         rlt::step(device, env, parameters, state, action, next_state, rng);
         for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
-            T expected = state.rotor_phase[rotor_i] + next_state.rpm[rotor_i] * (TWO_PI / (T)60) * parameters.integration.dt;
+            T expected = state.rotor_phase[rotor_i] + rlt::rl::environments::l2f::rotor_angular_velocity_from_command(device, parameters, next_state.rpm[rotor_i]) * parameters.integration.dt;
             expected = expected - std::floor(expected / TWO_PI) * TWO_PI;
             EXPECT_EQ(next_state.rotor_phase[rotor_i], expected);
             EXPECT_GE(next_state.rotor_phase[rotor_i], (T)0);

@@ -1127,3 +1127,24 @@ def test_motion_blur_reset_survives_same_step_reacquisition(scene_directory, dev
         np.testing.assert_array_equal(env.observe(), before)
         env.set_instance_parameters({}, [True, False])
         np.testing.assert_array_equal(env.observe(), before)
+
+
+def test_spawn_points_accept_scene_references(scene_directory):
+    parameters = {"dynamics": {"mdp": {"init": {"max_linear_velocity": 0, "max_angular_velocity": 0, "min_rpm": 0, "max_rpm": 0}}}}
+    env = MultiEnvironment(scene_directory, config=CONFIG, seed=5, parameters=parameters)
+    try:
+        env.reset()
+        points = env.spawn_points()
+        state = env.observe_privileged()
+        for reference in (lambda scene: f"conta:{scene}", lambda scene: {"description": "scene", "hash": scene}):
+            env.reset(spawn_points=[{**point, "scene": reference(point["scene"])} for point in points])
+            assert env.spawn_points() == points
+            np.testing.assert_array_equal(env.observe_privileged(), state)
+        with pytest.raises(ValueError, match="does not match"):
+            env.reset(spawn_points=[{**point, "scene": "conta:" + "0" * 40} for point in points])
+        with pytest.raises(ValueError, match="content hash"):
+            env.reset(spawn_points=[{**point, "scene": 7} for point in points])
+        np.testing.assert_array_equal(env.observe_privileged(), state)
+    finally:
+        env.close()
+

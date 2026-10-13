@@ -131,6 +131,14 @@ NB_MODULE(hyperdrone_dynamics_core, m){
             nb::gil_scoped_release release;
             jit->set_state_component(component, values.data());
         }, nb::arg("component"), nb::arg("values"))
+        .def("read_rotor_rpm", [](JitSim& jit, nb::ndarray<float, nb::c_contig, nb::device::cpu> out){
+            const hdd::Config config = jit->config();
+            if(out.size() != (size_t)config.num_drones * config.action_dim){
+                throw std::invalid_argument("hyperdrone: rotor rpm output must have num_drones * action_dim elements");
+            }
+            nb::gil_scoped_release release;
+            jit->read_rotor_rpm(out.data());
+        }, nb::arg("out"))
         .def("update_observations", [](JitSim& jit){
             nb::gil_scoped_release release;
             jit->update_observations();

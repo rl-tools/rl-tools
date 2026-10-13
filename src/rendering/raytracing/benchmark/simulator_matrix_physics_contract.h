@@ -31,7 +31,8 @@ namespace rl_tools::rendering::raytracing::benchmark::paper {
         {{9.416556729130406e-06, 0, 0}, {0, 9.644051701582312e-06, 0}, {0, 0, 1.745951732253285e-05}},
         {{106195.93007988465, 0, 0}, {0, 103690.85846314249, 0}, {0, 0, 57275.35197719487}},
         0.7261389721508553,
-        {0, 1}
+        {0, 1},
+        10000 // max_rpm: visual convention; the frozen physics never reads it
     };
     constexpr PARAMETERS NOMINAL_PARAMETERS = {
         {DYNAMICS, {T(1) / T(100)},

@@ -46,6 +46,7 @@ namespace rl_tools::rl::environments::l2f{
             T J_inv[3][3];
             T hovering_throttle_relative; // relative to the action limits [0, 1]
             ActionLimit action_limit;
+            T max_rpm = 0; // rotor speed in RPM at action_limit.max; the motor state rpm[] is in action_limit units and maps linearly through zero (0: uncalibrated, rendered propellers do not turn)
         };
         template <typename T>
         struct IMU{
@@ -79,9 +80,9 @@ namespace rl_tools::rl::environments::l2f{
             T max_angle;
             T max_linear_velocity;
             T max_angular_velocity;
-            bool relative_rpm; //(specification from -1 to 1)
-            T min_rpm; // -1 for default limit when relative_rpm is true, -1 if relative_rpm is false
-            T max_rpm; //  1 for default limit when relative_rpm is true, -1 if relative_rpm is false
+            bool relative_rpm; // initial motor state range: relative maps [-1, 1] onto [action_limit.min, action_limit.max], absolute is in action_limit units (not RPM, see Dynamics::max_rpm)
+            T min_rpm; // relative: -1 is action_limit.min; absolute: negative selects action_limit.min
+            T max_rpm; // relative:  1 is action_limit.max; absolute: negative selects action_limit.max
         };
         template <typename T>
         struct Termination{

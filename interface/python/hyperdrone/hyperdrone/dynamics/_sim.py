@@ -141,6 +141,13 @@ class Sim:
         self._sim.update_observations()
         return self._buffer(self._sim.observations_dlpack)
 
+    def rotor_rpm(self):
+        """Rotor speeds (num_drones, action_dim) in RPM: state["motor_command"] through each drone's max_rpm calibration."""
+        out = np.empty((self.num_drones, self.action_dim), dtype=np.float32)
+        self._sim.read_rotor_rpm(out)
+        self._pending_inputs.clear()
+        return out
+
     def observe(self):
         self._sim.update_observations()
         out = np.empty((self.num_drones, self.observation_dim), dtype=np.float32)

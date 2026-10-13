@@ -110,6 +110,7 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
             0.7261389721508553, // "hovering_throttle_relative"
             // action limit
             {0, 1},
+            10000, // max_rpm: visual convention shared with the web demo, the notebooks and the paper figures; replace with the measured full-scale rotor speed
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

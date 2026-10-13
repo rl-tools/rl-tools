@@ -60,6 +60,7 @@ namespace rl_tools{
         acc += math::abs(device.math, a.hovering_throttle_relative - b.hovering_throttle_relative); // relative to the action limits [0, 1]
         acc += math::abs(device.math, a.action_limit.min - b.action_limit.min);
         acc += math::abs(device.math, a.action_limit.max - b.action_limit.max);
+        acc += math::abs(device.math, a.max_rpm - b.max_rpm);
         return acc;
     }
     template<typename DEVICE, typename T_A, typename T_B>

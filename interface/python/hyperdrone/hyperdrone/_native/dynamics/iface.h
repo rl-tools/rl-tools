@@ -7,7 +7,7 @@
 // after every mutation as SoA component buffers (device-resident on the CUDA variant) so
 // consumers get stable zero-copy views. Bump HYPERDRONE_DYNAMICS_IFACE_VERSION on any
 // change to this file.
-#define HYPERDRONE_DYNAMICS_IFACE_VERSION 5
+#define HYPERDRONE_DYNAMICS_IFACE_VERSION 6
 
 namespace hyperdrone::dynamics {
     struct Config {
@@ -49,6 +49,9 @@ namespace hyperdrone::dynamics {
 
         virtual const float* state_buffer(int component) const = 0;
         virtual void set_state_component(int component, const float* values_host) = 0;
+        // rotor speeds (num_drones, action_dim) in RPM: the motor state through each drone's
+        // current max_rpm calibration, written to a host buffer
+        virtual void read_rotor_rpm(float* out_host) = 0;
 
         virtual void update_observations() = 0;
         virtual const float* observation_buffer() const = 0;
