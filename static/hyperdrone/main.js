@@ -49,6 +49,8 @@ const canvases = ["camera0", "camera1", "depth", "segmentation", "normals", "flo
 const contexts = canvases.map(canvas => canvas.getContext("2d"));
 const segmentation_canvas = document.getElementById("segmentation");
 const segmentation_tooltip = document.getElementById("segmentation-tooltip");
+const segmentation_center = document.getElementById("segmentation-center");
+const segmentation_center_label = document.getElementById("segmentation-center-label");
 const keys = new Set();
 let yaw_delta = 0;
 let reset_requested = false;
@@ -72,39 +74,56 @@ document.body.classList.toggle("touch-ui", navigator.maxTouchPoints > 0);
 
 function hide_segmentation_hover(){
     segmentation_cursor = null;
-    segmentation_tooltip.hidden = true;
+    update_segmentation_readout();
 }
 
-function update_segmentation_hover(){
-    if(!ready || failed || document.hidden || document.pointerLockElement || settings_open() || segmentation_ids === null || segmentation_cursor === null){
+function update_segmentation_readout(){
+    if(!ready || failed || document.hidden || settings_open() || segmentation_ids === null){
+        segmentation_cursor = null;
         segmentation_tooltip.hidden = true;
+        segmentation_center.hidden = true;
         return;
     }
-    const rect = segmentation_canvas.getBoundingClientRect();
-    const x = segmentation_cursor.x - rect.left;
-    const y = segmentation_cursor.y - rect.top;
-    if(x < 0 || y < 0 || x >= rect.width || y >= rect.height){
-        hide_segmentation_hover();
-        return;
+    if(segmentation_cursor !== null && !document.pointerLockElement){
+        const rect = segmentation_canvas.getBoundingClientRect();
+        const x = segmentation_cursor.x - rect.left;
+        const y = segmentation_cursor.y - rect.top;
+        if(x >= 0 && y >= 0 && x < rect.width && y < rect.height){
+            const column = Math.floor(x * segmentation_canvas.width / rect.width);
+            const row = Math.floor(y * segmentation_canvas.height / rect.height);
+            const id = segmentation_ids[row * segmentation_canvas.width + column];
+            segmentation_center.hidden = true;
+            segmentation_tooltip.textContent = id === 0xffffffff ? "No surface" : segmentation_classes[id];
+            segmentation_tooltip.hidden = false;
+            segmentation_canvas.setAttribute("aria-describedby", "segmentation-tooltip");
+            segmentation_tooltip.style.left = `${Math.max(0, Math.min(x + 10, rect.width - segmentation_tooltip.offsetWidth))}px`;
+            segmentation_tooltip.style.top = `${Math.max(0, Math.min(y + 10, rect.height - segmentation_tooltip.offsetHeight))}px`;
+            return;
+        }
     }
-    const column = Math.floor(x * segmentation_canvas.width / rect.width);
-    const row = Math.floor(y * segmentation_canvas.height / rect.height);
-    const id = segmentation_ids[row * segmentation_canvas.width + column];
-    segmentation_tooltip.textContent = id === 0xffffffff ? "No surface" : segmentation_classes[id];
-    segmentation_tooltip.hidden = false;
-    segmentation_tooltip.style.left = `${Math.max(0, Math.min(x + 10, rect.width - segmentation_tooltip.offsetWidth))}px`;
-    segmentation_tooltip.style.top = `${Math.max(0, Math.min(y + 10, rect.height - segmentation_tooltip.offsetHeight))}px`;
+    segmentation_cursor = null;
+    segmentation_tooltip.hidden = true;
+    const id = segmentation_ids[Math.floor(segmentation_canvas.height / 2) * segmentation_canvas.width + Math.floor(segmentation_canvas.width / 2)];
+    segmentation_center_label.textContent = id === 0xffffffff ? "No surface" : segmentation_classes[id];
+    segmentation_center.hidden = false;
+    segmentation_canvas.setAttribute("aria-describedby", "segmentation-center-label");
 }
 
 segmentation_canvas.addEventListener("pointermove", event => {
     if(event.pointerType === "mouse"){
         segmentation_cursor = {x: event.clientX, y: event.clientY};
-        update_segmentation_hover();
+        update_segmentation_readout();
+    }
+    else{
+        hide_segmentation_hover();
     }
 });
 segmentation_canvas.addEventListener("pointerleave", hide_segmentation_hover);
 segmentation_canvas.addEventListener("pointercancel", hide_segmentation_hover);
-window.addEventListener("scroll", update_segmentation_hover, true);
+window.addEventListener("scroll", update_segmentation_readout, true);
+for(const panel of [tuning_panel, frame_rate_panel, rendering_panel]){
+    panel.addEventListener("close", update_segmentation_readout);
+}
 
 for(const select of [scene_select, drone_select]){
     select.addEventListener("change", () => {
@@ -422,7 +441,7 @@ window.addEventListener("resize", () => {
     if(touch_control){
         release_controls();
     }
-    update_segmentation_hover();
+    update_segmentation_readout();
 });
 release_button.addEventListener("click", release_controls);
 function open_tuning(){
@@ -454,6 +473,7 @@ document.addEventListener("visibilitychange", () => {
     if(document.hidden){
         release_controls();
     }
+    update_segmentation_readout();
     fps_window_start = performance.now();
     fps_window_frames = 0;
     fps_element.textContent = "— fps";
@@ -616,7 +636,7 @@ async function main(){
                 fps_window_start = performance.now();
                 fps_window_frames = 0;
             }
-            update_segmentation_hover();
+            update_segmentation_readout();
             frame_count++;
             fps_window_frames++;
             const now = performance.now();

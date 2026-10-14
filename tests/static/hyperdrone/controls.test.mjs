@@ -460,6 +460,71 @@ test("all six outputs resize and retain distinct image strides at both rendering
     assert.throws(() => f.present(480, 270, 5), /Expected 6 camera outputs/);
 });
 
+test("semantic center samples the exact middle pixel of each presented frame independently of WASM memory", async () => {
+    const f = fixture();
+    const center = f.element("segmentation-center");
+    const label = f.element("segmentation-center-label");
+    const tooltip = f.element("segmentation-tooltip");
+    assert.equal(center.hidden, true);
+    await f.load();
+    f.segmentation_classes({0: "Unannotated", 1: "Wall", 257: "Chair <wood>", 2147483649: "Drone"});
+    assert.equal(center.hidden, true);
+    for(const [width, height, id, expected] of [
+        [4, 2, 0, "Unannotated"], [3, 3, 257, "Chair <wood>"],
+        [480, 270, 2147483649, "Drone"], [960, 540, 0xffffffff, "No surface"],
+    ]){
+        const ids = new Uint32Array(width * height).fill(1);
+        ids[Math.floor(height / 2) * width + Math.floor(width / 2)] = id;
+        const heap_ids = f.present(width, height, 6, ids);
+        assert.equal(center.hidden, false);
+        assert.equal(tooltip.hidden, true);
+        assert.equal(label.textContent, expected);
+        heap_ids.fill(1);
+        send(f.window, "scroll");
+        assert.equal(label.textContent, expected);
+    }
+    f.present(960, 540, 6, new Uint32Array(960 * 540).fill(1), true);
+    assert.equal(label.textContent, "Wall");
+    f.module.HEAPU8 = new Uint8Array(2048);
+    send(f.window, "resize");
+    assert.equal(center.hidden, false);
+    assert.equal(label.textContent, "Wall");
+});
+
+test("semantic center yields to mouse hover and returns for other pointers, mouse capture, and moved geometry", async () => {
+    const f = fixture();
+    await f.load();
+    f.segmentation_classes({1: "Wall", 2: "Table", 3: "Drone"});
+    f.present(2, 2, 6, [1, 1, 1, 2]);
+    const canvas = f.element("segmentation");
+    const center = f.element("segmentation-center");
+    const label = f.element("segmentation-center-label");
+    const tooltip = f.element("segmentation-tooltip");
+    for(const pointerType of ["touch", "pen"]){
+        send(canvas, "pointermove", {pointerType: "mouse", clientX: 30, clientY: 30});
+        assert.equal(center.hidden, true);
+        assert.equal(tooltip.hidden, false);
+        assert.equal(tooltip.textContent, "Wall");
+        send(canvas, "pointermove", {pointerType});
+        assert.equal(tooltip.hidden, true);
+        assert.equal(center.hidden, false);
+        assert.equal(label.textContent, "Table");
+    }
+    send(canvas, "pointermove", {pointerType: "mouse", clientX: 30, clientY: 30});
+    f.click("camera0", "mouse");
+    f.present(2, 2, 6, [1, 1, 1, 3]);
+    assert.equal(tooltip.hidden, true);
+    assert.equal(center.hidden, false);
+    assert.equal(label.textContent, "Drone");
+    f.document.exitPointerLock();
+    send(canvas, "pointermove", {pointerType: "mouse", clientX: 30, clientY: 30});
+    canvas.getBoundingClientRect = () => ({left: 100, top: 100, width: 120, height: 120});
+    send(f.window, "scroll");
+    assert.equal(tooltip.hidden, true);
+    assert.equal(center.hidden, false);
+    assert.equal(label.textContent, "Drone");
+});
+
 test("semantic hover uses exact unsigned IDs and authored labels, including class zero and misses", async () => {
     const f = fixture();
     await f.load();
@@ -594,8 +659,10 @@ for(const event of ["pointerleave", "pointercancel", "blur", "pagehide", "hidden
         f.present(1, 1, 6, [1]);
         const canvas = f.element("segmentation");
         const tooltip = f.element("segmentation-tooltip");
+        const center = f.element("segmentation-center");
         send(canvas, "pointermove", {pointerType: "mouse"});
         assert.equal(tooltip.hidden, false);
+        assert.equal(center.hidden, true);
         if(event === "hidden"){
             f.document.hidden = true;
             send(f.document, "visibilitychange");
@@ -607,8 +674,16 @@ for(const event of ["pointerleave", "pointercancel", "blur", "pagehide", "hidden
             send(event.startsWith("pointer") ? canvas : f.window, event);
         }
         assert.equal(tooltip.hidden, true);
+        assert.equal(center.hidden, event === "hidden" || event === "abort");
         f.present(1, 1, 6, [1]);
         assert.equal(tooltip.hidden, true);
+        assert.equal(center.hidden, event === "hidden" || event === "abort");
+        if(event === "hidden"){
+            f.document.hidden = false;
+            send(f.document, "visibilitychange");
+            assert.equal(center.hidden, false);
+            assert.equal(f.element("segmentation-center-label").textContent, "Wall");
+        }
     });
 }
 
@@ -620,16 +695,22 @@ for(const [button, dialog] of [["rendering", "rendering-settings"], ["touch-tuni
         f.present(1, 1, 6, [1]);
         const canvas = f.element("segmentation");
         const tooltip = f.element("segmentation-tooltip");
+        const center = f.element("segmentation-center");
         send(canvas, "pointermove", {pointerType: "mouse"});
         assert.equal(tooltip.hidden, false);
         f.click(button);
         assert.equal(tooltip.hidden, true);
+        assert.equal(center.hidden, true);
         send(canvas, "pointermove", {pointerType: "mouse"});
         f.present(1, 1, 6, [1]);
         assert.equal(tooltip.hidden, true);
+        assert.equal(center.hidden, true);
         f.element(dialog).close();
+        assert.equal(center.hidden, false);
+        assert.equal(f.element("segmentation-center-label").textContent, "Wall");
         send(canvas, "pointermove", {pointerType: "mouse"});
         assert.equal(tooltip.hidden, false);
+        assert.equal(center.hidden, true);
         assert.equal(tooltip.textContent, "Wall");
     });
 }

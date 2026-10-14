@@ -62,7 +62,12 @@ figcaption { display: flex; flex: 1; align-items: center; justify-content: space
 .view-format { color: var(--muted); font: 10px var(--mono); white-space: nowrap; }
 canvas { display: block; flex-shrink: 0; width: 100%; height: auto; aspect-ratio: 16 / 9; background: var(--surface); }
 .camera-frame, .segmentation-frame { position: relative; }
-#segmentation-tooltip { position: absolute; width: max-content; max-width: calc(100% - 12px); padding: 4px 7px; border: 1px solid var(--ink); background: var(--surface); color: var(--ink); font-size: 12px; overflow-wrap: anywhere; pointer-events: none; }
+#segmentation-tooltip, #segmentation-center-label { position: absolute; width: max-content; max-width: calc(100% - 12px); padding: 4px 7px; border: 1px solid var(--ink); background: var(--surface); color: var(--ink); font-size: 12px; overflow-wrap: anywhere; pointer-events: none; }
+#segmentation-center { position: absolute; inset: 0; pointer-events: none; }
+#segmentation-center::before, #segmentation-center::after { content: ""; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: #fff; box-shadow: 0 0 0 1px #000; }
+#segmentation-center::before { width: 14px; height: 2px; }
+#segmentation-center::after { width: 2px; height: 14px; }
+#segmentation-center-label { left: 50%; top: calc(50% + 12px); transform: translateX(-50%); }
 .camera-frame canvas { cursor: pointer; outline: none; }
 body.mouse-controlling .camera-frame canvas { cursor: none; }
 .control-hint { display: none; position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); flex-direction: column; gap: 5px; width: max-content; max-width: calc(100% - 24px); padding: 11px 13px; border: 1px solid var(--ink); background: rgb(255 255 255 / 75%); pointer-events: none; user-select: none; }
