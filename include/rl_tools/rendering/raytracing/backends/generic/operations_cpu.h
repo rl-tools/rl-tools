@@ -50,6 +50,7 @@ namespace rl_tools {
             std::vector<TI> overlay_temp_primitives;
             std::vector<SceneLight> lights;
             std::vector<T> probe_directions;
+            std::vector<unsigned int> camera_table;
             SceneView<T, TI> scene;
         };
     }
@@ -149,6 +150,9 @@ namespace rl_tools {
 
         auto* backend_state = new rendering::raytracing::backends::RendererState<rendering::raytracing::backends::Generic, SPEC>{};
         renderer.backend = backend_state;
+        backend_state->camera_table.resize((size_t)SPEC::NUM_CAMERAS * rendering::raytracing::outputs::CAMERA_TABLE_STRIDE);
+        fill_camera_table<SPEC>(device, backend_state->camera_table.data());
+        backend_state->scene.camera_table = backend_state->camera_table.data();
         // the renderer-owned camera tensors are the render input — no staging copy
         backend_state->scene.cameras_close = data(renderer.cameras);
         if constexpr (SPEC::HAS_CAMERA_PAIR) {

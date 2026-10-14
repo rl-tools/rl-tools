@@ -212,6 +212,8 @@ namespace rl_tools::rendering::datasets::annotations {
         void scan(DEVICE& device, std::vector<FreeSpacePosition<T>>& table, const rendering::SceneMetadata<METADATA_T>& metadata, PROBE& probe_target, const FreeSpaceParameters<PARAMETERS_T, PARAMETERS_TI>& parameters) {
             constexpr std::uint64_t NUM_CAMERAS = static_cast<std::uint64_t>(PROBE::SPEC::NUM_CAMERAS);
             constexpr std::uint64_t NUM_PROBES = static_cast<std::uint64_t>(PROBE::SPEC::NUM_PROBES);
+            using PROBE_TENSOR_SPEC = rendering::raytracing::outputs::TensorSpecification<typename PROBE::SPEC, rendering::raytracing::outputs::Probes>;
+            static_assert(PROBE_TENSOR_SPEC::SHAPE::template GET<0> == PROBE::SPEC::NUM_CAMERAS, "annotations::free_space probes from every camera: configure Probes without a camera selection");
             constexpr T PROBE_CAMERA_FOV = 90;
             constexpr T PROBE_CAMERA_ASPECT = 1;
             constexpr T PROBE_CAMERA_LOOK_AHEAD = 1;
@@ -239,7 +241,7 @@ namespace rl_tools::rendering::datasets::annotations {
             std::array<FreeSpacePosition<T>, NUM_CAMERAS> batch_positions{};
             Tensor<typename decltype(probe_target.cameras)::SPEC> camera_staging;
             malloc(device, camera_staging);
-            Tensor<typename rendering::raytracing::outputs::Buffer<typename PROBE::SPEC, rendering::raytracing::outputs::Probes>::TENSOR_SPEC> probe_staging;
+            Tensor<PROBE_TENSOR_SPEC> probe_staging;
             malloc(device, probe_staging);
             std::uint64_t tested = 0, no_hits = 0, failed_hit_ratio = 0, failed_avg_dist = 0, failed_min_dist = 0;
             T best_min_hit_dist = 0;

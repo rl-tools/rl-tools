@@ -81,6 +81,7 @@ namespace rl_tools {
             OWLBuffer flow_deltas_buffer = nullptr; // internal [2][slots][12] delta table, composed by update_launch
             OWLBuffer cameras_previous_buffer = nullptr;
             OWLBuffer rgb_accumulator_buffer = nullptr;
+            OWLBuffer camera_table_buffer = nullptr; // outputs::fill_camera_table
             float* shutter_device = nullptr; // per-pass shutter time, written by the overlay fill kernel
             cudaEvent_t ordering_event = nullptr; // reused for every stream-to-stream ordering (record/wait pairs are consumed on the spot)
         };
@@ -399,6 +400,9 @@ namespace rl_tools {
             }
         });
         const auto pointer = [&](Slot slot){ return output_pointer(*renderer.backend, slot); };
+        std::vector<unsigned int> camera_table((size_t)SPEC::NUM_CAMERAS * rendering::raytracing::outputs::CAMERA_TABLE_STRIDE);
+        fill_camera_table<SPEC>(device, camera_table.data());
+        renderer.backend->camera_table_buffer = owlDeviceBufferCreate(context, OWL_UINT, camera_table.size(), camera_table.data());
         OWLBuffer flow_deltas_buffer = nullptr;
         if constexpr(SPEC::HAS_FLOW_OVERLAYS){
             flow_deltas_buffer = owlDeviceBufferCreate(context, OWL_FLOAT, (size_t)2 * SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12, nullptr);
@@ -1197,6 +1201,7 @@ namespace rl_tools {
                     { "cam_height",    OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, cam_height)},
                     { "grid_cols",     OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, grid_cols)},
                     { "instance_classes", OWL_BUFPTR, OWL_OFFSETOF(OverlayLaunchParams, instance_classes)},
+                    { "camera_table", OWL_BUFPTR, OWL_OFFSETOF(OverlayLaunchParams, camera_table)},
                     { /* sentinel */ }
                 };
                 OWLParams launch_params = owlParamsCreate(context, sizeof(OverlayLaunchParams), launch_params_vars, -1);
@@ -1214,6 +1219,7 @@ namespace rl_tools {
                 owlParamsSet1i(launch_params, "cam_height", (int)SPEC::CAM_HEIGHT);
                 owlParamsSet1i(launch_params, "grid_cols", (int)SPEC::GRID_COLS);
                 owlParamsSetBuffer(launch_params, "instance_classes", instance_classes_buffer);
+                owlParamsSetBuffer(launch_params, "camera_table", renderer.backend->camera_table_buffer);
                 if constexpr (SPEC::ENABLE_OVERLAYS){
                     auto* overlay_state = (optix::OverlayState*)renderer.backend->overlay_state;
                     owlParamsSetBuffer(launch_params, "overlays", overlay_state->traversables_buffer);
@@ -1555,8 +1561,8 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_RGB32F){
                 observation = data(output(device, renderer, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>{}));
             }
-            optix::overlay_accel_resolve(rgb_accumulation, frame_buffer, observation, SPEC::SHADING::SRGB_OUTPUT ? 1 : 0,
-                                         (unsigned int)((size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS),
+            optix::overlay_accel_resolve(rgb_accumulation, frame_buffer, observation, (const unsigned int*)owlBufferGetPointer(renderer.backend->camera_table_buffer, 0), SPEC::SHADING::SRGB_OUTPUT ? 1 : 0,
+                                         (unsigned int)SPEC::NUM_CAMERAS, (unsigned int)SPEC::CAM_PIXELS,
                                          (unsigned int)SPEC::MOTION_BLUR_SAMPLES, cuda_stream);
             optix::join(device, renderer.backend->ordering_event, cuda_stream, 0);
             return;

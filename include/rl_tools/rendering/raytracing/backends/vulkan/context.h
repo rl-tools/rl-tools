@@ -41,8 +41,9 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         constexpr uint32_t CAMERAS_PREVIOUS = 16;
         constexpr uint32_t OVERLAY_NUM_ACTIVE_PREVIOUS = 17;
         constexpr uint32_t OVERLAY_TLAS_PREVIOUS = 18;
-        constexpr uint32_t TEXTURES = 19; // variable-descriptor-count binding must be last
-        constexpr uint32_t COUNT = 20;
+        constexpr uint32_t CAMERA_TABLE = 19;
+        constexpr uint32_t TEXTURES = 20; // variable-descriptor-count binding must be last
+        constexpr uint32_t COUNT = 21;
     }
     namespace specialization_constants{
         constexpr uint32_t SRGB_OUTPUT = 0;
@@ -173,6 +174,7 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
 
         BufferResource launch_params;
         BufferResource outputs;
+        BufferResource camera_table;
         BufferResource cameras;
         BufferResource cameras_open;
         BufferResource cameras_previous;

@@ -28,7 +28,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace rendering::raytracing::detail{
-        template <typename SPEC, typename DEVICE>
+        template <typename SPEC, typename SPEC::TI CAMERAS = SPEC::NUM_CAMERAS, typename DEVICE>
         void write_grid_png(DEVICE& device, const uint32_t* fb, const char* filename){
             using TI = typename SPEC::TI;
             constexpr TI cam_pixels = SPEC::CAM_PIXELS;
@@ -36,7 +36,7 @@ namespace rl_tools{
             constexpr int grid_height = SPEC::GRID_ROWS * SPEC::CAM_HEIGHT;
             std::vector<uint32_t> grid_image(grid_width * grid_height, 0);
 
-            for(int i = 0; i < (int)SPEC::NUM_CAMERAS; i++){
+            for(int i = 0; i < (int)CAMERAS; i++){
                 int col = i % SPEC::GRID_COLS;
                 int row = i / SPEC::GRID_COLS;
                 int offset_x = col * SPEC::CAM_WIDTH;
@@ -55,32 +55,32 @@ namespace rl_tools{
                    " cameras, ", grid_width, "x", grid_height, " px) to ", filename);
         }
 
-        template <typename SPEC, typename DEVICE>
+        template <typename SPEC, typename SPEC::TI CAMERAS = SPEC::NUM_CAMERAS, typename DEVICE>
         void write_segmentation_grid_png(DEVICE& device, const uint32_t* segmentation, const char* filename){
-            constexpr typename SPEC::TI num_pixels = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+            constexpr typename SPEC::TI num_pixels = CAMERAS * SPEC::CAM_PIXELS;
             std::vector<uint32_t> colored(num_pixels);
             for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
                 colored[pixel_i] = segmentation_color(device, segmentation[pixel_i]);
             }
-            write_grid_png<SPEC>(device, colored.data(), filename);
+            write_grid_png<SPEC, CAMERAS>(device, colored.data(), filename);
         }
 
-        template <typename SPEC, typename DEVICE>
+        template <typename SPEC, typename SPEC::TI CAMERAS = SPEC::NUM_CAMERAS, typename DEVICE>
         void write_normals_grid_png(DEVICE& device, const float* normals_host, const char* filename){
-            constexpr typename SPEC::TI num_pixels = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+            constexpr typename SPEC::TI num_pixels = CAMERAS * SPEC::CAM_PIXELS;
             std::vector<uint32_t> colored(num_pixels);
             for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
                 colored[pixel_i] = normal_color(device, &normals_host[pixel_i * 3]);
             }
-            write_grid_png<SPEC>(device, colored.data(), filename);
+            write_grid_png<SPEC, CAMERAS>(device, colored.data(), filename);
         }
 
         // direction → hue, magnitude → saturation against the per-image maximum. Advisory
         // review image only (the normalization is content-dependent, like depth.png); the
         // machine-compared flow target is the float binary.
-        template <typename SPEC, typename DEVICE>
+        template <typename SPEC, typename SPEC::TI CAMERAS = SPEC::NUM_CAMERAS, typename DEVICE>
         void write_flow_grid_png(DEVICE& device, const float* flow_host, const char* filename){
-            constexpr typename SPEC::TI num_pixels = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+            constexpr typename SPEC::TI num_pixels = CAMERAS * SPEC::CAM_PIXELS;
             float max_magnitude = 0;
             for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
                 const float u = flow_host[pixel_i * 2 + 0];
@@ -91,27 +91,27 @@ namespace rl_tools{
             for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
                 colored[pixel_i] = flow_color(device, flow_host[pixel_i * 2 + 0], flow_host[pixel_i * 2 + 1], max_magnitude);
             }
-            write_grid_png<SPEC>(device, colored.data(), filename);
+            write_grid_png<SPEC, CAMERAS>(device, colored.data(), filename);
         }
 
-        template <typename SPEC, typename DEVICE>
+        template <typename SPEC, typename SPEC::TI CAMERAS = SPEC::NUM_CAMERAS, typename DEVICE>
         void write_flow_status_grid_png(DEVICE& device, const uint32_t* status_host, const char* filename){
-            constexpr typename SPEC::TI num_pixels = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+            constexpr typename SPEC::TI num_pixels = CAMERAS * SPEC::CAM_PIXELS;
             std::vector<uint32_t> colored(num_pixels);
             for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
                 colored[pixel_i] = flow_status_color(device, status_host[pixel_i]);
             }
-            write_grid_png<SPEC>(device, colored.data(), filename);
+            write_grid_png<SPEC, CAMERAS>(device, colored.data(), filename);
         }
 
-        template <typename SPEC, typename DEVICE>
+        template <typename SPEC, typename SPEC::TI CAMERAS = SPEC::NUM_CAMERAS, typename DEVICE>
         void write_depth_grid_png(DEVICE& device, const float* depth_host, const char* filename){
             using TI = typename SPEC::TI;
             constexpr TI cam_pixels = SPEC::CAM_PIXELS;
             constexpr int grid_width = SPEC::GRID_COLS * SPEC::CAM_WIDTH;
             constexpr int grid_height = SPEC::GRID_ROWS * SPEC::CAM_HEIGHT;
             std::vector<uint32_t> grid_image(grid_width * grid_height, 0);
-            constexpr size_t depth_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+            constexpr size_t depth_count = (size_t)CAMERAS * SPEC::CAM_PIXELS;
             float min_valid_depth = std::numeric_limits<float>::max();
             float max_valid_depth = std::numeric_limits<float>::lowest();
             for(size_t depth_i = 0; depth_i < depth_count; depth_i++){
@@ -124,7 +124,7 @@ namespace rl_tools{
             const bool has_valid_depth = min_valid_depth <= max_valid_depth;
             const float valid_depth_range = has_valid_depth ? max_valid_depth - min_valid_depth : 0.f;
 
-            for(int i = 0; i < (int)SPEC::NUM_CAMERAS; i++){
+            for(int i = 0; i < (int)CAMERAS; i++){
                 int col = i % SPEC::GRID_COLS;
                 int row = i / SPEC::GRID_COLS;
                 int offset_x = col * SPEC::CAM_WIDTH;
@@ -150,12 +150,12 @@ namespace rl_tools{
                    " cameras, ", grid_width, "x", grid_height, " px) to ", filename);
         }
 
-        template <typename SPEC, typename DEVICE>
+        template <typename SPEC, typename SPEC::TI CAMERAS = SPEC::NUM_CAMERAS, typename DEVICE>
         void write_depth_bin(DEVICE& device, const float* depth_host, const char* filename){
-            constexpr size_t depth_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+            constexpr size_t depth_count = (size_t)CAMERAS * SPEC::CAM_PIXELS;
             FILE* f = fopen(filename, "wb");
             if(f){
-                int nc = SPEC::NUM_CAMERAS;
+                int nc = CAMERAS;
                 int h = SPEC::CAM_HEIGHT;
                 int w = SPEC::CAM_WIDTH;
                 fwrite(&nc, sizeof(int), 1, f);
@@ -167,12 +167,12 @@ namespace rl_tools{
             }
         }
 
-        template <typename SPEC, typename DEVICE>
+        template <typename SPEC, typename SPEC::TI CAMERAS = SPEC::NUM_CAMERAS, typename DEVICE>
         void write_probes_bin_and_log(DEVICE& device, const CollisionResult* probe_results, const char* filename){
             int total_hits = 0;
             float min_hit_dist = 1e30f, max_hit_dist = 0.f;
             double sum_hit_dist = 0.0;
-            for(int i = 0; i < (int)(SPEC::NUM_CAMERAS * SPEC::NUM_PROBES); i++){
+            for(int i = 0; i < (int)(CAMERAS * SPEC::NUM_PROBES); i++){
                 if(probe_results[i].hit){
                     total_hits++;
                     sum_hit_dist += probe_results[i].distance;
@@ -186,10 +186,10 @@ namespace rl_tools{
             }
 
             log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "=== COLLISION PROBE RESULTS ===");
-            log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "  Total probes:  ", SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
+            log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "  Total probes:  ", CAMERAS * SPEC::NUM_PROBES);
             log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "  Hits:          ", total_hits,
-                   " (", (100.0 * total_hits / (SPEC::NUM_CAMERAS * SPEC::NUM_PROBES)), "%)");
-            log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "  Misses:        ", (SPEC::NUM_CAMERAS * SPEC::NUM_PROBES - total_hits));
+                   " (", (100.0 * total_hits / (CAMERAS * SPEC::NUM_PROBES)), "%)");
+            log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "  Misses:        ", (CAMERAS * SPEC::NUM_PROBES - total_hits));
             if(total_hits > 0){
                 log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "  Min hit dist:  ", min_hit_dist);
                 log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "  Max hit dist:  ", max_hit_dist);
@@ -200,17 +200,20 @@ namespace rl_tools{
             {
                 FILE* f = fopen(filename, "wb");
                 if(f){
-                    int nc = SPEC::NUM_CAMERAS, np = SPEC::NUM_PROBES;
+                    int nc = CAMERAS, np = SPEC::NUM_PROBES;
                     fwrite(&nc, sizeof(int), 1, f);
                     fwrite(&np, sizeof(int), 1, f);
                     fwrite(probe_results, sizeof(CollisionResult),
-                           (size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES, f);
+                           (size_t)CAMERAS * SPEC::NUM_PROBES, f);
                     fclose(f);
-                    log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "Written probe data (", SPEC::NUM_CAMERAS * SPEC::NUM_PROBES,
+                    log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "Written probe data (", CAMERAS * SPEC::NUM_PROBES,
                            " results) to ", filename);
                 }
             }
         }
+
+        template <typename SPEC, typename OUTPUT>
+        constexpr typename SPEC::TI ROWS = outputs::TensorSpecification<SPEC, OUTPUT>::SHAPE::template GET<0>;
 
         template <typename DEVICE, typename SPEC, typename BACKEND, typename TENSOR, typename ELEMENT>
         void save_staging(DEVICE& device, Renderer<SPEC, BACKEND>& renderer, const TENSOR& tensor, std::vector<ELEMENT>& storage){
@@ -228,89 +231,99 @@ namespace rl_tools{
         static_assert(utils::typing::is_same_v<typename OUTPUT::FORMAT, rendering::raytracing::outputs::format::RGBA8>, "save_image requires an RGBA8 representation");
         std::vector<uint32_t> pixels;
         rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, descriptor), pixels);
-        rendering::raytracing::detail::write_grid_png<SPEC>(device, pixels.data(), filename);
+        rendering::raytracing::detail::write_grid_png<SPEC, rendering::raytracing::detail::ROWS<SPEC, OUTPUT>>(device, pixels.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void save_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
+        using OUTPUT = rendering::raytracing::outputs::RGB<>;
         static_assert(SPEC::HAS_RGB, "save_image requires an RGB-capable renderer specification");
         std::vector<uint32_t> frame_buffer_host;
-        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, rendering::raytracing::outputs::RGB<>{}), frame_buffer_host);
-        rendering::raytracing::detail::write_grid_png<SPEC>(device, frame_buffer_host.data(), filename);
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, OUTPUT{}), frame_buffer_host);
+        rendering::raytracing::detail::write_grid_png<SPEC, rendering::raytracing::detail::ROWS<SPEC, OUTPUT>>(device, frame_buffer_host.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void save_segmentation_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
+        using OUTPUT = rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::UInt32, utils::typing::conditional_t<SPEC::HAS_SEMANTIC_SEGMENTATION, rendering::raytracing::outputs::labels::Semantic, rendering::raytracing::outputs::labels::Instance>>;
         static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
         std::vector<uint32_t> segmentation_host;
-        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::UInt32, utils::typing::conditional_t<SPEC::HAS_SEMANTIC_SEGMENTATION, rendering::raytracing::outputs::labels::Semantic, rendering::raytracing::outputs::labels::Instance>>{}), segmentation_host);
-        rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(device, segmentation_host.data(), filename);
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, OUTPUT{}), segmentation_host);
+        rendering::raytracing::detail::write_segmentation_grid_png<SPEC, rendering::raytracing::detail::ROWS<SPEC, OUTPUT>>(device, segmentation_host.data(), filename);
         std::ofstream metadata(std::string(filename) + ".json");
         metadata << "{\"segmentation_mode\":\"" << (SPEC::HAS_SEMANTIC_SEGMENTATION ? "semantic" : "instance") << "\",\"background_id\":4294967295}\n";
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void save_normals_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
+        using OUTPUT = rendering::raytracing::outputs::Normals<>;
         static_assert(SPEC::HAS_NORMALS, "save_normals_image requires a normals-capable renderer specification");
         std::vector<float> normals_host;
-        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, rendering::raytracing::outputs::Normals<>{}), normals_host);
-        rendering::raytracing::detail::write_normals_grid_png<SPEC>(device, normals_host.data(), filename);
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, OUTPUT{}), normals_host);
+        rendering::raytracing::detail::write_normals_grid_png<SPEC, rendering::raytracing::detail::ROWS<SPEC, OUTPUT>>(device, normals_host.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void save_flow_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
+        using OUTPUT = rendering::raytracing::outputs::Flow<>;
         static_assert(SPEC::HAS_FLOW, "save_flow_image requires a flow-capable renderer specification");
         std::vector<float> flow_host;
-        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, rendering::raytracing::outputs::Flow<>{}), flow_host);
-        rendering::raytracing::detail::write_flow_grid_png<SPEC>(device, flow_host.data(), filename);
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, OUTPUT{}), flow_host);
+        rendering::raytracing::detail::write_flow_grid_png<SPEC, rendering::raytracing::detail::ROWS<SPEC, OUTPUT>>(device, flow_host.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void save_flow_status_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
+        using OUTPUT = rendering::raytracing::outputs::FlowStatus<>;
         static_assert(SPEC::HAS_FLOW, "save_flow_status_image requires a flow-capable renderer specification");
         std::vector<uint32_t> status_host;
-        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, rendering::raytracing::outputs::FlowStatus<>{}), status_host);
-        rendering::raytracing::detail::write_flow_status_grid_png<SPEC>(device, status_host.data(), filename);
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, OUTPUT{}), status_host);
+        rendering::raytracing::detail::write_flow_status_grid_png<SPEC, rendering::raytracing::detail::ROWS<SPEC, OUTPUT>>(device, status_host.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void save_flow_forward_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
+        using OUTPUT = rendering::raytracing::outputs::Flow<rendering::raytracing::outputs::direction::Forward>;
         static_assert(SPEC::HAS_FLOW_FORWARD, "save_flow_forward_image requires a forward-flow renderer specification");
         std::vector<float> flow_host;
-        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, rendering::raytracing::outputs::Flow<rendering::raytracing::outputs::direction::Forward>{}), flow_host);
-        rendering::raytracing::detail::write_flow_grid_png<SPEC>(device, flow_host.data(), filename);
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, OUTPUT{}), flow_host);
+        rendering::raytracing::detail::write_flow_grid_png<SPEC, rendering::raytracing::detail::ROWS<SPEC, OUTPUT>>(device, flow_host.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void save_flow_forward_status_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
+        using OUTPUT = rendering::raytracing::outputs::FlowStatus<rendering::raytracing::outputs::direction::Forward>;
         static_assert(SPEC::HAS_FLOW_FORWARD, "save_flow_forward_status_image requires a forward-flow renderer specification");
         std::vector<uint32_t> status_host;
-        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, rendering::raytracing::outputs::FlowStatus<rendering::raytracing::outputs::direction::Forward>{}), status_host);
-        rendering::raytracing::detail::write_flow_status_grid_png<SPEC>(device, status_host.data(), filename);
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, OUTPUT{}), status_host);
+        rendering::raytracing::detail::write_flow_status_grid_png<SPEC, rendering::raytracing::detail::ROWS<SPEC, OUTPUT>>(device, status_host.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void save_depth_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
+        using OUTPUT = rendering::raytracing::outputs::Depth<>;
         static_assert(SPEC::HAS_DEPTH, "save_depth_image requires a depth-capable renderer specification");
         std::vector<float> depth_host;
-        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, rendering::raytracing::outputs::Depth<>{}), depth_host);
-        rendering::raytracing::detail::write_depth_grid_png<SPEC>(device, depth_host.data(), filename);
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, OUTPUT{}), depth_host);
+        rendering::raytracing::detail::write_depth_grid_png<SPEC, rendering::raytracing::detail::ROWS<SPEC, OUTPUT>>(device, depth_host.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void save_depth(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
+        using OUTPUT = rendering::raytracing::outputs::Depth<>;
         static_assert(SPEC::HAS_DEPTH, "save_depth requires a depth-capable renderer specification");
         std::vector<float> depth_host;
-        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, rendering::raytracing::outputs::Depth<>{}), depth_host);
-        rendering::raytracing::detail::write_depth_bin<SPEC>(device, depth_host.data(), filename);
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, OUTPUT{}), depth_host);
+        rendering::raytracing::detail::write_depth_bin<SPEC, rendering::raytracing::detail::ROWS<SPEC, OUTPUT>>(device, depth_host.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void save_probes(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
+        using OUTPUT = rendering::raytracing::outputs::Probes;
 
         std::vector<rendering::raytracing::CollisionResult> collision_results_host;
-        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, rendering::raytracing::outputs::Probes{}), collision_results_host);
-        rendering::raytracing::detail::write_probes_bin_and_log<SPEC>(device, collision_results_host.data(), filename);
+        rendering::raytracing::detail::save_staging(device, renderer, output(device, renderer, OUTPUT{}), collision_results_host);
+        rendering::raytracing::detail::write_probes_bin_and_log<SPEC, rendering::raytracing::detail::ROWS<SPEC, OUTPUT>>(device, collision_results_host.data(), filename);
 
     }
 }

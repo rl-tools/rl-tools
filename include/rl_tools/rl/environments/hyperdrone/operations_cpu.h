@@ -798,6 +798,24 @@ namespace rl_tools {
         }
     }
 
+    // launches the pending frame without reading it back: display consumers present the outputs
+    // from the renderer's device; image observations need the readback of render
+    template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
+    void render_launch(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input) {
+        static_assert(!rl::environments::hyperdrone::World<SPEC>::HAS_IMAGE_OBSERVATION, "image observations read the frame back: use render");
+        if(!world.render_pending){
+            return;
+        }
+        prepare_render_inputs(device, world, parameters, states, reset_mask_input);
+        reset_render_state(device, world, world.render_reset);
+        auto& renderer = get_renderer(device, world);
+        if constexpr (rl::environments::hyperdrone::World<SPEC>::RENDERER_CONFIG::NUM_OVERLAYS > 0){
+            update(device, renderer);
+        }
+        render_launch(device, renderer);
+        world.render_pending = false;
+    }
+
     template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
     void render(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input) {
         if(!world.render_pending){
@@ -1036,6 +1054,18 @@ namespace rl_tools {
             auto states_block = view_range(device, states, environment_i * M, tensor::ViewSpec<0, M>{});
             auto reset_block = view_range(device, reset_mask, environment_i * M, tensor::ViewSpec<0, M>{});
             render(device, env.environments[environment_i], parameters_block, states_block, reset_block);
+        }
+    }
+    template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
+    void render_launch(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask) {
+        using MULTI_ENVIRONMENT = rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>;
+        using TI = typename MEMBER::TI;
+        constexpr TI M = rl::environments::hyperdrone::instances_per_environment<MULTI_ENVIRONMENT, STATE_SPEC>();
+        for (TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++) {
+            auto parameters_block = view_range(device, parameters, environment_i * M, tensor::ViewSpec<0, M>{});
+            auto states_block = view_range(device, states, environment_i * M, tensor::ViewSpec<0, M>{});
+            auto reset_block = view_range(device, reset_mask, environment_i * M, tensor::ViewSpec<0, M>{});
+            render_launch(device, env.environments[environment_i], parameters_block, states_block, reset_block);
         }
     }
     template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS>

@@ -112,6 +112,9 @@ extern "C" void rl_tools_rendering_raytracing_generic_freestanding_check(){
     scene.cameras_previous = &camera;
     scene.probe_directions = probe_directions;
     scene.max_dist = 10;
+    static unsigned int camera_table[out::CAMERA_TABLE_STRIDE];
+    rlt::fill_camera_table<Spec>(device, camera_table);
+    scene.camera_table = camera_table;
 
     generic::render_frame<DEVICE, Spec>(device, scene, buffers);
     generic::render_frame<DEVICE, SpecBasic>(device, scene, buffers_basic);
@@ -120,6 +123,7 @@ extern "C" void rl_tools_rendering_raytracing_generic_freestanding_check(){
     generic::render_collision<DEVICE, Spec>(device, scene, buffers);
 
     static generic::SceneView<double, TI> scene_double;
+    scene_double.camera_table = camera_table;
     generic::render_auxiliary_frame<DEVICE, SpecDouble>(device, scene_double, buffers_double);
     generic::render_auxiliary_frame<DEVICE, SpecDouble, true>(device, scene_double, buffers_double);
 }

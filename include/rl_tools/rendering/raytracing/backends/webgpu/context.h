@@ -9,6 +9,9 @@
 #include "../generic/operations_generic.h"
 
 #include <webgpu/webgpu.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten/promise.h>
+#endif
 
 #include <vector>
 #include <cstdint>
@@ -38,6 +41,9 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         constexpr uint32_t OUTPUTS = 7;         // frame buffer, depth, segmentation, normals, flow, observation, collision results
         constexpr uint32_t COUNT = 8;
         constexpr uint32_t STORAGE_COUNT = 8;
+        // the present pipeline's own layout: the OUTPUTS arena read-only and the presented section
+        constexpr uint32_t PRESENTED = 8;
+        constexpr uint32_t PRESENTATION = 9;
     }
     // must match the @workgroup_size of every entry point in device.wgsl
     constexpr uint32_t WORKGROUP_SIZE_X = 8;
@@ -86,11 +92,12 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         uint32_t probe_directions_offset;
         uint32_t cameras_offset;         // shutter-close cameras, then the shutter-open set for camera-pair specs
         uint32_t cameras_previous_offset; // flow: the previous instant's camera set
+        uint32_t camera_table_offset;
         uint32_t output_offsets[(uint32_t)outputs::Slot::COUNT];
         float output_scales[(uint32_t)outputs::Slot::COUNT];
     };
     static_assert((uint32_t)outputs::Slot::COUNT == 19, "device.wgsl declares output_offsets and output_scales as array<_, 19> and the OUTPUT_* slot constants: update both with outputs::Slot");
-    static_assert(sizeof(LaunchParams) == 304, "LaunchParams layout must match the WGSL declaration in device.wgsl");
+    static_assert(sizeof(LaunchParams) == 308, "LaunchParams layout must match the WGSL declaration in device.wgsl");
 
     struct TextureRef{
         uint32_t offset; // texel index into TEXTURE_DATA, ABSENT = no texture
@@ -154,7 +161,8 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         static constexpr uint32_t OVERLAY_PRIMITIVES_OFFSET = OVERLAY_META_OFFSET + OVERLAY_META_WORDS;
         static constexpr uint32_t FLOW_DELTAS_OFFSET = OVERLAY_PRIMITIVES_OFFSET + OVERLAY_PRIMITIVES_WORDS;
         static constexpr uint32_t PROBE_DIRECTIONS_OFFSET = FLOW_DELTAS_OFFSET + FLOW_DELTAS_WORDS;
-        static constexpr uint32_t FRAME_INPUTS_WORDS = PROBE_DIRECTIONS_OFFSET + PROBE_DIRECTIONS_WORDS;
+        static constexpr uint32_t CAMERA_TABLE_OFFSET = PROBE_DIRECTIONS_OFFSET + PROBE_DIRECTIONS_WORDS;
+        static constexpr uint32_t FRAME_INPUTS_WORDS = CAMERA_TABLE_OFFSET + (uint32_t)SPEC::NUM_CAMERAS * outputs::CAMERA_TABLE_STRIDE;
 
         static constexpr uint32_t OUTPUTS_WORDS = outputs::Layout<SPEC>::WORDS;
     };
@@ -179,6 +187,23 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         std::vector<ReadbackTarget> targets;
     };
 
+    // an asynchronous queue operation (buffer map, submitted work); the browser build awaits its
+    // promise, the native build polls the device
+    struct Completion{
+#ifdef __EMSCRIPTEN__
+        em_promise_t promise = nullptr;
+#endif
+        bool done = true;
+        bool success = false;
+    };
+
+    // a browser canvas showing one RGBA8 output section straight from the OUTPUTS arena (no readback)
+    struct Canvas{
+        WGPUSurface surface = nullptr;
+        BufferResource presentation; // {u32 offset into OUTPUTS, u32 row width}
+        WGPUBindGroup bind_group = nullptr;
+    };
+
     struct Context{
         WGPUInstance instance = nullptr;
         WGPUAdapter adapter = nullptr;
@@ -195,6 +220,10 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         WGPUComputePipeline collision_pipeline = nullptr;
         WGPUComputePipeline flow_forward_pipeline = nullptr;
         WGPUBindGroup bind_group = nullptr; // recreated per init (scene buffers change)
+        WGPUBindGroupLayout present_bind_group_layout = nullptr; // created with the first canvas, whose format the pipeline targets
+        WGPUPipelineLayout present_pipeline_layout = nullptr;
+        WGPURenderPipeline present_pipeline = nullptr;
+        WGPUTextureFormat present_format = WGPUTextureFormat_Undefined;
 
         BufferResource launch_params;
         BufferResource scene_geometry;
@@ -208,6 +237,7 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         Readback render_readback;
         Readback probe_readback;
         std::vector<float> flow_deltas_host; // flow: [2][slots][12], composed by update() and written into FRAME_INPUTS
+        std::vector<uint32_t> camera_table;  // outputs::fill_camera_table, mirrored into FRAME_INPUTS
 
         // scene-dependent arena offsets mirrored from LaunchParams for the per-update writes
         uint32_t instance_classes_offset = 0;
@@ -232,6 +262,9 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         uint32_t num_scene_instances = 0;
         uint32_t total_instances = 0;
 
+        // the last launch's GPU work: the next launch waits for it, so consumers that never read
+        // back (display) keep one frame in flight instead of queueing without bound
+        Completion launch_done;
         bool render_in_flight = false;
         bool collision_in_flight = false;
         bool pipelines_built = false;

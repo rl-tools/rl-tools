@@ -57,6 +57,7 @@ layout(std430, set = 0, binding = 0) readonly buffer LaunchParamsBuffer{
 } params;
 
 layout(std430, set = 0, binding = 3) writeonly buffer OutputsBuffer{ uint outputs[]; };
+layout(std430, set = 0, binding = 19) readonly buffer CameraTableBuffer{ uint camera_table[]; };
 
 const uint OUTPUT_RGB_RGBA8 = 0u;
 const uint OUTPUT_RGB_FLOAT32 = 1u;
@@ -236,7 +237,7 @@ struct SceneLight{
 };
 
 layout(std430, set = 0, binding = 5) readonly buffer SceneLightsBuffer{ SceneLight scene_lights[]; };
-layout(set = 0, binding = 19) uniform sampler2D scene_textures[];
+layout(set = 0, binding = 20) uniform sampler2D scene_textures[];
 
 // normals transform with the inverse-transpose: multiply by the world_to_object columns
 vec3 transform_normal_to_world(int instance, vec3 n){
@@ -319,12 +320,25 @@ Hit intersect_composed(int camera, vec3 origin, vec3 direction, float tmin, floa
     return best;
 }
 
+// per-camera work gates over the camera table's output-slot masks (outputs.h)
+const uint RGB_SLOTS = 0x3u;
+const uint DEPTH_SLOTS = 0xCu;
+const uint SEGMENTATION_SLOTS = 0xF0u;
+const uint NORMALS_SLOTS = 0x300u;
+const uint FLOW_BACKWARD_SLOTS = 0x3C00u;
+const uint FLOW_BACKWARD_VISIBILITY_SLOTS = 0x3800u;
+const uint FLOW_FORWARD_SLOTS = 0x3C000u;
+const uint FLOW_FORWARD_VISIBILITY_SLOTS = 0x38000u;
+const uint CAMERA_TABLE_STRIDE = 20u;
+const uint NO_ROW = 0xFFFFFFFFu;
+
 struct PixelLaunchContext{
     int cam_idx;
     int local_x;
     int local_y;
-    int fb_offset;
-    bool valid;
+    int fb_offset; // frame-buffer order, for the internal motion-blur accumulator
+    uint pixel;    // within the camera
+    uint outputs;  // the camera's output-slot mask; zero outside the grid
 };
 
 PixelLaunchContext pixel_launch_context(uvec2 pixel_id){
@@ -335,8 +349,19 @@ PixelLaunchContext pixel_launch_context(uvec2 pixel_id){
     ctx.local_x = int(pixel_id.x) - tile_col * int(params.cam_width);
     ctx.local_y = int(pixel_id.y) - tile_row * int(params.cam_height);
     ctx.fb_offset = ctx.cam_idx * int(params.cam_width) * int(params.cam_height) + ctx.local_y * int(params.cam_width) + ctx.local_x;
-    ctx.valid = pixel_id.x < params.fb_width && pixel_id.y < params.fb_height && ctx.cam_idx < int(params.num_cameras);
+    ctx.pixel = uint(ctx.local_y * int(params.cam_width) + ctx.local_x);
+    const bool valid = pixel_id.x < params.fb_width && pixel_id.y < params.fb_height && ctx.cam_idx < int(params.num_cameras);
+    ctx.outputs = valid ? camera_table[uint(ctx.cam_idx) * CAMERA_TABLE_STRIDE] : 0u;
     return ctx;
+}
+
+bool output_selected(PixelLaunchContext ctx, uint slot){
+    return output_enabled(slot) && (ctx.outputs & (1u << slot)) != 0u;
+}
+
+// element index of the pixel in an output: the camera's row, then the pixel within it
+uint output_element(PixelLaunchContext ctx, uint slot){
+    return camera_table[uint(ctx.cam_idx) * CAMERA_TABLE_STRIDE + 1u + slot] * params.cam_width * params.cam_height + ctx.pixel;
 }
 
 #if defined(ENTRY_RGB) || defined(ENTRY_RESOLVE)
@@ -711,7 +736,7 @@ vec3 trace_primary(int camera, vec3 origin, vec3 direction, float tmin, float tm
 void main(){
     const uvec2 pixel_id = gl_GlobalInvocationID.xy;
     const PixelLaunchContext ctx = pixel_launch_context(pixel_id);
-    if(!ctx.valid){
+    if((ctx.outputs & RGB_SLOTS) == 0u){
         return;
     }
 
@@ -757,24 +782,22 @@ void main(){
         rgb_accumulation[ctx.fb_offset * 3 + 2] += color.z;
         return;
     }
-    if(output_enabled(OUTPUT_RGB_FLOAT32)){
+    if(output_selected(ctx, OUTPUT_RGB_FLOAT32)){
         // the observation is the frame-buffer color before 8-bit quantization
         vec3 obs_color = clamp(color, 0.0, 1.0);
         if(fc_srgb_output){
             obs_color = vec3(linear_to_srgb(obs_color.x), linear_to_srgb(obs_color.y), linear_to_srgb(obs_color.z));
         }
-        outputs[params.output_offsets[OUTPUT_RGB_FLOAT32] + ctx.fb_offset * 3 + 0] = floatBitsToUint(obs_color.x);
-        outputs[params.output_offsets[OUTPUT_RGB_FLOAT32] + ctx.fb_offset * 3 + 1] = floatBitsToUint(obs_color.y);
-        outputs[params.output_offsets[OUTPUT_RGB_FLOAT32] + ctx.fb_offset * 3 + 2] = floatBitsToUint(obs_color.z);
+        outputs[params.output_offsets[OUTPUT_RGB_FLOAT32] + output_element(ctx, OUTPUT_RGB_FLOAT32) * 3 + 0] = floatBitsToUint(obs_color.x);
+        outputs[params.output_offsets[OUTPUT_RGB_FLOAT32] + output_element(ctx, OUTPUT_RGB_FLOAT32) * 3 + 1] = floatBitsToUint(obs_color.y);
+        outputs[params.output_offsets[OUTPUT_RGB_FLOAT32] + output_element(ctx, OUTPUT_RGB_FLOAT32) * 3 + 2] = floatBitsToUint(obs_color.z);
     }
-    if(output_enabled(OUTPUT_RGB_RGBA8)){
-        if(output_enabled(OUTPUT_RGB_RGBA8)){
-            if(fc_srgb_output){
-                outputs[params.output_offsets[OUTPUT_RGB_RGBA8] + ctx.fb_offset] = make_srgb_rgba_from_linear(color);
-            }
-            else{
-                outputs[params.output_offsets[OUTPUT_RGB_RGBA8] + ctx.fb_offset] = make_linear_rgba_from_linear(color);
-            }
+    if(output_selected(ctx, OUTPUT_RGB_RGBA8)){
+        if(fc_srgb_output){
+            outputs[params.output_offsets[OUTPUT_RGB_RGBA8] + output_element(ctx, OUTPUT_RGB_RGBA8)] = make_srgb_rgba_from_linear(color);
+        }
+        else{
+            outputs[params.output_offsets[OUTPUT_RGB_RGBA8] + output_element(ctx, OUTPUT_RGB_RGBA8)] = make_linear_rgba_from_linear(color);
         }
     }
 }
@@ -783,7 +806,7 @@ void main(){
 #if defined(ENTRY_DEPTH)
 void main(){
     const PixelLaunchContext ctx = pixel_launch_context(gl_GlobalInvocationID.xy);
-    if(!ctx.valid){
+    if((ctx.outputs & DEPTH_SLOTS) == 0u){
         return;
     }
     Camera cam = cameras_close[ctx.cam_idx];
@@ -792,11 +815,11 @@ void main(){
     const vec3 normal = normalize(cross(camera_dir_du(cam), camera_dir_dv(cam)));
     const Hit hit = intersect_composed(ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30, false);
     const float depth = hit.valid ? hit.t * abs(dot(direction, normal)) : uintBitsToFloat(0x7f800000u);
-    if(output_enabled(OUTPUT_DEPTH_FLOAT32)){
-        outputs[params.output_offsets[OUTPUT_DEPTH_FLOAT32] + ctx.fb_offset] = floatBitsToUint(depth);
+    if(output_selected(ctx, OUTPUT_DEPTH_FLOAT32)){
+        outputs[params.output_offsets[OUTPUT_DEPTH_FLOAT32] + output_element(ctx, OUTPUT_DEPTH_FLOAT32)] = floatBitsToUint(depth);
     }
-    if(output_enabled(OUTPUT_DEPTH_RGBA8)){
-        outputs[params.output_offsets[OUTPUT_DEPTH_RGBA8] + ctx.fb_offset] = depth_to_rgba(depth, params.output_scales[OUTPUT_DEPTH_RGBA8]);
+    if(output_selected(ctx, OUTPUT_DEPTH_RGBA8)){
+        outputs[params.output_offsets[OUTPUT_DEPTH_RGBA8] + output_element(ctx, OUTPUT_DEPTH_RGBA8)] = depth_to_rgba(depth, params.output_scales[OUTPUT_DEPTH_RGBA8]);
     }
 }
 #endif
@@ -807,7 +830,7 @@ void main(){
 void main(){
     const uvec2 pixel_id = gl_GlobalInvocationID.xy;
     const PixelLaunchContext ctx = pixel_launch_context(pixel_id);
-    if(!ctx.valid){
+    if((ctx.outputs & RGB_SLOTS) == 0u){
         return;
     }
     const float inv_samples = 1.0 / float(fc_motion_samples);
@@ -816,21 +839,21 @@ void main(){
             rgb_accumulation[ctx.fb_offset * 3 + 0],
             rgb_accumulation[ctx.fb_offset * 3 + 1],
             rgb_accumulation[ctx.fb_offset * 3 + 2]) * inv_samples;
-        if(output_enabled(OUTPUT_RGB_FLOAT32)){
+        if(output_selected(ctx, OUTPUT_RGB_FLOAT32)){
             vec3 obs_color = clamp(color, 0.0, 1.0);
             if(fc_srgb_output){
                 obs_color = vec3(linear_to_srgb(obs_color.x), linear_to_srgb(obs_color.y), linear_to_srgb(obs_color.z));
             }
-            outputs[params.output_offsets[OUTPUT_RGB_FLOAT32] + ctx.fb_offset * 3 + 0] = floatBitsToUint(obs_color.x);
-            outputs[params.output_offsets[OUTPUT_RGB_FLOAT32] + ctx.fb_offset * 3 + 1] = floatBitsToUint(obs_color.y);
-            outputs[params.output_offsets[OUTPUT_RGB_FLOAT32] + ctx.fb_offset * 3 + 2] = floatBitsToUint(obs_color.z);
+            outputs[params.output_offsets[OUTPUT_RGB_FLOAT32] + output_element(ctx, OUTPUT_RGB_FLOAT32) * 3 + 0] = floatBitsToUint(obs_color.x);
+            outputs[params.output_offsets[OUTPUT_RGB_FLOAT32] + output_element(ctx, OUTPUT_RGB_FLOAT32) * 3 + 1] = floatBitsToUint(obs_color.y);
+            outputs[params.output_offsets[OUTPUT_RGB_FLOAT32] + output_element(ctx, OUTPUT_RGB_FLOAT32) * 3 + 2] = floatBitsToUint(obs_color.z);
         }
-        if(output_enabled(OUTPUT_RGB_RGBA8)){
+        if(output_selected(ctx, OUTPUT_RGB_RGBA8)){
             if(fc_srgb_output){
-                outputs[params.output_offsets[OUTPUT_RGB_RGBA8] + ctx.fb_offset] = make_srgb_rgba_from_linear(color);
+                outputs[params.output_offsets[OUTPUT_RGB_RGBA8] + output_element(ctx, OUTPUT_RGB_RGBA8)] = make_srgb_rgba_from_linear(color);
             }
             else{
-                outputs[params.output_offsets[OUTPUT_RGB_RGBA8] + ctx.fb_offset] = make_linear_rgba_from_linear(color);
+                outputs[params.output_offsets[OUTPUT_RGB_RGBA8] + output_element(ctx, OUTPUT_RGB_RGBA8)] = make_linear_rgba_from_linear(color);
             }
         }
     }
@@ -843,6 +866,10 @@ void main(){
     const int probe_idx = int(gl_GlobalInvocationID.y);
 
     if(cam_idx >= int(params.num_cameras) || probe_idx >= int(params.num_probes)){
+        return;
+    }
+    const uint row = camera_table[uint(cam_idx) * CAMERA_TABLE_STRIDE + 1u + OUTPUT_PROBES];
+    if(row == NO_ROW){
         return;
     }
 
@@ -871,7 +898,7 @@ void main(){
         result.distance = hit.t;
         result.hit = 1;
     }
-    const uint offset = params.output_offsets[OUTPUT_PROBES] + 2u * uint(cam_idx * int(params.num_probes) + probe_idx);
+    const uint offset = params.output_offsets[OUTPUT_PROBES] + 2u * (row * params.num_probes + uint(probe_idx));
     outputs[offset] = floatBitsToUint(result.distance);
     outputs[offset + 1u] = uint(result.hit);
 }
@@ -883,7 +910,7 @@ void main(){
 void main(){
     const uvec2 pixel_id = gl_GlobalInvocationID.xy;
     const PixelLaunchContext ctx = pixel_launch_context(pixel_id);
-    if(!ctx.valid){
+    if((ctx.outputs & SEGMENTATION_SLOTS) == 0u){
         return;
     }
     Camera cam = cameras_close[ctx.cam_idx];
@@ -891,19 +918,19 @@ void main(){
     const vec3 direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
     Hit hit = intersect_composed(ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30, false);
     const uint instance = hit.valid ? uint(hit.instance_id) : 0xFFFFFFFFu;
-    if(output_enabled(OUTPUT_SEGMENTATION_UINT32)){
-        outputs[params.output_offsets[OUTPUT_SEGMENTATION_UINT32] + ctx.fb_offset] = instance;
+    if(output_selected(ctx, OUTPUT_SEGMENTATION_UINT32)){
+        outputs[params.output_offsets[OUTPUT_SEGMENTATION_UINT32] + output_element(ctx, OUTPUT_SEGMENTATION_UINT32)] = instance;
     }
-    if(output_enabled(OUTPUT_SEGMENTATION_RGBA8)){
-        outputs[params.output_offsets[OUTPUT_SEGMENTATION_RGBA8] + ctx.fb_offset] = segmentation_id_to_rgba(instance);
+    if(output_selected(ctx, OUTPUT_SEGMENTATION_RGBA8)){
+        outputs[params.output_offsets[OUTPUT_SEGMENTATION_RGBA8] + output_element(ctx, OUTPUT_SEGMENTATION_RGBA8)] = segmentation_id_to_rgba(instance);
     }
-    if(output_enabled(OUTPUT_SEMANTIC_UINT32) || output_enabled(OUTPUT_SEMANTIC_RGBA8)){
+    if(output_selected(ctx, OUTPUT_SEMANTIC_UINT32) || output_selected(ctx, OUTPUT_SEMANTIC_RGBA8)){
         const uint semantic = hit.valid ? instance_classes[uint(hit.instance_id)] : 0xFFFFFFFFu;
-        if(output_enabled(OUTPUT_SEMANTIC_UINT32)){
-            outputs[params.output_offsets[OUTPUT_SEMANTIC_UINT32] + ctx.fb_offset] = semantic;
+        if(output_selected(ctx, OUTPUT_SEMANTIC_UINT32)){
+            outputs[params.output_offsets[OUTPUT_SEMANTIC_UINT32] + output_element(ctx, OUTPUT_SEMANTIC_UINT32)] = semantic;
         }
-        if(output_enabled(OUTPUT_SEMANTIC_RGBA8)){
-            outputs[params.output_offsets[OUTPUT_SEMANTIC_RGBA8] + ctx.fb_offset] = segmentation_id_to_rgba(semantic);
+        if(output_selected(ctx, OUTPUT_SEMANTIC_RGBA8)){
+            outputs[params.output_offsets[OUTPUT_SEMANTIC_RGBA8] + output_element(ctx, OUTPUT_SEMANTIC_RGBA8)] = segmentation_id_to_rgba(semantic);
         }
     }
 }
@@ -916,7 +943,7 @@ void main(){
 void main(){
     const uvec2 pixel_id = gl_GlobalInvocationID.xy;
     const PixelLaunchContext ctx = pixel_launch_context(pixel_id);
-    if(!ctx.valid){
+    if((ctx.outputs & NORMALS_SLOTS) == 0u){
         return;
     }
     Camera cam = cameras_close[ctx.cam_idx];
@@ -940,13 +967,13 @@ void main(){
             normal = -normal;
         }
     }
-    if(output_enabled(OUTPUT_NORMALS_FLOAT32)){
-        outputs[params.output_offsets[OUTPUT_NORMALS_FLOAT32] + ctx.fb_offset * 3] = floatBitsToUint(normal.x);
-        outputs[params.output_offsets[OUTPUT_NORMALS_FLOAT32] + ctx.fb_offset * 3 + 1] = floatBitsToUint(normal.y);
-        outputs[params.output_offsets[OUTPUT_NORMALS_FLOAT32] + ctx.fb_offset * 3 + 2] = floatBitsToUint(normal.z);
+    if(output_selected(ctx, OUTPUT_NORMALS_FLOAT32)){
+        outputs[params.output_offsets[OUTPUT_NORMALS_FLOAT32] + output_element(ctx, OUTPUT_NORMALS_FLOAT32) * 3] = floatBitsToUint(normal.x);
+        outputs[params.output_offsets[OUTPUT_NORMALS_FLOAT32] + output_element(ctx, OUTPUT_NORMALS_FLOAT32) * 3 + 1] = floatBitsToUint(normal.y);
+        outputs[params.output_offsets[OUTPUT_NORMALS_FLOAT32] + output_element(ctx, OUTPUT_NORMALS_FLOAT32) * 3 + 2] = floatBitsToUint(normal.z);
     }
-    if(output_enabled(OUTPUT_NORMALS_RGBA8)){
-        outputs[params.output_offsets[OUTPUT_NORMALS_RGBA8] + ctx.fb_offset] = normal_to_rgba(normal);
+    if(output_selected(ctx, OUTPUT_NORMALS_RGBA8)){
+        outputs[params.output_offsets[OUTPUT_NORMALS_RGBA8] + output_element(ctx, OUTPUT_NORMALS_RGBA8)] = normal_to_rgba(normal);
     }
 }
 #endif
@@ -1030,7 +1057,7 @@ bool project_camera(Camera cam, vec3 point, out float screen_x, out float screen
 void main(){
     const uvec2 pixel_id = gl_GlobalInvocationID.xy;
     const PixelLaunchContext ctx = pixel_launch_context(pixel_id);
-    if(!ctx.valid){
+    if((ctx.outputs & (SOURCE_PREVIOUS ? FLOW_FORWARD_SLOTS : FLOW_BACKWARD_SLOTS)) == 0u){
         return;
     }
     Camera cam = SOURCE_PREVIOUS ? cameras_previous[ctx.cam_idx] : cameras_close[ctx.cam_idx];
@@ -1058,7 +1085,7 @@ void main(){
             if(target_x < 0.0 || target_x >= 1.0 || target_y < 0.0 || target_y >= 1.0){
                 status = FLOW_STATUS_OUT_OF_FRAME;
             }
-            else if((fc_output_mask & (7u << (SOURCE_PREVIOUS ? OUTPUT_FLOW_FORWARD_RGBA8 : OUTPUT_FLOW_RGBA8))) != 0u){
+            else if((ctx.outputs & (SOURCE_PREVIOUS ? FLOW_FORWARD_VISIBILITY_SLOTS : FLOW_BACKWARD_VISIBILITY_SLOTS)) != 0u){
                 const vec3 to_point = point - camera_pos(cam_target);
                 const float len = length(to_point);
                 const vec3 visibility_direction = to_point * (1.0 / len);
@@ -1071,18 +1098,18 @@ void main(){
     const uint color_slot = SOURCE_PREVIOUS ? OUTPUT_FLOW_FORWARD_RGBA8 : OUTPUT_FLOW_RGBA8;
     const uint status_slot = SOURCE_PREVIOUS ? OUTPUT_FLOW_FORWARD_STATUS_UINT32 : OUTPUT_FLOW_STATUS_UINT32;
     const uint status_color_slot = SOURCE_PREVIOUS ? OUTPUT_FLOW_FORWARD_STATUS_RGBA8 : OUTPUT_FLOW_STATUS_RGBA8;
-    if(output_enabled(flow_slot)){
-        outputs[params.output_offsets[flow_slot] + ctx.fb_offset * 2] = floatBitsToUint(flow.x);
-        outputs[params.output_offsets[flow_slot] + ctx.fb_offset * 2 + 1] = floatBitsToUint(flow.y);
+    if(output_selected(ctx, flow_slot)){
+        outputs[params.output_offsets[flow_slot] + output_element(ctx, flow_slot) * 2] = floatBitsToUint(flow.x);
+        outputs[params.output_offsets[flow_slot] + output_element(ctx, flow_slot) * 2 + 1] = floatBitsToUint(flow.y);
     }
-    if(output_enabled(color_slot)){
-        outputs[params.output_offsets[color_slot] + ctx.fb_offset] = status == FLOW_STATUS_VALID ? flow_to_rgba(flow, params.output_scales[color_slot]) : flow_status_to_rgba(status);
+    if(output_selected(ctx, color_slot)){
+        outputs[params.output_offsets[color_slot] + output_element(ctx, color_slot)] = status == FLOW_STATUS_VALID ? flow_to_rgba(flow, params.output_scales[color_slot]) : flow_status_to_rgba(status);
     }
-    if(output_enabled(status_slot)){
-        outputs[params.output_offsets[status_slot] + ctx.fb_offset] = status;
+    if(output_selected(ctx, status_slot)){
+        outputs[params.output_offsets[status_slot] + output_element(ctx, status_slot)] = status;
     }
-    if(output_enabled(status_color_slot)){
-        outputs[params.output_offsets[status_color_slot] + ctx.fb_offset] = flow_status_to_rgba(status);
+    if(output_selected(ctx, status_color_slot)){
+        outputs[params.output_offsets[status_color_slot] + output_element(ctx, status_color_slot)] = flow_status_to_rgba(status);
     }
 }
 #endif

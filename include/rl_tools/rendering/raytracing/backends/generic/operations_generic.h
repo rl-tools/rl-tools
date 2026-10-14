@@ -135,6 +135,7 @@ namespace rl_tools {
             TI first_overlay_instance = 0;   // global instance ids >= this index the flow-delta table
             TI num_overlay_slots = 0;        // NUM_OVERLAYS * MAX_OVERLAY_INSTANCES: delta slab stride and the previous-instant id shift
             const unsigned int* instance_classes = nullptr; // indexed by global instance id
+            const unsigned int* camera_table = nullptr;     // outputs::fill_camera_table
             float* rgb_accumulation = nullptr;   // 3 per pixel, linear radiance summed across dynamic-motion-blur passes
         };
 
@@ -948,7 +949,8 @@ namespace rl_tools {
                     }
                     else{
                         status = FlowStatus::VALID;
-                        if constexpr (FORWARD ? SPEC::PLAN::HAS_FLOW_FORWARD_STATUS : SPEC::PLAN::HAS_FLOW_BACKWARD_STATUS) {
+                        const unsigned int visibility_slots = FORWARD ? outputs::FLOW_FORWARD_VISIBILITY_SLOTS : outputs::FLOW_BACKWARD_VISIBILITY_SLOTS;
+                        if((scene.camera_table[camera_i * outputs::CAMERA_TABLE_STRIDE] & visibility_slots) != 0) {
                             const Vec3<T> to_point = point - target_pos;
                             const T length = math::sqrt(math_device, dot(to_point, to_point));
                             const Vec3<T> visibility_direction = to_point * ((T)1 / length);
@@ -969,7 +971,16 @@ namespace rl_tools {
         RL_TOOLS_FUNCTION_PLACEMENT void write_auxiliary(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene, outputs::Buffers<SPEC, typename SPEC::OUTPUTS>& buffers, typename SPEC::TI camera_i, typename SPEC::TI x, typename SPEC::TI y, Vec3<typename SPEC::T> pos, Vec3<typename SPEC::T> direction, const Hit<typename SPEC::T, typename SPEC::TI>& hit) {
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
-            const TI offset = camera_i * SPEC::CAM_PIXELS + y * SPEC::CAM_WIDTH + x;
+            const TI pixel = y * SPEC::CAM_WIDTH + x;
+            const unsigned int camera_outputs = scene.camera_table[camera_i * outputs::CAMERA_TABLE_STRIDE];
+            if constexpr (SPEC::HAS_FLOW_BACKWARD) {
+                if((camera_outputs & outputs::FLOW_BACKWARD_SLOTS) != 0) {
+                    write_outputs(device, buffers, scene.camera_table, camera_i, pixel, flow_sample<DEVICE, SPEC, false>(device, scene, camera_i, x, y, pos, direction, hit));
+                }
+            }
+            if((camera_outputs & outputs::SURFACE_SLOTS) == 0) {
+                return;
+            }
             outputs::Sample<outputs::Source::Surface> sample;
             if constexpr (SPEC::HAS_DEPTH) {
                 const auto& cam = scene.cameras_close[camera_i];
@@ -989,7 +1000,7 @@ namespace rl_tools {
             }
             if constexpr (SPEC::HAS_NORMALS) {
                 Vec3<T> normal = {0, 0, 0};
-                if(hit.valid) {
+                if(hit.valid && (camera_outputs & (outputs::bit(outputs::Slot::NORMALS_FLOAT32) | outputs::bit(outputs::Slot::NORMALS_RGBA8))) != 0) {
                     Vec3<T> vertex_a, vertex_b, vertex_c;
                     triangle_vertices(scene, hit.triangle, vertex_a, vertex_b, vertex_c);
                     const InstanceView<T, TI>& instance = scene.instances[hit.instance];
@@ -1007,10 +1018,7 @@ namespace rl_tools {
                 sample.values[1] = (float)normal.y;
                 sample.values[2] = (float)normal.z;
             }
-            write_outputs(device, buffers, offset, sample);
-            if constexpr (SPEC::HAS_FLOW_BACKWARD) {
-                write_outputs(device, buffers, offset, flow_sample<DEVICE, SPEC, false>(device, scene, camera_i, x, y, pos, direction, hit));
-            }
+            write_outputs(device, buffers, scene.camera_table, camera_i, pixel, sample);
         }
         template <typename DEVICE, typename SPEC, bool FORWARD = false>
         RL_TOOLS_FUNCTION_PLACEMENT void render_auxiliary_frame(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene, outputs::Buffers<SPEC, typename SPEC::OUTPUTS>& buffers) {
@@ -1019,6 +1027,9 @@ namespace rl_tools {
             const auto* cameras = FORWARD ? scene.cameras_previous : scene.cameras_close;
             const auto* overlays = FORWARD ? scene.overlays_previous : scene.overlays;
             for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
+                if((scene.camera_table[camera_i * outputs::CAMERA_TABLE_STRIDE] & (FORWARD ? outputs::FLOW_FORWARD_SLOTS : outputs::SURFACE_SLOTS | outputs::FLOW_BACKWARD_SLOTS)) == 0) {
+                    continue;
+                }
                 const auto& cam = cameras[camera_i];
                 const Vec3<T> pos = to_vec3(cam.pos);
                 for(TI y = 0; y < SPEC::CAM_HEIGHT; y++) {
@@ -1028,8 +1039,7 @@ namespace rl_tools {
                         const Vec3<T> direction = normalize(device.math, to_vec3(cam.dir_00) + screen_x * to_vec3(cam.dir_du) + screen_y * to_vec3(cam.dir_dv));
                         const auto hit = trace_closest_composed<SPEC>(scene, overlays, camera_i, pos, direction, (T)0, (T)1e30);
                         if constexpr (FORWARD) {
-                            const TI offset = camera_i * SPEC::CAM_PIXELS + y * SPEC::CAM_WIDTH + x;
-                            write_outputs(device, buffers, offset, flow_sample<DEVICE, SPEC, true>(device, scene, camera_i, x, y, pos, direction, hit));
+                            write_outputs(device, buffers, scene.camera_table, camera_i, y * SPEC::CAM_WIDTH + x, flow_sample<DEVICE, SPEC, true>(device, scene, camera_i, x, y, pos, direction, hit));
                         }
                         else {
                             write_auxiliary<DEVICE, SPEC>(device, scene, buffers, camera_i, x, y, pos, direction, hit);
@@ -1039,7 +1049,7 @@ namespace rl_tools {
             }
         }
         template <typename DEVICE, typename SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT void write_rgb(DEVICE& device, outputs::Buffers<SPEC, typename SPEC::OUTPUTS>& buffers, typename SPEC::TI pixel, Vec3<typename SPEC::T> color) {
+        RL_TOOLS_FUNCTION_PLACEMENT void write_rgb(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene, outputs::Buffers<SPEC, typename SPEC::OUTPUTS>& buffers, typename SPEC::TI camera_i, typename SPEC::TI pixel, Vec3<typename SPEC::T> color) {
             outputs::Sample<outputs::Source::RGB> sample;
             const float values[3] = {(float)color.x, (float)color.y, (float)color.z};
             for(unsigned int channel = 0; channel < 3; channel++) {
@@ -1051,7 +1061,7 @@ namespace rl_tools {
                     sample.values[channel] = clamped;
                 }
             }
-            write_outputs(device, buffers, pixel, sample);
+            write_outputs(device, buffers, scene.camera_table, camera_i, pixel, sample);
         }
 
         template <typename DEVICE, typename SPEC>
@@ -1063,13 +1073,18 @@ namespace rl_tools {
             constexpr TI AA_GRID = SPEC::ENABLE_ANTI_ALIASING ? SPEC::ANTI_ALIASING_GRID_SIZE : 1;
             const T inv_aa_grid = (T)1 / (T)AA_GRID;
             for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
+                const unsigned int camera_outputs = scene.camera_table[camera_i * outputs::CAMERA_TABLE_STRIDE];
+                const bool rgb = (camera_outputs & outputs::RGB_SLOTS) != 0;
+                const bool fused_auxiliary = SPEC::FUSE_AUXILIARY && (camera_outputs & (outputs::SURFACE_SLOTS | outputs::FLOW_BACKWARD_SLOTS)) != 0;
+                if(!rgb && !fused_auxiliary){
+                    continue;
+                }
                 const TI tile_x = (camera_i % SPEC::GRID_COLS) * SPEC::CAM_WIDTH;
                 const TI tile_y = (camera_i / SPEC::GRID_COLS) * SPEC::CAM_HEIGHT;
                 for(TI y = 0; y < SPEC::CAM_HEIGHT; y++){
                     for(TI x = 0; x < SPEC::CAM_WIDTH; x++){
                         const TI pixel_x = tile_x + x;
                         const TI pixel_y = tile_y + y;
-                        const TI fb_offset = camera_i * SPEC::CAM_PIXELS + y * SPEC::CAM_WIDTH + x;
                         Vec3<T> accumulated_rgb = {0, 0, 0};
                         for(TI motion_i = 0; motion_i < MOTION_SAMPLES; motion_i++){
                             Vec3<T> pos, dir_00, dir_du, dir_dv;
@@ -1096,18 +1111,27 @@ namespace rl_tools {
                                     const Vec3<T> direction = normalize(math_device, dir_00 + screen_x * dir_du + screen_y * dir_dv);
                                     if constexpr (SPEC::FUSE_AUXILIARY) {
                                         Hit<T, TI> hit;
-                                        accumulated_rgb = accumulated_rgb + trace_rgb<DEVICE, SPEC, 0>(device, scene, pixel_x, pixel_y, pos, direction, (T)0, (T)1e30, &hit);
-                                        write_auxiliary<DEVICE, SPEC>(device, scene, buffers, camera_i, x, y, pos, direction, hit);
+                                        if(rgb){
+                                            accumulated_rgb = accumulated_rgb + trace_rgb<DEVICE, SPEC, 0>(device, scene, pixel_x, pixel_y, pos, direction, (T)0, (T)1e30, &hit);
+                                        }
+                                        else{
+                                            hit = trace_closest_composed<SPEC>(scene, camera_i, pos, direction, (T)0, (T)1e30);
+                                        }
+                                        if(fused_auxiliary){
+                                            write_auxiliary<DEVICE, SPEC>(device, scene, buffers, camera_i, x, y, pos, direction, hit);
+                                        }
                                     }
                                     else {
-                                    accumulated_rgb = accumulated_rgb + trace_rgb<DEVICE, SPEC, 0>(device, scene, pixel_x, pixel_y, pos, direction, (T)0, (T)1e30);
+                                        accumulated_rgb = accumulated_rgb + trace_rgb<DEVICE, SPEC, 0>(device, scene, pixel_x, pixel_y, pos, direction, (T)0, (T)1e30);
                                     }
                                 }
                             }
                         }
-                        constexpr TI SAMPLES = MOTION_SAMPLES * AA_GRID * AA_GRID;
-                        const Vec3<T> color = accumulated_rgb * ((T)1 / (T)SAMPLES);
-                        write_rgb<DEVICE, SPEC>(device, buffers, fb_offset, color);
+                        if(rgb){
+                            constexpr TI SAMPLES = MOTION_SAMPLES * AA_GRID * AA_GRID;
+                            const Vec3<T> color = accumulated_rgb * ((T)1 / (T)SAMPLES);
+                            write_rgb<DEVICE, SPEC>(device, scene, buffers, camera_i, y * SPEC::CAM_WIDTH + x, color);
+                        }
                     }
                 }
             }
@@ -1124,6 +1148,9 @@ namespace rl_tools {
             constexpr TI AA_GRID = SPEC::ENABLE_ANTI_ALIASING ? SPEC::ANTI_ALIASING_GRID_SIZE : 1;
             const T inv_aa_grid = (T)1 / (T)AA_GRID;
             for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
+                if((scene.camera_table[camera_i * outputs::CAMERA_TABLE_STRIDE] & outputs::RGB_SLOTS) == 0){
+                    continue;
+                }
                 const Camera<T>& cam_open = scene.cameras_open[camera_i];
                 const Camera<T>& cam_close = scene.cameras_close[camera_i];
                 const Vec3<T> pos = ((T)1 - shutter_t) * to_vec3(cam_open.pos) + shutter_t * to_vec3(cam_close.pos);
@@ -1164,13 +1191,19 @@ namespace rl_tools {
             using TI = typename SPEC::TI;
             const auto& math_device = device.math;
             const T inv_samples = (T)1 / (T)SPEC::MOTION_BLUR_SAMPLES;
-            for(TI fb_offset = 0; fb_offset < SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS; fb_offset++){
-                const Vec3<T> color = {
-                    (T)scene.rgb_accumulation[fb_offset * 3 + 0] * inv_samples,
-                    (T)scene.rgb_accumulation[fb_offset * 3 + 1] * inv_samples,
-                    (T)scene.rgb_accumulation[fb_offset * 3 + 2] * inv_samples
-                };
-                write_rgb<DEVICE, SPEC>(device, buffers, fb_offset, color);
+            for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
+                if((scene.camera_table[camera_i * outputs::CAMERA_TABLE_STRIDE] & outputs::RGB_SLOTS) == 0){
+                    continue;
+                }
+                for(TI pixel = 0; pixel < SPEC::CAM_PIXELS; pixel++){
+                    const TI fb_offset = camera_i * SPEC::CAM_PIXELS + pixel;
+                    const Vec3<T> color = {
+                        (T)scene.rgb_accumulation[fb_offset * 3 + 0] * inv_samples,
+                        (T)scene.rgb_accumulation[fb_offset * 3 + 1] * inv_samples,
+                        (T)scene.rgb_accumulation[fb_offset * 3 + 2] * inv_samples
+                    };
+                    write_rgb<DEVICE, SPEC>(device, scene, buffers, camera_i, pixel, color);
+                }
             }
         }
 
@@ -1180,6 +1213,10 @@ namespace rl_tools {
             using TI = typename SPEC::TI;
             const auto& math_device = device.math;
             for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
+                const unsigned int row = scene.camera_table[camera_i * outputs::CAMERA_TABLE_STRIDE + 1 + (unsigned int)outputs::Slot::PROBES];
+                if(row == outputs::NO_ROW){
+                    continue;
+                }
                 const Camera<T>& cam = scene.cameras_close[camera_i];
                 const Vec3<T> forward = normalize(math_device, to_vec3(cam.dir_00) + (T)0.5 * to_vec3(cam.dir_du) + (T)0.5 * to_vec3(cam.dir_dv));
                 const Vec3<T> left = -normalize(math_device, to_vec3(cam.dir_du));
@@ -1203,7 +1240,7 @@ namespace rl_tools {
                         result.distance = (float)hit.t;
                         result.hit = 1;
                     }
-                    data(output(device, buffers, outputs::Probes{}))[camera_i * SPEC::NUM_PROBES + probe_i] = result;
+                    data(output(device, buffers, outputs::Probes{}))[(TI)row * SPEC::NUM_PROBES + probe_i] = result;
                 }
             }
         }

@@ -32,7 +32,7 @@ for(const fidelity of ["low", "medium", "high", "very-high"]){
     }
 }
 
-function fixture({defer_mouse_lock = false, search = "", catalog = configurations, api_version = 8, fpv_position = [0.08, 0, 0.08]} = {}){
+function fixture({defer_mouse_lock = false, search = "", catalog = configurations, api_version = 9, fpv_position = [0.08, 0, 0.08]} = {}){
     const document = new EventTarget();
     const window = new EventTarget();
     const classes = new Set();
@@ -86,10 +86,7 @@ function fixture({defer_mouse_lock = false, search = "", catalog = configuration
         element.checkValidity = () => element.value !== "" && Number.isInteger(Number(element.value))
             && Number(element.value) >= Number(element.min) && Number(element.value) <= Number(element.max);
         element.reportValidity = element.checkValidity;
-        const drawing = {
-            putImageData: image => { element.image = image; },
-        };
-        element.getContext = () => drawing;
+        element.getContext = () => assert.fail("Canvas presentation belongs to the native WebGPU renderer");
         element.captures = new Set();
         element.setPointerCapture = id => element.captures.add(id);
         element.hasPointerCapture = id => element.captures.has(id);
@@ -152,13 +149,6 @@ function fixture({defer_mouse_lock = false, search = "", catalog = configuration
     };
     const context = vm.createContext({
         document, window, navigator: {maxTouchPoints: 2, gpu: {}}, performance, URLSearchParams, create_touch_stick,
-        ImageData: class {
-            constructor(data, width, height){
-                this.data = data;
-                this.width = width;
-                this.height = height;
-            }
-        },
         Conta: class {async load(reference){ events.push(`asset:${reference}`); return new Uint8Array(); }},
         console: {...console, error: error => errors.push(error)},
         import_module: async () => ({default: async options => {
@@ -189,19 +179,18 @@ function fixture({defer_mouse_lock = false, search = "", catalog = configuration
         abort: reason => module_options.onAbort(reason),
         motor_layout: (deviation, wheelbase, threshold) => module_options.rlt_motor_layout(deviation, wheelbase, threshold),
         segmentation_classes: classes => module_options.rlt_segmentation_classes(classes),
-        present(width, height, num_views = 6, ids = new Uint32Array(width * height), reuse_heap = false){
+        present(width, height, ids = new Uint32Array(width * height), reuse_heap = false){
             const pointer = 32;
-            const image_bytes = width * height * 4;
-            const segmentation_pointer = pointer + num_views * image_bytes;
             if(!reuse_heap){
-                module.HEAPU8 = new Uint8Array(segmentation_pointer + image_bytes);
+                module.HEAPU8 = new Uint8Array(pointer + width * height * 4);
             }
-            for(let view = 0; view < num_views; view++){
-                module.HEAPU8.fill(view + 1, pointer + view * image_bytes, pointer + (view + 1) * image_bytes);
+            for(const id of ["camera0", "camera1", "depth", "segmentation", "normals", "flow"]){
+                element(id).width = width;
+                element(id).height = height;
             }
-            const heap_ids = new Uint32Array(module.HEAPU8.buffer, segmentation_pointer, width * height);
+            const heap_ids = new Uint32Array(module.HEAPU8.buffer, pointer, width * height);
             heap_ids.set(ids);
-            module_options.rlt_present(pointer, width, height, num_views, 0, 0, 1, 1, 0, 0, 0, segmentation_pointer);
+            module_options.rlt_present(pointer, width, height, 0, 0, 1, 1, 0, 0, 0);
             return heap_ids;
         },
     };
@@ -344,7 +333,7 @@ test("an empty rendering URL choice selects the default configuration", async ()
 });
 
 test("empty or incompatible bundles fail before fetching scene assets", async () => {
-    for(const options of [{catalog: []}, ...[1, 2, 3, 4, 5, 6, 7].map(api_version => ({api_version}))]){
+    for(const options of [{catalog: []}, ...[1, 2, 3, 4, 5, 6, 7, 8].map(api_version => ({api_version}))]){
         const f = fixture(options);
         await f.load();
         assert.equal(f.element("error").hidden, false);
@@ -453,21 +442,16 @@ test("invalid airframe mounts fail before fetching assets", async () => {
     }
 });
 
-test("all six outputs resize and retain distinct image strides at both rendering resolutions", async () => {
+test("native GPU frames update pose and semantic labels at both rendering resolutions", async () => {
     const f = fixture();
     await f.load();
-    const ids = ["camera0", "camera1", "depth", "segmentation", "normals", "flow"];
+    f.segmentation_classes({0: "Unannotated"});
     for(const [width, height] of [[480, 270], [960, 540], [480, 270]]){
         f.present(width, height);
-        for(const [view, id] of ids.entries()){
-            const canvas = f.element(id);
-            assert.equal(canvas.width, width, id);
-            assert.equal(canvas.height, height, id);
-            assert.equal(canvas.image.data.length, width * height * 4, id);
-            assert.ok(canvas.image.data.every(value => value === view + 1), id);
-        }
+        assert.equal(f.element("position-readout").textContent, "(0.00, 0.00, 1.00)");
+        assert.equal(f.element("orientation-readout").textContent, "(1.000, 0.000, 0.000, 0.000)");
+        assert.equal(f.element("segmentation-center-label").textContent, "Unannotated");
     }
-    assert.throws(() => f.present(480, 270, 5), /Expected 6 camera outputs/);
 });
 
 test("semantic center samples the exact middle pixel of each presented frame independently of WASM memory", async () => {
@@ -485,7 +469,7 @@ test("semantic center samples the exact middle pixel of each presented frame ind
     ]){
         const ids = new Uint32Array(width * height).fill(1);
         ids[Math.floor(height / 2) * width + Math.floor(width / 2)] = id;
-        const heap_ids = f.present(width, height, 6, ids);
+        const heap_ids = f.present(width, height, ids);
         assert.equal(center.hidden, false);
         assert.equal(tooltip.hidden, true);
         assert.equal(label.textContent, expected);
@@ -493,7 +477,7 @@ test("semantic center samples the exact middle pixel of each presented frame ind
         send(f.window, "scroll");
         assert.equal(label.textContent, expected);
     }
-    f.present(960, 540, 6, new Uint32Array(960 * 540).fill(1), true);
+    f.present(960, 540, new Uint32Array(960 * 540).fill(1), true);
     assert.equal(label.textContent, "Wall");
     f.module.HEAPU8 = new Uint8Array(2048);
     send(f.window, "resize");
@@ -505,7 +489,7 @@ test("semantic center yields to mouse hover and returns for other pointers, mous
     const f = fixture();
     await f.load();
     f.segmentation_classes({1: "Wall", 2: "Table", 3: "Drone"});
-    f.present(2, 2, 6, [1, 1, 1, 2]);
+    f.present(2, 2, [1, 1, 1, 2]);
     const canvas = f.element("segmentation");
     const center = f.element("segmentation-center");
     const label = f.element("segmentation-center-label");
@@ -522,7 +506,7 @@ test("semantic center yields to mouse hover and returns for other pointers, mous
     }
     send(canvas, "pointermove", {pointerType: "mouse", clientX: 30, clientY: 30});
     f.click("camera0", "mouse");
-    f.present(2, 2, 6, [1, 1, 1, 3]);
+    f.present(2, 2, [1, 1, 1, 3]);
     assert.equal(tooltip.hidden, true);
     assert.equal(center.hidden, false);
     assert.equal(label.textContent, "Drone");
@@ -544,7 +528,7 @@ test("semantic hover uses exact unsigned IDs and authored labels, including clas
     f.segmentation_classes({0: "Unannotated", 1: "Wall", 257: "Chair <wood>", 2147483649: "Drone"});
     send(canvas, "pointermove", {pointerType: "mouse", clientX: 150, clientY: 90});
     assert.equal(tooltip.hidden, true);
-    f.present(5, 1, 6, [0, 1, 257, 2147483649, 0xffffffff]);
+    f.present(5, 1, [0, 1, 257, 2147483649, 0xffffffff]);
     for(const [index, label] of ["Unannotated", "Wall", "Chair <wood>", "Drone", "No surface"].entries()){
         send(canvas, "pointermove", {pointerType: "mouse", clientX: 150 + index * 100, clientY: 90});
         assert.equal(tooltip.hidden, false);
@@ -568,7 +552,7 @@ test("semantic hover maps CSS coordinates to every image corner at both resoluti
         ids[width - 1] = 2;
         ids[(height - 1) * width] = 3;
         ids[width * height - 1] = 4;
-        f.present(width, height, 6, ids);
+        f.present(width, height, ids);
         for(const [clientX, clientY, label] of [
             [100, 40, "Top left"], [339.99, 40, "Top right"],
             [100, 174.99, "Bottom left"], [339.99, 174.99, "Bottom right"],
@@ -590,17 +574,17 @@ test("semantic hover snapshots presented IDs and follows stationary pointers acr
     f.segmentation_classes({1: "Wall", 2: "Table", 3: "Drone"});
     const canvas = f.element("segmentation");
     const tooltip = f.element("segmentation-tooltip");
-    const heap_ids = f.present(2, 1, 6, [1, 2]);
+    const heap_ids = f.present(2, 1, [1, 2]);
     send(canvas, "pointermove", {pointerType: "mouse", clientX: 30, clientY: 60});
     assert.equal(tooltip.textContent, "Wall");
     assert.equal(f.element("status").textContent, "Rendered 1 frames");
     heap_ids.fill(3);
     send(canvas, "pointermove", {pointerType: "mouse", clientX: 30, clientY: 60});
     assert.equal(tooltip.textContent, "Wall");
-    f.present(2, 1, 6, [2, 1], true);
+    f.present(2, 1, [2, 1], true);
     assert.equal(tooltip.textContent, "Table");
     const previous_heap = f.module.HEAPU8.buffer;
-    f.present(4, 2, 6, Array(8).fill(3));
+    f.present(4, 2, Array(8).fill(3));
     assert.notEqual(f.module.HEAPU8.buffer, previous_heap);
     assert.equal(tooltip.hidden, false);
     assert.equal(tooltip.textContent, "Drone");
@@ -613,7 +597,7 @@ test("semantic hover recalculates a stationary pointer after resizing and scroll
     const f = fixture();
     await f.load();
     f.segmentation_classes({1: "Wall", 2: "Table"});
-    f.present(2, 2, 6, [1, 1, 1, 2]);
+    f.present(2, 2, [1, 1, 1, 2]);
     const canvas = f.element("segmentation");
     const tooltip = f.element("segmentation-tooltip");
     let rect = {left: 100, top: 40, width: 200, height: 100};
@@ -636,7 +620,7 @@ test("semantic hover ignores touch and pen events and leaves flight controls unc
     const f = fixture();
     await f.load();
     f.segmentation_classes({1: "Wall"});
-    f.present(1, 1, 6, [1]);
+    f.present(1, 1, [1]);
     const canvas = f.element("segmentation");
     const tooltip = f.element("segmentation-tooltip");
     touch_flight(f);
@@ -666,7 +650,7 @@ for(const event of ["pointerleave", "pointercancel", "blur", "pagehide", "hidden
         const f = fixture();
         await f.load();
         f.segmentation_classes({1: "Wall"});
-        f.present(1, 1, 6, [1]);
+        f.present(1, 1, [1]);
         const canvas = f.element("segmentation");
         const tooltip = f.element("segmentation-tooltip");
         const center = f.element("segmentation-center");
@@ -685,7 +669,7 @@ for(const event of ["pointerleave", "pointercancel", "blur", "pagehide", "hidden
         }
         assert.equal(tooltip.hidden, true);
         assert.equal(center.hidden, event === "hidden" || event === "abort");
-        f.present(1, 1, 6, [1]);
+        f.present(1, 1, [1]);
         assert.equal(tooltip.hidden, true);
         assert.equal(center.hidden, event === "hidden" || event === "abort");
         if(event === "hidden"){
@@ -702,7 +686,7 @@ for(const [button, dialog] of [["rendering", "rendering-settings"], ["touch-tuni
         const f = fixture();
         await f.load();
         f.segmentation_classes({1: "Wall"});
-        f.present(1, 1, 6, [1]);
+        f.present(1, 1, [1]);
         const canvas = f.element("segmentation");
         const tooltip = f.element("segmentation-tooltip");
         const center = f.element("segmentation-center");
@@ -712,7 +696,7 @@ for(const [button, dialog] of [["rendering", "rendering-settings"], ["touch-tuni
         assert.equal(tooltip.hidden, true);
         assert.equal(center.hidden, true);
         send(canvas, "pointermove", {pointerType: "mouse"});
-        f.present(1, 1, 6, [1]);
+        f.present(1, 1, [1]);
         assert.equal(tooltip.hidden, true);
         assert.equal(center.hidden, true);
         f.element(dialog).close();

@@ -110,20 +110,52 @@ namespace rl_tools {
             resource.size = 0;
         }
 
-        struct MapRequest{
+        inline WGPUCallbackMode begin(Completion& completion){
+            completion.done = false;
+            completion.success = false;
 #ifdef __EMSCRIPTEN__
-            em_promise_t promise;
+            completion.promise = emscripten_promise_create();
+            return WGPUCallbackMode_AllowSpontaneous;
+#else
+            return WGPUCallbackMode_AllowProcessEvents;
 #endif
-            bool done = false;
-            WGPUMapAsyncStatus status = WGPUMapAsyncStatus_Error;
-        };
+        }
+
+        inline void complete(Completion& completion, bool success){
+            completion.success = success;
+            completion.done = true;
+#ifdef __EMSCRIPTEN__
+            emscripten_promise_resolve(completion.promise, EM_PROMISE_FULFILL, nullptr);
+#endif
+        }
 
         inline void map_callback(WGPUMapAsyncStatus status, WGPUStringView, void* userdata1, void*){
-            auto* request = (MapRequest*)userdata1;
-            request->status = status;
-            request->done = true;
+            complete(*(Completion*)userdata1, status == WGPUMapAsyncStatus_Success);
+        }
+
+        inline void work_done_callback(WGPUQueueWorkDoneStatus status, WGPUStringView, void* userdata1, void*){
+            complete(*(Completion*)userdata1, status == WGPUQueueWorkDoneStatus_Success);
+        }
+
+        // returns immediately for a completion that was never begun or is already awaited
+        template <typename DEVICE>
+        void wait(DEVICE& device, Context& ctx, Completion& completion){
 #ifdef __EMSCRIPTEN__
-            emscripten_promise_resolve(request->promise, EM_PROMISE_FULFILL, nullptr);
+            if(completion.promise == nullptr){
+                return;
+            }
+#endif
+            while(!completion.done){
+#ifdef __EMSCRIPTEN__
+                const auto settled = emscripten_promise_await(completion.promise);
+                utils::assert_exit(device, settled.result == EM_PROMISE_FULFILL, "WebGPU: promise rejected");
+#else
+                wgpuDevicePoll(ctx.device, true, nullptr);
+#endif
+            }
+#ifdef __EMSCRIPTEN__
+            emscripten_promise_destroy(completion.promise);
+            completion.promise = nullptr;
 #endif
         }
 
@@ -142,34 +174,29 @@ namespace rl_tools {
 #endif
         }
 
+        // copies the outputs into the staging buffer only here, at settle time: a launched frame
+        // stays on the device until something reads it (display consumers present it from there)
         template <typename DEVICE>
         void read_back(DEVICE& device, Context& ctx, const Readback& readback){
             if(readback.targets.empty()){
                 return;
             }
-            MapRequest request;
-            WGPUBufferMapCallbackInfo callback_info{};
-#ifdef __EMSCRIPTEN__
-            request.promise = emscripten_promise_create();
-            callback_info.mode = WGPUCallbackMode_AllowSpontaneous;
-#else
-            callback_info.mode = WGPUCallbackMode_AllowProcessEvents;
-#endif
-            callback_info.callback = map_callback;
-            callback_info.userdata1 = &request;
-            wgpuBufferMapAsync(readback.staging.buffer, WGPUMapMode_Read, 0, (size_t)readback.staging.size, callback_info);
-            while(!request.done){
-#ifdef __EMSCRIPTEN__
-                const auto settled = emscripten_promise_await(request.promise);
-                utils::assert_exit(device, settled.result == EM_PROMISE_FULFILL, "WebGPU: map promise rejected");
-#else
-                wgpuDevicePoll(ctx.device, true, nullptr);
-#endif
+            WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(ctx.device, nullptr);
+            for(const auto& target : readback.targets){
+                wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, target.output_offset, readback.staging.buffer, target.staging_offset, target.bytes);
             }
-#ifdef __EMSCRIPTEN__
-            emscripten_promise_destroy(request.promise);
-#endif
-            utils::assert_exit(device, request.status == WGPUMapAsyncStatus_Success, "WebGPU: staging buffer map failed");
+            WGPUCommandBuffer command_buffer = wgpuCommandEncoderFinish(encoder, nullptr);
+            wgpuCommandEncoderRelease(encoder);
+            wgpuQueueSubmit(ctx.queue, 1, &command_buffer);
+            wgpuCommandBufferRelease(command_buffer);
+            Completion mapped;
+            WGPUBufferMapCallbackInfo callback_info{};
+            callback_info.mode = begin(mapped);
+            callback_info.callback = map_callback;
+            callback_info.userdata1 = &mapped;
+            wgpuBufferMapAsync(readback.staging.buffer, WGPUMapMode_Read, 0, (size_t)readback.staging.size, callback_info);
+            wait(device, ctx, mapped);
+            utils::assert_exit(device, mapped.success, "WebGPU: staging buffer map failed");
             for(const auto& target : readback.targets){
                 utils::assert_exit(device, read_mapped_range(readback.staging.buffer, (size_t)target.staging_offset, target.destination, target.bytes), "WebGPU: mapped range unavailable");
             }
@@ -198,6 +225,18 @@ namespace rl_tools {
         void wait_in_flight(DEVICE& device, Context& ctx){
             settle_render(device, ctx);
             settle_probe(device, ctx);
+            wait(device, ctx, ctx.launch_done);
+        }
+
+        inline bool contains(const Readback& readback, const void* source){
+            const auto address = reinterpret_cast<std::uintptr_t>(source);
+            for(const auto& target : readback.targets){
+                const auto begin = reinterpret_cast<std::uintptr_t>(target.destination);
+                if(address >= begin && address - begin < target.bytes){
+                    return true;
+                }
+            }
+            return false;
         }
 
         inline void destroy_scene_resources(Context& ctx){
@@ -609,6 +648,9 @@ namespace rl_tools {
         using LAYOUT = wg::BufferLayout<SPEC>;
         ctx->launch_params = wg::create_buffer(device, *ctx, sizeof(wg::LaunchParams), STORAGE_UPLOAD);
         ctx->frame_inputs = wg::create_buffer(device, *ctx, (size_t)LAYOUT::FRAME_INPUTS_WORDS * sizeof(uint32_t), STORAGE_UPLOAD);
+        ctx->camera_table.resize((size_t)SPEC::NUM_CAMERAS * rendering::raytracing::outputs::CAMERA_TABLE_STRIDE);
+        fill_camera_table<SPEC>(device, ctx->camera_table.data());
+        wgpuQueueWriteBuffer(ctx->queue, ctx->frame_inputs.buffer, (uint64_t)LAYOUT::CAMERA_TABLE_OFFSET * sizeof(uint32_t), ctx->camera_table.data(), ctx->camera_table.size() * sizeof(uint32_t));
         ctx->outputs = wg::create_buffer(device, *ctx, (size_t)LAYOUT::OUTPUTS_WORDS * sizeof(uint32_t), STORAGE_OUTPUT);
         for_each_output(device, renderer.outputs, [&](auto& buffer){
             using OUTPUT = decltype(output_type(buffer));
@@ -968,6 +1010,7 @@ namespace rl_tools {
             params.probe_directions_offset = LAYOUT::PROBE_DIRECTIONS_OFFSET;
             params.cameras_offset = LAYOUT::CAMERAS_OFFSET;
             params.cameras_previous_offset = LAYOUT::CAMERAS_PREVIOUS_OFFSET;
+            params.camera_table_offset = LAYOUT::CAMERA_TABLE_OFFSET;
             for(uint32_t slot = 0; slot < (uint32_t)rendering::raytracing::outputs::Slot::COUNT; slot++){
                 params.output_offsets[slot] = rendering::raytracing::outputs::Layout<SPEC>::SLOT_OFFSETS[slot];
             }
@@ -1103,16 +1146,22 @@ namespace rl_tools {
     }
 
 
-    // renderer memory-domain copies: the in-flight wait settles the staging readbacks into the
-    // host-resident tensors, so the transfer delegates to the host-device tensor copy
+    // Inputs are CPU staging tensors uploaded at launch; only reads of output tensors (including
+    // their views) settle a GPU readback, independently for images and collision probes.
     template <typename TO_DEVICE, typename FROM_SPEC, typename TO_SPEC>
     void copy(rendering::raytracing::backends::Device<rendering::raytracing::backends::Webgpu>& from_device, TO_DEVICE& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to){
-        rendering::raytracing::backends::webgpu::wait_in_flight(to_device, *from_device.context);
+        namespace wg = rendering::raytracing::backends::webgpu;
+        auto& ctx = *from_device.context;
+        if(wg::contains(ctx.render_readback, data(from))){
+            wg::settle_render(to_device, ctx);
+        }
+        else if(wg::contains(ctx.probe_readback, data(from))){
+            wg::settle_probe(to_device, ctx);
+        }
         copy(to_device, to_device, from, to);
     }
     template <typename FROM_DEVICE, typename FROM_SPEC, typename TO_SPEC>
     void copy(FROM_DEVICE& from_device, rendering::raytracing::backends::Device<rendering::raytracing::backends::Webgpu>& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to){
-        rendering::raytracing::backends::webgpu::wait_in_flight(from_device, *to_device.context);
         copy(from_device, from_device, from, to);
     }
 
@@ -1131,7 +1180,7 @@ namespace rl_tools {
         namespace wg = rendering::raytracing::backends::webgpu;
         using TI = typename SPEC::TI;
         auto& ctx = wg::context(renderer);
-        render_sync(device, renderer); // single-buffered: settle a previous launch before reusing the staging buffers
+        wg::wait(device, ctx, ctx.launch_done);
 
         using LAYOUT = wg::BufferLayout<SPEC>;
         constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>);
@@ -1165,13 +1214,15 @@ namespace rl_tools {
             wgpuComputePassEncoderEnd(pass);
             wgpuComputePassEncoderRelease(pass);
         }
-        for(const auto& target : ctx.render_readback.targets){
-            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, target.output_offset, ctx.render_readback.staging.buffer, target.staging_offset, target.bytes);
-        }
         WGPUCommandBuffer command_buffer = wgpuCommandEncoderFinish(encoder, nullptr);
         wgpuCommandEncoderRelease(encoder);
         wgpuQueueSubmit(ctx.queue, 1, &command_buffer);
         wgpuCommandBufferRelease(command_buffer);
+        WGPUQueueWorkDoneCallbackInfo work_done{};
+        work_done.mode = wg::begin(ctx.launch_done);
+        work_done.callback = wg::work_done_callback;
+        work_done.userdata1 = &ctx.launch_done;
+        wgpuQueueOnSubmittedWorkDone(ctx.queue, work_done);
         ctx.render_in_flight = true;
     }
 
@@ -1190,7 +1241,6 @@ namespace rl_tools {
         if(ctx.collision_pipeline == nullptr){
             return;
         }
-        probe_sync(device, renderer);
         constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>);
         wgpuQueueWriteBuffer(ctx.queue, ctx.frame_inputs.buffer, (uint64_t)wg::BufferLayout<SPEC>::CAMERAS_OFFSET * sizeof(uint32_t), data(renderer.cameras), camera_bytes);
         WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(ctx.device, nullptr);
@@ -1201,9 +1251,6 @@ namespace rl_tools {
             wgpuComputePassEncoderDispatchWorkgroups(pass, (SPEC::NUM_CAMERAS + wg::WORKGROUP_SIZE_X - 1) / wg::WORKGROUP_SIZE_X, (SPEC::NUM_PROBES + wg::WORKGROUP_SIZE_Y - 1) / wg::WORKGROUP_SIZE_Y, 1);
             wgpuComputePassEncoderEnd(pass);
             wgpuComputePassEncoderRelease(pass);
-        }
-        for(const auto& target : ctx.probe_readback.targets){
-            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, target.output_offset, ctx.probe_readback.staging.buffer, target.staging_offset, target.bytes);
         }
         WGPUCommandBuffer command_buffer = wgpuCommandEncoderFinish(encoder, nullptr);
         wgpuCommandEncoderRelease(encoder);
@@ -1217,6 +1264,139 @@ namespace rl_tools {
         namespace wg = rendering::raytracing::backends::webgpu;
         wg::settle_probe(device, wg::context(renderer));
     }
+
+#ifdef __EMSCRIPTEN__
+    // display consumers present launched frames straight from the device: no render_sync, no readback
+    template <typename DEVICE, typename SPEC>
+    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, rendering::raytracing::backends::webgpu::Canvas& canvas, const char* selector){
+        namespace wg = rendering::raytracing::backends::webgpu;
+        auto& ctx = wg::context(renderer);
+        WGPUEmscriptenSurfaceSourceCanvasHTMLSelector source{};
+        source.chain.sType = WGPUSType_EmscriptenSurfaceSourceCanvasHTMLSelector;
+        source.selector = wg::string_view(selector);
+        WGPUSurfaceDescriptor surface_descriptor{};
+        surface_descriptor.nextInChain = &source.chain;
+        canvas.surface = wgpuInstanceCreateSurface(ctx.instance, &surface_descriptor);
+        utils::assert_exit(device, canvas.surface != nullptr, "WebGPU: canvas surface creation failed");
+        WGPUSurfaceCapabilities capabilities{};
+        utils::assert_exit(device, wgpuSurfaceGetCapabilities(canvas.surface, ctx.adapter, &capabilities) == WGPUStatus_Success && capabilities.formatCount > 0, "WebGPU: canvas capabilities unavailable");
+        const WGPUTextureFormat format = capabilities.formats[0];
+        wgpuSurfaceCapabilitiesFreeMembers(capabilities);
+        WGPUSurfaceConfiguration configuration{};
+        configuration.device = ctx.device;
+        configuration.format = format;
+        configuration.usage = WGPUTextureUsage_RenderAttachment;
+        configuration.width = SPEC::CAM_WIDTH;
+        configuration.height = SPEC::CAM_HEIGHT;
+        configuration.alphaMode = WGPUCompositeAlphaMode_Opaque;
+        configuration.presentMode = WGPUPresentMode_Fifo;
+        wgpuSurfaceConfigure(canvas.surface, &configuration);
+
+        if(ctx.present_pipeline == nullptr){
+            WGPUBindGroupLayoutEntry layout_entries[2]{};
+            layout_entries[0].binding = wg::bindings::PRESENTED;
+            layout_entries[0].visibility = WGPUShaderStage_Fragment;
+            layout_entries[0].buffer.type = WGPUBufferBindingType_ReadOnlyStorage;
+            layout_entries[1].binding = wg::bindings::PRESENTATION;
+            layout_entries[1].visibility = WGPUShaderStage_Fragment;
+            layout_entries[1].buffer.type = WGPUBufferBindingType_Uniform;
+            WGPUBindGroupLayoutDescriptor layout_descriptor{};
+            layout_descriptor.entryCount = 2;
+            layout_descriptor.entries = layout_entries;
+            ctx.present_bind_group_layout = wgpuDeviceCreateBindGroupLayout(ctx.device, &layout_descriptor);
+            WGPUPipelineLayoutDescriptor pipeline_layout_descriptor{};
+            pipeline_layout_descriptor.bindGroupLayoutCount = 1;
+            pipeline_layout_descriptor.bindGroupLayouts = &ctx.present_bind_group_layout;
+            ctx.present_pipeline_layout = wgpuDeviceCreatePipelineLayout(ctx.device, &pipeline_layout_descriptor);
+            WGPUColorTargetState target{};
+            target.format = format;
+            target.writeMask = WGPUColorWriteMask_All;
+            WGPUFragmentState fragment{};
+            fragment.module = ctx.module;
+            fragment.entryPoint = wg::string_view("present_fragment");
+            fragment.targetCount = 1;
+            fragment.targets = &target;
+            WGPURenderPipelineDescriptor pipeline_descriptor{};
+            pipeline_descriptor.layout = ctx.present_pipeline_layout;
+            pipeline_descriptor.vertex.module = ctx.module;
+            pipeline_descriptor.vertex.entryPoint = wg::string_view("present_vertex");
+            pipeline_descriptor.primitive.topology = WGPUPrimitiveTopology_TriangleList;
+            pipeline_descriptor.multisample.count = 1;
+            pipeline_descriptor.multisample.mask = 0xFFFFFFFFu;
+            pipeline_descriptor.fragment = &fragment;
+            ctx.present_pipeline = wgpuDeviceCreateRenderPipeline(ctx.device, &pipeline_descriptor);
+            utils::assert_exit(device, ctx.present_pipeline != nullptr, "WebGPU: present pipeline creation failed");
+            ctx.present_format = format;
+        }
+        utils::assert_exit(device, format == ctx.present_format, "WebGPU: canvases must share one format");
+
+        canvas.presentation = wg::create_buffer(device, ctx, 2 * sizeof(uint32_t), WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst);
+        WGPUBindGroupEntry entries[2]{};
+        entries[0].binding = wg::bindings::PRESENTED;
+        entries[0].buffer = ctx.outputs.buffer;
+        entries[0].size = WGPU_WHOLE_SIZE;
+        entries[1].binding = wg::bindings::PRESENTATION;
+        entries[1].buffer = canvas.presentation.buffer;
+        entries[1].size = WGPU_WHOLE_SIZE;
+        WGPUBindGroupDescriptor descriptor{};
+        descriptor.layout = ctx.present_bind_group_layout;
+        descriptor.entryCount = 2;
+        descriptor.entries = entries;
+        canvas.bind_group = wgpuDeviceCreateBindGroup(ctx.device, &descriptor);
+        utils::assert_exit(device, canvas.bind_group != nullptr, "WebGPU: canvas bind group creation failed");
+    }
+
+    template <typename DEVICE, typename SPEC, typename OUTPUT>
+    void present(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, rendering::raytracing::backends::webgpu::Canvas& canvas, OUTPUT, typename SPEC::TI camera){
+        static_assert(utils::typing::is_same_v<typename OUTPUT::FORMAT, rendering::raytracing::outputs::format::RGBA8>, "present requires an RGBA8 representation");
+        namespace wg = rendering::raytracing::backends::webgpu;
+        auto& ctx = wg::context(renderer);
+        utils::assert_exit(device, camera < SPEC::NUM_CAMERAS, "present: camera index out of range");
+        const uint32_t row = ctx.camera_table[camera * rendering::raytracing::outputs::CAMERA_TABLE_STRIDE + 1 + (uint32_t)rendering::raytracing::outputs::Traits<OUTPUT>::SLOT];
+        utils::assert_exit(device, row != rendering::raytracing::outputs::NO_ROW, "present: the output does not select the camera");
+        const uint32_t presentation[2] = {(uint32_t)(rendering::raytracing::outputs::Layout<SPEC>::template offset<OUTPUT>() / sizeof(uint32_t) + row * SPEC::CAM_PIXELS), (uint32_t)SPEC::CAM_WIDTH};
+        wgpuQueueWriteBuffer(ctx.queue, canvas.presentation.buffer, 0, presentation, sizeof(presentation));
+        WGPUSurfaceTexture surface_texture{};
+        wgpuSurfaceGetCurrentTexture(canvas.surface, &surface_texture);
+        utils::assert_exit(device, surface_texture.status == WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal || surface_texture.status == WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal, "WebGPU: canvas texture unavailable");
+        WGPUTextureView view = wgpuTextureCreateView(surface_texture.texture, nullptr);
+        WGPURenderPassColorAttachment attachment{};
+        attachment.view = view;
+        attachment.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
+        attachment.loadOp = WGPULoadOp_Clear;
+        attachment.storeOp = WGPUStoreOp_Store;
+        WGPURenderPassDescriptor pass_descriptor{};
+        pass_descriptor.colorAttachmentCount = 1;
+        pass_descriptor.colorAttachments = &attachment;
+        WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(ctx.device, nullptr);
+        WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &pass_descriptor);
+        wgpuRenderPassEncoderSetPipeline(pass, ctx.present_pipeline);
+        wgpuRenderPassEncoderSetBindGroup(pass, 0, canvas.bind_group, 0, nullptr);
+        wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
+        wgpuRenderPassEncoderEnd(pass);
+        wgpuRenderPassEncoderRelease(pass);
+        WGPUCommandBuffer command_buffer = wgpuCommandEncoderFinish(encoder, nullptr);
+        wgpuCommandEncoderRelease(encoder);
+        wgpuQueueSubmit(ctx.queue, 1, &command_buffer);
+        wgpuCommandBufferRelease(command_buffer);
+        wgpuTextureViewRelease(view);
+        wgpuTextureRelease(surface_texture.texture);
+    }
+
+    template <typename DEVICE>
+    void free(DEVICE& device, rendering::raytracing::backends::webgpu::Canvas& canvas){
+        namespace wg = rendering::raytracing::backends::webgpu;
+        if(canvas.bind_group != nullptr){
+            wgpuBindGroupRelease(canvas.bind_group);
+            canvas.bind_group = nullptr;
+        }
+        wg::destroy_buffer(canvas.presentation);
+        if(canvas.surface != nullptr){
+            wgpuSurfaceRelease(canvas.surface);
+            canvas.surface = nullptr;
+        }
+    }
+#endif
 
     template <typename DEVICE, typename SPEC>
     std::string device_name(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
@@ -1251,6 +1431,15 @@ namespace rl_tools {
             }
             if(ctx.collision_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.collision_pipeline); }
             if(ctx.flow_forward_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.flow_forward_pipeline); }
+            if(ctx.present_pipeline != nullptr){
+                wgpuRenderPipelineRelease(ctx.present_pipeline);
+            }
+            if(ctx.present_pipeline_layout != nullptr){
+                wgpuPipelineLayoutRelease(ctx.present_pipeline_layout);
+            }
+            if(ctx.present_bind_group_layout != nullptr){
+                wgpuBindGroupLayoutRelease(ctx.present_bind_group_layout);
+            }
             if(ctx.pipeline_layout != nullptr){ wgpuPipelineLayoutRelease(ctx.pipeline_layout); }
             if(ctx.bind_group_layout != nullptr){ wgpuBindGroupLayoutRelease(ctx.bind_group_layout); }
             if(ctx.module != nullptr){ wgpuShaderModuleRelease(ctx.module); }

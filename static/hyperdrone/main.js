@@ -45,8 +45,7 @@ const render_agents = document.getElementById("render-agents");
 const layout_seed = document.getElementById("layout-seed");
 const render_apply = document.getElementById("render-apply");
 const render_availability = document.getElementById("render-availability");
-const canvases = ["camera0", "camera1", "depth", "segmentation", "normals", "flow"].map(id => document.getElementById(id));
-const contexts = canvases.map(canvas => canvas.getContext("2d"));
+const camera_canvases = ["camera0", "camera1"].map(id => document.getElementById(id));
 const segmentation_canvas = document.getElementById("segmentation");
 const segmentation_tooltip = document.getElementById("segmentation-tooltip");
 const segmentation_center = document.getElementById("segmentation-center");
@@ -274,7 +273,7 @@ function has_control(){
 }
 
 function mouse_has_control(){
-    return canvases.slice(0, 2).includes(document.pointerLockElement);
+    return camera_canvases.includes(document.pointerLockElement);
 }
 
 function clear_input(){
@@ -358,7 +357,7 @@ async function toggle_pointer_lock(canvas){
     }
 }
 
-for(const canvas of canvases.slice(0, 2)){
+for(const canvas of camera_canvases){
     let pointer_type = "";
     canvas.addEventListener("pointerdown", event => {
         pointer_type = event.pointerType;
@@ -580,9 +579,6 @@ async function main(){
     if(!navigator.gpu){
         throw new Error("WebGPU is unavailable in this browser. Open the page in a browser with WebGPU support enabled.");
     }
-    if(contexts.some(context => context === null)){
-        throw new Error("Canvas drawing is unavailable in this browser.");
-    }
     set_status("Loading the simulation…");
     const {default: createModule} = await import("./blob/build/hyperdrone_web.js");
     const module = await createModule({
@@ -604,24 +600,12 @@ async function main(){
         },
         rlt_input: poll_input,
         rlt_segmentation_classes: classes => { segmentation_classes = classes; },
-        rlt_present: (pointer, width, height, num_views, x, y, z, qw, qx, qy, qz, segmentation_pointer) => {
-            if(num_views !== canvases.length){
-                throw new Error(`Expected ${canvases.length} camera outputs; received ${num_views}. Rebuild the HyperDrone browser module.`);
-            }
-            if(segmentation_ids === null || canvases[0].width !== width || canvases[0].height !== height){
+        rlt_present: (segmentation_pointer, width, height, x, y, z, qw, qx, qy, qz) => {
+            if(segmentation_ids === null || segmentation_ids.length !== width * height){
                 segmentation_ids = new Uint32Array(width * height);
-                for(const canvas of canvases){
-                    canvas.width = width;
-                    canvas.height = height;
-                }
             }
             const heap = module.HEAPU8;
             segmentation_ids.set(new Uint32Array(heap.buffer, heap.byteOffset + segmentation_pointer, width * height));
-            const image_bytes = width * height * 4;
-            for(let view = 0; view < num_views; view++){
-                const pixels = new Uint8ClampedArray(module.HEAPU8.buffer, pointer + view * image_bytes, image_bytes);
-                contexts[view].putImageData(new ImageData(pixels, width, height), 0, 0);
-            }
             drone_pose = {position: round_values([x, y, z], 2), orientation: round_values([qw, qx, qy, qz], 3)};
             position_readout.textContent = format_pose(drone_pose.position, 2);
             orientation_readout.textContent = format_pose(drone_pose.orientation, 3);
@@ -647,7 +631,7 @@ async function main(){
             }
         },
     });
-    if(module._demo_api_version?.() !== 8){
+    if(module._demo_api_version?.() !== 9){
         throw new Error("The page and simulation bundle are incompatible. Deploy the matching blob/build files and update the pinned revision in download_blob.sh.");
     }
     const configuration = setup_rendering(JSON.parse(module.ccall("demo_configurations", "string", [], [])));

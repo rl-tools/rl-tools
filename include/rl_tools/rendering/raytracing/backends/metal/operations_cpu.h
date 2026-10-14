@@ -92,6 +92,7 @@ namespace rl_tools {
             encoder->setBuffer(ctx.overlay_structures_previous.get() != nullptr ? ctx.overlay_structures_previous.get() : ctx.overlay_structures.get(), 0, bindings::OVERLAY_STRUCTURES_PREVIOUS);
             encoder->setBuffer(ctx.overlay_attachments.get(), 0, bindings::OVERLAY_ATTACHMENTS);
             encoder->setBuffer(ctx.instance_classes.get(), 0, bindings::INSTANCE_CLASSES);
+            encoder->setBuffer(ctx.camera_table.get(), 0, bindings::CAMERA_TABLE);
             if(output_buffer(ctx, Slot::RGB_FLOAT32) != nullptr){
                 encoder->setBuffer(output_buffer(ctx, Slot::RGB_FLOAT32), 0, bindings::RGB_FLOAT32);
             }
@@ -132,6 +133,7 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_RGB32F){
                 encoder->setBuffer(output_buffer(ctx, Slot::RGB_FLOAT32), 0, bindings::RGB_FLOAT32);
             }
+            encoder->setBuffer(ctx.camera_table.get(), 0, bindings::CAMERA_TABLE);
             encoder->dispatchThreads(MTL::Size::Make(SPEC::FB_WIDTH, SPEC::FB_HEIGHT, 1), MTL::Size::Make(8, 8, 1));
             encoder->endEncoding();
         }
@@ -147,6 +149,7 @@ namespace rl_tools {
             encoder->setAccelerationStructure(ctx.acceleration_structure.get(), bindings::ACCELERATION_STRUCTURE);
             encoder->setBuffer(ctx.overlay_structures.get(), 0, bindings::OVERLAY_STRUCTURES);
             encoder->setBuffer(ctx.overlay_attachments.get(), 0, bindings::OVERLAY_ATTACHMENTS);
+            encoder->setBuffer(ctx.camera_table.get(), 0, bindings::CAMERA_TABLE);
             for(auto& object_acceleration_structure : ctx.object_acceleration_structures){
                 encoder->useResource(object_acceleration_structure.get(), MTL::ResourceUsageRead);
             }
@@ -226,6 +229,8 @@ namespace rl_tools {
         }
 
         ctx->launch_params = NS::TransferPtr(ctx->device->newBuffer(sizeof(metal::LaunchParams), MTL::ResourceStorageModeShared));
+        ctx->camera_table = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * rendering::raytracing::outputs::CAMERA_TABLE_STRIDE * sizeof(uint32_t), MTL::ResourceStorageModeShared));
+        fill_camera_table<SPEC>(device, (unsigned int*)ctx->camera_table->contents());
 
         // camera tensors alias the shared MTLBuffers the encoders bind (see cameras(device,
         // renderer)): host writes are consumed by the next launch with no staging copy
@@ -578,6 +583,7 @@ namespace rl_tools {
             bool has_rgb32f = SPEC::HAS_RGB32F;
             bool dynamic_motion_blur = CONSTANTS::DYNAMIC_MOTION_BLUR;
             bool resolve_rgb = CONSTANTS::RESOLVE_RGB;
+            bool all_cameras = rendering::raytracing::outputs::Layout<SPEC>::ALL_CAMERAS;
             constants->setConstantValue(&srgb_output, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::SRGB_OUTPUT);
             constants->setConstantValue(&motion_blur, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::MOTION_BLUR);
             constants->setConstantValue(&motion_samples, MTL::DataTypeInt, (NS::UInteger)metal::function_constants::MOTION_SAMPLES);
@@ -596,6 +602,7 @@ namespace rl_tools {
             constants->setConstantValue(&ctx.depth_scale, MTL::DataTypeFloat, (NS::UInteger)metal::function_constants::DEPTH_SCALE);
             constants->setConstantValue(&ctx.flow_scale, MTL::DataTypeFloat, (NS::UInteger)metal::function_constants::FLOW_SCALE);
             constants->setConstantValue(&ctx.flow_forward_scale, MTL::DataTypeFloat, (NS::UInteger)metal::function_constants::FLOW_FORWARD_SCALE);
+            constants->setConstantValue(&all_cameras, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::ALL_CAMERAS);
 
             auto make_pipeline = [&](const char* name) -> NS::SharedPtr<MTL::ComputePipelineState> {
                 NS::Error* error = nullptr;

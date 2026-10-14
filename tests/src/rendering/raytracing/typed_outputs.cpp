@@ -171,6 +171,120 @@ namespace {
         }
         free(device, renderer);
     }
+    template <auto... OFFSETS>
+    using Of3 = outputs::cameras::Every<3, OFFSETS...>;
+    using Mixed = outputs::List<
+        outputs::Cameras<Of3<0, 1>, outputs::RGB<>>, outputs::Cameras<Of3<1>, outputs::RGB<outputs::format::Float32>>,
+        outputs::Cameras<Of3<0, 2>, outputs::Depth<>>, outputs::Cameras<Of3<2>, DepthColor>,
+        outputs::Cameras<Of3<0>, outputs::Normals<>>, outputs::Normals<outputs::format::RGBA8>,
+        outputs::Cameras<Of3<1>, outputs::Segmentation<>>, outputs::Cameras<Of3<0, 1>, outputs::Segmentation<outputs::format::RGBA8, outputs::labels::Semantic>>,
+        outputs::Cameras<Of3<0>, outputs::Flow<>>, outputs::Cameras<Of3<1>, outputs::FlowStatus<>>, outputs::Cameras<Of3<2>, FlowColor>,
+        outputs::Cameras<Of3<2>, outputs::Flow<outputs::direction::Forward>>, outputs::FlowStatus<outputs::direction::Forward>,
+        outputs::Cameras<Of3<1>, outputs::Probes>>;
+    template <typename LIST, bool AA, bool MB, bool OVERLAYS = false>
+    struct TripleConfig: Config<LIST, AA, MB, OVERLAYS> {
+        static constexpr DEVICE::index_t NUM_CAMERAS = 3;
+    };
+    template <typename SPEC>
+    void set_triple_inputs(DEVICE& device, rrt::Renderer<SPEC, BACKEND>& renderer) {
+        const float up[3] = {0, 0, 1};
+        const float positions[3][3] = {{0, 0, 0}, {0, .4f, .2f}, {.5f, -.3f, 0}}, targets[3][3] = {{3, 0, 0}, {3, -.3f, 0}, {3, .2f, .1f}};
+        rrt::Camera<float> close[3], previous[3];
+        for(unsigned int camera_i = 0; camera_i < 3; camera_i++) {
+            close[camera_i] = make_camera_data(positions[camera_i], targets[camera_i], up, 80.0f, 4.0f / 3.0f);
+            previous[camera_i] = close[camera_i];
+            previous[camera_i].pos[1] -= .03f * (float)(camera_i + 1);
+        }
+        golden::copy_in(device, renderer.device, close, cameras(device, renderer));
+        if constexpr (SPEC::HAS_CAMERA_PAIR) {
+            golden::copy_in(device, renderer.device, previous, cameras_open(device, renderer));
+        }
+        golden::copy_in(device, renderer.device, previous, cameras_previous(device, renderer));
+    }
+    // every row of the selected output equals the selected camera's slice of the all-camera render
+    template <typename ENTRY, typename FULL_SPEC, typename MIXED_SPEC>
+    void expect_selected_rows(DEVICE& device, rrt::Renderer<FULL_SPEC, BACKEND>& full, rrt::Renderer<MIXED_SPEC, BACKEND>& mixed) {
+        using OUTPUT = typename outputs::Entry<ENTRY>::OUTPUT;
+        using SELECTION = typename outputs::Entry<ENTRY>::SELECTION;
+        const auto all = read(device, full, OUTPUT{});
+        const auto selected = read(device, mixed, OUTPUT{});
+        const size_t per_camera = all.size() / FULL_SPEC::NUM_CAMERAS;
+        ASSERT_EQ(selected.size(), per_camera * outputs::cameras::count<SELECTION>(FULL_SPEC::NUM_CAMERAS));
+        size_t row = 0;
+        for(size_t camera = 0; camera < FULL_SPEC::NUM_CAMERAS; camera++) {
+            if(!SELECTION::selected(camera)) {
+                continue;
+            }
+            EXPECT_EQ(std::memcmp(selected.data() + row * per_camera, all.data() + camera * per_camera, per_camera * sizeof(selected[0])), 0) << "camera " << camera;
+            row++;
+        }
+    }
+    template <typename FULL_SPEC, typename MIXED_SPEC, typename... ENTRIES>
+    void expect_selected_rows(DEVICE& device, rrt::Renderer<FULL_SPEC, BACKEND>& full, rrt::Renderer<MIXED_SPEC, BACKEND>& mixed, outputs::List<ENTRIES...>) {
+        (expect_selected_rows<ENTRIES>(device, full, mixed), ...);
+    }
+    template <bool AA, bool MB, bool OVERLAYS = false>
+    void camera_selection_case() {
+        DEVICE device;
+        init(device);
+        device.logger.verbosity = devices::logging::Verbosity::warning;
+        auto bundle = scene(device);
+        using FULL_SPEC = rrt::Specification<TripleConfig<All, AA, MB, OVERLAYS>>;
+        using MIXED_SPEC = rrt::Specification<TripleConfig<Mixed, AA, MB, OVERLAYS>>;
+        static_assert(outputs::TensorSpecification<MIXED_SPEC, outputs::Depth<>>::SIZE == 2 * FULL_SPEC::CAM_PIXELS);
+        static_assert(outputs::TensorSpecification<MIXED_SPEC, outputs::RGB<>>::SIZE == 2 * FULL_SPEC::CAM_PIXELS);
+        rrt::Renderer<FULL_SPEC, BACKEND> full;
+        rrt::Renderer<MIXED_SPEC, BACKEND> mixed;
+        malloc(device, full);
+        malloc(device, mixed);
+        rrt::AssetPool pool;
+        if constexpr (OVERLAYS) {
+            rrt::Object object;
+            object.segmentation_class = 5;
+            rrt::Mesh triangle;
+            triangle.vertices = {0, -.8f, -.8f, 0, .8f, -.8f, 0, 0, .8f};
+            triangle.indices = {0, 1, 2};
+            triangle.color[0] = 0;
+            triangle.color[1] = 1;
+            triangle.color[2] = 0;
+            object.meshes.push_back(triangle);
+            const auto asset = add(device, pool, object);
+            const auto prepare = [&](auto& renderer) {
+                init(device, renderer, bundle, pool);
+                const float open[12] = {1, 0, 0, 1.5f, 0, 1, 0, -.8f, 0, 0, 1, 0};
+                const float close[12] = {1, 0, 0, 1.5f, 0, 1, 0, .8f, 0, 0, 1, 0};
+                const auto placement = spawn(device, renderer, rrt::OverlayIndex{0}, asset, open);
+                for(DEVICE::index_t camera = 0; camera < FULL_SPEC::NUM_CAMERAS; camera++) {
+                    attach(device, renderer, camera, rrt::OverlayIndex{0});
+                }
+                set_transform_pair(device, renderer, rrt::OverlayIndex{0}, placement, open, close);
+                update(device, renderer);
+            };
+            prepare(full);
+            prepare(mixed);
+        }
+        else {
+            init(device, full, bundle);
+            init(device, mixed, bundle);
+        }
+        set_triple_inputs(device, full);
+        set_triple_inputs(device, mixed);
+        render(device, full);
+        render(device, mixed);
+        generate_probe_directions(device, full);
+        generate_probe_directions(device, mixed);
+        probe(device, full);
+        probe(device, mixed);
+        expect_selected_rows(device, full, mixed, Mixed{});
+        if constexpr (OVERLAYS) {
+            const auto colors = read(device, full, outputs::RGB<>{});
+            EXPECT_TRUE(std::any_of(colors.begin(), colors.end(), [](uint32_t color) {
+                return (color & 255u) > 0 && ((color >> 8) & 255u) > 0;
+            }));
+        }
+        free(device, mixed);
+        free(device, full);
+    }
     template <typename OUTPUT, typename JOINT_SPEC>
     void single_case(DEVICE& device, rendering::Bundle<float>& bundle, rrt::Renderer<JOINT_SPEC, BACKEND>& joint, OUTPUT descriptor) {
         using SPEC = rrt::Specification<Config<outputs::List<OUTPUT>, JOINT_SPEC::ENABLE_ANTI_ALIASING, JOINT_SPEC::ENABLE_MOTION_BLUR, JOINT_SPEC::ENABLE_OVERLAYS>>;
@@ -212,6 +326,15 @@ TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, ANTI_ALIASING) {
 }
 TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, MOTION_BLUR) {
     joint_case<false, true>();
+}
+TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, CAMERA_SELECTIONS) {
+    camera_selection_case<false, false>();
+}
+TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, CAMERA_SELECTIONS_SEPARATE_PASS) {
+    camera_selection_case<true, true>();
+}
+TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, CAMERA_SELECTIONS_DYNAMIC_MOTION_BLUR) {
+    camera_selection_case<false, true, true>();
 }
 TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, SELECTED_OUTPUTS_MATCH_JOINT) {
     DEVICE device;
@@ -319,3 +442,91 @@ TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, DEPTH_MISS_REPRESENTATIONS) {
     }
     free(device, renderer);
 }
+
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_TYPED_OUTPUTS_ACTIVE_BACKEND) && defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_WEBGPU)
+TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, INPUT_COPIES_LEAVE_OUTPUTS_ON_DEVICE) {
+    DEVICE device;
+    init(device);
+    device.logger.verbosity = devices::logging::Verbosity::warning;
+    auto bundle = scene(device);
+    rrt::AssetPool pool;
+    auto object = bundle.scene.objects[0];
+    object.meshes[0].color[0] = 0;
+    object.meshes[0].color[1] = 1;
+    const auto asset = add(device, pool, object);
+    using SPEC = rrt::Specification<Config<outputs::List<outputs::RGB<>, outputs::Depth<>, outputs::Probes>, false, false, true>>;
+    rrt::Renderer<SPEC, BACKEND> renderer;
+    malloc(device, renderer);
+    init(device, renderer, bundle, pool);
+    set_inputs(device, renderer, 0);
+    generate_probe_directions(device, renderer);
+    const float pose[12] = {1, 0, 0, -1, 0, 1, 0, 0, 0, 0, 1, 0};
+    spawn(device, renderer, rrt::OverlayIndex{0}, asset, pose);
+    attach(device, renderer, DEVICE::index_t(0), rrt::OverlayIndex{0});
+    update(device, renderer);
+
+    auto& depth = output(device, renderer, outputs::Depth<>{});
+    auto& rgb = output(device, renderer, outputs::RGB<>{});
+    auto& probes = output(device, renderer, outputs::Probes{});
+    std::fill_n(data(depth), SPEC::CAM_PIXELS, -99.f);
+    std::fill_n(data(rgb), SPEC::CAM_PIXELS, 0u);
+    const auto poison_probes = [&] {
+        for(DEVICE::index_t index = 0; index < SPEC::NUM_PROBES; index++) {
+            data(probes)[index].distance = -99.f;
+            data(probes)[index].hit = 42;
+        }
+    };
+    const auto expect_images_unread = [&] {
+        EXPECT_TRUE(std::all_of(data(depth), data(depth) + SPEC::CAM_PIXELS, [](float value) { return value == -99.f; }));
+        EXPECT_TRUE(std::all_of(data(rgb), data(rgb) + SPEC::CAM_PIXELS, [](uint32_t value) { return value == 0u; }));
+    };
+    poison_probes();
+    render_launch(device, renderer);
+    std::vector<rrt::Camera<float>> camera_values;
+    golden::copy_out(renderer.device, device, cameras(device, renderer), camera_values);
+    expect_images_unread();
+    camera_values[0].pos[0] = .25f;
+    golden::copy_in(device, renderer.device, camera_values.data(), cameras(device, renderer));
+    expect_images_unread();
+
+    std::vector<float> poses;
+    golden::copy_out(renderer.device, device, transforms(device, renderer), poses);
+    poses[3] = -.5f;
+    golden::copy_in(device, renderer.device, poses.data(), transforms(device, renderer));
+    update(device, renderer);
+    expect_images_unread();
+    probe_launch(device, renderer);
+    const auto probe_values = read(device, renderer, outputs::Probes{});
+    EXPECT_EQ(probe_values[0].hit, 1);
+    EXPECT_NEAR(probe_values[0].distance, 2.25f, 1e-5f);
+    expect_images_unread();
+
+    poison_probes();
+    probe_launch(device, renderer);
+    render_launch(device, renderer);
+    expect_images_unread();
+    EXPECT_EQ(data(probes)[0].hit, 42);
+    auto camera_depth = view(device, depth, DEVICE::index_t(0));
+    auto row = view(device, camera_depth, DEVICE::index_t(1));
+    std::vector<float> row_values;
+    golden::copy_out(renderer.device, device, row, row_values);
+    for(float value : row_values) {
+        EXPECT_NEAR(value, 2.25f, 1e-5f);
+    }
+    EXPECT_EQ(data(rgb)[0], 0xff00ff00u);
+    EXPECT_EQ(data(probes)[0].hit, 42);
+
+    camera_values[0].pos[0] = .75f;
+    golden::copy_in(device, renderer.device, camera_values.data(), cameras(device, renderer));
+    render_launch(device, renderer);
+    render_sync(device, renderer);
+    for(DEVICE::index_t pixel = 0; pixel < SPEC::CAM_PIXELS; pixel++) {
+        EXPECT_NEAR(data(depth)[pixel], 1.75f, 1e-5f);
+    }
+    EXPECT_EQ(data(probes)[0].hit, 42);
+    probe_sync(device, renderer);
+    EXPECT_EQ(data(probes)[0].hit, 1);
+    EXPECT_NEAR(data(probes)[0].distance, 2.25f, 1e-5f);
+    free(device, renderer);
+}
+#endif

@@ -61,6 +61,11 @@ namespace rl_tools::rl::environments::hyperdrone {
         static constexpr TI MAX_DRONES = 1;
     };
 
+    // camera selection of a World output by mount index (Cameras<Mounts<0>, Depth<>>: the first
+    // mount of every camera agent)
+    template <auto... MOUNTS>
+    struct Mounts {};
+
     namespace world {
         struct NoImageHistory {};
         template <typename STATE, typename = void>
@@ -78,6 +83,36 @@ namespace rl_tools::rl::environments::hyperdrone {
             static constexpr T_TI DIM = N_AGENTS * AGENT_STATE::DIM;
             AGENT_STATE agent_states[N_AGENTS];
         };
+        // World OUTPUTS entries are bare descriptors (every camera) or Cameras<Mounts<...>, OUTPUT>;
+        // cameras are instance-, then agent-, then mount-major, so a mount is every
+        // N_CAMERAS_PER_AGENT-th camera
+        template <typename SPEC, typename ENTRY>
+        struct RendererOutput {
+            using TYPE = ENTRY;
+        };
+        template <typename SPEC, typename SELECTION, typename OUTPUT>
+        struct RendererOutput<SPEC, rendering::raytracing::outputs::Cameras<SELECTION, OUTPUT>> {
+            static_assert(!utils::typing::is_same_v<SELECTION, SELECTION>, "select World output cameras by mount: Cameras<hyperdrone::Mounts<...>, OUTPUT>");
+        };
+        template <typename SPEC, auto... MOUNTS, typename OUTPUT>
+        struct RendererOutput<SPEC, rendering::raytracing::outputs::Cameras<Mounts<MOUNTS...>, OUTPUT>> {
+            using TYPE = rendering::raytracing::outputs::Cameras<rendering::raytracing::outputs::cameras::Every<SPEC::N_CAMERAS_PER_AGENT, MOUNTS...>, OUTPUT>;
+        };
+        template <typename SPEC, typename LIST>
+        struct RendererOutputs;
+        template <typename SPEC, typename... ENTRIES>
+        struct RendererOutputs<SPEC, rendering::raytracing::outputs::List<ENTRIES...>> {
+            using TYPE = rendering::raytracing::outputs::List<typename RendererOutput<SPEC, ENTRIES>::TYPE...>;
+        };
+        template <typename RENDERER_SPEC, typename OUTPUT>
+        constexpr bool covers_every_camera() {
+            if constexpr (rendering::raytracing::outputs::contains<typename RENDERER_SPEC::OUTPUTS, OUTPUT>::value) {
+                return rendering::raytracing::outputs::TensorSpecification<RENDERER_SPEC, OUTPUT>::SHAPE::template GET<0> == RENDERER_SPEC::NUM_CAMERAS;
+            }
+            else {
+                return true;
+            }
+        }
         template <typename T_SPEC>
         struct RendererConfig: rendering::raytracing::config::Default<typename T_SPEC::T, typename T_SPEC::TI> {
             using SPEC = T_SPEC;
@@ -88,7 +123,7 @@ namespace rl_tools::rl::environments::hyperdrone {
             static constexpr TI NUM_CAMERAS = SPEC::INSTANCES_PER_ENVIRONMENT * SPEC::N_CAMERA_AGENTS * SPEC::N_CAMERAS_PER_AGENT;
             static constexpr TI NUM_PROBES = SPEC::NUM_PROBES;
             using SHADING = typename SPEC::SHADING;
-            using OUTPUTS = typename SPEC::OUTPUTS;
+            using OUTPUTS = typename RendererOutputs<SPEC, typename SPEC::OUTPUTS>::TYPE;
             static constexpr bool ENABLE_MOTION_BLUR = SPEC::ENABLE_MOTION_BLUR;
             static constexpr TI MOTION_BLUR_SAMPLES = SPEC::MOTION_BLUR_SAMPLES;
             static constexpr bool ENABLE_ANTI_ALIASING = SPEC::ENABLE_ANTI_ALIASING;
@@ -215,6 +250,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         using RENDERER_CONFIG = world::RendererConfig<SPEC>;
         using RENDERER_SPEC = rendering::raytracing::Specification<RENDERER_CONFIG>;
         static constexpr bool HAS_IMAGE_OBSERVATION = rendering::raytracing::outputs::contains<typename SPEC::OUTPUTS, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>::value;
+        static_assert(world::covers_every_camera<RENDERER_SPEC, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>(), "the image observation covers every mount: configure RGB<Float32> without a camera selection");
         using RENDERER = rendering::raytracing::Renderer<RENDERER_SPEC>;
         using ANNOTATIONS_SPEC = rendering::datasets::annotations::FreeSpaceSpecification<T, TI>;
         using ANNOTATIONS = rendering::datasets::annotations::FreeSpace<ANNOTATIONS_SPEC>;

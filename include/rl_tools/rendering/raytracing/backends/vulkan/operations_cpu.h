@@ -712,6 +712,8 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_PROBES){
             ctx->probe_directions = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_PROBES * 3 * sizeof(float), STORAGE, HOST_MEMORY, true);
         }
+        ctx->camera_table = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * rendering::raytracing::outputs::CAMERA_TABLE_STRIDE * sizeof(uint32_t), STORAGE, HOST_MEMORY, true);
+        fill_camera_table<SPEC>(device, (unsigned int*)ctx->camera_table.mapped);
         ctx->dummy = vk::create_buffer(device, *ctx, 64, STORAGE, HOST_MEMORY, false);
         rendering::raytracing::detail::announce_backend(device, renderer);
     }
@@ -1324,6 +1326,7 @@ namespace rl_tools {
             };
             VkDescriptorBufferInfo buffer_infos[vk::bindings::COUNT];
             buffer_infos[vk::bindings::OUTPUTS] = buffer_or_dummy(ctx.outputs);
+            buffer_infos[vk::bindings::CAMERA_TABLE] = buffer_or_dummy(ctx.camera_table);
             buffer_infos[vk::bindings::LAUNCH_PARAMS] = buffer_or_dummy(ctx.launch_params);
             buffer_infos[vk::bindings::CAMERAS_CLOSE] = buffer_or_dummy(ctx.cameras);
             buffer_infos[vk::bindings::CAMERAS_OPEN] = ctx.cameras_open.buffer != VK_NULL_HANDLE ? buffer_or_dummy(ctx.cameras_open) : buffer_or_dummy(ctx.cameras);
@@ -1957,6 +1960,7 @@ namespace rl_tools {
             vk::destroy_buffer(ctx, ctx.flow_deltas);
             vk::destroy_buffer(ctx, ctx.probe_directions);
             vk::destroy_buffer(ctx, ctx.rgb_accumulator);
+            vk::destroy_buffer(ctx, ctx.camera_table);
             vk::destroy_buffer(ctx, ctx.dummy);
             if(ctx.rgb_pipeline != VK_NULL_HANDLE){ vkDestroyPipeline(ctx.device, ctx.rgb_pipeline, nullptr); }
             if(ctx.depth_pipeline != VK_NULL_HANDLE){ vkDestroyPipeline(ctx.device, ctx.depth_pipeline, nullptr); }

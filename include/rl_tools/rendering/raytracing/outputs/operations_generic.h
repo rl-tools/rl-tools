@@ -7,8 +7,8 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
-    template <typename SPEC, typename OUTPUT>
-    RL_TOOLS_FUNCTION_PLACEMENT constexpr OUTPUT output_type(const rendering::raytracing::outputs::Buffer<SPEC, OUTPUT>&) { return {}; }
+    template <typename SPEC, typename ENTRY>
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr typename rendering::raytracing::outputs::Buffer<SPEC, ENTRY>::OUTPUT output_type(const rendering::raytracing::outputs::Buffer<SPEC, ENTRY>&) { return {}; }
     template <typename DEVICE, typename TI, typename FUNCTION>
     RL_TOOLS_FUNCTION_PLACEMENT void for_each_output(DEVICE&, utils::Tuple<TI>&, FUNCTION&&) {}
     template <typename DEVICE, typename TI, typename HEAD, typename... TAIL, typename FUNCTION>
@@ -22,7 +22,7 @@ namespace rl_tools {
     }
     template <typename DEVICE, typename TI, typename SPEC, typename HEAD, typename... TAIL, typename OUTPUT>
     RL_TOOLS_FUNCTION_PLACEMENT auto& output(DEVICE& device, utils::Tuple<TI, rendering::raytracing::outputs::Buffer<SPEC, HEAD>, TAIL...>& values, OUTPUT descriptor) {
-        if constexpr (utils::typing::is_same_v<HEAD, OUTPUT>) {
+        if constexpr (utils::typing::is_same_v<typename rendering::raytracing::outputs::Entry<HEAD>::OUTPUT, OUTPUT>) {
             return values.content.tensor;
         }
         else {
@@ -36,7 +36,7 @@ namespace rl_tools {
     }
     template <typename DEVICE, typename TI, typename SPEC, typename HEAD, typename... TAIL, typename OUTPUT>
     RL_TOOLS_FUNCTION_PLACEMENT const auto& output(DEVICE& device, const utils::Tuple<TI, rendering::raytracing::outputs::Buffer<SPEC, HEAD>, TAIL...>& values, OUTPUT descriptor) {
-        if constexpr (utils::typing::is_same_v<HEAD, OUTPUT>) {
+        if constexpr (utils::typing::is_same_v<typename rendering::raytracing::outputs::Entry<HEAD>::OUTPUT, OUTPUT>) {
             return values.content.tensor;
         }
         else {
@@ -145,79 +145,116 @@ namespace rl_tools {
         const unsigned int value = (unsigned int)(math::clamp(device.math, depth / scale, 0.f, 1.f) * 255.f);
         return 0xff000000u | value | (value << 8) | (value << 16);
     }
-    template <typename DEVICE, typename SPEC, typename FORMAT>
-    RL_TOOLS_FUNCTION_PLACEMENT void write_output(DEVICE&, rendering::raytracing::outputs::Buffer<SPEC, rendering::raytracing::outputs::RGB<FORMAT>>& buffer, typename SPEC::TI pixel, const rendering::raytracing::outputs::Sample<rendering::raytracing::outputs::Source::RGB>& sample) {
+    template <typename DEVICE, typename TENSOR, typename FORMAT>
+    RL_TOOLS_FUNCTION_PLACEMENT void write_output(DEVICE&, TENSOR& tensor, rendering::raytracing::outputs::RGB<FORMAT>, typename TENSOR::SPEC::TI pixel, const rendering::raytracing::outputs::Sample<rendering::raytracing::outputs::Source::RGB>& sample) {
         if constexpr (utils::typing::is_same_v<FORMAT, rendering::raytracing::outputs::format::RGBA8>) {
             unsigned int packed = 0xff000000u;
             for(unsigned int channel = 0; channel < 3; channel++) {
                 const int value = (int)(sample.values[channel] * 256.f);
                 packed |= (unsigned int)(value < 0 ? 0 : (value > 255 ? 255 : value)) << (channel * 8);
             }
-            data(buffer.tensor)[pixel] = packed;
+            data(tensor)[pixel] = packed;
         }
         else {
             for(unsigned int channel = 0; channel < 3; channel++) {
-                data(buffer.tensor)[pixel * 3 + channel] = sample.values[channel];
+                data(tensor)[pixel * 3 + channel] = sample.values[channel];
             }
         }
     }
-    template <typename DEVICE, typename SPEC, typename FORMAT, typename PARAMETERS>
-    RL_TOOLS_FUNCTION_PLACEMENT void write_output(DEVICE& device, rendering::raytracing::outputs::Buffer<SPEC, rendering::raytracing::outputs::Depth<FORMAT, PARAMETERS>>& buffer, typename SPEC::TI pixel, const rendering::raytracing::outputs::Sample<rendering::raytracing::outputs::Source::Surface>& sample) {
+    template <typename DEVICE, typename TENSOR, typename FORMAT, typename PARAMETERS>
+    RL_TOOLS_FUNCTION_PLACEMENT void write_output(DEVICE& device, TENSOR& tensor, rendering::raytracing::outputs::Depth<FORMAT, PARAMETERS>, typename TENSOR::SPEC::TI pixel, const rendering::raytracing::outputs::Sample<rendering::raytracing::outputs::Source::Surface>& sample) {
         if constexpr (utils::typing::is_same_v<FORMAT, rendering::raytracing::outputs::format::RGBA8>) {
-            data(buffer.tensor)[pixel] = depth_color(device, sample.depth, PARAMETERS::SCALE);
+            data(tensor)[pixel] = depth_color(device, sample.depth, PARAMETERS::SCALE);
         }
         else {
-            data(buffer.tensor)[pixel] = sample.depth;
+            data(tensor)[pixel] = sample.depth;
         }
     }
-    template <typename DEVICE, typename SPEC, typename FORMAT, typename LABELS>
-    RL_TOOLS_FUNCTION_PLACEMENT void write_output(DEVICE& device, rendering::raytracing::outputs::Buffer<SPEC, rendering::raytracing::outputs::Segmentation<FORMAT, LABELS>>& buffer, typename SPEC::TI pixel, const rendering::raytracing::outputs::Sample<rendering::raytracing::outputs::Source::Surface>& sample) {
+    template <typename DEVICE, typename TENSOR, typename FORMAT, typename LABELS>
+    RL_TOOLS_FUNCTION_PLACEMENT void write_output(DEVICE& device, TENSOR& tensor, rendering::raytracing::outputs::Segmentation<FORMAT, LABELS>, typename TENSOR::SPEC::TI pixel, const rendering::raytracing::outputs::Sample<rendering::raytracing::outputs::Source::Surface>& sample) {
         const unsigned int id = utils::typing::is_same_v<LABELS, rendering::raytracing::outputs::labels::Semantic> ? sample.semantic : sample.instance;
         if constexpr (utils::typing::is_same_v<FORMAT, rendering::raytracing::outputs::format::RGBA8>) {
-            data(buffer.tensor)[pixel] = segmentation_color(device, id);
+            data(tensor)[pixel] = segmentation_color(device, id);
         }
         else {
-            data(buffer.tensor)[pixel] = id;
+            data(tensor)[pixel] = id;
         }
     }
-    template <typename DEVICE, typename SPEC, typename FORMAT>
-    RL_TOOLS_FUNCTION_PLACEMENT void write_output(DEVICE& device, rendering::raytracing::outputs::Buffer<SPEC, rendering::raytracing::outputs::Normals<FORMAT>>& buffer, typename SPEC::TI pixel, const rendering::raytracing::outputs::Sample<rendering::raytracing::outputs::Source::Surface>& sample) {
+    template <typename DEVICE, typename TENSOR, typename FORMAT>
+    RL_TOOLS_FUNCTION_PLACEMENT void write_output(DEVICE& device, TENSOR& tensor, rendering::raytracing::outputs::Normals<FORMAT>, typename TENSOR::SPEC::TI pixel, const rendering::raytracing::outputs::Sample<rendering::raytracing::outputs::Source::Surface>& sample) {
         if constexpr (utils::typing::is_same_v<FORMAT, rendering::raytracing::outputs::format::RGBA8>) {
-            data(buffer.tensor)[pixel] = normal_color(device, sample.values);
+            data(tensor)[pixel] = normal_color(device, sample.values);
         }
         else {
             for(unsigned int channel = 0; channel < 3; channel++) {
-                data(buffer.tensor)[pixel * 3 + channel] = sample.values[channel];
+                data(tensor)[pixel * 3 + channel] = sample.values[channel];
             }
         }
     }
-    template <typename DEVICE, typename SPEC, typename DIRECTION, typename FORMAT, typename PARAMETERS, rendering::raytracing::outputs::Source SOURCE>
-    RL_TOOLS_FUNCTION_PLACEMENT void write_output(DEVICE& device, rendering::raytracing::outputs::Buffer<SPEC, rendering::raytracing::outputs::Flow<DIRECTION, FORMAT, PARAMETERS>>& buffer, typename SPEC::TI pixel, const rendering::raytracing::outputs::Sample<SOURCE>& sample) {
+    template <typename DEVICE, typename TENSOR, typename DIRECTION, typename FORMAT, typename PARAMETERS, rendering::raytracing::outputs::Source SOURCE>
+    RL_TOOLS_FUNCTION_PLACEMENT void write_output(DEVICE& device, TENSOR& tensor, rendering::raytracing::outputs::Flow<DIRECTION, FORMAT, PARAMETERS>, typename TENSOR::SPEC::TI pixel, const rendering::raytracing::outputs::Sample<SOURCE>& sample) {
         if constexpr (utils::typing::is_same_v<FORMAT, rendering::raytracing::outputs::format::RGBA8>) {
-            data(buffer.tensor)[pixel] = sample.status == rendering::raytracing::FlowStatus::VALID ? flow_color(device, sample.values[0], sample.values[1], PARAMETERS::SCALE) : flow_status_color(device, sample.status);
+            data(tensor)[pixel] = sample.status == rendering::raytracing::FlowStatus::VALID ? flow_color(device, sample.values[0], sample.values[1], PARAMETERS::SCALE) : flow_status_color(device, sample.status);
         }
         else {
-            data(buffer.tensor)[pixel * 2] = sample.values[0];
-            data(buffer.tensor)[pixel * 2 + 1] = sample.values[1];
+            data(tensor)[pixel * 2] = sample.values[0];
+            data(tensor)[pixel * 2 + 1] = sample.values[1];
         }
     }
-    template <typename DEVICE, typename SPEC, typename DIRECTION, typename FORMAT, rendering::raytracing::outputs::Source SOURCE>
-    RL_TOOLS_FUNCTION_PLACEMENT void write_output(DEVICE& device, rendering::raytracing::outputs::Buffer<SPEC, rendering::raytracing::outputs::FlowStatus<DIRECTION, FORMAT>>& buffer, typename SPEC::TI pixel, const rendering::raytracing::outputs::Sample<SOURCE>& sample) {
+    template <typename DEVICE, typename TENSOR, typename DIRECTION, typename FORMAT, rendering::raytracing::outputs::Source SOURCE>
+    RL_TOOLS_FUNCTION_PLACEMENT void write_output(DEVICE& device, TENSOR& tensor, rendering::raytracing::outputs::FlowStatus<DIRECTION, FORMAT>, typename TENSOR::SPEC::TI pixel, const rendering::raytracing::outputs::Sample<SOURCE>& sample) {
         if constexpr (utils::typing::is_same_v<FORMAT, rendering::raytracing::outputs::format::RGBA8>) {
-            data(buffer.tensor)[pixel] = flow_status_color(device, sample.status);
+            data(tensor)[pixel] = flow_status_color(device, sample.status);
         }
         else {
-            data(buffer.tensor)[pixel] = sample.status;
+            data(tensor)[pixel] = sample.status;
         }
     }
+    // writes the sample into the outputs of its source that select the camera, at the camera's row
     template <typename DEVICE, typename SPEC, typename LIST, typename SAMPLE>
-    RL_TOOLS_FUNCTION_PLACEMENT void write_outputs(DEVICE& device, rendering::raytracing::outputs::Buffers<SPEC, LIST>& buffers, typename SPEC::TI pixel, const SAMPLE& sample) {
+    RL_TOOLS_FUNCTION_PLACEMENT void write_outputs(DEVICE& device, rendering::raytracing::outputs::Buffers<SPEC, LIST>& buffers, const unsigned int* camera_table, typename SPEC::TI camera, typename SPEC::TI pixel, const SAMPLE& sample) {
+        using TI = typename SPEC::TI;
+        namespace outputs = rendering::raytracing::outputs;
+        const unsigned int* rows = camera_table + camera * outputs::CAMERA_TABLE_STRIDE + 1;
         for_each_output(device, buffers, [&](auto& buffer) {
             using OUTPUT = decltype(output_type(buffer));
-            if constexpr (rendering::raytracing::outputs::Traits<OUTPUT>::SOURCE == SAMPLE::SOURCE) {
-                write_output(device, buffer, pixel, sample);
+            if constexpr (outputs::Traits<OUTPUT>::SOURCE == SAMPLE::SOURCE) {
+                const unsigned int row = rows[(unsigned int)outputs::Traits<OUTPUT>::SLOT];
+                if(row != outputs::NO_ROW) {
+                    write_output(device, buffer.tensor, OUTPUT{}, (TI)row * SPEC::CAM_PIXELS + pixel, sample);
+                }
             }
         });
+    }
+    namespace rendering::raytracing::outputs::detail {
+        template <typename SPEC, typename ENTRY>
+        RL_TOOLS_FUNCTION_PLACEMENT void fill_camera_table(unsigned int* table) {
+            using TI = typename SPEC::TI;
+            constexpr unsigned int SLOT = (unsigned int)Traits<ENTRY>::SLOT;
+            unsigned int row = 0;
+            for(TI camera = 0; camera < SPEC::NUM_CAMERAS; camera++) {
+                if(Entry<ENTRY>::SELECTION::selected(camera)) {
+                    table[camera * CAMERA_TABLE_STRIDE] |= bit(Traits<ENTRY>::SLOT);
+                    table[camera * CAMERA_TABLE_STRIDE + 1 + SLOT] = row++;
+                }
+            }
+        }
+        template <typename SPEC, typename... ENTRIES>
+        RL_TOOLS_FUNCTION_PLACEMENT void fill_camera_table(unsigned int* table, List<ENTRIES...>) {
+            (fill_camera_table<SPEC, ENTRIES>(table), ...);
+        }
+    }
+    // SPEC::NUM_CAMERAS * outputs::CAMERA_TABLE_STRIDE words
+    template <typename SPEC, typename DEVICE>
+    RL_TOOLS_FUNCTION_PLACEMENT void fill_camera_table(DEVICE&, unsigned int* table) {
+        namespace outputs = rendering::raytracing::outputs;
+        for(typename SPEC::TI camera = 0; camera < SPEC::NUM_CAMERAS; camera++) {
+            table[camera * outputs::CAMERA_TABLE_STRIDE] = 0;
+            for(unsigned int slot = 0; slot < (unsigned int)outputs::Slot::COUNT; slot++) {
+                table[camera * outputs::CAMERA_TABLE_STRIDE + 1 + slot] = outputs::NO_ROW;
+            }
+        }
+        outputs::detail::fill_camera_table<SPEC>(table, typename SPEC::OUTPUTS{});
     }
 
 }

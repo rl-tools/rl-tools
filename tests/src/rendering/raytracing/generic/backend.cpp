@@ -89,8 +89,11 @@ namespace {
         generic::InstanceView<T, TI> instance;
         generic::BVHNode<T, TI> tlas_node;
         TI tlas_primitive;
+        unsigned int camera_table[out::CAMERA_TABLE_STRIDE];
 
         CubeScene(DEVICE& device){
+            rlt::fill_camera_table<Spec<ShadingLow, 1>>(device, camera_table);
+            scene.camera_table = camera_table;
             mesh.indices = CUBE_INDICES;
             mesh.vertices = CUBE_VERTICES;
             mesh.color[0] = 0.25f;

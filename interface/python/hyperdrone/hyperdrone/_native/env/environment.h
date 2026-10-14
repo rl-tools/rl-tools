@@ -154,6 +154,11 @@ namespace HYPERDRONE_MODULE_NAME {
     using INSTANCE_SEGMENTATION = rro::Segmentation<rro::format::UInt32, rro::labels::Instance>;
     using SEMANTIC_SEGMENTATION = rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>;
     static_assert(WORLD::HAS_IMAGE_OBSERVATION, "Python environment observations require RGB<Float32> in OUTPUTS");
+    template <typename... DESCRIPTORS>
+    constexpr bool covers_every_camera(rro::List<DESCRIPTORS...>) {
+        return (rlt::rl::environments::hyperdrone::world::covers_every_camera<typename WORLD::RENDERER_SPEC, DESCRIPTORS>() && ...);
+    }
+    static_assert(covers_every_camera(rro::List<rro::Depth<>, INSTANCE_SEGMENTATION, SEMANTIC_SEGMENTATION, rro::Normals<>, rro::Flow<>, rro::FlowStatus<>>{}), "Python accessors return every camera: configure their outputs without a camera selection");
 
     constexpr TI NUM_ENVIRONMENTS = HYPERDRONE_ENV_NUM_ENVIRONMENTS;
     using ENV = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, NUM_ENVIRONMENTS>;

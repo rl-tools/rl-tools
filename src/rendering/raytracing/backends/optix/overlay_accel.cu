@@ -1,5 +1,6 @@
 #include "../../../../../include/rl_tools/rendering/raytracing/backends/optix/overlay_accel.h"
 #include "../../../../../include/rl_tools/rendering/raytracing/transforms_generic.h"
+#include "../../../../../include/rl_tools/rendering/raytracing/outputs/outputs.h"
 
 #include <optix.h>
 #include <optix_stubs.h>
@@ -207,11 +208,16 @@ namespace rl_tools::rendering::raytracing::backends::optix{
         __device__ inline float resolve_clamp01(float x){
             return fminf(fmaxf(x, 0.0f), 1.0f);
         }
-        __global__ void resolve_accumulators(const float* rgb_accumulation, unsigned int* frame_buffer, float* observation, int srgb_output, unsigned int num_pixels, float inv_samples){
+        __global__ void resolve_accumulators(const float* rgb_accumulation, unsigned int* frame_buffer, float* observation, const unsigned int* camera_table, int srgb_output, unsigned int num_cameras, unsigned int cam_pixels, float inv_samples){
+            namespace outputs = rendering::raytracing::outputs;
             const unsigned int pixel = blockIdx.x * blockDim.x + threadIdx.x;
-            if(pixel >= num_pixels){
+            if(pixel >= num_cameras * cam_pixels){
                 return;
             }
+            const unsigned int* camera_rows = camera_table + (pixel / cam_pixels) * outputs::CAMERA_TABLE_STRIDE + 1;
+            const unsigned int rgba8_row = camera_rows[(unsigned int)outputs::Slot::RGB_RGBA8];
+            const unsigned int float32_row = camera_rows[(unsigned int)outputs::Slot::RGB_FLOAT32];
+            const size_t local_pixel = pixel % cam_pixels;
             if(rgb_accumulation != nullptr){
                 float color[3];
                 for(int channel = 0; channel < 3; channel++){
@@ -223,23 +229,24 @@ namespace rl_tools::rendering::raytracing::backends::optix{
                         color[channel] = resolve_clamp01(color[channel]);
                     }
                 }
-                if(observation != nullptr){
-                    observation[(size_t)pixel * 3 + 0] = color[0];
-                    observation[(size_t)pixel * 3 + 1] = color[1];
-                    observation[(size_t)pixel * 3 + 2] = color[2];
+                if(observation != nullptr && float32_row != outputs::NO_ROW){
+                    const size_t element = (size_t)float32_row * cam_pixels + local_pixel;
+                    observation[element * 3 + 0] = color[0];
+                    observation[element * 3 + 1] = color[1];
+                    observation[element * 3 + 2] = color[2];
                 }
-                if(frame_buffer != nullptr){
-                    frame_buffer[pixel] = (resolve_make_8bit(color[0]) << 0) | (resolve_make_8bit(color[1]) << 8) | (resolve_make_8bit(color[2]) << 16) | (0xffu << 24);
+                if(frame_buffer != nullptr && rgba8_row != outputs::NO_ROW){
+                    frame_buffer[(size_t)rgba8_row * cam_pixels + local_pixel] = (resolve_make_8bit(color[0]) << 0) | (resolve_make_8bit(color[1]) << 8) | (resolve_make_8bit(color[2]) << 16) | (0xffu << 24);
                 }
             }
         }
     }
 
-    void overlay_accel_resolve(const float* rgb_accumulation, unsigned int* frame_buffer, float* observation, int srgb_output, unsigned int num_pixels, unsigned int num_samples, cudaStream_t stream){
+    void overlay_accel_resolve(const float* rgb_accumulation, unsigned int* frame_buffer, float* observation, const unsigned int* camera_table, int srgb_output, unsigned int num_cameras, unsigned int cam_pixels, unsigned int num_samples, cudaStream_t stream){
         namespace detail = overlay_accel_detail;
         const unsigned int block_size = 128;
-        const unsigned int grid_size = (num_pixels + block_size - 1) / block_size;
-        detail::resolve_accumulators<<<grid_size, block_size, 0, stream>>>(rgb_accumulation, frame_buffer, observation, srgb_output, num_pixels, 1.0f / (float)num_samples);
+        const unsigned int grid_size = (num_cameras * cam_pixels + block_size - 1) / block_size;
+        detail::resolve_accumulators<<<grid_size, block_size, 0, stream>>>(rgb_accumulation, frame_buffer, observation, camera_table, srgb_output, num_cameras, cam_pixels, 1.0f / (float)num_samples);
         detail::check_cuda(cudaGetLastError(), "resolve_accumulators launch");
     }
 

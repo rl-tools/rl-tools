@@ -121,12 +121,68 @@ namespace rl_tools::rendering::raytracing::outputs {
         static constexpr Source SOURCE = Source::Probe;
     };
 
+    // which cameras produce an output: a list entry Cameras<SELECTION, OUTPUT> covers the selected
+    // cameras (one tensor row each, in camera order), a bare descriptor covers every camera. The
+    // renderer runs each piece of shared per-pixel work on the union of the cameras whose outputs
+    // need it. A selection is any type with a constexpr selected(camera)
+    namespace cameras {
+        struct All {
+            template <typename TI>
+            static constexpr bool selected(TI) { return true; }
+        };
+        // every PERIOD-th camera at the given offsets, e.g. one mount of every camera rig
+        template <auto PERIOD, auto... OFFSETS>
+        struct Every {
+            static_assert(PERIOD > 0 && sizeof...(OFFSETS) > 0 && ((OFFSETS < PERIOD) && ...), "Every<PERIOD, OFFSETS...> needs offsets below PERIOD");
+            template <typename TI>
+            static constexpr bool selected(TI camera) { return ((camera % (TI)PERIOD == (TI)OFFSETS) || ...); }
+        };
+        template <typename SELECTION, typename TI>
+        constexpr TI count(TI num_cameras) {
+            TI selected = 0;
+            for(TI camera = 0; camera < num_cameras; camera++) {
+                selected += SELECTION::selected(camera) ? 1 : 0;
+            }
+            return selected;
+        }
+    }
+    template <typename T_SELECTION, typename T_OUTPUT>
+    struct Cameras {
+        using SELECTION = T_SELECTION;
+        using OUTPUT = T_OUTPUT;
+    };
+    template <typename ENTRY>
+    struct Entry {
+        using OUTPUT = ENTRY;
+        using SELECTION = cameras::All;
+    };
+    template <typename T_SELECTION, typename T_OUTPUT>
+    struct Entry<Cameras<T_SELECTION, T_OUTPUT>> {
+        using OUTPUT = T_OUTPUT;
+        using SELECTION = T_SELECTION;
+    };
+    template <typename SELECTION, typename OUTPUT>
+    struct Traits<Cameras<SELECTION, OUTPUT>>: Traits<OUTPUT> {};
+
     template <typename... OUTPUTS>
     struct List;
     template <typename LIST, typename OUTPUT>
     struct contains;
     template <typename... OUTPUTS, typename OUTPUT>
-    struct contains<List<OUTPUTS...>, OUTPUT>: utils::typing::integral_constant<bool, (utils::typing::is_same_v<OUTPUT, OUTPUTS> || ...)> {};
+    struct contains<List<OUTPUTS...>, OUTPUT>: utils::typing::integral_constant<bool, (utils::typing::is_same_v<OUTPUT, typename Entry<OUTPUTS>::OUTPUT> || ...)> {};
+    // the configured entry (with its camera selection) of a descriptor
+    template <typename LIST, typename OUTPUT>
+    struct EntryOf;
+    template <typename OUTPUT>
+    struct EntryOf<List<>, OUTPUT> {
+        static_assert(!utils::typing::is_same_v<OUTPUT, OUTPUT>, "output is not configured");
+    };
+    template <typename ENTRY>
+    struct Found {
+        using TYPE = ENTRY;
+    };
+    template <typename HEAD, typename... TAIL, typename OUTPUT>
+    struct EntryOf<List<HEAD, TAIL...>, OUTPUT>: utils::typing::conditional_t<utils::typing::is_same_v<typename Entry<HEAD>::OUTPUT, OUTPUT>, Found<HEAD>, EntryOf<List<TAIL...>, OUTPUT>> {};
     template <typename LIST, Slot SLOT>
     struct contains_slot;
     template <typename... OUTPUTS, Slot SLOT>
@@ -177,20 +233,39 @@ namespace rl_tools::rendering::raytracing::outputs {
         static constexpr bool HAS_IMAGE = HAS_RGB || HAS_AUXILIARY || HAS_FLOW_FORWARD;
     };
 
-    template <typename SPEC, typename OUTPUT, unsigned int CHANNELS = Traits<OUTPUT>::CHANNELS>
-    struct Shape { using TYPE = tensor::Shape<typename SPEC::TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, CHANNELS>; };
-    template <typename SPEC, typename OUTPUT>
-    struct Shape<SPEC, OUTPUT, 1> { using TYPE = tensor::Shape<typename SPEC::TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH>; };
-    template <typename SPEC>
-    struct Shape<SPEC, Probes, 1> { using TYPE = tensor::Shape<typename SPEC::TI, SPEC::NUM_CAMERAS, SPEC::NUM_PROBES>; };
-    template <typename SPEC, typename T_OUTPUT>
+    constexpr unsigned int bit(Slot slot) { return 1u << (unsigned int)slot; }
+    // per-camera work gates over a camera's output-slot mask
+    constexpr unsigned int RGB_SLOTS = bit(Slot::RGB_RGBA8) | bit(Slot::RGB_FLOAT32);
+    constexpr unsigned int DEPTH_SLOTS = bit(Slot::DEPTH_FLOAT32) | bit(Slot::DEPTH_RGBA8);
+    constexpr unsigned int SEGMENTATION_SLOTS = bit(Slot::SEGMENTATION_UINT32) | bit(Slot::SEGMENTATION_RGBA8) | bit(Slot::SEMANTIC_UINT32) | bit(Slot::SEMANTIC_RGBA8);
+    constexpr unsigned int NORMALS_SLOTS = bit(Slot::NORMALS_FLOAT32) | bit(Slot::NORMALS_RGBA8);
+    constexpr unsigned int SURFACE_SLOTS = DEPTH_SLOTS | SEGMENTATION_SLOTS | NORMALS_SLOTS;
+    constexpr unsigned int FLOW_BACKWARD_VISIBILITY_SLOTS = bit(Slot::FLOW_RGBA8) | bit(Slot::FLOW_STATUS_UINT32) | bit(Slot::FLOW_STATUS_RGBA8);
+    constexpr unsigned int FLOW_BACKWARD_SLOTS = bit(Slot::FLOW_FLOAT32) | FLOW_BACKWARD_VISIBILITY_SLOTS;
+    constexpr unsigned int FLOW_FORWARD_VISIBILITY_SLOTS = bit(Slot::FLOW_FORWARD_RGBA8) | bit(Slot::FLOW_FORWARD_STATUS_UINT32) | bit(Slot::FLOW_FORWARD_STATUS_RGBA8);
+    constexpr unsigned int FLOW_FORWARD_SLOTS = bit(Slot::FLOW_FORWARD_FLOAT32) | FLOW_FORWARD_VISIBILITY_SLOTS;
+    // camera table: per camera its output-slot mask, then its row in each output's tensor (NO_ROW
+    // where unselected); built once from SPEC::OUTPUTS by fill_camera_table
+    constexpr unsigned int CAMERA_TABLE_STRIDE = 1 + (unsigned int)Slot::COUNT;
+    constexpr unsigned int NO_ROW = 0xffffffffu;
+
+    template <typename SPEC, typename OUTPUT, typename SPEC::TI ROWS, unsigned int CHANNELS = Traits<OUTPUT>::CHANNELS>
+    struct Shape { using TYPE = tensor::Shape<typename SPEC::TI, ROWS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, CHANNELS>; };
+    template <typename SPEC, typename OUTPUT, typename SPEC::TI ROWS>
+    struct Shape<SPEC, OUTPUT, ROWS, 1> { using TYPE = tensor::Shape<typename SPEC::TI, ROWS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH>; };
+    template <typename SPEC, typename SPEC::TI ROWS>
+    struct Shape<SPEC, Probes, ROWS, 1> { using TYPE = tensor::Shape<typename SPEC::TI, ROWS, SPEC::NUM_PROBES>; };
+    template <typename SPEC, typename ENTRY>
     struct Buffer {
-        using OUTPUT = T_OUTPUT;
-        using TENSOR_SPEC = tensor::Specification<typename Traits<OUTPUT>::T, typename SPEC::TI, typename Shape<SPEC, OUTPUT>::TYPE, true>;
+        using OUTPUT = typename Entry<ENTRY>::OUTPUT;
+        using SELECTION = typename Entry<ENTRY>::SELECTION;
+        static constexpr typename SPEC::TI ROWS = cameras::count<SELECTION>(SPEC::NUM_CAMERAS);
+        static_assert(ROWS > 0, "the camera selection of an output selects no camera");
+        using TENSOR_SPEC = tensor::Specification<typename Traits<OUTPUT>::T, typename SPEC::TI, typename Shape<SPEC, OUTPUT, ROWS>::TYPE, true>;
         Tensor<TENSOR_SPEC> tensor;
     };
     template <typename SPEC, typename OUTPUT>
-    using TensorSpecification = typename Buffer<SPEC, OUTPUT>::TENSOR_SPEC;
+    using TensorSpecification = typename Buffer<SPEC, typename EntryOf<typename SPEC::OUTPUTS, OUTPUT>::TYPE>::TENSOR_SPEC;
     template <typename SPEC, typename LIST>
     struct Buffers;
     template <typename SPEC, typename... OUTPUTS>
@@ -206,6 +281,7 @@ namespace rl_tools::rendering::raytracing::outputs {
     struct Layout;
     template <typename SPEC, typename... OUTPUTS>
     struct Layout<SPEC, List<OUTPUTS...>> {
+        static constexpr bool ALL_CAMERAS = ((Buffer<SPEC, OUTPUTS>::ROWS == SPEC::NUM_CAMERAS) && ...);
         static constexpr unsigned int SIZE_BYTES = (0u + ... + Buffer<SPEC, OUTPUTS>::TENSOR_SPEC::SIZE_BYTES);
         static constexpr unsigned int WORDS = SIZE_BYTES / sizeof(unsigned int);
         static constexpr Offsets SLOT_OFFSETS = []() {

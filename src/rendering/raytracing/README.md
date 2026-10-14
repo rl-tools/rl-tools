@@ -123,6 +123,12 @@ without a channel-specific accessor. List order is arbitrary; one quantity/repre
 may appear once. `outputs::Concat` and `outputs::If` compose lists. The default requests only
 packed RGB; probes must be explicit and require `NUM_PROBES > 0`.
 
+`outputs::Cameras<SELECTION, DESCRIPTOR>` restricts an entry to the cameras its selection picks
+(`cameras::Every<PERIOD, OFFSETS...>`, or any type with a `constexpr selected(camera)`); the
+descriptor alone stays the accessor key. `N` below is the number of cameras an entry covers, one
+row each in camera order. Each shared per-pixel pass (primary ray, surface hit, flow visibility)
+runs on the union of the cameras whose outputs need it.
+
 | Descriptor | Raw representation and shape | RGBA8 representation |
 |---|---|---|
 | `RGB<FORMAT>` | Float32 `[N,H,W,3]`, shading transfer curve before quantization | Default; packed uint32 `[N,H,W]` |
@@ -143,7 +149,7 @@ binary formats for the examples and golden tooling that consume them.
 | Consumer | Constraint on the design |
 |---|---|
 | HyperDrone CPU/CUDA training, rigs, tasks, spectators | Float RGB and image history only when requested; explicit probes; backend-resident tensor copies |
-| Browser display | Packed display outputs directly from the rendering backend; no CPU conversion or raw intermediate |
+| Browser display | Packed display outputs directly from the rendering backend; no CPU conversion or raw intermediate; auxiliary outputs for the onboard mount only |
 | Python Render/Env | Existing Python names, shapes, and dtypes map to explicit descriptor lists |
 | Native interactive viewer, dataset annotation, examples, benchmarks, goldens | Stable raw values, instance IDs, export formats, and deterministic workloads |
 | Generic, Metal, OptiX, Vulkan, WebGPU | Shared plan and accessor; native allocation, shader lowering, and synchronization remain backend operations |

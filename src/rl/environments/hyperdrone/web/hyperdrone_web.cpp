@@ -42,11 +42,11 @@ namespace rl_tools::rl::environments::hyperdrone::web {
         static constexpr TI NUM_PROBES = 64;
         using OUTPUTS = rendering::raytracing::outputs::List<
             rendering::raytracing::outputs::RGB<>,
-            rendering::raytracing::outputs::Depth<rendering::raytracing::outputs::format::RGBA8>,
-            rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::RGBA8, rendering::raytracing::outputs::labels::Semantic>,
-            rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::UInt32, rendering::raytracing::outputs::labels::Semantic>,
-            rendering::raytracing::outputs::Normals<rendering::raytracing::outputs::format::RGBA8>,
-            rendering::raytracing::outputs::Flow<rendering::raytracing::outputs::direction::Backward, rendering::raytracing::outputs::format::RGBA8>,
+            rendering::raytracing::outputs::Cameras<Mounts<0>, rendering::raytracing::outputs::Depth<rendering::raytracing::outputs::format::RGBA8>>,
+            rendering::raytracing::outputs::Cameras<Mounts<0>, rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::RGBA8, rendering::raytracing::outputs::labels::Semantic>>,
+            rendering::raytracing::outputs::Cameras<Mounts<0>, rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::UInt32, rendering::raytracing::outputs::labels::Semantic>>,
+            rendering::raytracing::outputs::Cameras<Mounts<0>, rendering::raytracing::outputs::Normals<rendering::raytracing::outputs::format::RGBA8>>,
+            rendering::raytracing::outputs::Cameras<Mounts<0>, rendering::raytracing::outputs::Flow<rendering::raytracing::outputs::direction::Backward, rendering::raytracing::outputs::format::RGBA8>>,
             rendering::raytracing::outputs::Probes>;
         static constexpr bool ENABLE_MOTION_BLUR = T_MOTION_BLUR_SAMPLES > 1;
         static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;
@@ -60,6 +60,7 @@ namespace rl_tools::rl::environments::hyperdrone::web {
         static_assert(sizeof...(CONFIGS) > 0, "The web demo requires at least one compiled configuration");
     };
     constexpr TI VIEWS = 6;
+    constexpr const char* CANVASES[VIEWS] = {"#camera0", "#camera1", "#depth", "#segmentation", "#normals", "#flow"};
     constexpr TI SPAWN_ATTEMPTS = 4096;
     constexpr T DRONE_SEPARATION = 1.5;
     constexpr double FRAME_PERIOD = 1.0 / 60.0;
@@ -98,7 +99,6 @@ namespace rl_tools::rl::environments::hyperdrone::web {
     template <typename CONFIG>
     struct Buffer {
         static constexpr TI PIXELS = CONFIG::CAM_WIDTH * CONFIG::CAM_HEIGHT;
-        std::vector<uint32_t> rgba = std::vector<uint32_t>(VIEWS * PIXELS);
         std::vector<uint32_t> segmentation = std::vector<uint32_t>(PIXELS);
     };
 }
@@ -329,30 +329,23 @@ namespace rl_tools {
             copy(device, device, state.next_states, state.states);
         }
     }
-    template <typename RENDERER, typename TENSOR, typename T>
-    void copy_onboard(web::DEVICE& device, RENDERER& renderer, TENSOR& source, T* destination) {
-        auto onboard = view(device, source, (web::TI)0);
-        Tensor<typename decltype(onboard)::SPEC> alias;
-        alias._data = destination;
-        copy(renderer.device, device, onboard, alias);
-    }
     template <typename CONFIG>
-    void render(web::DEVICE& device, web::State<CONFIG>& state, web::Buffer<CONFIG>& buffer) {
+    void render(web::DEVICE& device, web::State<CONFIG>& state, web::Buffer<CONFIG>& buffer, rendering::raytracing::backends::webgpu::Canvas (&canvases)[web::VIEWS]) {
         using namespace web;
-        using WORLD = typename State<CONFIG>::WORLD;
-        constexpr TI PIXELS = Buffer<CONFIG>::PIXELS;
-        render(device, state.environment, state.parameters, state.states, state.reset_mask);
+        namespace outputs = rendering::raytracing::outputs;
+        render_launch(device, state.environment, state.parameters, state.states, state.reset_mask);
         set_all(device, state.reset_mask, false);
         auto& renderer = get_renderer(device, state.environment.environments[0]);
-        auto& rgb = output(device, renderer, rl_tools::rendering::raytracing::outputs::RGB<>{});
-        Tensor<typename utils::typing::remove_reference_t<decltype(rgb)>::SPEC> alias;
-        alias._data = buffer.rgba.data();
-        copy(renderer.device, device, rgb, alias);
-        copy_onboard(device, renderer, output(device, renderer, rendering::raytracing::outputs::Depth<rendering::raytracing::outputs::format::RGBA8>{}), buffer.rgba.data() + 2 * PIXELS);
-        copy_onboard(device, renderer, output(device, renderer, rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::RGBA8, rendering::raytracing::outputs::labels::Semantic>{}), buffer.rgba.data() + 3 * PIXELS);
-        copy_onboard(device, renderer, output(device, renderer, rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::UInt32, rendering::raytracing::outputs::labels::Semantic>{}), buffer.segmentation.data());
-        copy_onboard(device, renderer, output(device, renderer, rendering::raytracing::outputs::Normals<rendering::raytracing::outputs::format::RGBA8>{}), buffer.rgba.data() + 4 * PIXELS);
-        copy_onboard(device, renderer, output(device, renderer, rendering::raytracing::outputs::Flow<rendering::raytracing::outputs::direction::Backward, rendering::raytracing::outputs::format::RGBA8>{}), buffer.rgba.data() + 5 * PIXELS);
+        present(device, renderer, canvases[0], outputs::RGB<>{}, (TI)0);
+        present(device, renderer, canvases[1], outputs::RGB<>{}, (TI)1);
+        present(device, renderer, canvases[2], outputs::Depth<outputs::format::RGBA8>{}, (TI)0);
+        present(device, renderer, canvases[3], outputs::Segmentation<outputs::format::RGBA8, outputs::labels::Semantic>{}, (TI)0);
+        present(device, renderer, canvases[4], outputs::Normals<outputs::format::RGBA8>{}, (TI)0);
+        present(device, renderer, canvases[5], outputs::Flow<outputs::direction::Backward, outputs::format::RGBA8>{}, (TI)0);
+        auto& segmentation = output(device, renderer, outputs::Segmentation<outputs::format::UInt32, outputs::labels::Semantic>{});
+        Tensor<typename utils::typing::remove_reference_t<decltype(segmentation)>::SPEC> alias;
+        alias._data = buffer.segmentation.data();
+        copy(renderer.device, device, segmentation, alias);
     }
 }
 
@@ -388,10 +381,10 @@ static void present(web::DEVICE& device, const web::State<CONFIG>& state, const 
     quaternion_multiplication<web::DEVICE, web::T>(scene_orientation, physical.orientation, orientation);
     EM_ASM({
         if(Module.rlt_present) {
-            Module.rlt_present($0, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
+            Module.rlt_present($0, $1, $2, $3, $4, $5, $6, $7, $8, $9);
         }
-    }, buffer.rgba.data(), (int)CONFIG::CAM_WIDTH, (int)CONFIG::CAM_HEIGHT, (int)web::VIEWS,
-        position[0], position[1], position[2], orientation[0], orientation[1], orientation[2], orientation[3], buffer.segmentation.data());
+    }, buffer.segmentation.data(), (int)CONFIG::CAM_WIDTH, (int)CONFIG::CAM_HEIGHT,
+        position[0], position[1], position[2], orientation[0], orientation[1], orientation[2], orientation[3]);
 }
 
 template <typename CONFIG>
@@ -417,7 +410,7 @@ static std::string configuration_catalog(web::Configurations<CONFIGS...>) {
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE int demo_api_version() {
-    return 8;
+    return 9;
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE const char* demo_configurations() {
@@ -443,6 +436,7 @@ static int run(const char* scene_path, const char* policy_path, int max_frames, 
     init(device);
     web::State<CONFIG> state;
     web::Buffer<CONFIG> buffer;
+    rendering::raytracing::backends::webgpu::Canvas canvases[web::VIEWS];
     malloc(device, state);
     status("Loading RAPTOR ...");
     if(!load(device, state.pilot, std::string(policy_path))) {
@@ -480,9 +474,18 @@ static int run(const char* scene_path, const char* policy_path, int max_frames, 
             state.other_spawns.push_back(spawn);
         }
     }
+    for(web::TI view_i = 0; view_i < web::VIEWS; view_i++) {
+        init(device, get_renderer(device, state.environment.environments[0]), canvases[view_i], web::CANVASES[view_i]);
+    }
+    const auto release = [&]() {
+        for(auto& canvas: canvases) {
+            free(device, canvas);
+        }
+        free(device, state);
+    };
     if(!reset(device, state)) {
         status("Could not place seven separated drones in this scene");
-        free(device, state);
+        release();
         return 3;
     }
     status("Simulation running — click a camera to take control");
@@ -501,7 +504,7 @@ static int run(const char* scene_path, const char* policy_path, int max_frames, 
         const bool active = max_frames > 0 || input[5] != 0;
         if(input[4] != 0) {
             if(!reset(device, state)) {
-                free(device, state);
+                release();
                 return 3;
             }
             accumulator = 0;
@@ -536,7 +539,7 @@ static int run(const char* scene_path, const char* policy_path, int max_frames, 
                     request_render(device, state.environment.environments[0]);
                 }
             }
-            render(device, state, buffer);
+            render(device, state, buffer, canvases);
             present(device, state, buffer);
             frame++;
         }
@@ -544,7 +547,7 @@ static int run(const char* scene_path, const char* policy_path, int max_frames, 
         const int sleep_ms = active ? (int)std::max(1.0, frame_period * 1000.0 - elapsed_ms) : 16;
         emscripten_sleep(sleep_ms);
     }
-    free(device, state);
+    release();
     return 0;
 }
 

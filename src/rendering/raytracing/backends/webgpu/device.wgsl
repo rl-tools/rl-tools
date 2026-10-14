@@ -64,6 +64,7 @@ struct LaunchParams{
     probe_directions_offset: u32,
     cameras_offset: u32, // shutter-close cameras, then the shutter-open set when the spec has a camera pair
     cameras_previous_offset: u32, // flow: the previous instant's camera set
+    camera_table_offset: u32, // outputs::fill_camera_table: per camera its output-slot mask, then its row per slot
     output_offsets: array<u32, 19>,
     output_scales: array<f32, 19>,
 }
@@ -91,6 +92,15 @@ const OUTPUT_PROBES: u32 = 18u;
 fn output_enabled(slot: u32) -> bool{
     return (fc_output_mask & (1u << slot)) != 0u;
 }
+// per-camera work gates over the camera table's output-slot masks (outputs.h)
+const RGB_SLOTS: u32 = 0x3u;
+const SURFACE_SLOTS: u32 = 0x3FCu;
+const FLOW_BACKWARD_SLOTS: u32 = 0x3C00u;
+const FLOW_BACKWARD_VISIBILITY_SLOTS: u32 = 0x3800u;
+const FLOW_FORWARD_SLOTS: u32 = 0x3C000u;
+const FLOW_FORWARD_VISIBILITY_SLOTS: u32 = 0x38000u;
+const CAMERA_TABLE_STRIDE: u32 = 20u;
+const NO_ROW: u32 = 0xFFFFFFFFu;
 
 fn hue_to_rgb(hue: f32) -> vec3<f32>{
     let descending = 1.0 - abs((hue - 2.0 * floor(hue * 0.5)) - 1.0);
@@ -644,8 +654,23 @@ struct PixelLaunchContext{
     cam_idx: i32,
     local_x: i32,
     local_y: i32,
-    fb_offset: i32,
+    pixel: u32,   // within the camera
+    outputs: u32, // the camera's output-slot mask; zero outside the grid
     valid: bool,
+}
+
+fn camera_outputs(camera: i32) -> u32{
+    return frame_u32(params.camera_table_offset + u32(camera) * CAMERA_TABLE_STRIDE);
+}
+fn output_row(slot: u32, camera: i32) -> u32{
+    return frame_u32(params.camera_table_offset + u32(camera) * CAMERA_TABLE_STRIDE + 1u + slot);
+}
+fn selected(slot: u32, ctx: PixelLaunchContext) -> bool{
+    return output_enabled(slot) && (ctx.outputs & (1u << slot)) != 0u;
+}
+// element index of the pixel in an output: the camera's row, then the pixel within it
+fn output_element(slot: u32, ctx: PixelLaunchContext) -> u32{
+    return output_row(slot, ctx.cam_idx) * params.cam_width * params.cam_height + ctx.pixel;
 }
 
 fn pixel_launch_context(pixel_id: vec2<u32>) -> PixelLaunchContext{
@@ -655,8 +680,12 @@ fn pixel_launch_context(pixel_id: vec2<u32>) -> PixelLaunchContext{
     ctx.cam_idx = tile_row * i32(params.grid_cols) + tile_col;
     ctx.local_x = i32(pixel_id.x) - tile_col * i32(params.cam_width);
     ctx.local_y = i32(pixel_id.y) - tile_row * i32(params.cam_height);
-    ctx.fb_offset = ctx.cam_idx * i32(params.cam_width) * i32(params.cam_height) + ctx.local_y * i32(params.cam_width) + ctx.local_x;
+    ctx.pixel = u32(ctx.local_y) * params.cam_width + u32(ctx.local_x);
     ctx.valid = pixel_id.x < params.fb_width && pixel_id.y < params.fb_height && ctx.cam_idx < i32(params.num_cameras);
+    ctx.outputs = 0u;
+    if(ctx.valid){
+        ctx.outputs = camera_outputs(ctx.cam_idx);
+    }
     return ctx;
 }
 
@@ -1075,7 +1104,9 @@ fn shutter_camera(cam_idx: i32, motion_i: i32) -> ShutterCamera{
 fn main_rgb(@builtin(global_invocation_id) global_id: vec3<u32>){
     let pixel_id = global_id.xy;
     let ctx = pixel_launch_context(pixel_id);
-    if(!ctx.valid){
+    let rgb = (ctx.outputs & RGB_SLOTS) != 0u;
+    let fused_auxiliary = fc_fuse_auxiliary && (ctx.outputs & (SURFACE_SLOTS | FLOW_BACKWARD_SLOTS)) != 0u;
+    if(!rgb && !fused_auxiliary){
         return;
     }
 
@@ -1092,8 +1123,12 @@ fn main_rgb(@builtin(global_invocation_id) global_id: vec3<u32>){
                 var color: vec3<f32>;
                 if(fc_fuse_auxiliary){
                     let hit = trace_closest_composed_region(region, ctx.cam_idx, cam.pos, direction, 0.0, 1e30);
-                    write_auxiliary(ctx, camera_close(ctx.cam_idx), direction, hit);
-                    color = shade_primary_hit(region, hit, ctx.cam_idx, cam.pos, direction, pixel_id);
+                    if(fused_auxiliary){
+                        write_auxiliary(ctx, camera_close(ctx.cam_idx), direction, hit);
+                    }
+                    if(rgb){
+                        color = shade_primary_hit(region, hit, ctx.cam_idx, cam.pos, direction, pixel_id);
+                    }
                 }
                 else{
                     color = trace_primary(region, ctx.cam_idx, cam.pos, direction, 0.0, 1e30, pixel_id);
@@ -1112,22 +1147,24 @@ fn main_rgb(@builtin(global_invocation_id) global_id: vec3<u32>){
     }
     let samples = select(fc_motion_samples * fc_aa_grid * fc_aa_grid, fc_motion_samples, fc_dynamic_motion_blur);
     let color = accumulated * (1.0 / f32(samples));
-    if(output_enabled(OUTPUT_RGB_FLOAT32)){
+    if(selected(OUTPUT_RGB_FLOAT32, ctx)){
         // the observation is the frame-buffer color before 8-bit quantization
         var obs_color = clamp(color, vec3<f32>(0.0), vec3<f32>(1.0));
         if(fc_srgb_output){
             obs_color = vec3<f32>(linear_to_srgb(obs_color.x), linear_to_srgb(obs_color.y), linear_to_srgb(obs_color.z));
         }
-        out_set_f32(params.output_offsets[OUTPUT_RGB_FLOAT32] + u32(ctx.fb_offset * 3 + 0), obs_color.x);
-        out_set_f32(params.output_offsets[OUTPUT_RGB_FLOAT32] + u32(ctx.fb_offset * 3 + 1), obs_color.y);
-        out_set_f32(params.output_offsets[OUTPUT_RGB_FLOAT32] + u32(ctx.fb_offset * 3 + 2), obs_color.z);
+        let base = params.output_offsets[OUTPUT_RGB_FLOAT32] + output_element(OUTPUT_RGB_FLOAT32, ctx) * 3u;
+        out_set_f32(base, obs_color.x);
+        out_set_f32(base + 1u, obs_color.y);
+        out_set_f32(base + 2u, obs_color.z);
     }
-    if(output_enabled(OUTPUT_RGB_RGBA8)){
+    if(selected(OUTPUT_RGB_RGBA8, ctx)){
+        let index = params.output_offsets[OUTPUT_RGB_RGBA8] + output_element(OUTPUT_RGB_RGBA8, ctx);
         if(fc_srgb_output){
-            outputs[params.output_offsets[OUTPUT_RGB_RGBA8] + u32(ctx.fb_offset)] = make_srgb_rgba_from_linear(color);
+            outputs[index] = make_srgb_rgba_from_linear(color);
         }
         else{
-            outputs[params.output_offsets[OUTPUT_RGB_RGBA8] + u32(ctx.fb_offset)] = make_linear_rgba_from_linear(color);
+            outputs[index] = make_linear_rgba_from_linear(color);
         }
     }
 }
@@ -1138,6 +1175,10 @@ fn main_collision(@builtin(global_invocation_id) global_id: vec3<u32>){
     let probe_idx = i32(global_id.y);
 
     if(cam_idx >= i32(params.num_cameras) || probe_idx >= i32(params.num_probes)){
+        return;
+    }
+    let row = output_row(OUTPUT_PROBES, cam_idx);
+    if(row == NO_ROW){
         return;
     }
 
@@ -1161,7 +1202,7 @@ fn main_collision(@builtin(global_invocation_id) global_id: vec3<u32>){
     let hit = trace_closest_composed_region(0u, cam_idx, camera_pos(cam), dir, 1e-3, params.max_dist);
 
     // two OUTPUTS words per probe: {distance: f32, hit: u32}
-    let result_base = params.output_offsets[OUTPUT_PROBES] + u32(cam_idx * i32(params.num_probes) + probe_idx) * 2u;
+    let result_base = params.output_offsets[OUTPUT_PROBES] + (row * params.num_probes + u32(probe_idx)) * 2u;
     if(!hit.valid){
         outputs[result_base] = 0x7f800000u;
         outputs[result_base + 1u] = 0u;
@@ -1245,7 +1286,7 @@ fn write_flow(source_previous: bool, ctx: PixelLaunchContext, cam: Camera, direc
             if(projected.x < 0.0 || projected.x >= 1.0 || projected.y < 0.0 || projected.y >= 1.0){
                 status = FLOW_STATUS_OUT_OF_FRAME;
             }
-            else if((fc_output_mask & (7u << select(OUTPUT_FLOW_RGBA8, OUTPUT_FLOW_FORWARD_RGBA8, source_previous))) != 0u){
+            else if((fc_output_mask & ctx.outputs & select(FLOW_BACKWARD_VISIBILITY_SLOTS, FLOW_FORWARD_VISIBILITY_SLOTS, source_previous)) != 0u){
                 let to_point = point - camera_pos(cam_target);
                 let len = length(to_point);
                 let visibility_direction = to_point * (1.0 / len);
@@ -1258,65 +1299,66 @@ fn write_flow(source_previous: bool, ctx: PixelLaunchContext, cam: Camera, direc
     let color_slot = select(OUTPUT_FLOW_RGBA8, OUTPUT_FLOW_FORWARD_RGBA8, source_previous);
     let status_slot = select(OUTPUT_FLOW_STATUS_UINT32, OUTPUT_FLOW_FORWARD_STATUS_UINT32, source_previous);
     let status_color_slot = select(OUTPUT_FLOW_STATUS_RGBA8, OUTPUT_FLOW_FORWARD_STATUS_RGBA8, source_previous);
-    if(output_enabled(flow_slot)){
-        out_set_f32(params.output_offsets[flow_slot] + u32(ctx.fb_offset * 2), flow.x);
-        out_set_f32(params.output_offsets[flow_slot] + u32(ctx.fb_offset * 2 + 1), flow.y);
+    if(selected(flow_slot, ctx)){
+        let base = params.output_offsets[flow_slot] + output_element(flow_slot, ctx) * 2u;
+        out_set_f32(base, flow.x);
+        out_set_f32(base + 1u, flow.y);
     }
-    if(output_enabled(color_slot)){
+    if(selected(color_slot, ctx)){
         var color = flow_status_to_rgba(status);
         if(status == FLOW_STATUS_VALID){
             color = flow_to_rgba(flow.x, flow.y, params.output_scales[color_slot]);
         }
-        outputs[params.output_offsets[color_slot] + u32(ctx.fb_offset)] = color;
+        outputs[params.output_offsets[color_slot] + output_element(color_slot, ctx)] = color;
     }
-    if(output_enabled(status_slot)){
-        outputs[params.output_offsets[status_slot] + u32(ctx.fb_offset)] = status;
+    if(selected(status_slot, ctx)){
+        outputs[params.output_offsets[status_slot] + output_element(status_slot, ctx)] = status;
     }
-    if(output_enabled(status_color_slot)){
-        outputs[params.output_offsets[status_color_slot] + u32(ctx.fb_offset)] = flow_status_to_rgba(status);
+    if(selected(status_color_slot, ctx)){
+        outputs[params.output_offsets[status_color_slot] + output_element(status_color_slot, ctx)] = flow_status_to_rgba(status);
     }
 }
 
 fn write_auxiliary(ctx: PixelLaunchContext, cam: Camera, direction: vec3<f32>, hit: Hit){
-    if(output_enabled(OUTPUT_DEPTH_FLOAT32) || output_enabled(OUTPUT_DEPTH_RGBA8)){
+    if(selected(OUTPUT_DEPTH_FLOAT32, ctx) || selected(OUTPUT_DEPTH_RGBA8, ctx)){
         let normal = normalize(cross(camera_dir_du(cam), camera_dir_dv(cam)));
         var depth = 0.0;
         if(hit.valid){
             depth = hit.t * abs(dot(direction, normal));
         }
-        if(output_enabled(OUTPUT_DEPTH_FLOAT32)){
-            outputs[params.output_offsets[OUTPUT_DEPTH_FLOAT32] + u32(ctx.fb_offset)] = select(0x7f800000u, bitcast<u32>(depth), hit.valid);
+        if(selected(OUTPUT_DEPTH_FLOAT32, ctx)){
+            outputs[params.output_offsets[OUTPUT_DEPTH_FLOAT32] + output_element(OUTPUT_DEPTH_FLOAT32, ctx)] = select(0x7f800000u, bitcast<u32>(depth), hit.valid);
         }
-        if(output_enabled(OUTPUT_DEPTH_RGBA8)){
+        if(selected(OUTPUT_DEPTH_RGBA8, ctx)){
             var color = 0xFFFFFFFFu;
             if(hit.valid){
                 color = depth_to_rgba(depth, params.output_scales[OUTPUT_DEPTH_RGBA8]);
             }
-            outputs[params.output_offsets[OUTPUT_DEPTH_RGBA8] + u32(ctx.fb_offset)] = color;
+            outputs[params.output_offsets[OUTPUT_DEPTH_RGBA8] + output_element(OUTPUT_DEPTH_RGBA8, ctx)] = color;
         }
     }
-    if(output_enabled(OUTPUT_SEGMENTATION_UINT32) || output_enabled(OUTPUT_SEGMENTATION_RGBA8)){
+    if(selected(OUTPUT_SEGMENTATION_UINT32, ctx) || selected(OUTPUT_SEGMENTATION_RGBA8, ctx)){
         let value = select(ABSENT, hit.instance, hit.valid);
-        if(output_enabled(OUTPUT_SEGMENTATION_UINT32)){
-            outputs[params.output_offsets[OUTPUT_SEGMENTATION_UINT32] + u32(ctx.fb_offset)] = value;
+        if(selected(OUTPUT_SEGMENTATION_UINT32, ctx)){
+            outputs[params.output_offsets[OUTPUT_SEGMENTATION_UINT32] + output_element(OUTPUT_SEGMENTATION_UINT32, ctx)] = value;
         }
-        if(output_enabled(OUTPUT_SEGMENTATION_RGBA8)){
-            outputs[params.output_offsets[OUTPUT_SEGMENTATION_RGBA8] + u32(ctx.fb_offset)] = segmentation_id_to_rgba(value);
+        if(selected(OUTPUT_SEGMENTATION_RGBA8, ctx)){
+            outputs[params.output_offsets[OUTPUT_SEGMENTATION_RGBA8] + output_element(OUTPUT_SEGMENTATION_RGBA8, ctx)] = segmentation_id_to_rgba(value);
         }
     }
-    if(output_enabled(OUTPUT_SEMANTIC_UINT32) || output_enabled(OUTPUT_SEMANTIC_RGBA8)){
+    if(selected(OUTPUT_SEMANTIC_UINT32, ctx) || selected(OUTPUT_SEMANTIC_RGBA8, ctx)){
         var value = ABSENT;
         if(hit.valid){
             value = geometry_u32(params.instance_classes_offset + hit.instance);
         }
-        if(output_enabled(OUTPUT_SEMANTIC_UINT32)){
-            outputs[params.output_offsets[OUTPUT_SEMANTIC_UINT32] + u32(ctx.fb_offset)] = value;
+        if(selected(OUTPUT_SEMANTIC_UINT32, ctx)){
+            outputs[params.output_offsets[OUTPUT_SEMANTIC_UINT32] + output_element(OUTPUT_SEMANTIC_UINT32, ctx)] = value;
         }
-        if(output_enabled(OUTPUT_SEMANTIC_RGBA8)){
-            outputs[params.output_offsets[OUTPUT_SEMANTIC_RGBA8] + u32(ctx.fb_offset)] = segmentation_id_to_rgba(value);
+        if(selected(OUTPUT_SEMANTIC_RGBA8, ctx)){
+            outputs[params.output_offsets[OUTPUT_SEMANTIC_RGBA8] + output_element(OUTPUT_SEMANTIC_RGBA8, ctx)] = segmentation_id_to_rgba(value);
         }
     }
-    if(output_enabled(OUTPUT_NORMALS_FLOAT32) || output_enabled(OUTPUT_NORMALS_RGBA8)){
+    if(selected(OUTPUT_NORMALS_FLOAT32, ctx) || selected(OUTPUT_NORMALS_RGBA8, ctx)){
         var normal = vec3<f32>(0.0);
         if(hit.valid){
             var vertices = triangle_vertices(hit.triangle);
@@ -1331,16 +1373,17 @@ fn write_auxiliary(ctx: PixelLaunchContext, cam: Camera, direction: vec3<f32>, h
                 normal = -normal;
             }
         }
-        if(output_enabled(OUTPUT_NORMALS_FLOAT32)){
-            out_set_f32(params.output_offsets[OUTPUT_NORMALS_FLOAT32] + u32(ctx.fb_offset * 3), normal.x);
-            out_set_f32(params.output_offsets[OUTPUT_NORMALS_FLOAT32] + u32(ctx.fb_offset * 3 + 1), normal.y);
-            out_set_f32(params.output_offsets[OUTPUT_NORMALS_FLOAT32] + u32(ctx.fb_offset * 3 + 2), normal.z);
+        if(selected(OUTPUT_NORMALS_FLOAT32, ctx)){
+            let base = params.output_offsets[OUTPUT_NORMALS_FLOAT32] + output_element(OUTPUT_NORMALS_FLOAT32, ctx) * 3u;
+            out_set_f32(base, normal.x);
+            out_set_f32(base + 1u, normal.y);
+            out_set_f32(base + 2u, normal.z);
         }
-        if(output_enabled(OUTPUT_NORMALS_RGBA8)){
-            outputs[params.output_offsets[OUTPUT_NORMALS_RGBA8] + u32(ctx.fb_offset)] = normal_to_rgba(normal);
+        if(selected(OUTPUT_NORMALS_RGBA8, ctx)){
+            outputs[params.output_offsets[OUTPUT_NORMALS_RGBA8] + output_element(OUTPUT_NORMALS_RGBA8, ctx)] = normal_to_rgba(normal);
         }
     }
-    if((fc_output_mask & (15u << OUTPUT_FLOW_FLOAT32)) != 0u){
+    if((fc_output_mask & ctx.outputs & FLOW_BACKWARD_SLOTS) != 0u){
         write_flow(false, ctx, cam, direction, hit);
     }
 }
@@ -1348,7 +1391,7 @@ fn write_auxiliary(ctx: PixelLaunchContext, cam: Camera, direction: vec3<f32>, h
 @compute @workgroup_size(8, 4, 1)
 fn main_auxiliary(@builtin(global_invocation_id) global_id: vec3<u32>){
     let ctx = pixel_launch_context(global_id.xy);
-    if(!ctx.valid){
+    if((ctx.outputs & (SURFACE_SLOTS | FLOW_BACKWARD_SLOTS)) == 0u){
         return;
     }
     let cam = camera_close(ctx.cam_idx);
@@ -1361,7 +1404,7 @@ fn main_auxiliary(@builtin(global_invocation_id) global_id: vec3<u32>){
 @compute @workgroup_size(8, 4, 1)
 fn main_flow_forward(@builtin(global_invocation_id) global_id: vec3<u32>){
     let ctx = pixel_launch_context(global_id.xy);
-    if(!ctx.valid){
+    if((ctx.outputs & FLOW_FORWARD_SLOTS) == 0u){
         return;
     }
     let cam = camera_previous(ctx.cam_idx);
@@ -1370,4 +1413,26 @@ fn main_flow_forward(@builtin(global_invocation_id) global_id: vec3<u32>){
     let previous_region = 1u + select(0u, u32(fc_motion_samples), fc_dynamic_motion_blur);
     let hit = trace_closest_composed_region(previous_region, ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30);
     write_flow(true, ctx, cam, direction, hit);
+}
+
+// presentation of an RGBA8 output section on a canvas: a full-screen triangle whose fragments
+// read their pixel straight from the OUTPUTS arena (bindings PRESENTED / PRESENTATION of the
+// present pipeline's own layout in context.h)
+struct Presentation{
+    offset: u32,
+    width: u32,
+}
+@group(0) @binding(8) var<storage, read> presented: array<u32>;
+@group(0) @binding(9) var<uniform> presentation: Presentation;
+
+@vertex
+fn present_vertex(@builtin(vertex_index) vertex: u32) -> @builtin(position) vec4<f32>{
+    let corner = vec2<f32>(f32((vertex << 1u) & 2u), f32(vertex & 2u));
+    return vec4<f32>(corner * 2.0 - 1.0, 0.0, 1.0);
+}
+
+@fragment
+fn present_fragment(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32>{
+    let pixel = vec2<u32>(position.xy);
+    return unpack4x8unorm(presented[presentation.offset + pixel.y * presentation.width + pixel.x]);
 }

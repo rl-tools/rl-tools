@@ -5,6 +5,7 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_BACKENDS_OPTIX_DEVICE_IMPL_H
 
 #include "device.h"
+#include "../../outputs/outputs.h"
 #include <optix_device.h>
 
 #ifndef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_DEPTH_PROGRAMS
@@ -110,13 +111,16 @@ namespace rl_tools
     return (1.f - t) * a + t * b;
   }
 
+  using OutputSlot = rendering::raytracing::outputs::Slot;
+
   struct PixelLaunchContext
   {
     int cam_idx;
     int local_x;
     int local_y;
-    int fb_offset;
-    bool valid;
+    int fb_offset;        // frame-buffer order, for the internal motion-blur accumulator
+    unsigned int pixel;   // within the camera
+    unsigned int outputs; // the camera's output-slot mask; zero outside the grid
   };
 
   template <typename RAYGEN_DATA>
@@ -129,7 +133,20 @@ namespace rl_tools
     const int local_x = pixel_id.x - tile_col * self.cam_size.x;
     const int local_y = pixel_id.y - tile_row * self.cam_size.y;
     const int fb_offset = cam_idx * self.cam_size.x * self.cam_size.y + local_y * self.cam_size.x + local_x;
-    return {cam_idx, local_x, local_y, fb_offset, cam_idx < self.num_cameras};
+    const unsigned int camera_outputs = cam_idx < self.num_cameras ? optixLaunchParams.camera_table[cam_idx * rendering::raytracing::outputs::CAMERA_TABLE_STRIDE] : 0u;
+    return {cam_idx, local_x, local_y, fb_offset, (unsigned int)(local_y * self.cam_size.x + local_x), camera_outputs};
+  }
+
+  inline __device__ bool selected(const PixelLaunchContext &ctx, OutputSlot slot)
+  {
+    return ((ctx.outputs >> (unsigned int)slot) & 1u) != 0u;
+  }
+
+  // element index of the pixel in an output: the camera's row, then the pixel within it
+  inline __device__ size_t output_element(const PixelLaunchContext &ctx, OutputSlot slot)
+  {
+    const unsigned int row = optixLaunchParams.camera_table[ctx.cam_idx * rendering::raytracing::outputs::CAMERA_TABLE_STRIDE + 1 + (unsigned int)slot];
+    return (size_t)row * optixLaunchParams.cam_width * optixLaunchParams.cam_height + ctx.pixel;
   }
 
   inline __device__ owl::vec3f trace_rgb_color_composed(OptixTraversableHandle world, int camera, unsigned int depth, const owl::vec3f &pos, const owl::vec3f &direction, float tmin, float tmax)
@@ -248,10 +265,10 @@ namespace rl_tools
     inline __device__ static void store(const RAYGEN_DATA &self, const PixelLaunchContext &ctx, Accumulator acc, int samples)
     {
       const owl::vec3f color = acc * (1.f / float(samples));
-      if (self.obs_ptr != nullptr) {
+      if (selected(ctx, OutputSlot::RGB_FLOAT32)) {
         // the observation is the frame-buffer color before 8-bit quantization — same transfer
         // curve, full float precision
-        float *obs = self.obs_ptr + (size_t)ctx.fb_offset * 3;
+        float *obs = self.obs_ptr + output_element(ctx, OutputSlot::RGB_FLOAT32) * 3;
         if constexpr (T_SRGB_OUTPUT) {
           obs[0] = linear_to_srgb(fminf(fmaxf(color.x, 0.f), 1.f));
           obs[1] = linear_to_srgb(fminf(fmaxf(color.y, 0.f), 1.f));
@@ -263,12 +280,12 @@ namespace rl_tools
           obs[2] = fminf(fmaxf(color.z, 0.f), 1.f);
         }
       }
-      if(self.fb_ptr != nullptr){
+      if(selected(ctx, OutputSlot::RGB_RGBA8)){
         if constexpr (T_SRGB_OUTPUT) {
-          self.fb_ptr[ctx.fb_offset] = make_srgb_rgba_from_linear(color);
+          self.fb_ptr[output_element(ctx, OutputSlot::RGB_RGBA8)] = make_srgb_rgba_from_linear(color);
         }
         else {
-          self.fb_ptr[ctx.fb_offset] = make_linear_rgba_from_linear(color);
+          self.fb_ptr[output_element(ctx, OutputSlot::RGB_RGBA8)] = make_linear_rgba_from_linear(color);
         }
       }
     }
@@ -281,8 +298,9 @@ namespace rl_tools
   {
     const RAYGEN_DATA &self = owl::getProgramData<RAYGEN_DATA>();
     const PixelLaunchContext ctx = pixel_launch_context(self);
-    if (!ctx.valid)
+    if ((ctx.outputs & rendering::raytracing::outputs::RGB_SLOTS) == 0u) {
       return;
+    }
 
     typename OUTPUT::Accumulator accumulated = OUTPUT::zero();
     const float inv_aa_grid = 1.f / float(AA_GRID);
@@ -348,8 +366,9 @@ namespace rl_tools
   {
     const RAYGEN_DATA &self = owl::getProgramData<RAYGEN_DATA>();
     const PixelLaunchContext ctx = pixel_launch_context(self);
-    if (!ctx.valid)
+    if ((ctx.outputs & rendering::raytracing::outputs::RGB_SLOTS) == 0u) {
       return;
+    }
 
     const float shutter_t = *self.shutter_ptr;
     const OptixCameraData &cam_open = self.cameras_open[ctx.cam_idx];
@@ -413,7 +432,7 @@ namespace rl_tools
   OPTIX_RAYGEN_PROGRAM(depthRayGen)(){
     const auto& self = owl::getProgramData<DepthRayGenData>();
     const auto ctx = pixel_launch_context(self);
-    if(!ctx.valid){
+    if((ctx.outputs & rendering::raytracing::outputs::DEPTH_SLOTS) == 0u){
       return;
     }
     const auto& cam = self.cameras[ctx.cam_idx];
@@ -423,12 +442,12 @@ namespace rl_tools
     bool hit = false;
     const float distance = trace_depth_distance_composed(self.world, ctx.cam_idx, cam.pos, direction, 1e30f, hit);
     const float depth = hit ? distance * fabsf(dot(direction, normal)) : __uint_as_float(0x7f800000u);
-    if(self.depth_ptr != nullptr){
-      self.depth_ptr[ctx.fb_offset] = depth;
+    if(selected(ctx, OutputSlot::DEPTH_FLOAT32)){
+      self.depth_ptr[output_element(ctx, OutputSlot::DEPTH_FLOAT32)] = depth;
     }
-    if(self.color_ptr != nullptr){
+    if(selected(ctx, OutputSlot::DEPTH_RGBA8)){
       const unsigned int shade = (unsigned int)(fminf(fmaxf(depth / self.color_scale, 0.f), 1.f) * 255.f);
-      self.color_ptr[ctx.fb_offset] = packed_auxiliary_color(shade, shade, shade);
+      self.color_ptr[output_element(ctx, OutputSlot::DEPTH_RGBA8)] = packed_auxiliary_color(shade, shade, shade);
     }
   }
 #endif
@@ -754,6 +773,10 @@ namespace rl_tools
 
     if (cam_idx >= self.num_cameras || probe_idx >= self.num_probes)
       return;
+    const unsigned int row = optixLaunchParams.camera_table[cam_idx * rendering::raytracing::outputs::CAMERA_TABLE_STRIDE + 1 + (unsigned int)OutputSlot::PROBES];
+    if (row == rendering::raytracing::outputs::NO_ROW) {
+      return;
+    }
 
     const OptixCameraData &cam = self.cameras[cam_idx];
 
@@ -813,7 +836,7 @@ namespace rl_tools
       store_miss(result.distance);
     }
     result.hit = u1;
-    self.results[cam_idx * self.num_probes + probe_idx] = result;
+    self.results[row * self.num_probes + probe_idx] = result;
   }
 
   OPTIX_CLOSEST_HIT_PROGRAM(collisionHit)()
@@ -880,15 +903,13 @@ namespace rl_tools
   inline __device__ void trace_flow_pixel(const FlowRayGenData &self)
   {
     using FlowStatus = rendering::raytracing::FlowStatus;
-    const owl::vec2i pixel = owl::getLaunchIndex();
-    const int tile_col = pixel.x / self.cam_size.x;
-    const int tile_row = pixel.y / self.cam_size.y;
-    const int cam_idx = tile_row * self.grid_cols + tile_col;
-    if (cam_idx >= self.num_cameras)
+    const PixelLaunchContext ctx = pixel_launch_context(self);
+    if ((ctx.outputs & (self.source_previous != 0 ? rendering::raytracing::outputs::FLOW_FORWARD_SLOTS : rendering::raytracing::outputs::FLOW_BACKWARD_SLOTS)) == 0u) {
       return;
-    const int local_x = pixel.x - tile_col * self.cam_size.x;
-    const int local_y = pixel.y - tile_row * self.cam_size.y;
-    const int fb_offset = cam_idx * self.cam_size.x * self.cam_size.y + local_y * self.cam_size.x + local_x;
+    }
+    const int cam_idx = ctx.cam_idx;
+    const int local_x = ctx.local_x;
+    const int local_y = ctx.local_y;
     const unsigned long long *overlays_source = self.source_previous != 0 ? optixLaunchParams.overlays_previous : optixLaunchParams.overlays;
     const unsigned long long *overlays_target = self.source_previous != 0 ? optixLaunchParams.overlays : optixLaunchParams.overlays_previous;
 
@@ -944,7 +965,7 @@ namespace rl_tools
         flow_v = target_y * (float)self.cam_size.y - ((float)local_y + 0.5f);
         if (target_x < 0.f || target_x >= 1.f || target_y < 0.f || target_y >= 1.f) {
           status = FlowStatus::OUT_OF_FRAME;
-        } else if(self.status_ptr != nullptr || self.status_color_ptr != nullptr || self.color_ptr != nullptr){
+        } else if((ctx.outputs & (self.source_previous != 0 ? rendering::raytracing::outputs::FLOW_FORWARD_VISIBILITY_SLOTS : rendering::raytracing::outputs::FLOW_BACKWARD_VISIBILITY_SLOTS)) != 0u){
           const owl::vec3f to_point = point - owl::vec3f(cam_target.pos);
           const float length = sqrtf(dot(to_point, to_point));
           const owl::vec3f visibility_direction = to_point * (1.f / length);
@@ -953,18 +974,23 @@ namespace rl_tools
         }
       }
     }
-    if(self.flow_ptr != nullptr){
-      self.flow_ptr[fb_offset * 2 + 0] = flow_u;
-      self.flow_ptr[fb_offset * 2 + 1] = flow_v;
+    const OutputSlot vector_slot = self.source_previous != 0 ? OutputSlot::FLOW_FORWARD_FLOAT32 : OutputSlot::FLOW_FLOAT32;
+    const OutputSlot color_slot = self.source_previous != 0 ? OutputSlot::FLOW_FORWARD_RGBA8 : OutputSlot::FLOW_RGBA8;
+    const OutputSlot status_slot = self.source_previous != 0 ? OutputSlot::FLOW_FORWARD_STATUS_UINT32 : OutputSlot::FLOW_STATUS_UINT32;
+    const OutputSlot status_color_slot = self.source_previous != 0 ? OutputSlot::FLOW_FORWARD_STATUS_RGBA8 : OutputSlot::FLOW_STATUS_RGBA8;
+    if(selected(ctx, vector_slot)){
+      const size_t element = output_element(ctx, vector_slot);
+      self.flow_ptr[element * 2 + 0] = flow_u;
+      self.flow_ptr[element * 2 + 1] = flow_v;
     }
-    if(self.status_ptr != nullptr){
-      self.status_ptr[fb_offset] = status;
+    if(selected(ctx, status_slot)){
+      self.status_ptr[output_element(ctx, status_slot)] = status;
     }
-    if(self.color_ptr != nullptr){
-      self.color_ptr[fb_offset] = status == FlowStatus::VALID ? flow_color(flow_u, flow_v, self.color_scale) : status_color(status);
+    if(selected(ctx, color_slot)){
+      self.color_ptr[output_element(ctx, color_slot)] = status == FlowStatus::VALID ? flow_color(flow_u, flow_v, self.color_scale) : status_color(status);
     }
-    if(self.status_color_ptr != nullptr){
-      self.status_color_ptr[fb_offset] = status_color(status);
+    if(selected(ctx, status_color_slot)){
+      self.status_color_ptr[output_element(ctx, status_color_slot)] = status_color(status);
     }
   }
 
@@ -1003,15 +1029,13 @@ namespace rl_tools
   OPTIX_RAYGEN_PROGRAM(normalsRayGen)()
   {
     const NormalsRayGenData &self = owl::getProgramData<NormalsRayGenData>();
-    const owl::vec2i pixel = owl::getLaunchIndex();
-    const int tile_col = pixel.x / self.cam_size.x;
-    const int tile_row = pixel.y / self.cam_size.y;
-    const int cam_idx = tile_row * self.grid_cols + tile_col;
-    if (cam_idx >= self.num_cameras)
+    const PixelLaunchContext ctx = pixel_launch_context(self);
+    if ((ctx.outputs & rendering::raytracing::outputs::NORMALS_SLOTS) == 0u) {
       return;
-    const int local_x = pixel.x - tile_col * self.cam_size.x;
-    const int local_y = pixel.y - tile_row * self.cam_size.y;
-    const int fb_offset = cam_idx * self.cam_size.x * self.cam_size.y + local_y * self.cam_size.x + local_x;
+    }
+    const int cam_idx = ctx.cam_idx;
+    const int local_x = ctx.local_x;
+    const int local_y = ctx.local_y;
 
     const OptixCameraData &cam = self.cameras[cam_idx];
     const float screen_x = ((float)local_x + 0.5f) / (float)self.cam_size.x;
@@ -1049,13 +1073,14 @@ namespace rl_tools
           2, NUM_RAY_TYPES, 1,
           u0, u1, u2, u3);
     }
-    if(self.normals_ptr != nullptr){
-      self.normals_ptr[fb_offset * 3 + 0] = __uint_as_float(u1);
-      self.normals_ptr[fb_offset * 3 + 1] = __uint_as_float(u2);
-      self.normals_ptr[fb_offset * 3 + 2] = __uint_as_float(u3);
+    if(selected(ctx, OutputSlot::NORMALS_FLOAT32)){
+      const size_t element = output_element(ctx, OutputSlot::NORMALS_FLOAT32);
+      self.normals_ptr[element * 3 + 0] = __uint_as_float(u1);
+      self.normals_ptr[element * 3 + 1] = __uint_as_float(u2);
+      self.normals_ptr[element * 3 + 2] = __uint_as_float(u3);
     }
-    if(self.color_ptr != nullptr){
-      self.color_ptr[fb_offset] = normal_color(__uint_as_float(u1), __uint_as_float(u2), __uint_as_float(u3));
+    if(selected(ctx, OutputSlot::NORMALS_RGBA8)){
+      self.color_ptr[output_element(ctx, OutputSlot::NORMALS_RGBA8)] = normal_color(__uint_as_float(u1), __uint_as_float(u2), __uint_as_float(u3));
     }
   }
 #endif
@@ -1067,15 +1092,13 @@ namespace rl_tools
   OPTIX_RAYGEN_PROGRAM(segmentationRayGen)()
   {
     const SegmentationRayGenData &self = owl::getProgramData<SegmentationRayGenData>();
-    const owl::vec2i pixel = owl::getLaunchIndex();
-    const int tile_col = pixel.x / self.cam_size.x;
-    const int tile_row = pixel.y / self.cam_size.y;
-    const int cam_idx = tile_row * self.grid_cols + tile_col;
-    if (cam_idx >= self.num_cameras)
+    const PixelLaunchContext ctx = pixel_launch_context(self);
+    if ((ctx.outputs & rendering::raytracing::outputs::SEGMENTATION_SLOTS) == 0u) {
       return;
-    const int local_x = pixel.x - tile_col * self.cam_size.x;
-    const int local_y = pixel.y - tile_row * self.cam_size.y;
-    const int fb_offset = cam_idx * self.cam_size.x * self.cam_size.y + local_y * self.cam_size.x + local_x;
+    }
+    const int cam_idx = ctx.cam_idx;
+    const int local_x = ctx.local_x;
+    const int local_y = ctx.local_y;
 
     const OptixCameraData &cam = self.cameras[cam_idx];
     const float screen_x = ((float)local_x + 0.5f) / (float)self.cam_size.x;
@@ -1112,19 +1135,19 @@ namespace rl_tools
           1, NUM_RAY_TYPES, 1,
           u0, u1, u2);
     }
-    if(self.seg_ptr != nullptr){
-      self.seg_ptr[fb_offset] = u2;
+    if(selected(ctx, OutputSlot::SEGMENTATION_UINT32)){
+      self.seg_ptr[output_element(ctx, OutputSlot::SEGMENTATION_UINT32)] = u2;
     }
-    if(self.color_ptr != nullptr){
-      self.color_ptr[fb_offset] = segmentation_color(u2);
+    if(selected(ctx, OutputSlot::SEGMENTATION_RGBA8)){
+      self.color_ptr[output_element(ctx, OutputSlot::SEGMENTATION_RGBA8)] = segmentation_color(u2);
     }
-    if(self.semantic_ptr != nullptr || self.semantic_color_ptr != nullptr){
+    if(selected(ctx, OutputSlot::SEMANTIC_UINT32) || selected(ctx, OutputSlot::SEMANTIC_RGBA8)){
       const unsigned int semantic = u2 == 0xFFFFFFFFu ? u2 : optixLaunchParams.instance_classes[u2];
-      if(self.semantic_ptr != nullptr){
-        self.semantic_ptr[fb_offset] = semantic;
+      if(selected(ctx, OutputSlot::SEMANTIC_UINT32)){
+        self.semantic_ptr[output_element(ctx, OutputSlot::SEMANTIC_UINT32)] = semantic;
       }
-      if(self.semantic_color_ptr != nullptr){
-        self.semantic_color_ptr[fb_offset] = segmentation_color(semantic);
+      if(selected(ctx, OutputSlot::SEMANTIC_RGBA8)){
+        self.semantic_color_ptr[output_element(ctx, OutputSlot::SEMANTIC_RGBA8)] = segmentation_color(semantic);
       }
     }
   }

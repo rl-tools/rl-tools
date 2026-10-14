@@ -49,6 +49,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         constexpr int SECONDARY_OUTPUT = 20;
         constexpr int CAMERAS_PREVIOUS = 21;
         constexpr int OVERLAY_STRUCTURES_PREVIOUS = 22; // the previous instant's overlay structures (flow visibility / forward primaries)
+        constexpr int CAMERA_TABLE = 23;
     }
     namespace function_constants{
         constexpr int SRGB_OUTPUT = 0;
@@ -69,6 +70,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         constexpr int DEPTH_SCALE = 16;
         constexpr int FLOW_SCALE = 17;
         constexpr int FLOW_FORWARD_SCALE = 18;
+        constexpr int ALL_CAMERAS = 19;
     }
     static_assert((unsigned int)outputs::Slot::COUNT == 19, "device.metal derives its fc_* flags from fixed bit positions of OUTPUT_MASK: update both with outputs::Slot");
 
@@ -183,6 +185,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         NS::SharedPtr<MTL::Buffer> rgb_accumulator;
         NS::SharedPtr<MTL::Buffer> flow_deltas;
         NS::SharedPtr<MTL::Buffer> probe_directions;
+        NS::SharedPtr<MTL::Buffer> camera_table;
         NS::SharedPtr<MTL::Buffer> launch_params;
         NS::SharedPtr<MTL::CommandBuffer> in_flight;
         NS::SharedPtr<MTL::CommandBuffer> in_flight_collision;

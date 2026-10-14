@@ -126,6 +126,7 @@ namespace rl_tools {
         int cam_height;                 // recover the camera index for composed secondaries
         int grid_cols;
         unsigned int *instance_classes; // per global instance id (semantic segmentation)
+        unsigned int *camera_table;     // outputs::fill_camera_table
     };
 
     /* variables for the miss program */
