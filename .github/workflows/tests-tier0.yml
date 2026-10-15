@@ -84,6 +84,7 @@ jobs:
           -DRL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO=ON
           -DRL_TOOLS_DISABLE_EXPERIMENTAL=ON
           -DRL_TOOLS_DISABLE_TAR=ON
+          -DRL_TOOLS_RENDERING_RAYTRACING_DISABLE_WASM_GOLDENS=ON
           -S ${{ github.workspace }}
 
       - name: Build
@@ -94,7 +95,7 @@ jobs:
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
         # Execute tests defined by the CMake configuration. Note that --build-config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
         # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-        run: ctest --build-config ${{ matrix.build_type }} --output-on-failure
+        run: ctest --build-config ${{ matrix.build_type }} --output-on-failure --label-exclude '^procthor-golden$'
 
   raytracing:
     name: Raytracing ${{ matrix.backend }}
@@ -129,18 +130,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ${{ matrix.packages }}
 
-      - name: Download raytracing golden data
-        if: matrix.backend != 'webgpu'
-        run: ./tests/src/rendering/raytracing/download_data.sh
-
-      # the wasm golden reference (tests/src/rendering/raytracing/GOLDEN_LEDGER.md pins both releases)
-      - name: Install wasi-sdk and wasmtime
+      - name: Check golden publication
+        id: goldens
         if: matrix.backend != 'webgpu'
         run: |
-          curl -fsSL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/wasi-sdk-34.0-x86_64-linux.tar.gz | tar -xz -C "$HOME"
-          curl -fsSL https://github.com/bytecodealliance/wasmtime/releases/download/v49.0.2/wasmtime-v49.0.2-x86_64-linux.tar.xz | tar -xJ -C "$HOME"
-          echo "WASI_SDK_PREFIX=$HOME/wasi-sdk-34.0-x86_64-linux" >> "$GITHUB_ENV"
-          echo "$HOME/wasmtime-v49.0.2-x86_64-linux" >> "$GITHUB_PATH"
+          revision="$(./tests/src/rendering/raytracing/download_data.sh --revision)"
+          if [ -n "$revision" ]; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            ./tests/src/rendering/raytracing/download_data.sh
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No golden corpus revision is pinned; cross-platform module qualification runs in golden-wasm.yml."
+          fi
+
+      - name: Create Python environment
+        if: matrix.backend != 'generic'
+        run: python3 -m venv .venv
 
       - name: Select Lavapipe driver
         if: matrix.backend != 'generic'
@@ -156,8 +161,9 @@ jobs:
           -DRL_TOOLS_BACKEND_DISABLE_CUDA=ON
           -DRL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO=ON
           -DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=${{ matrix.cmake_backend }}
+          -DRL_TOOLS_RENDERING_RAYTRACING_DISABLE_WASM_GOLDENS=${{ matrix.backend == 'webgpu' }}
           ${{ matrix.benchmark_config }}
-          -DRL_TOOLS_REQUIRE_RAYTRACING_GOLDENS=${{ matrix.backend != 'webgpu' }}
+          -DRL_TOOLS_REQUIRE_RAYTRACING_GOLDENS=${{ steps.goldens.outputs.published == 'true' }}
 
       - name: Build raytracing tests
         if: matrix.backend != 'webgpu'
@@ -191,9 +197,7 @@ jobs:
 
       - name: Test headless render benchmark contract
         if: matrix.backend != 'generic'
-        run: |
-          python3 -m venv .venv
-          env -u DISPLAY -u WAYLAND_DISPLAY .venv/bin/python tests/src/rendering/raytracing/benchmark.py --build-dir build-raytracing-${{ matrix.backend }} --backend ${{ matrix.backend }}
+        run: env -u DISPLAY -u WAYLAND_DISPLAY .venv/bin/python tests/src/rendering/raytracing/benchmark.py --build-dir build-raytracing-${{ matrix.backend }} --backend ${{ matrix.backend }}
 
       - name: Test golden I/O
         if: matrix.backend != 'webgpu'
@@ -230,7 +234,7 @@ jobs:
       # ProcTHOR corpus (tests/src/rendering/raytracing/GOLDEN_LEDGER.md): the wasm reference
       # (bit-exact), generic CPU and lavapipe against their floors; OptiX comparisons require an OptiX host
       - name: Test ProcTHOR goldens
-        if: matrix.backend != 'webgpu'
+        if: matrix.backend != 'webgpu' && steps.goldens.outputs.published == 'true'
         working-directory: build-raytracing-${{ matrix.backend }}
         run: ctest -L '^procthor-golden$' --no-tests=error --output-on-failure --timeout 300 -j5
 

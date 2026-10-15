@@ -38,6 +38,32 @@
 #include <vector>
 
 namespace golden {
+    inline uint32_t float_bits(const float& value){
+        uint32_t bits;
+        static_assert(sizeof(bits) == sizeof(value));
+        std::memcpy(&bits, &value, sizeof(bits));
+        return bits;
+    }
+
+    // Integer tests remain valid when the native generator is compiled with fast-math.
+    inline bool finite(const float& value){
+        return (float_bits(value) & 0x7f800000u) != 0x7f800000u;
+    }
+
+    inline bool valid_distance(const float& value, bool hit){
+        return hit ? finite(value) && value >= 0 : float_bits(value) == 0x7f800000u;
+    }
+
+    template <typename T>
+    size_t bit_mismatches(const T* actual, const T* expected, size_t count){
+        static_assert(sizeof(T) == sizeof(uint32_t));
+        size_t mismatches = 0;
+        for(size_t i = 0; i < count; i++){
+            mismatches += std::memcmp(actual + i, expected + i, sizeof(T)) != 0;
+        }
+        return mismatches;
+    }
+
     enum class MultiCameraElementType: uint32_t{
         FLOAT32 = 1,
         UINT32 = 2

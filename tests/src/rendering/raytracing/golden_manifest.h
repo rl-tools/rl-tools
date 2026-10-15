@@ -22,12 +22,11 @@ namespace golden {
     // the backend that renders the canonical corpus and is held to bit-exact reproduction
     static constexpr const char* REFERENCE_BACKEND = "wasm";
 
-    inline nlohmann::json procthor_manifest(const std::string& backend, const nlohmann::json& environment){
+    inline nlohmann::json procthor_manifest(const std::string& backend){
         return {
             {"golden_version", PROCTHOR_TRAIN_1_GOLDEN_VERSION},
             {"reference_backend", backend},
-            {"scene", PROCTHOR_TRAIN_1_SCENE},
-            {"generation_environment", environment}
+            {"scene", PROCTHOR_TRAIN_1_SCENE}
         };
     }
 
@@ -65,9 +64,6 @@ namespace golden {
         }
         if(!manifest.contains("scene") || manifest["scene"] != PROCTHOR_TRAIN_1_SCENE){
             return "golden scene mismatch";
-        }
-        if(!manifest.contains("generation_environment") || !manifest["generation_environment"].is_object()){
-            return "missing generation environment";
         }
         return "";
     }

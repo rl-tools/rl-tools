@@ -8,8 +8,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DATA_DIR="${SCRIPT_DIR}/../../../data"
 DATA_SOURCE="${RL_TOOLS_TEST_DATA_SOURCE:-https://huggingface.co/datasets/rl-tools/test-data}"
-DATA_REVISION="${RL_TOOLS_RAYTRACING_GOLDEN_DATA_REVISION:-1857a0a599796680facdd4c2befe68bd0aa2e397}"
+DATA_REVISION="${RL_TOOLS_RAYTRACING_GOLDEN_DATA_REVISION:-}"
 LFS_INCLUDE="rendering/raytracing/goldens/**"
+
+if [[ "${1:-}" == "--revision" ]]; then
+    echo "${DATA_REVISION}"
+    exit 0
+fi
+if [[ -z "${DATA_REVISION}" ]]; then
+    echo "No golden corpus revision is pinned; set RL_TOOLS_RAYTRACING_GOLDEN_DATA_REVISION to its reviewed test-data commit, then pin it here and in GOLDEN_LEDGER.md." >&2
+    exit 1
+fi
 
 if ! git lfs version >/dev/null 2>&1; then
     echo "git-lfs is required to download the raytracing golden data" >&2

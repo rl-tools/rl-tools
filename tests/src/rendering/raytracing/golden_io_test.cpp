@@ -82,6 +82,38 @@ namespace {
     }
 }
 
+TEST_F(GoldenIoTest, ReferenceComparisonPreservesEveryFloatBit){
+    const uint32_t words[] = {0u, 0x80000000u, 0x3f800000u, 0x7f800000u, 0x7fc00001u, 0x7fc00002u};
+    std::vector<float> values(sizeof(words) / sizeof(words[0]));
+    std::memcpy(values.data(), words, sizeof(words));
+    ASSERT_TRUE(golden::write_multi_camera_float_bin(path("bits.bin"), values.data(), 1, (int)values.size(), 1));
+    std::vector<float> loaded;
+    ASSERT_TRUE(golden::load_multi_camera_float_bin(path("bits.bin"), 1, (int)values.size(), 1, loaded));
+    EXPECT_EQ(golden::bit_mismatches(loaded.data(), values.data(), values.size()), 0u);
+    EXPECT_EQ(golden::bit_mismatches(values.data(), values.data() + 1, 1), 1u);
+    EXPECT_EQ(golden::bit_mismatches(values.data() + 4, values.data() + 5, 1), 1u);
+    loaded[3] = 0.f;
+    EXPECT_EQ(golden::bit_mismatches(loaded.data(), values.data(), values.size()), 1u);
+}
+
+TEST_F(GoldenIoTest, ReferenceDistancesRejectNonFiniteHitsAndInvalidMisses){
+    const uint32_t words[] = {0x7f800000u, 0xff800000u, 0x7fc00001u};
+    float values[3];
+    std::memcpy(values, words, sizeof(words));
+    const float& infinity = values[0];
+    const float& nan = values[2];
+    EXPECT_TRUE(golden::valid_distance(infinity, false));
+    EXPECT_TRUE(golden::valid_distance(0.f, true));
+    EXPECT_TRUE(golden::valid_distance(2.f, true));
+    EXPECT_FALSE(golden::valid_distance(-1.f, true));
+    EXPECT_FALSE(golden::valid_distance(infinity, true));
+    EXPECT_FALSE(golden::valid_distance(values[1], false));
+    EXPECT_FALSE(golden::valid_distance(0.f, false));
+    EXPECT_FALSE(golden::valid_distance(nan, true));
+    EXPECT_FALSE(golden::valid_distance(nan, false));
+    EXPECT_FALSE(golden::finite(nan));
+}
+
 TEST_F(GoldenIoTest, MultiCameraUint32RoundTrip){
     constexpr int NUM_CAMERAS = 4;
     constexpr int WIDTH = 3;
@@ -373,11 +405,11 @@ TEST_F(GoldenIoTest, LayoutPathsAreStable){
 }
 
 TEST_F(GoldenIoTest, ManifestPinsVersionBackendAndScene){
-    const auto manifest = golden::procthor_manifest(golden::REFERENCE_BACKEND, {{"compiler", "test"}});
+    const auto manifest = golden::procthor_manifest(golden::REFERENCE_BACKEND);
     const std::string manifest_path = path("manifest.json");
     ASSERT_TRUE(golden::write_json(manifest_path, manifest));
     EXPECT_EQ(golden::manifest_error(manifest_path), "");
-    for(const auto& key : {"golden_version", "reference_backend", "scene", "generation_environment"}){
+    for(const auto& key : {"golden_version", "reference_backend", "scene"}){
         auto missing = manifest;
         missing.erase(key);
         ASSERT_TRUE(golden::write_json(manifest_path, missing));

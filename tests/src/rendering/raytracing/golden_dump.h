@@ -97,6 +97,10 @@ namespace golden {
             ok &= load_multi_camera_float_bin(dump::binary_path(directory, "probes"), SPEC::NUM_CAMERAS, SPEC::NUM_PROBES, 1, probes, 2);
             rendered.probes.resize(probes.size() / 2);
             for(size_t probe_i = 0; probe_i < rendered.probes.size(); probe_i++){
+                const uint32_t hit_bits = float_bits(probes[probe_i * 2 + 1]);
+                if(hit_bits != 0 && hit_bits != 0x3f800000u){
+                    return false;
+                }
                 rendered.probes[probe_i].distance = probes[probe_i * 2 + 0];
                 rendered.probes[probe_i].hit = probes[probe_i * 2 + 1] != 0.f ? 1 : 0;
             }

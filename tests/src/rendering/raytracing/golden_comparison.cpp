@@ -66,13 +66,6 @@
 #include <string_view>
 #include <vector>
 
-// falls back to the CWD-relative convention (run from the repo root) like other targets
-#ifdef RL_TOOLS_TEST_DATA_PATH
-#define RL_TOOLS_GOLDEN_TEST_DATA_PATH RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)
-#else
-#define RL_TOOLS_GOLDEN_TEST_DATA_PATH "tests/data"
-#endif
-
 namespace rlt = rl_tools;
 using rlt::is_miss;
 
@@ -87,7 +80,7 @@ using TI = typename DEVICE::index_t;
 using CASES = golden::Cases<T, TI>;
 using Rendered = golden::Rendered<T>;
 
-// The wasm module reproduces the corpus exactly by construction. Against wasm v5 the native
+// The wasm module must reproduce every stored bit, including sentinels and alpha. Against wasm v5 the native
 // backends measure (M5 Ultra, AppleClang 21, Assimp 6.0.4): generic CPU RGB MAD 0.034, outliers
 // 0.25%, shading outliers one pixel, depth MAD 6.5e-9, normals MAD 0.0001, flow EPE 0.0005 px and
 // one outlier/status pixel; Metal RGB MAD 0.089, outliers 0.38%, shading outliers two pixels,
@@ -119,7 +112,7 @@ static constexpr double GENERIC_INSTANCE_SEGMENTATION_MISMATCH_FRACTION = 0.0026
 static constexpr double SEGMENTATION_BACKGROUND_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;
 
 static const std::string SCENE_PATH = golden::PROCTHOR_TRAIN_1_SCENE;
-static const std::string GOLDEN_ROOT = golden::layout::goldens_root(RL_TOOLS_GOLDEN_TEST_DATA_PATH);
+static const std::string GOLDEN_ROOT = golden::layout::goldens_root(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH));
 static const std::string CORPUS_DIRECTORY = golden::layout::procthor_directory(GOLDEN_ROOT);
 static const std::string MANIFEST_PATH = golden::layout::manifest_path(CORPUS_DIRECTORY);
 
@@ -249,6 +242,9 @@ namespace {
             const uint32_t* ours = rendered.frame_buffer.data() + camera_i * SPEC::CAM_PIXELS;
             std::vector<uint32_t> golden_pixels;
             ASSERT_TRUE(golden::load_camera_png(golden_png(camera_i, CASE::STATE, output), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_pixels)) << "failed to load golden: " << id << "/" << name;
+            if constexpr(REFERENCE_BACKEND){
+                EXPECT_EQ(golden::bit_mismatches(ours, golden_pixels.data(), golden_pixels.size()), 0u) << name << " pose " << id << ": bit mismatch";
+            }
             const RGBStats stats = compare_rgb(ours, golden_pixels.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
             write_png_reviews(camera_i, CASE::STATE, output, ours, golden_pixels);
             EXPECT_LE(stats.mad, RGB_MAD_THRESHOLD)
@@ -284,6 +280,9 @@ namespace {
             std::vector<float> golden_depth;
             ASSERT_TRUE(golden::load_multi_camera_float_bin(golden_bin(camera_i, CASE::STATE, "depth"), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_depth)) << "failed to load golden: " << id << "/" << name;
             const float* ours = rendered.depth_buffer.data() + camera_i * SPEC::CAM_PIXELS;
+            if constexpr(REFERENCE_BACKEND){
+                EXPECT_EQ(golden::bit_mismatches(ours, golden_depth.data(), golden_depth.size()), 0u) << name << " pose " << id << ": bit mismatch";
+            }
             golden::write_camera_depth_png(render_path(camera_i, CASE::STATE, "depth"), ours, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
             golden::write_camera_depth_diff_png(diff_path(camera_i, CASE::STATE, "depth"), golden_depth.data(), ours, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
             for(const uint32_t version : historic_versions(directory, true)){
@@ -337,6 +336,13 @@ namespace {
             std::vector<uint32_t> golden_pixels;
             ASSERT_TRUE(golden::load_camera_png(golden_png(camera_i, CASE::STATE, "normals"), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_pixels)) << "failed to load golden: " << id << "/" << name;
             const uint32_t* ours = encoded.data() + camera_i * SPEC::CAM_PIXELS;
+            if constexpr(REFERENCE_BACKEND){
+                std::vector<float> golden_normals;
+                ASSERT_TRUE(golden::load_multi_camera_float_bin(golden_bin(camera_i, CASE::STATE, "normals"), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_normals, 3)) << "failed to load raw golden: " << id << "/" << name;
+                const float* raw = rendered.normals.data() + (size_t)camera_i * SPEC::CAM_PIXELS * 3;
+                EXPECT_EQ(golden::bit_mismatches(raw, golden_normals.data(), golden_normals.size()), 0u) << name << " pose " << id << ": raw bit mismatch";
+                EXPECT_EQ(golden::bit_mismatches(ours, golden_pixels.data(), golden_pixels.size()), 0u) << name << " pose " << id << ": bit mismatch";
+            }
             write_png_reviews(camera_i, CASE::STATE, "normals", ours, golden_pixels);
             double total = 0;
             size_t outlier_pixels = 0;
@@ -499,6 +505,9 @@ namespace {
                 golden::colorize_flow_status(golden_status.data(), golden_status.size(), expected.data());
                 EXPECT_EQ(golden_review, expected) << name << "-status pose " << id << ": review PNG does not match the binary";
             }
+            if constexpr(REFERENCE_BACKEND){
+                EXPECT_EQ(golden::bit_mismatches(ours, golden_flow.data(), golden_flow.size()), 0u) << name << " pose " << id << ": bit mismatch";
+            }
             write_flow_reviews(device, camera_i, CASE::STATE, output, ours, golden_flow);
             write_flow_status_reviews(camera_i, CASE::STATE, status_output, ours_status, golden_status);
             double epe_total = 0;
@@ -549,6 +558,10 @@ namespace {
             for(size_t probe_i = 0; probe_i < (size_t)SPEC::NUM_PROBES; probe_i++){
                 const float golden_distance = golden_probes[probe_i * 2 + 0];
                 const bool golden_hit = golden_probes[probe_i * 2 + 1] != 0;
+                if constexpr(REFERENCE_BACKEND){
+                    const float actual[2] = {ours[probe_i].distance, ours[probe_i].hit != 0 ? 1.f : 0.f};
+                    EXPECT_EQ(golden::bit_mismatches(actual, golden_probes.data() + probe_i * 2, 2), 0u) << name << " pose " << id << " probe " << probe_i << ": bit mismatch";
+                }
                 if((ours[probe_i].hit != 0) != golden_hit){
                     hit_mismatches++;
                     continue;
@@ -573,7 +586,7 @@ namespace {
 #if defined(RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS)
 #define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() ASSERT_TRUE(goldens_available()) << "required golden renderings not found at " << CORPUS_DIRECTORY; RL_TOOLS_GOLDEN_REQUIRE_MANIFEST()
 #else
-#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() if(!goldens_available()){ GTEST_SKIP() << "golden renderings not found at " << CORPUS_DIRECTORY << " (run tests/src/rendering/raytracing/download_data.sh or regenerate with tests/src/rendering/raytracing/wasm/render.cmake)"; } RL_TOOLS_GOLDEN_REQUIRE_MANIFEST()
+#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() if(!goldens_available()){ GTEST_SKIP() << "golden renderings not found at " << CORPUS_DIRECTORY << " (run tests/src/rendering/raytracing/download_data.sh or regenerate with the built wasm/generate_goldens script)"; } RL_TOOLS_GOLDEN_REQUIRE_MANIFEST()
 #endif
 
 // one test per entry of the case table, registered under a readable name (static/high-mb4 ->

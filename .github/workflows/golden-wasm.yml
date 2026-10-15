@@ -1,0 +1,60 @@
+name: Golden WASM qualification
+
+on:
+  workflow_dispatch:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux-x86_64
+            source: source
+            build: build-wasm
+          - os: macos-15
+            platform: macos-arm64
+            source: relocated/source
+            build: relocated/deeper/build-wasm
+    runs-on: ${{ matrix.os }}
+    env:
+      GOLDEN_SOURCE: ${{ github.workspace }}/${{ matrix.source }}
+      GOLDEN_BUILD: ${{ github.workspace }}/${{ matrix.build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ${{ matrix.source }}
+      - name: Build reference
+        run: |
+          cmake -S "$GOLDEN_SOURCE/tests/src/rendering/raytracing/wasm" -B "$GOLDEN_BUILD" -DCMAKE_BUILD_TYPE=Release -DFETCHCONTENT_BASE_DIR="$GOLDEN_SOURCE/.dependencies/wasm"
+          cmake --build "$GOLDEN_BUILD" -j5
+      - name: Render reference outputs
+        run: |
+          c++ -std=c++17 -O2 -DCONTA_ENABLE_ZLIB -I"$GOLDEN_SOURCE/include" "$GOLDEN_SOURCE/src/conta/cli.cpp" -lz -o "$RUNNER_TEMP/conta"
+          mkdir -p "$RUNNER_TEMP/reference"
+          cp "$GOLDEN_BUILD/generate_golden.wasm" "$RUNNER_TEMP/reference/"
+          CONTA="$RUNNER_TEMP/conta" "$GOLDEN_BUILD/generate_goldens" --dump-dir "$RUNNER_TEMP/reference/dump"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: golden-wasm-${{ matrix.platform }}
+          path: ${{ runner.temp }}/reference/
+          if-no-files-found: error
+
+  compare:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: golden-wasm-*
+          path: artifacts
+      - name: Compare cross-host modules and outputs
+        run: |
+          cmp artifacts/golden-wasm-linux-x86_64/generate_golden.wasm artifacts/golden-wasm-macos-arm64/generate_golden.wasm
+          for directory in artifacts/golden-wasm-*/dump; do
+            test -n "$(find "$directory" -type f -print -quit)"
+          done
+          diff -r artifacts/golden-wasm-linux-x86_64/dump artifacts/golden-wasm-macos-arm64/dump

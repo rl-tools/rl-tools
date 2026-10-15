@@ -1,0 +1,28 @@
+#!/bin/sh
+set -eu
+
+wasmtime='@RL_TOOLS_WASMTIME_SHELL@'
+conta=${CONTA:-'@CONTA_SHELL@'}
+module='@CMAKE_CURRENT_BINARY_DIR_SHELL@/generate_golden.wasm'
+
+if [ "$#" -eq 0 ]; then
+    set -- --output-dir '@OUTPUT_DIR_SHELL@'
+fi
+if [ "$#" -ne 2 ]; then
+    printf 'Usage: %s [--output-dir DIR | --dump-dir DIR]\n' "$0" >&2
+    exit 2
+fi
+case "$1" in
+    --output-dir|--dump-dir) ;;
+    *) printf 'Unknown option: %s\n' "$1" >&2; exit 2 ;;
+esac
+
+scene=${SCENE:-$("$conta" '@RL_TOOLS_GOLDEN_SCENE@')}
+mkdir -p "$2"
+
+"$wasmtime" run \
+    -C compiler=cranelift -C cache=n -C parallel-compilation=n \
+    -W exceptions=y -W nan-canonicalization=y -W simd=n -W relaxed-simd=n -W threads=n \
+    -S inherit-env=n -S inherit-stdin=n \
+    --dir "$(dirname "$scene")::/scene" --dir "$2::/output" \
+    "$module" --scene "/scene/$(basename "$scene")" "$1" /output
