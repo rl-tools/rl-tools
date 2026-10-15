@@ -32,7 +32,7 @@ for(const fidelity of ["low", "medium", "high", "very-high"]){
     }
 }
 
-function fixture({defer_mouse_lock = false, search = "", catalog = configurations, api_version = 9, fpv_position = [0.08, 0, 0.08]} = {}){
+function fixture({defer_mouse_lock = false, search = "", catalog = configurations, api_version = 10, fpv_position = [0.08, 0, 0.08]} = {}){
     const document = new EventTarget();
     const window = new EventTarget();
     const classes = new Set();
@@ -333,7 +333,7 @@ test("an empty rendering URL choice selects the default configuration", async ()
 });
 
 test("empty or incompatible bundles fail before fetching scene assets", async () => {
-    for(const options of [{catalog: []}, ...[1, 2, 3, 4, 5, 6, 7, 8].map(api_version => ({api_version}))]){
+    for(const options of [{catalog: []}, ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map(api_version => ({api_version}))]){
         const f = fixture(options);
         await f.load();
         assert.equal(f.element("error").hidden, false);
