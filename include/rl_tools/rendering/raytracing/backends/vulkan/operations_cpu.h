@@ -1224,6 +1224,7 @@ namespace rl_tools {
                 uint32_t output_mask;
                 VkBool32 dynamic_motion_blur;
                 VkBool32 resolve_rgb;
+                VkBool32 all_cameras;
             };
             static_assert(sizeof(SpecializationData) == vk::specialization_constants::COUNT * 4);
             using CONSTANTS = rendering::raytracing::backends::SpecializationConstants<SPEC>;
@@ -1242,6 +1243,7 @@ namespace rl_tools {
             specialization_data.output_mask = SPEC::PLAN::MASK;
             specialization_data.dynamic_motion_blur = CONSTANTS::DYNAMIC_MOTION_BLUR ? VK_TRUE : VK_FALSE;
             specialization_data.resolve_rgb = CONSTANTS::RESOLVE_RGB ? VK_TRUE : VK_FALSE;
+            specialization_data.all_cameras = rendering::raytracing::outputs::Layout<SPEC>::ALL_CAMERAS ? VK_TRUE : VK_FALSE;
             VkSpecializationMapEntry map_entries[vk::specialization_constants::COUNT];
             for(uint32_t constant_i = 0; constant_i < vk::specialization_constants::COUNT; constant_i++){
                 map_entries[constant_i] = {constant_i, constant_i * 4, 4};

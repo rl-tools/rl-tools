@@ -5,7 +5,7 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_BACKENDS_OPTIX_DEVICE_IMPL_H
 
 #include "device.h"
-#include "../../outputs/outputs.h"
+#include "../../outputs/slots.h"
 #include <optix_device.h>
 
 #ifndef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_DEPTH_PROGRAMS
@@ -133,7 +133,7 @@ namespace rl_tools
     const int local_x = pixel_id.x - tile_col * self.cam_size.x;
     const int local_y = pixel_id.y - tile_row * self.cam_size.y;
     const int fb_offset = cam_idx * self.cam_size.x * self.cam_size.y + local_y * self.cam_size.x + local_x;
-    const unsigned int camera_outputs = cam_idx < self.num_cameras ? optixLaunchParams.camera_table[cam_idx * rendering::raytracing::outputs::CAMERA_TABLE_STRIDE] : 0u;
+    const unsigned int camera_outputs = cam_idx < self.num_cameras ? (optixLaunchParams.all_cameras ? optixLaunchParams.output_mask : optixLaunchParams.camera_table[cam_idx * rendering::raytracing::outputs::CAMERA_TABLE_STRIDE]) : 0u;
     return {cam_idx, local_x, local_y, fb_offset, (unsigned int)(local_y * self.cam_size.x + local_x), camera_outputs};
   }
 
@@ -145,6 +145,9 @@ namespace rl_tools
   // element index of the pixel in an output: the camera's row, then the pixel within it
   inline __device__ size_t output_element(const PixelLaunchContext &ctx, OutputSlot slot)
   {
+    if (optixLaunchParams.all_cameras) {
+      return (size_t)ctx.fb_offset;
+    }
     const unsigned int row = optixLaunchParams.camera_table[ctx.cam_idx * rendering::raytracing::outputs::CAMERA_TABLE_STRIDE + 1 + (unsigned int)slot];
     return (size_t)row * optixLaunchParams.cam_width * optixLaunchParams.cam_height + ctx.pixel;
   }
@@ -773,7 +776,7 @@ namespace rl_tools
 
     if (cam_idx >= self.num_cameras || probe_idx >= self.num_probes)
       return;
-    const unsigned int row = optixLaunchParams.camera_table[cam_idx * rendering::raytracing::outputs::CAMERA_TABLE_STRIDE + 1 + (unsigned int)OutputSlot::PROBES];
+    const unsigned int row = optixLaunchParams.all_cameras ? (unsigned int)cam_idx : optixLaunchParams.camera_table[cam_idx * rendering::raytracing::outputs::CAMERA_TABLE_STRIDE + 1 + (unsigned int)OutputSlot::PROBES];
     if (row == rendering::raytracing::outputs::NO_ROW) {
       return;
     }

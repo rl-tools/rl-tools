@@ -60,7 +60,8 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         constexpr uint32_t OUTPUT_MASK = 11;
         constexpr uint32_t DYNAMIC_MOTION_BLUR = 12;
         constexpr uint32_t RESOLVE_RGB = 13;
-        constexpr uint32_t COUNT = 14;
+        constexpr uint32_t ALL_CAMERAS = 14;
+        constexpr uint32_t COUNT = 15;
     }
     constexpr uint32_t WORKGROUP_SIZE = 8;
     constexpr uint32_t MAX_TEXTURE_DESCRIPTORS = 4096;

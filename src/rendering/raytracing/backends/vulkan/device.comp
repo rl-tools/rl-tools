@@ -32,6 +32,7 @@ layout(constant_id = 11) const uint fc_output_mask = 1u;
 // adds its linear mean into the accumulation buffers, resolved by ENTRY_RESOLVE
 layout(constant_id = 12) const bool fc_dynamic_motion_blur = false;
 layout(constant_id = 13) const bool fc_resolve_rgb = false;
+layout(constant_id = 14) const bool fc_all_cameras = false;
 
 #if defined(ENTRY_RGB)
 layout(push_constant) uniform PushConstants{ float shutter_t; } push;
@@ -351,7 +352,7 @@ PixelLaunchContext pixel_launch_context(uvec2 pixel_id){
     ctx.fb_offset = ctx.cam_idx * int(params.cam_width) * int(params.cam_height) + ctx.local_y * int(params.cam_width) + ctx.local_x;
     ctx.pixel = uint(ctx.local_y * int(params.cam_width) + ctx.local_x);
     const bool valid = pixel_id.x < params.fb_width && pixel_id.y < params.fb_height && ctx.cam_idx < int(params.num_cameras);
-    ctx.outputs = valid ? camera_table[uint(ctx.cam_idx) * CAMERA_TABLE_STRIDE] : 0u;
+    ctx.outputs = valid ? (fc_all_cameras ? fc_output_mask : camera_table[uint(ctx.cam_idx) * CAMERA_TABLE_STRIDE]) : 0u;
     return ctx;
 }
 
@@ -361,6 +362,9 @@ bool output_selected(PixelLaunchContext ctx, uint slot){
 
 // element index of the pixel in an output: the camera's row, then the pixel within it
 uint output_element(PixelLaunchContext ctx, uint slot){
+    if(fc_all_cameras){
+        return uint(ctx.fb_offset);
+    }
     return camera_table[uint(ctx.cam_idx) * CAMERA_TABLE_STRIDE + 1u + slot] * params.cam_width * params.cam_height + ctx.pixel;
 }
 
@@ -868,7 +872,7 @@ void main(){
     if(cam_idx >= int(params.num_cameras) || probe_idx >= int(params.num_probes)){
         return;
     }
-    const uint row = camera_table[uint(cam_idx) * CAMERA_TABLE_STRIDE + 1u + OUTPUT_PROBES];
+    const uint row = fc_all_cameras ? uint(cam_idx) : camera_table[uint(cam_idx) * CAMERA_TABLE_STRIDE + 1u + OUTPUT_PROBES];
     if(row == NO_ROW){
         return;
     }

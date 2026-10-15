@@ -1,6 +1,6 @@
 #include "../../../../../include/rl_tools/rendering/raytracing/backends/optix/overlay_accel.h"
 #include "../../../../../include/rl_tools/rendering/raytracing/transforms_generic.h"
-#include "../../../../../include/rl_tools/rendering/raytracing/outputs/outputs.h"
+#include "../../../../../include/rl_tools/rendering/raytracing/outputs/slots.h"
 
 #include <optix.h>
 #include <optix_stubs.h>

@@ -127,6 +127,8 @@ namespace rl_tools {
         int grid_cols;
         unsigned int *instance_classes; // per global instance id (semantic segmentation)
         unsigned int *camera_table;     // outputs::fill_camera_table
+        unsigned int output_mask;       // outputs::Plan::MASK
+        int all_cameras;                // outputs::Layout::ALL_CAMERAS: every camera's mask is output_mask and its row is its index, camera_table is not read
     };
 
     /* variables for the miss program */

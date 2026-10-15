@@ -285,6 +285,14 @@ namespace rl_tools {
             // must match the NUM_RAY_TYPES the selected PTX was compiled with (SBT stride)
             owlContextSetRayTypeCount(context, SPEC::HAS_NORMALS ? 3 : 2);
             owlContextSetNumPayloadValues(context, 4); // color ptr (2), recursion depth, hit distance
+            // compiles the camera-table lookups out of the programs when every output selects every camera (the Vulkan and Metal backends use a pipeline constant); OWL reads the value at owlBuildPrograms
+            static const unsigned int output_mask = SPEC::PLAN::MASK;
+            static const int all_cameras = rendering::raytracing::outputs::Layout<SPEC>::ALL_CAMERAS ? 1 : 0;
+            OWLBoundValueDecl bound_values[] = {
+                {{"output_mask", OWL_UINT, OWL_OFFSETOF(OverlayLaunchParams, output_mask)}, (void*)&output_mask},
+                {{"all_cameras", OWL_INT, OWL_OFFSETOF(OverlayLaunchParams, all_cameras)}, (void*)&all_cameras},
+            };
+            owlContextSetBoundLaunchParamValues(context, bound_values, 2);
             const char* ptx = nullptr;
             if constexpr (SPEC::HAS_NORMALS) {
                 if constexpr (SPEC::HAS_SEGMENTATION && SPEC::HAS_DEPTH) {
@@ -1202,6 +1210,8 @@ namespace rl_tools {
                     { "grid_cols",     OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, grid_cols)},
                     { "instance_classes", OWL_BUFPTR, OWL_OFFSETOF(OverlayLaunchParams, instance_classes)},
                     { "camera_table", OWL_BUFPTR, OWL_OFFSETOF(OverlayLaunchParams, camera_table)},
+                    { "output_mask",   OWL_UINT,   OWL_OFFSETOF(OverlayLaunchParams, output_mask)},
+                    { "all_cameras",   OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, all_cameras)},
                     { /* sentinel */ }
                 };
                 OWLParams launch_params = owlParamsCreate(context, sizeof(OverlayLaunchParams), launch_params_vars, -1);
@@ -1220,6 +1230,8 @@ namespace rl_tools {
                 owlParamsSet1i(launch_params, "grid_cols", (int)SPEC::GRID_COLS);
                 owlParamsSetBuffer(launch_params, "instance_classes", instance_classes_buffer);
                 owlParamsSetBuffer(launch_params, "camera_table", renderer.backend->camera_table_buffer);
+                owlParamsSet1ui(launch_params, "output_mask", SPEC::PLAN::MASK);
+                owlParamsSet1i(launch_params, "all_cameras", rendering::raytracing::outputs::Layout<SPEC>::ALL_CAMERAS ? 1 : 0);
                 if constexpr (SPEC::ENABLE_OVERLAYS){
                     auto* overlay_state = (optix::OverlayState*)renderer.backend->overlay_state;
                     owlParamsSetBuffer(launch_params, "overlays", overlay_state->traversables_buffer);
