@@ -84,7 +84,6 @@ jobs:
           -DRL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO=ON
           -DRL_TOOLS_DISABLE_EXPERIMENTAL=ON
           -DRL_TOOLS_DISABLE_TAR=ON
-          -DRL_TOOLS_RENDERING_RAYTRACING_DISABLE_WASM_GOLDENS=ON
           -S ${{ github.workspace }}
 
       - name: Build
@@ -161,7 +160,7 @@ jobs:
           -DRL_TOOLS_BACKEND_DISABLE_CUDA=ON
           -DRL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO=ON
           -DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=${{ matrix.cmake_backend }}
-          -DRL_TOOLS_RENDERING_RAYTRACING_DISABLE_WASM_GOLDENS=${{ matrix.backend == 'webgpu' }}
+          -DRL_TOOLS_RENDERING_RAYTRACING_ENABLE_WASM_GOLDENS=${{ matrix.backend != 'webgpu' }}
           ${{ matrix.benchmark_config }}
           -DRL_TOOLS_REQUIRE_RAYTRACING_GOLDENS=${{ steps.goldens.outputs.published == 'true' }}
 

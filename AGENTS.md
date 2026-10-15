@@ -11,7 +11,7 @@ Always use the `.venv` virtual environment. If it does not exist, create it with
 
 ### CMake Configuration
 
-The build fully auto-configures: every feature is enabled by default when its prerequisites are available, and a configure summary ("RLtools configure summary:") reports each feature as ON/OFF with the reason.
+The build auto-configures: features are enabled by default when their prerequisites are available, except WASM goldens, which require `RL_TOOLS_RENDERING_RAYTRACING_ENABLE_WASM_GOLDENS=ON` because of the large toolchain downloads. A configure summary ("RLtools configure summary:") reports each feature as ON/OFF with the reason.
 
 Ubuntu (x86)
 ```bash
@@ -77,10 +77,10 @@ The corpus version and scene are defined in `tests/src/rendering/raytracing/gold
 
 The reference is the generic renderer and Assimp loader compiled as WASI (`tests/src/rendering/raytracing/wasm/`). Its build and runtime profile must reproduce every stored bit, including signed zero, miss distances, non-VALID flow and raw normals. Native backends retain measured tolerances in `golden_comparison.cpp`; comparisons log metrics to metra. `golden-wasm.yml` qualifies relocated builds and cross-host module/output identity; it does not replace comparisons against the published corpus. A toolchain or runtime change that preserves all output bits does not require a corpus version bump.
 
-Configure downloads the pinned SDK and runtime into `.dependencies` on supported hosts and reuses the native build's Assimp, stb and json sources. Opt out with `RL_TOOLS_RENDERING_RAYTRACING_DISABLE_WASM_GOLDENS`; `RL_TOOLS_OFFLINE_BUILD` reuses cached dependencies.
+Opt in with `RL_TOOLS_RENDERING_RAYTRACING_ENABLE_WASM_GOLDENS=ON` to download the pinned SDK and runtime into `.dependencies` on supported hosts and reuse the native build's Assimp, stb and json sources. `RL_TOOLS_OFFLINE_BUILD` reuses cached dependencies.
 
 ```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_RENDERING_RAYTRACING_ENABLE_WASM_GOLDENS=ON
 cmake --build build --target rendering_raytracing_golden_wasm -j5
 ./build/tests/src/rendering/raytracing/wasm/generate_goldens
 ```

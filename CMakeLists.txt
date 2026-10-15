@@ -7,7 +7,7 @@ project(rl_tools_core)
 
 set(CMAKE_CXX_STANDARD 17)
 
-# Everything auto-detects and auto-enables; the options below are opt-outs. Detection results
+# Features auto-detect and auto-enable except opt-in WASM goldens. Detection results
 # are reported in the configure summary at the end and exposed as plain (non-cache) variables
 # (RL_TOOLS_ENABLE_*, RL_TOOLS_BACKEND_ENABLE_*) plus compile definitions on rl_tools_full.
 option(RL_TOOLS_OFFLINE_BUILD "Use the dependencies in .dependencies without checking for updates (useful after nuking the build directory when offline)" OFF)

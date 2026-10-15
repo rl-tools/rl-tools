@@ -1,11 +1,14 @@
 # Run the WASM golden generator
 
-From the repository root, on macOS arm64 or Linux x86_64:
+From the repository root, on macOS arm64 or Linux x86_64 with CMake 3.25 or newer:
 
 ```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake -B build -DCMAKE_BUILD_TYPE=Release \
+  -DRL_TOOLS_RENDERING_RAYTRACING_ENABLE_WASM_GOLDENS=ON
 cmake --build build --target rendering_raytracing_golden_wasm -j5
 ```
+
+WASM goldens are opt-in because the pinned wasi-sdk and Wasmtime downloads are large. Tests and raytracing must also be enabled; check the `wasm goldens` entry in the configure summary for availability and the reason if disabled.
 
 Default Wasmtime location: `.dependencies/build/wasm/wasmtime-v*-*/wasmtime` (exact path in the configure summary).
 

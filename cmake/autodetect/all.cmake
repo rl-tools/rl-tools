@@ -6,7 +6,7 @@
 # tier 4: cuda
 # tier 5: cli11
 
-# The RL_TOOLS_*_ENABLE_* variables are detection outputs (plain variables + compile
+# The variables below are detection outputs (plain variables + compile
 # definitions on rl_tools_full), not inputs: forcing one from the command line used to skip
 # detection without adding the link libraries. Scrub and warn; the inputs are the
 # RL_TOOLS_*_DISABLE_* options.

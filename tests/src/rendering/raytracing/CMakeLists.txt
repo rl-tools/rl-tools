@@ -87,7 +87,7 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
 
     # the wasm reference: generate_golden built as a WASI module (wasm/CMakeLists.txt) renders the
     # corpus into a dump directory once per ctest run (fixture); the comparator loads the dumps natively
-    if(RL_TOOLS_RENDERING_RAYTRACING_ENABLE_WASM_GOLDENS)
+    if(RL_TOOLS_RENDERING_RAYTRACING_WASM_GOLDENS_AVAILABLE)
         include(ExternalProject)
         set(RL_TOOLS_GOLDEN_WASM_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/wasm)
         set(RL_TOOLS_GOLDEN_WASM_MODULE ${RL_TOOLS_GOLDEN_WASM_BINARY_DIR}/generate_golden.wasm)
