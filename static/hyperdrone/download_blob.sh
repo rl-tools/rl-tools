@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BLOB_DIR="${SCRIPT_DIR}/blob"
-BLOB_REVISION="faf209889f163a860928c34491507244d0667b04"
+BLOB_REVISION="fa97a9deb9c0c00aa9ff77fa7e378dc41194d1d2"
 
 if [[ -e "${BLOB_DIR}/.git" ]]; then
     if [[ "$(git -C "${BLOB_DIR}" rev-parse HEAD)" != "${BLOB_REVISION}" ]]; then

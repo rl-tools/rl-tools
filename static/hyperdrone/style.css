@@ -47,6 +47,7 @@ body.controlling #flight-state::before { background: var(--accent); }
 .status-bar { min-height: 28px; padding: 7px 0; color: var(--muted); font: 10px/1.4 var(--mono); }
 .loading-status { flex: 1; min-width: 0; }
 #status { overflow-wrap: anywhere; }
+#gpu { max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #fps, #progress-percent { white-space: nowrap; font-variant-numeric: tabular-nums; }
 #fps { min-height: 0; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
 #fps:hover { color: var(--accent); }

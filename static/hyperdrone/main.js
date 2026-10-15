@@ -12,6 +12,7 @@ const rendering_defaults = window.matchMedia("(pointer: coarse)").matches
 const status_element = document.getElementById("status");
 const error_element = document.getElementById("error");
 const motor_layout_warning = document.getElementById("motor-layout-warning");
+const gpu_element = document.getElementById("gpu");
 const fps_element = document.getElementById("fps");
 const frame_rate_panel = document.getElementById("frame-rate-tuning");
 const target_fps = document.getElementById("target-fps");
@@ -592,6 +593,12 @@ async function main(){
             show_error(reason, message);
         },
         rlt_status: set_status,
+        rlt_gpu_info: info => {
+            const name = info.description || [info.vendor, info.architecture, info.device].filter(Boolean).join(" · ");
+            gpu_element.textContent = name ? `GPU · ${name}` : "";
+            gpu_element.title = Object.entries(info).filter(([, value]) => value).map(([key, value]) => `${key}: ${value}`).join("\n");
+            gpu_element.hidden = !name;
+        },
         rlt_motor_layout: (deviation, wheelbase, threshold) => {
             motor_layout_warning.hidden = deviation <= threshold;
             motor_layout_warning.textContent = deviation > threshold
@@ -631,7 +638,7 @@ async function main(){
             }
         },
     });
-    if(module._demo_api_version?.() !== 9){
+    if(module._demo_api_version?.() !== 10){
         throw new Error("The page and simulation bundle are incompatible. Deploy the matching blob/build files and update the pinned revision in download_blob.sh.");
     }
     const configuration = setup_rendering(JSON.parse(module.ccall("demo_configurations", "string", [], [])));

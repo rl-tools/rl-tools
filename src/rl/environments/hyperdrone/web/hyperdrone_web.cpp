@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -359,6 +360,24 @@ static void status(const char* message) {
         }
     }, message);
 }
+static void show_gpu_info(WGPUAdapter adapter) {
+    WGPUAdapterInfo info{};
+    if(wgpuAdapterGetInfo(adapter, &info) != WGPUStatus_Success) {
+        return;
+    }
+    const auto string = [](WGPUStringView value) {
+        const size_t length = value.data == nullptr ? 0 : (value.length == WGPU_STRLEN ? std::strlen(value.data) : value.length);
+        return std::string(value.data == nullptr ? "" : value.data, length);
+    };
+    const std::string json = nlohmann::json{
+        {"vendor", string(info.vendor)}, {"architecture", string(info.architecture)},
+        {"device", string(info.device)}, {"description", string(info.description)}
+    }.dump();
+    wgpuAdapterInfoFreeMembers(info);
+    EM_ASM({
+        Module.rlt_gpu_info(JSON.parse(UTF8ToString($0)));
+    }, json.c_str());
+}
 static void read_input(float input[14]) {
     EM_ASM({
         const input = Module.rlt_input();
@@ -413,7 +432,7 @@ static std::string configuration_catalog(web::Configurations<CONFIGS...>) {
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE int demo_api_version() {
-    return 9;
+    return 10;
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE const char* demo_configurations() {
@@ -450,6 +469,7 @@ static int run(const char* scene_path, const char* policy_path, int max_frames, 
     status("Loading the scene and finding a clear starting position ...");
     state.seed = seed;
     init(device, state, scene_path, drones);
+    show_gpu_info(get_renderer(device, state.environment.environments[0]).backend->adapter);
     auto classes = nlohmann::json::object();
     for(const auto& entry: state.environment.shared.segmentation_taxonomy->classes) {
         classes[std::to_string(entry.first)] = entry.second;
