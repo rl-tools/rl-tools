@@ -20,6 +20,19 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::hyperdrone {
+    namespace world {
+        template <typename... OUTPUTS>
+        constexpr bool camera_output_descriptors(rendering::raytracing::outputs::List<OUTPUTS...>) {
+            return (utils::typing::is_same_v<OUTPUTS, typename rendering::raytracing::outputs::Entry<OUTPUTS>::OUTPUT> && ...);
+        }
+    }
+
+    template <typename... PROFILES>
+    struct CameraOutputs {
+        static constexpr unsigned int COUNT = sizeof...(PROFILES);
+        static_assert(COUNT > 0, "CAMERA_OUTPUTS must contain at least one camera");
+        static_assert((world::camera_output_descriptors(PROFILES{}) && ...), "each camera output list must contain bare output descriptors");
+    };
 
     template <typename T_T, typename T_TI, typename T_DYNAMICS_STATIC_PARAMETERS>
     struct Specification {
@@ -29,7 +42,6 @@ namespace rl_tools::rl::environments::hyperdrone {
         // derive-and-shadow: override by deriving from this Specification and shadowing members
         static constexpr TI INSTANCES_PER_ENVIRONMENT = 64;
         static constexpr TI N_AGENTS = 1;
-        static constexpr TI N_CAMERAS_PER_AGENT = 1;
         static constexpr T AGENT_COLLISION_DISTANCE = 0.15;
         static constexpr TI CAM_WIDTH = 64;
         static constexpr TI CAM_HEIGHT = 64;
@@ -39,9 +51,9 @@ namespace rl_tools::rl::environments::hyperdrone {
         static constexpr TI MOTION_BLUR_SAMPLES = 1;
         static constexpr bool ENABLE_ANTI_ALIASING = false;
         static constexpr TI ANTI_ALIASING_GRID_SIZE = 1;
-        using OUTPUTS = rendering::raytracing::outputs::List<
+        using CAMERA_OUTPUTS = CameraOutputs<rendering::raytracing::outputs::List<
             rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>,
-            rendering::raytracing::outputs::Probes>;
+            rendering::raytracing::outputs::Probes>>;
         static constexpr TI HISTORY_LENGTH = 1;
         static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = 0;
         static constexpr T CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE = 0;
@@ -61,11 +73,6 @@ namespace rl_tools::rl::environments::hyperdrone {
         static constexpr TI MAX_DRONES = 1;
     };
 
-    // camera selection of a World output by mount index (Cameras<Mounts<0>, Depth<>>: the first
-    // mount of every camera agent)
-    template <auto... MOUNTS>
-    struct Mounts {};
-
     namespace world {
         struct NoImageHistory {};
         template <typename STATE, typename = void>
@@ -83,26 +90,49 @@ namespace rl_tools::rl::environments::hyperdrone {
             static constexpr T_TI DIM = N_AGENTS * AGENT_STATE::DIM;
             AGENT_STATE agent_states[N_AGENTS];
         };
-        // World OUTPUTS entries are bare descriptors (every camera) or Cameras<Mounts<...>, OUTPUT>;
-        // cameras are instance-, then agent-, then mount-major, so a mount is every
-        // N_CAMERAS_PER_AGENT-th camera
-        template <typename SPEC, typename ENTRY>
-        struct RendererOutput {
-            using TYPE = ENTRY;
-        };
-        template <typename SPEC, typename SELECTION, typename OUTPUT>
-        struct RendererOutput<SPEC, rendering::raytracing::outputs::Cameras<SELECTION, OUTPUT>> {
-            static_assert(!utils::typing::is_same_v<SELECTION, SELECTION>, "select World output cameras by mount: Cameras<hyperdrone::Mounts<...>, OUTPUT>");
-        };
-        template <typename SPEC, auto... MOUNTS, typename OUTPUT>
-        struct RendererOutput<SPEC, rendering::raytracing::outputs::Cameras<Mounts<MOUNTS...>, OUTPUT>> {
-            using TYPE = rendering::raytracing::outputs::Cameras<rendering::raytracing::outputs::cameras::Every<SPEC::N_CAMERAS_PER_AGENT, MOUNTS...>, OUTPUT>;
-        };
-        template <typename SPEC, typename LIST>
+        namespace camera_outputs {
+            namespace out = rendering::raytracing::outputs;
+            template <typename ACCUMULATED, typename... PROFILES>
+            struct Merge;
+            template <typename ACCUMULATED>
+            struct Merge<ACCUMULATED> {
+                using TYPE = ACCUMULATED;
+            };
+            template <typename ACCUMULATED, typename... REST>
+            struct Merge<ACCUMULATED, out::List<>, REST...>: Merge<ACCUMULATED, REST...> {};
+            template <typename... ACCUMULATED, typename HEAD, typename... TAIL, typename... REST>
+            struct Merge<out::List<ACCUMULATED...>, out::List<HEAD, TAIL...>, REST...> {
+                using CURRENT = out::List<ACCUMULATED...>;
+                static constexpr bool PRESENT = out::contains<CURRENT, HEAD>::value;
+                static_assert(PRESENT || !out::contains_slot<CURRENT, out::Traits<HEAD>::SLOT>::value, "cameras must use identical descriptors for the same output quantity and representation");
+                using NEXT = utils::typing::conditional_t<PRESENT, CURRENT, out::List<ACCUMULATED..., HEAD>>;
+                using TYPE = typename Merge<NEXT, out::List<TAIL...>, REST...>::TYPE;
+            };
+
+            template <unsigned int... MOUNTS>
+            struct Indices {};
+            template <typename OUTPUT, unsigned int COUNT, typename INDICES, typename... PROFILES>
+            struct Select;
+            template <typename OUTPUT, unsigned int COUNT, unsigned int... MOUNTS>
+            struct Select<OUTPUT, COUNT, Indices<MOUNTS...>> {
+                using TYPE = utils::typing::conditional_t<sizeof...(MOUNTS) == COUNT, OUTPUT, out::Cameras<out::cameras::Every<COUNT, MOUNTS...>, OUTPUT>>;
+            };
+            template <typename OUTPUT, unsigned int COUNT, unsigned int... MOUNTS, typename HEAD, typename... TAIL>
+            struct Select<OUTPUT, COUNT, Indices<MOUNTS...>, HEAD, TAIL...>: Select<OUTPUT, COUNT,
+                utils::typing::conditional_t<out::contains<HEAD, OUTPUT>::value, Indices<MOUNTS..., COUNT - sizeof...(TAIL) - 1>, Indices<MOUNTS...>>, TAIL...> {};
+
+            template <typename OUTPUTS, typename... PROFILES>
+            struct Selected;
+            template <typename... OUTPUTS, typename... PROFILES>
+            struct Selected<out::List<OUTPUTS...>, PROFILES...> {
+                using TYPE = out::List<typename Select<OUTPUTS, sizeof...(PROFILES), Indices<>, PROFILES...>::TYPE...>;
+            };
+        }
+        // Mounts repeat in instance -> agent -> mount order; outputs retain first-occurrence order.
+        template <typename CAMERAS>
         struct RendererOutputs;
-        template <typename SPEC, typename... ENTRIES>
-        struct RendererOutputs<SPEC, rendering::raytracing::outputs::List<ENTRIES...>> {
-            using TYPE = rendering::raytracing::outputs::List<typename RendererOutput<SPEC, ENTRIES>::TYPE...>;
+        template <typename... PROFILES>
+        struct RendererOutputs<CameraOutputs<PROFILES...>>: camera_outputs::Selected<typename camera_outputs::Merge<rendering::raytracing::outputs::List<>, PROFILES...>::TYPE, PROFILES...> {
         };
         template <typename RENDERER_SPEC, typename OUTPUT>
         constexpr bool covers_every_camera() {
@@ -120,10 +150,10 @@ namespace rl_tools::rl::environments::hyperdrone {
             using TI = typename SPEC::TI;
             static constexpr TI CAM_WIDTH = SPEC::CAM_WIDTH;
             static constexpr TI CAM_HEIGHT = SPEC::CAM_HEIGHT;
-            static constexpr TI NUM_CAMERAS = SPEC::INSTANCES_PER_ENVIRONMENT * SPEC::N_CAMERA_AGENTS * SPEC::N_CAMERAS_PER_AGENT;
+            static constexpr TI NUM_CAMERAS = SPEC::INSTANCES_PER_ENVIRONMENT * SPEC::N_CAMERA_AGENTS * SPEC::CAMERA_OUTPUTS::COUNT;
             static constexpr TI NUM_PROBES = SPEC::NUM_PROBES;
             using SHADING = typename SPEC::SHADING;
-            using OUTPUTS = typename RendererOutputs<SPEC, typename SPEC::OUTPUTS>::TYPE;
+            using OUTPUTS = typename RendererOutputs<typename SPEC::CAMERA_OUTPUTS>::TYPE;
             static constexpr bool ENABLE_MOTION_BLUR = SPEC::ENABLE_MOTION_BLUR;
             static constexpr TI MOTION_BLUR_SAMPLES = SPEC::MOTION_BLUR_SAMPLES;
             static constexpr bool ENABLE_ANTI_ALIASING = SPEC::ENABLE_ANTI_ALIASING;
@@ -158,7 +188,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         using T = typename SPEC::T;
         using DYNAMICS_ENV = Multirotor<l2f::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::DYNAMICS_STATIC_PARAMETERS>>;
         typename DYNAMICS_ENV::Parameters dynamics = SPEC::DYNAMICS_STATIC_PARAMETERS::PARAMETER_VALUES;
-        Camera<T> cameras[SPEC::N_CAMERAS_PER_AGENT];
+        Camera<T> cameras[SPEC::CAMERA_OUTPUTS::COUNT];
     };
     template <typename T_SPEC>
     struct AgentParameters: DroneParameters<T_SPEC> {
@@ -218,7 +248,6 @@ namespace rl_tools::rl::environments::hyperdrone {
         static_assert(SPEC::MAX_DRONES > 0, "MAX_DRONES must be positive");
         static_assert(SPEC::HISTORY_LENGTH > 0, "HISTORY_LENGTH must be positive");
         static_assert(SPEC::N_CAMERA_AGENTS > 0 && SPEC::N_CAMERA_AGENTS <= SPEC::N_AGENTS, "N_CAMERA_AGENTS must be positive and no greater than N_AGENTS");
-        static_assert(SPEC::N_CAMERAS_PER_AGENT > 0, "N_CAMERAS_PER_AGENT must be positive");
         static_assert(!SPEC::SELF_VISIBLE || SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE > 0, "SELF_VISIBLE needs entity slots: set MAX_ENTITY_SLOTS_PER_INSTANCE");
         static_assert(SPEC::N_AGENTS == 1 || SPEC::SELF_VISIBLE, "multi-agent Worlds require SELF_VISIBLE: agents seeing each other needs geometry to see");
 
@@ -229,7 +258,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         static constexpr TI INSTANCES = SPEC::INSTANCES_PER_ENVIRONMENT;
         static constexpr TI N_AGENTS = SPEC::N_AGENTS;
         static constexpr TI N_CAMERA_AGENTS = SPEC::N_CAMERA_AGENTS;
-        static constexpr TI N_CAMERAS_PER_AGENT = SPEC::N_CAMERAS_PER_AGENT;
+        static constexpr TI N_CAMERAS_PER_AGENT = SPEC::CAMERA_OUTPUTS::COUNT;
         static constexpr TI N_VIEWS = N_CAMERA_AGENTS * N_CAMERAS_PER_AGENT;
         static constexpr TI ACTION_DIM = N_AGENTS * DYNAMICS_ENV::ACTION_DIM;
         static constexpr TI EPISODE_STEP_LIMIT = DYNAMICS_ENV::EPISODE_STEP_LIMIT;
@@ -249,8 +278,8 @@ namespace rl_tools::rl::environments::hyperdrone {
 
         using RENDERER_CONFIG = world::RendererConfig<SPEC>;
         using RENDERER_SPEC = rendering::raytracing::Specification<RENDERER_CONFIG>;
-        static constexpr bool HAS_IMAGE_OBSERVATION = rendering::raytracing::outputs::contains<typename SPEC::OUTPUTS, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>::value;
-        static_assert(world::covers_every_camera<RENDERER_SPEC, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>(), "the image observation covers every mount: configure RGB<Float32> without a camera selection");
+        static constexpr bool HAS_IMAGE_OBSERVATION = rendering::raytracing::outputs::contains<typename RENDERER_SPEC::OUTPUTS, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>::value;
+        static_assert(world::covers_every_camera<RENDERER_SPEC, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>(), "the image observation requires RGB<Float32> on every camera");
         using RENDERER = rendering::raytracing::Renderer<RENDERER_SPEC>;
         using ANNOTATIONS_SPEC = rendering::datasets::annotations::FreeSpaceSpecification<T, TI>;
         using ANNOTATIONS = rendering::datasets::annotations::FreeSpace<ANNOTATIONS_SPEC>;

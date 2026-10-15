@@ -70,7 +70,7 @@ namespace test_self_visible {
         using SHADING = rlt::rendering::raytracing::Low;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 8;
         static constexpr bool SELF_VISIBLE = true;
-        using OUTPUTS = rro::List<rro::RGB<rro::format::Float32>, rro::Segmentation<rro::format::UInt32, rro::labels::Instance>, rro::Probes>;
+        using CAMERA_OUTPUTS = rlt::rl::environments::hyperdrone::CameraOutputs<rro::List<rro::RGB<rro::format::Float32>, rro::Segmentation<rro::format::UInt32, rro::labels::Instance>, rro::Probes>>;
     };
     using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
     constexpr TI INSTANCES = WORLD::INSTANCES;

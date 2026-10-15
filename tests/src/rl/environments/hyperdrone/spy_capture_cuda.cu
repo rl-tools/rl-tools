@@ -18,12 +18,12 @@ namespace {
         static constexpr size_t N_CAMERA_AGENTS = 1;
         using SHADING = rt::Low;
         static constexpr size_t INSTANCES_PER_ENVIRONMENT = 3;
-        static constexpr size_t N_CAMERAS_PER_AGENT = 2;
         static constexpr size_t CAM_WIDTH = 7;
         static constexpr size_t CAM_HEIGHT = 5;
         static constexpr size_t HISTORY_LENGTH = 1;
         static constexpr size_t MAX_ENTITY_SLOTS_PER_INSTANCE = 2;
-        using OUTPUTS = rendering::raytracing::outputs::List<rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>;
+        using CAMERA_PROFILE = rendering::raytracing::outputs::List<rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>;
+        using CAMERA_OUTPUTS = hd::CameraOutputs<CAMERA_PROFILE, CAMERA_PROFILE>;
         static constexpr size_t NUM_PROBES = 0;
         static constexpr bool SELF_VISIBLE = false;
         static constexpr bool ENABLE_MOTION_BLUR = false;
@@ -128,7 +128,7 @@ namespace {
 
     struct CaptureWorldConfig: WorldConfig {
         static constexpr size_t INSTANCES_PER_ENVIRONMENT = 64;
-        static constexpr size_t N_CAMERAS_PER_AGENT = 1;
+        using CAMERA_OUTPUTS = hd::CameraOutputs<CAMERA_PROFILE>;
         static constexpr size_t CAM_WIDTH = 64;
         static constexpr size_t CAM_HEIGHT = 64;
     };

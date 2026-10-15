@@ -14,11 +14,11 @@ namespace test_multicamera {
     struct Specification: BASE {
         static constexpr typename BASE::TI N_AGENTS = AGENTS;
         static constexpr typename BASE::TI N_CAMERA_AGENTS = CAMERA_AGENTS;
-        static constexpr typename BASE::TI N_CAMERAS_PER_AGENT = 2;
         static constexpr typename BASE::TI HISTORY_LENGTH = 2;
         static constexpr bool ENABLE_MOTION_BLUR = true;
         static constexpr typename BASE::TI MOTION_BLUR_SAMPLES = 2;
-        using OUTPUTS = typename rl_tools::rendering::raytracing::outputs::Concat<typename BASE::OUTPUTS, rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::Flow<>, rl_tools::rendering::raytracing::outputs::FlowStatus<>>>::type;
+        using CAMERA_PROFILE = typename rendering::raytracing::outputs::Concat<typename BASE::CAMERA_PROFILE, rendering::raytracing::outputs::List<rendering::raytracing::outputs::Flow<>, rendering::raytracing::outputs::FlowStatus<>>>::type;
+        using CAMERA_OUTPUTS = rl::environments::hyperdrone::CameraOutputs<CAMERA_PROFILE, CAMERA_PROFILE>;
         static constexpr typename BASE::T CAMERA_FOV_RANDOMIZATION_RANGE = 2;
     };
 

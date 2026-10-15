@@ -81,16 +81,57 @@ namespace test_hyperdrone_world {
     static_assert(INSTANCES == NUMBER_OF_ENVIRONMENTS * WORLD_SPEC::INSTANCES_PER_ENVIRONMENT);
 
     struct MOUNTS_SPEC: WORLD_SPEC {
-        static constexpr TI N_CAMERAS_PER_AGENT = 2;
-        using OUTPUTS = rro::List<rro::RGB<rro::format::Float32>, rro::Cameras<rlt::rl::environments::hyperdrone::Mounts<1>, rro::Depth<>>, rro::Probes>;
+        static constexpr TI N_AGENTS = 3;
+        static constexpr TI N_CAMERA_AGENTS = 2;
+        static constexpr bool SELF_VISIBLE = true;
+        static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 32;
+        using CAMERA_OUTPUTS = rlt::rl::environments::hyperdrone::CameraOutputs<
+            rro::List<rro::RGB<rro::format::Float32>, rro::Depth<>, rro::Probes>,
+            rro::List<rro::RGB<rro::format::Float32>, rro::Normals<>, rro::Probes>,
+            rro::List<rro::RGB<rro::format::Float32>, rro::Depth<>, rro::Probes>>;
     };
-    using MOUNTS_RENDERER_SPEC = typename rlt::rl::environments::hyperdrone::World<MOUNTS_SPEC>::RENDERER_SPEC;
-    static_assert(rlt::utils::typing::is_same_v<typename rro::EntryOf<typename MOUNTS_RENDERER_SPEC::OUTPUTS, rro::Depth<>>::TYPE, rro::Cameras<rro::cameras::Every<MOUNTS_SPEC::N_CAMERAS_PER_AGENT, 1>, rro::Depth<>>>);
-    static_assert(rro::TensorSpecification<MOUNTS_RENDERER_SPEC, rro::Depth<>>::SHAPE::template GET<0> == WORLD_SPEC::INSTANCES_PER_ENVIRONMENT);
-    static_assert(rro::TensorSpecification<MOUNTS_RENDERER_SPEC, rro::RGB<rro::format::Float32>>::SHAPE::template GET<0> == 2 * WORLD_SPEC::INSTANCES_PER_ENVIRONMENT);
+    using MOUNTS_WORLD = rlt::rl::environments::hyperdrone::World<MOUNTS_SPEC>;
+    using MOUNTS_RENDERER_SPEC = typename MOUNTS_WORLD::RENDERER_SPEC;
+    using EXPECTED_OUTPUTS = rro::List<
+        rro::RGB<rro::format::Float32>,
+        rro::Cameras<rro::cameras::Every<3u, 0u, 2u>, rro::Depth<>>,
+        rro::Probes,
+        rro::Cameras<rro::cameras::Every<3u, 1u>, rro::Normals<>>>;
+    static_assert(rlt::utils::typing::is_same_v<typename MOUNTS_RENDERER_SPEC::OUTPUTS, EXPECTED_OUTPUTS>);
+    static_assert(MOUNTS_WORLD::N_CAMERAS_PER_AGENT == 3 && MOUNTS_WORLD::N_VIEWS == 6);
+    static_assert(sizeof(rlt::rl::environments::hyperdrone::DroneParameters<MOUNTS_SPEC>{}.cameras) == 3 * sizeof(rlt::rl::environments::hyperdrone::Camera<T>));
+    static_assert(rro::TensorSpecification<MOUNTS_RENDERER_SPEC, rro::Depth<>>::SHAPE::template GET<0> == 8);
+    static_assert(rro::TensorSpecification<MOUNTS_RENDERER_SPEC, rro::Normals<>>::SHAPE::template GET<0> == 4);
+    static_assert(rro::TensorSpecification<MOUNTS_RENDERER_SPEC, rro::RGB<rro::format::Float32>>::SHAPE::template GET<0> == 12);
+    static_assert(!rro::Layout<MOUNTS_RENDERER_SPEC>::ALL_CAMERAS);
+    struct SINGLE_MOUNT_SPEC: MOUNTS_SPEC {
+        using CAMERA_OUTPUTS = typename WORLD_SPEC::CAMERA_OUTPUTS;
+    };
+    using SINGLE_MOUNT_WORLD = rlt::rl::environments::hyperdrone::World<SINGLE_MOUNT_SPEC>;
+    static_assert(SINGLE_MOUNT_WORLD::N_CAMERAS_PER_AGENT == 1);
+    static_assert(SINGLE_MOUNT_WORLD::RENDERER_SPEC::NUM_CAMERAS == 4);
+    static_assert(rro::Layout<typename SINGLE_MOUNT_WORLD::RENDERER_SPEC>::ALL_CAMERAS);
 }
 
 using namespace test_hyperdrone_world;
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, CAMERA_OUTPUT_LAYOUT) {
+    DEVICE device;
+    unsigned int table[MOUNTS_RENDERER_SPEC::NUM_CAMERAS * rro::CAMERA_TABLE_STRIDE];
+    using rlt::fill_camera_table;
+    fill_camera_table<MOUNTS_RENDERER_SPEC>(device, table);
+    for(TI camera = 0; camera < MOUNTS_RENDERER_SPEC::NUM_CAMERAS; camera++) {
+        const auto* entry = table + camera * rro::CAMERA_TABLE_STRIDE;
+        const bool depth = camera % 3 != 1;
+        const unsigned int expected_mask = rro::bit(rro::Slot::RGB_FLOAT32) | rro::bit(rro::Slot::PROBES)
+            | rro::bit(depth ? rro::Slot::DEPTH_FLOAT32 : rro::Slot::NORMALS_FLOAT32);
+        EXPECT_EQ(entry[0], expected_mask);
+        EXPECT_EQ(entry[1 + (unsigned int)rro::Slot::RGB_FLOAT32], camera);
+        EXPECT_EQ(entry[1 + (unsigned int)rro::Slot::PROBES], camera);
+        EXPECT_EQ(entry[1 + (unsigned int)rro::Slot::DEPTH_FLOAT32], depth ? (camera / 3) * 2 + (camera % 3 == 2 ? 1 : 0) : rro::NO_ROW);
+        EXPECT_EQ(entry[1 + (unsigned int)rro::Slot::NORMALS_FLOAT32], depth ? rro::NO_ROW : camera / 3);
+    }
+}
 
 static std::string scene_directory(){
     // a directory containing only scene GLBs (the dataset enumerates *.glb): symlink the test
@@ -398,12 +439,12 @@ namespace test_hyperdrone_acquisition {
         static constexpr TI HISTORY_LENGTH = HISTORY;
         static constexpr bool ENABLE_MOTION_BLUR = true;
         static constexpr TI MOTION_BLUR_SAMPLES = 4;
-        using OUTPUTS = typename rro::Concat<
+        using CAMERA_OUTPUTS = rlt::rl::environments::hyperdrone::CameraOutputs<typename rro::Concat<
             rro::If<(IMAGE), rro::RGB<rro::format::Float32>>,
             rro::If<(FLOW), rro::Flow<>>,
             rro::If<(FLOW), rro::FlowStatus<>>,
             rro::List<rro::Probes>
-        >::type;
+        >::type>;
     };
 
     struct Checkpoint {

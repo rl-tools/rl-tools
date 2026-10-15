@@ -219,7 +219,7 @@ Several drones fly in one environment through the drone table, `MultiEnvironment
 
 With `EnvConfig(preset="x500_fpv", num_agents=7, num_camera_agents=7)`, each instance is a group of seven mutually visible drones; groups share scene geometry but remain isolated episodes. `instance_parameters()` returns `{"agents": [...]}` per group, and `set_instance_parameters({"agents": [{"drone": i} for i in choices]}, mask)` assigns models independently (`{}` leaves an agent unchanged). Single-agent entries keep the flat schema. Scene placement, exposure, shutter fraction, reset, reward and termination remain group-wide; all agents share the integration timestep.
 
-`num_camera_agents` defaults to 1 and selects agents `[0, num_camera_agents)` to produce images; all `num_agents` drones still receive actions and appear in state, privileged observations and rendered geometry. `EnvConfig(num_agents=7, num_camera_agents=1, preset="x500_fpv", num_cameras_per_agent=2)` gives agent 0 two synchronized cameras. Set mounts and horizontal FOVs with `parameters={"cameras": [fpv, chase]}`; each agent retains a list of exactly `num_cameras_per_agent` entries, and `{}` preserves a camera’s existing values in a partial override. All cameras share resolution, output channels and capture timing. `env.num_views` is `env.num_camera_agents * env.num_cameras_per_agent`, ordered by agent then camera. Base-world `frames()` tiles these views vertically; `env.frames().reshape(env.total_instances, env.num_camera_agents, env.num_cameras_per_agent, H, W, 3)` exposes the axes without copying.
+`num_camera_agents` defaults to 1 and selects agents `[0, num_camera_agents)` to produce images; all `num_agents` drones still receive actions and appear in state, privileged observations and rendered geometry. `EnvConfig(num_agents=7, num_camera_agents=1, preset="x500_fpv", num_cameras_per_agent=2)` gives agent 0 two synchronized cameras. Set mounts and horizontal FOVs with `parameters={"cameras": [fpv, chase]}`; each agent retains a list of exactly `num_cameras_per_agent` entries, and `{}` preserves a camera’s existing values in a partial override. `EnvConfig` applies its `output` selection to every mount; all cameras share resolution and capture timing. `env.num_views` is `env.num_camera_agents * env.num_cameras_per_agent`, ordered by agent then camera. Base-world `frames()` tiles these views vertically; `env.frames().reshape(env.total_instances, env.num_camera_agents, env.num_cameras_per_agent, H, W, 3)` exposes the axes without copying.
 
 All environment semantics — reset, reward, termination, scene scheduling, observation
 composition — live on the C++ side (`rl_tools::rl::environments::hyperdrone::MultiEnvironment<World>`);
@@ -245,6 +245,18 @@ wrapper — verb overloads registering and moving entities, compiled reward, ter
 `hyperdrone/examples/Orbiter.ipynb` walks through one, and `tests/env/test_orbiter.py`
 compiles and flies its header. The environment's raytracing backend follows
 `HYPERDRONE_RENDER_BACKEND` like the renderer.
+
+Custom C++ World specifications declare one output list per mount in `CAMERA_OUTPUTS`; the mount count is derived from that list. For example, inside a specification:
+
+```cpp
+using OUTPUT_PROFILE = rl_tools::rendering::raytracing::outputs::List<
+    rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>,
+    rl_tools::rendering::raytracing::outputs::Depth<>,
+    rl_tools::rendering::raytracing::outputs::Probes>;
+using CAMERA_OUTPUTS = rl_tools::rl::environments::hyperdrone::CameraOutputs<OUTPUT_PROFILE, OUTPUT_PROFILE>;
+```
+
+This two-mount layout is shared by every camera-equipped agent and instance. Python observations require `RGB<Float32>` on every mount, and each enabled Python image accessor requires its output on every mount.
 
 Entity wrappers share their own pose writes in `prepare_entity_poses`: `render` calls it before forwarding acquisition, and `step` calls it before forwarding when a frame is pending and history or flow requires its poses. The base World separates input production (`prepare_render_inputs`), temporal reset (`reset_render_state`, using prepared poses for flow) and advancement (`advance_flow`), and acquisition (`render`, which publishes transforms, updates acceleration, and scatters images into history). Pose helpers neither render nor call `update`; CUDA may fuse temporal bookkeeping into existing kernels without changing these semantics.
 

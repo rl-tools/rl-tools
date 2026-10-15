@@ -34,20 +34,23 @@ namespace rl_tools::rl::environments::hyperdrone::web {
         static constexpr TI INSTANCES_PER_ENVIRONMENT = 1;
         static constexpr TI N_AGENTS = T_N_AGENTS;
         static constexpr TI N_CAMERA_AGENTS = 1;
-        static constexpr TI N_CAMERAS_PER_AGENT = 2;
         static constexpr TI MAX_DRONES = 6;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = N_AGENTS * rig::Rotorcraft<TI>::SPEC::MAX_PARTS;
         static constexpr TI CAM_WIDTH = 480 * T_RESOLUTION_SCALE;
         static constexpr TI CAM_HEIGHT = 270 * T_RESOLUTION_SCALE;
         static constexpr TI NUM_PROBES = 64;
-        using OUTPUTS = rendering::raytracing::outputs::List<
-            rendering::raytracing::outputs::RGB<>,
-            rendering::raytracing::outputs::Cameras<Mounts<0>, rendering::raytracing::outputs::Depth<rendering::raytracing::outputs::format::RGBA8>>,
-            rendering::raytracing::outputs::Cameras<Mounts<0>, rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::RGBA8, rendering::raytracing::outputs::labels::Semantic>>,
-            rendering::raytracing::outputs::Cameras<Mounts<0>, rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::UInt32, rendering::raytracing::outputs::labels::Semantic>>,
-            rendering::raytracing::outputs::Cameras<Mounts<0>, rendering::raytracing::outputs::Normals<rendering::raytracing::outputs::format::RGBA8>>,
-            rendering::raytracing::outputs::Cameras<Mounts<0>, rendering::raytracing::outputs::Flow<rendering::raytracing::outputs::direction::Backward, rendering::raytracing::outputs::format::RGBA8>>,
-            rendering::raytracing::outputs::Probes>;
+        using CAMERA_OUTPUTS = CameraOutputs<
+            rendering::raytracing::outputs::List<
+                rendering::raytracing::outputs::RGB<>,
+                rendering::raytracing::outputs::Depth<rendering::raytracing::outputs::format::RGBA8>,
+                rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::RGBA8, rendering::raytracing::outputs::labels::Semantic>,
+                rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::UInt32, rendering::raytracing::outputs::labels::Semantic>,
+                rendering::raytracing::outputs::Normals<rendering::raytracing::outputs::format::RGBA8>,
+                rendering::raytracing::outputs::Flow<rendering::raytracing::outputs::direction::Backward, rendering::raytracing::outputs::format::RGBA8>,
+                rendering::raytracing::outputs::Probes>,
+            rendering::raytracing::outputs::List<
+                rendering::raytracing::outputs::RGB<>,
+                rendering::raytracing::outputs::Probes>>;
         static constexpr bool ENABLE_MOTION_BLUR = T_MOTION_BLUR_SAMPLES > 1;
         static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;
         static constexpr bool ENABLE_ANTI_ALIASING = T_ANTI_ALIASING_GRID_SIZE > 1;

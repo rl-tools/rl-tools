@@ -70,12 +70,12 @@ namespace {
         static constexpr size_t INSTANCES_PER_ENVIRONMENT = 2;
         static constexpr size_t N_AGENTS = 2;
         static constexpr size_t N_CAMERA_AGENTS = 1;
-        static constexpr size_t N_CAMERAS_PER_AGENT = 2;
         static constexpr size_t CAM_WIDTH = 4;
         static constexpr size_t CAM_HEIGHT = 3;
         static constexpr size_t HISTORY_LENGTH = 1;
         static constexpr size_t MAX_ENTITY_SLOTS_PER_INSTANCE = 16;
-        using OUTPUTS = rendering::raytracing::outputs::List<rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>;
+        using CAMERA_PROFILE = rendering::raytracing::outputs::List<rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>;
+        using CAMERA_OUTPUTS = hd::CameraOutputs<CAMERA_PROFILE, CAMERA_PROFILE>;
         static constexpr size_t NUM_PROBES = 0;
         static constexpr bool SELF_VISIBLE = true;
         static constexpr bool ENABLE_MOTION_BLUR = false;

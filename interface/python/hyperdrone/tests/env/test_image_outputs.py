@@ -126,13 +126,13 @@ def test_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, device)
     asset = rigged_asset_path("x500")
     header = tmp_path / "outputs.h"
     source = (Path(__file__).parent / "user_spec_header.h").read_text()
-    source = source.replace("        static constexpr TI MAX_DRONES = 3;", f"""
+    source = source.replace("        static constexpr TI MAX_DRONES = 3;", """
         static constexpr TI N_AGENTS = 2;
-        static constexpr TI N_CAMERAS_PER_AGENT = 2;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 16;
         static constexpr bool ENABLE_MOTION_BLUR = true;
         static constexpr TI MOTION_BLUR_SAMPLES = 2;
-        using OUTPUTS = rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>, rl_tools::rendering::raytracing::outputs::Depth<>, rl_tools::rendering::raytracing::outputs::Segmentation<rl_tools::rendering::raytracing::outputs::format::UInt32, rl_tools::rendering::raytracing::outputs::labels::Instance>, rl_tools::rendering::raytracing::outputs::Segmentation<rl_tools::rendering::raytracing::outputs::format::UInt32, rl_tools::rendering::raytracing::outputs::labels::Semantic>, rl_tools::rendering::raytracing::outputs::Normals<>, rl_tools::rendering::raytracing::outputs::Flow<>, rl_tools::rendering::raytracing::outputs::FlowStatus<>, rl_tools::rendering::raytracing::outputs::Probes>;
+        using OUTPUT_PROFILE = rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>, rl_tools::rendering::raytracing::outputs::Depth<>, rl_tools::rendering::raytracing::outputs::Segmentation<rl_tools::rendering::raytracing::outputs::format::UInt32, rl_tools::rendering::raytracing::outputs::labels::Instance>, rl_tools::rendering::raytracing::outputs::Segmentation<rl_tools::rendering::raytracing::outputs::format::UInt32, rl_tools::rendering::raytracing::outputs::labels::Semantic>, rl_tools::rendering::raytracing::outputs::Normals<>, rl_tools::rendering::raytracing::outputs::Flow<>, rl_tools::rendering::raytracing::outputs::FlowStatus<>, rl_tools::rendering::raytracing::outputs::Probes>;
+        using CAMERA_OUTPUTS = rl_tools::rl::environments::hyperdrone::CameraOutputs<OUTPUT_PROFILE, OUTPUT_PROFILE>;
 """)
     header.write_text(source)
     with pytest.raises(ValueError, match="spec_header defines"):

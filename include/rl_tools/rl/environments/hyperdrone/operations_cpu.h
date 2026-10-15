@@ -404,7 +404,7 @@ namespace rl_tools {
                 agent.drone = _sample_drone<DEVICE, SPEC>(device, num_drones, rng);
                 const auto& drone = get_ref(device, drones, agent.drone);
                 _sample_dynamics_parameters<DEVICE, SPEC>(device, dynamics, drone, agent, rng);
-                for (typename SPEC::TI camera_i = 0; camera_i < SPEC::N_CAMERAS_PER_AGENT; camera_i++) {
+                for (typename SPEC::TI camera_i = 0; camera_i < SPEC::CAMERA_OUTPUTS::COUNT; camera_i++) {
                     _sample_view_parameters<DEVICE, SPEC>(device, drone.cameras[camera_i], agent.cameras[camera_i], rng);
                 }
             }

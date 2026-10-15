@@ -68,7 +68,7 @@ namespace test_segmentation_determinism {
         static constexpr TI CAM_HEIGHT = 32;
         using SHADING = rlt::rendering::raytracing::Low;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 8;
-        using OUTPUTS = rro::List<rro::RGB<rro::format::Float32>, rro::Segmentation<rro::format::UInt32, rro::labels::Instance>, rro::Probes>;
+        using CAMERA_OUTPUTS = rlt::rl::environments::hyperdrone::CameraOutputs<rro::List<rro::RGB<rro::format::Float32>, rro::Segmentation<rro::format::UInt32, rro::labels::Instance>, rro::Probes>>;
     };
     using BASE_WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
     struct TASK_SPEC: rlt::rl::environments::hyperdrone::tasks::moving_gate::Specification<BASE_WORLD> {};
@@ -199,7 +199,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SEGMENTATION, ID_LAYOUT_AND_DETERMINISM
 
 namespace test_shared_taxonomy {
     struct SPEC: WORLD_SPEC {
-        using OUTPUTS = rro::List<rro::RGB<rro::format::Float32>, rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>, rro::Probes>;
+        using CAMERA_OUTPUTS = rlt::rl::environments::hyperdrone::CameraOutputs<rro::List<rro::RGB<rro::format::Float32>, rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>, rro::Probes>>;
     };
     using SHARED = rlt::rl::environments::hyperdrone::SharedContext<SPEC>;
 

@@ -20,7 +20,7 @@ namespace test_moving_gate_acquisition {
         static constexpr TI CAM_HEIGHT = 13;
         static constexpr TI HISTORY_LENGTH = HISTORY;
         static constexpr bool SELF_VISIBLE = false;
-        using OUTPUTS = typename rl_tools::rendering::raytracing::outputs::Concat<
+        using CAMERA_OUTPUTS = rl::environments::hyperdrone::CameraOutputs<typename rl_tools::rendering::raytracing::outputs::Concat<
             rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>>,
             rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::RGB<>>,
             rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::Depth<>>,
@@ -29,7 +29,7 @@ namespace test_moving_gate_acquisition {
             rl_tools::rendering::raytracing::outputs::If<(FLOW), rl_tools::rendering::raytracing::outputs::Flow<>>,
             rl_tools::rendering::raytracing::outputs::If<(FLOW), rl_tools::rendering::raytracing::outputs::FlowStatus<>>,
             rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::Probes>
-        >::type;
+        >::type>;
         static constexpr bool ENABLE_MOTION_BLUR = true;
         static constexpr TI MOTION_BLUR_SAMPLES = 4;
     };

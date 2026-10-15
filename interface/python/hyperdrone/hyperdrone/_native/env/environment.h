@@ -103,8 +103,14 @@ namespace HYPERDRONE_MODULE_NAME {
 #else
 #error "unknown HYPERDRONE_ENV_PRESET"
 #endif
+    template <TI COUNT, typename OUTPUT, typename... CAMERAS>
+    struct RepeatedCameraOutputs: RepeatedCameraOutputs<COUNT - 1, OUTPUT, OUTPUT, CAMERAS...> {};
+    template <typename OUTPUT, typename... CAMERAS>
+    struct RepeatedCameraOutputs<0, OUTPUT, CAMERAS...> {
+        using TYPE = rlt::rl::environments::hyperdrone::CameraOutputs<CAMERAS...>;
+    };
     struct WORLD_SPEC: PRESET_SPEC {
-        using OUTPUTS = typename rro::Concat<
+        using OUTPUT_PROFILE = typename rro::Concat<
             rro::If<(HYPERDRONE_ENV_OUTPUT_RGB != 0), rro::RGB<rro::format::Float32>>,
             rro::If<(HYPERDRONE_ENV_OUTPUT_DEPTH != 0), rro::Depth<>>,
             rro::If<(HYPERDRONE_ENV_OUTPUT_INSTANCE_SEGMENTATION != 0), rro::Segmentation<rro::format::UInt32, rro::labels::Instance>>,
@@ -114,10 +120,10 @@ namespace HYPERDRONE_MODULE_NAME {
             rro::If<(HYPERDRONE_ENV_OUTPUT_FLOW != 0), rro::FlowStatus<>>,
             rro::List<rro::Probes>
         >::type;
+        using CAMERA_OUTPUTS = typename RepeatedCameraOutputs<HYPERDRONE_ENV_N_CAMERAS_PER_AGENT, OUTPUT_PROFILE>::TYPE;
         static constexpr TI INSTANCES_PER_ENVIRONMENT = HYPERDRONE_ENV_INSTANCES;
         static constexpr TI N_AGENTS = HYPERDRONE_ENV_N_AGENTS;
         static constexpr TI N_CAMERA_AGENTS = HYPERDRONE_ENV_N_CAMERA_AGENTS;
-        static constexpr TI N_CAMERAS_PER_AGENT = HYPERDRONE_ENV_N_CAMERAS_PER_AGENT;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE =
             (HYPERDRONE_ENV_TASK == 2 && PRESET_SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE == 0 ? 8 : PRESET_SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE)
             + (N_AGENTS - 1) * rlt::rl::environments::hyperdrone::rig::Rotorcraft<TI>::SPEC::MAX_PARTS;
@@ -153,12 +159,12 @@ namespace HYPERDRONE_MODULE_NAME {
     using OUTPUTS = typename WORLD::RENDERER_SPEC::OUTPUTS;
     using INSTANCE_SEGMENTATION = rro::Segmentation<rro::format::UInt32, rro::labels::Instance>;
     using SEMANTIC_SEGMENTATION = rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>;
-    static_assert(WORLD::HAS_IMAGE_OBSERVATION, "Python environment observations require RGB<Float32> in OUTPUTS");
+    static_assert(WORLD::HAS_IMAGE_OBSERVATION, "Python environment observations require RGB<Float32> on every mount in CAMERA_OUTPUTS");
     template <typename... DESCRIPTORS>
     constexpr bool covers_every_camera(rro::List<DESCRIPTORS...>) {
         return (rlt::rl::environments::hyperdrone::world::covers_every_camera<typename WORLD::RENDERER_SPEC, DESCRIPTORS>() && ...);
     }
-    static_assert(covers_every_camera(rro::List<rro::Depth<>, INSTANCE_SEGMENTATION, SEMANTIC_SEGMENTATION, rro::Normals<>, rro::Flow<>, rro::FlowStatus<>>{}), "Python accessors return every camera: configure their outputs without a camera selection");
+    static_assert(covers_every_camera(rro::List<rro::Depth<>, INSTANCE_SEGMENTATION, SEMANTIC_SEGMENTATION, rro::Normals<>, rro::Flow<>, rro::FlowStatus<>>{}), "Python accessors return every camera: configure their outputs on every mount in CAMERA_OUTPUTS");
 
     constexpr TI NUM_ENVIRONMENTS = HYPERDRONE_ENV_NUM_ENVIRONMENTS;
     using ENV = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, NUM_ENVIRONMENTS>;
