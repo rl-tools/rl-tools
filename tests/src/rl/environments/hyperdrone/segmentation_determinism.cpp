@@ -86,8 +86,7 @@ struct Capture {
     TI scene_instances;
 };
 
-// one full lifecycle: fresh shared context + world, seeded sampling, deterministic gate
-// placement (2m ahead of each instance's own camera), one render, segmentation copied out
+// Co-located cameras and gates must still receive distinct, instance-private segmentation IDs.
 static Capture run(DEVICE& device){
     WORLD world;
     typename BASE_WORLD::SharedContext shared;
@@ -111,6 +110,7 @@ static Capture run(DEVICE& device){
     rlt::set_all(device, reset_mask, true);
     rlt::sample_initial_parameters(device, world, parameters, reset_mask, rng);
     rlt::sample_initial_state(device, world, parameters, states, reset_mask, rng);
+    const auto scene_parameters = rlt::get(device, parameters, 0);
     for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
         typename WORLD::Parameters instance_parameters = rlt::get(device, parameters, instance_i);
         typename WORLD::State state = rlt::get(device, states, instance_i);
@@ -121,6 +121,7 @@ static Capture run(DEVICE& device){
         instance_parameters.gate_orientation[2] = 0;
         instance_parameters.gate_orientation[3] = 0;
         for(TI dim = 0; dim < 3; dim++){
+            instance_parameters.scene_translation[dim] = scene_parameters.scene_translation[dim];
             instance_parameters.gate_center[dim] = instance_parameters.scene_translation[dim];
         }
         instance_parameters.gate_center[0] += 2;

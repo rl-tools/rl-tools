@@ -11,7 +11,6 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
-#include <filesystem>
 #include <string>
 
 namespace rlt = rl_tools;
@@ -109,18 +108,6 @@ namespace test_hyperdrone_on_policy_runner_batched {
 
 using namespace test_hyperdrone_on_policy_runner_batched;
 
-static std::string scene_directory(){
-    std::string directory = std::filesystem::temp_directory_path() / "rl_tools_hyperdrone_on_policy_runner_batched_scenes";
-    std::filesystem::create_directories(directory);
-    for (const char* name : {"scene_0.glb", "scene_1.glb"}) {
-        std::filesystem::path link = std::filesystem::path(directory) / name;
-        if (!std::filesystem::exists(link)) {
-            std::filesystem::create_symlink(SCENE_PATH, link);
-        }
-    }
-    return directory;
-}
-
 struct Fixture: ::testing::Test {
     DEVICE device;
     ENVIRONMENT* env = nullptr;
@@ -131,7 +118,7 @@ struct Fixture: ::testing::Test {
         rlt::init(device);
         env = new ENVIRONMENT;
         rlt::malloc(device, *env);
-        rlt::init(device, *env, rlt::rendering::datasets::procthor::GLB{scene_directory(), {}});
+        rlt::init(device, *env, rlt::rendering::datasets::procthor::GLB{{}, {SCENE_PATH, SCENE_PATH}});
     }
     void TearDown() override {
         if(env != nullptr){

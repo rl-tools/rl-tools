@@ -34,7 +34,11 @@
 #define RL_TOOLS_GOLDEN_BACKEND_NAME "vulkan"
 #elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_WEBGPU)
 #define RL_TOOLS_GOLDEN_SUITE RENDERING_RAYTRACING_GOLDEN_WEBGPU
+#if defined(__APPLE__)
+#define RL_TOOLS_GOLDEN_BACKEND_NAME "webgpu-metal"
+#else
 #define RL_TOOLS_GOLDEN_BACKEND_NAME "webgpu"
+#endif
 #else
 #define RL_TOOLS_GOLDEN_SUITE RENDERING_RAYTRACING_GOLDEN_GENERIC
 #define RL_TOOLS_GOLDEN_BACKEND_NAME "generic"
@@ -107,8 +111,9 @@ static constexpr double FLOW_OUTLIER_EPE = 0.5;                                 
 static constexpr double FLOW_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;
 static constexpr double FLOW_STATUS_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;
 static constexpr double SEGMENTATION_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;
-// wasm v5: Metal instance IDs differ on 0.5203% static / 0.5051% overlay pixels due to coplanar
-// wall/floor/ceiling overlaps, the generic CPU under fast-math and FMA on 0.1251% / 0.1114%; allow ~2x those floors.
+// wasm v5, M5 Ultra/AppleClang 21: coplanar wall/floor/ceiling overlaps change instance IDs on
+// 0.5203% static / 0.5051% overlay pixels for Metal, 0.5356% / 0.4791% for wgpu-native 29.0.1.1 on Metal
+// (byte-identical to a161dd38f), and 0.1251% / 0.1114% for generic under fast-math/FMA; allow ~2x these floors.
 static constexpr double METAL_INSTANCE_SEGMENTATION_MISMATCH_FRACTION = 0.011;
 static constexpr double GENERIC_INSTANCE_SEGMENTATION_MISMATCH_FRACTION = 0.0026;
 static constexpr double SEGMENTATION_BACKGROUND_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;
@@ -364,7 +369,7 @@ namespace {
         using SPEC = typename CASE::SPEC;
         constexpr std::string_view backend = RL_TOOLS_GOLDEN_BACKEND_NAME;
         constexpr double mismatch_fraction_bound = REFERENCE_BACKEND || SPEC::HAS_SEMANTIC_SEGMENTATION ? SEGMENTATION_MISMATCH_FRACTION
-            : backend == "metal" ? METAL_INSTANCE_SEGMENTATION_MISMATCH_FRACTION
+            : backend == "metal" || backend == "webgpu-metal" ? METAL_INSTANCE_SEGMENTATION_MISMATCH_FRACTION
             : backend == "generic" ? GENERIC_INSTANCE_SEGMENTATION_MISMATCH_FRACTION
             : SEGMENTATION_MISMATCH_FRACTION;
         const char* output = SPEC::HAS_SEMANTIC_SEGMENTATION ? "segmentation-semantic" : "segmentation";
