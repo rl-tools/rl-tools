@@ -6,6 +6,7 @@ From the repository root, on macOS arm64 or Linux x86_64 with CMake 3.25 or newe
 cmake -B build -DCMAKE_BUILD_TYPE=Release \
   -DRL_TOOLS_RENDERING_RAYTRACING_ENABLE_WASM_GOLDENS=ON
 cmake --build build --target rendering_raytracing_golden_wasm -j5
+./build/tests/src/rendering/raytracing/wasm/generate_goldens
 ```
 
 WASM goldens are opt-in because the pinned wasi-sdk and Wasmtime downloads are large. Tests and raytracing must also be enabled; check the `wasm goldens` entry in the configure summary for availability and the reason if disabled.
@@ -31,4 +32,4 @@ mkdir -p "$output"
 
 The `--dir` options expose the host directories inside the module as `/scene` and `/output`. This writes into `build/goldens` with the runtime profile from [render.sh.in](render.sh.in).
 
-To generate into the configured corpus directory, run `./build/tests/src/rendering/raytracing/wasm/generate_goldens`; `--output-dir DIR` selects another destination and `--dump-dir DIR` writes raw comparison outputs.
+The `generate_goldens` script writes into the configured corpus directory by default; `--output-dir DIR` selects another destination and `--dump-dir DIR` writes raw comparison outputs.
