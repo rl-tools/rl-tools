@@ -1,11 +1,7 @@
 #ifndef TESTS_RENDERING_RAYTRACING_GOLDEN_MANIFEST_H
 #define TESTS_RENDERING_RAYTRACING_GOLDEN_MANIFEST_H
 
-// The corpus carries a manifest.json with its golden_version; the comparators refuse any other
-// version, so a stale checkout fails instead of being compared against the wrong target. Bump the
-// version together with a row in GOLDEN_LEDGER.md and the DATA_REVISION in download_data.sh (both
-// in this directory); the generator then writes golden-v<new>.* next to the earlier generations,
-// which stay in place.
+// The manifest rejects stale corpora; update the version with GOLDEN_LEDGER.md and the test-data revision in tests/download_data.sh. New golden-v<new>.* files retain earlier generations.
 
 #include "golden_layout.h"
 

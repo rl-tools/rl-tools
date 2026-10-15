@@ -129,18 +129,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ${{ matrix.packages }}
 
-      - name: Check golden publication
-        id: goldens
+      - name: Download Test Data
         if: matrix.backend != 'webgpu'
-        run: |
-          revision="$(./tests/src/rendering/raytracing/download_data.sh --revision)"
-          if [ -n "$revision" ]; then
-            echo "published=true" >> "$GITHUB_OUTPUT"
-            ./tests/src/rendering/raytracing/download_data.sh
-          else
-            echo "published=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::No golden corpus revision is pinned; cross-platform module qualification runs in golden-wasm.yml."
-          fi
+        run: ./tests/download_data.sh
 
       - name: Create Python environment
         if: matrix.backend != 'generic'
@@ -162,7 +153,7 @@ jobs:
           -DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=${{ matrix.cmake_backend }}
           -DRL_TOOLS_RENDERING_RAYTRACING_ENABLE_WASM_GOLDENS=${{ matrix.backend != 'webgpu' }}
           ${{ matrix.benchmark_config }}
-          -DRL_TOOLS_REQUIRE_RAYTRACING_GOLDENS=${{ steps.goldens.outputs.published == 'true' }}
+          -DRL_TOOLS_REQUIRE_RAYTRACING_GOLDENS=${{ matrix.backend != 'webgpu' }}
 
       - name: Build raytracing tests
         if: matrix.backend != 'webgpu'
@@ -233,7 +224,7 @@ jobs:
       # ProcTHOR corpus (tests/src/rendering/raytracing/GOLDEN_LEDGER.md): the wasm reference
       # (bit-exact), generic CPU and lavapipe against their floors; OptiX comparisons require an OptiX host
       - name: Test ProcTHOR goldens
-        if: matrix.backend != 'webgpu' && steps.goldens.outputs.published == 'true'
+        if: matrix.backend != 'webgpu'
         working-directory: build-raytracing-${{ matrix.backend }}
         run: ctest -L '^procthor-golden$' --no-tests=error --output-on-failure --timeout 300 -j5
 

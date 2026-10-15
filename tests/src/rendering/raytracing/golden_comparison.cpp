@@ -586,7 +586,7 @@ namespace {
 #if defined(RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS)
 #define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() ASSERT_TRUE(goldens_available()) << "required golden renderings not found at " << CORPUS_DIRECTORY; RL_TOOLS_GOLDEN_REQUIRE_MANIFEST()
 #else
-#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() if(!goldens_available()){ GTEST_SKIP() << "golden renderings not found at " << CORPUS_DIRECTORY << " (run tests/src/rendering/raytracing/download_data.sh or regenerate with the built wasm/generate_goldens script)"; } RL_TOOLS_GOLDEN_REQUIRE_MANIFEST()
+#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() if(!goldens_available()){ GTEST_SKIP() << "golden renderings not found at " << CORPUS_DIRECTORY << " (populate tests/data with tests/download_data.sh)"; } RL_TOOLS_GOLDEN_REQUIRE_MANIFEST()
 #endif
 
 // one test per entry of the case table, registered under a readable name (static/high-mb4 ->
