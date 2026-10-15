@@ -24,6 +24,7 @@ from ._scene import (
 )
 
 __all__ = [
+    "AGENT_SEGMENTATION_CLASS",
     "AssetPool",
     "FIDELITY",
     "FlowStatus",
@@ -52,6 +53,6 @@ _cuda.register_provider(load_core)
 def __getattr__(name):
     # bound classes come from the lazily-built core module so that importing
     # hyperdrone.render stays cheap and the first compile happens on first use
-    if name in ("Scene", "Object", "ObjectAssembly", "AssetPool", "Mesh", "SceneLight"):
+    if name in ("Scene", "Object", "ObjectAssembly", "AssetPool", "Mesh", "SceneLight", "AGENT_SEGMENTATION_CLASS"):
         return getattr(load_core(), name)
     raise AttributeError(f"module 'hyperdrone.render' has no attribute {name}")

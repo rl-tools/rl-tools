@@ -490,6 +490,51 @@ TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, DEPTH_MISS_REPRESENTATIONS) {
     free(device, renderer);
 }
 
+TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, SEMANTIC_PLACEMENT_CLASS) {
+    DEVICE device;
+    init(device);
+    device.logger.verbosity = devices::logging::Verbosity::warning;
+    auto bundle = scene(device);
+    auto object = bundle.scene.objects[0];
+    rrt::AssetPool pool;
+    const auto asset = add(device, pool, object);
+    object.segmentation_class = 5;
+    const auto replacement = add(device, pool, object);
+    using Semantic = outputs::Segmentation<outputs::format::UInt32, outputs::labels::Semantic>;
+    using SPEC = rrt::Specification<Config<outputs::List<outputs::Segmentation<>, Semantic>, false, false, true>>;
+    rrt::Renderer<SPEC, BACKEND> renderer;
+    malloc(device, renderer);
+    init(device, renderer, bundle, pool);
+    set_inputs(device, renderer, 0);
+    const rrt::OverlayIndex overlay{0};
+    attach(device, renderer, DEVICE::index_t(0), overlay);
+    const float pose[12] = {1, 0, 0, -1, 0, 1, 0, 0, 0, 0, 1, 0};
+    const auto expect_class = [&](uint32_t expected) {
+        update(device, renderer);
+        render(device, renderer);
+        const auto classes = read(device, renderer, Semantic{});
+        const auto instances = read(device, renderer, outputs::Segmentation<>{});
+        for(size_t pixel = 0; pixel < classes.size(); pixel++) {
+            EXPECT_EQ(instances[pixel], 1u);
+            EXPECT_EQ(classes[pixel], expected);
+        }
+    };
+    auto placement = spawn(device, renderer, overlay, asset, pose);
+    expect_class(3);
+    despawn(device, renderer, overlay, placement);
+    placement = spawn(device, renderer, overlay, asset, pose, rendering::segmentation::AGENT);
+    expect_class(rendering::segmentation::AGENT);
+    placement = replace(device, renderer, overlay, placement, replacement);
+    expect_class(rendering::segmentation::AGENT);
+    despawn(device, renderer, overlay, placement);
+    placement = spawn(device, renderer, overlay, replacement, pose, 9);
+    expect_class(9);
+    despawn(device, renderer, overlay, placement);
+    spawn(device, renderer, overlay, replacement, pose);
+    expect_class(5);
+    free(device, renderer);
+}
+
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_TYPED_OUTPUTS_ACTIVE_BACKEND) && (defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_WEBGPU) || defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_VULKAN))
 TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, INPUT_COPIES_LEAVE_OUTPUTS_ON_DEVICE) {
     DEVICE device;

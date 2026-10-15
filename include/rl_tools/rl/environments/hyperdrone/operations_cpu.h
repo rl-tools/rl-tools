@@ -261,7 +261,7 @@ namespace rl_tools {
                     }
                     if constexpr (SPEC::SELF_VISIBLE) {
                         for (TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++) {
-                            const auto placement = spawn(render_device, slot.renderer, overlay, world.drone_meshes[0], identity);
+                            const auto placement = spawn(render_device, slot.renderer, overlay, world.drone_meshes[0], identity, rendering::segmentation::AGENT);
                             utils::assert_exit(device, placement.first_slot == world.drone_slot_offset + agent_i * world.drone_parts, "hyperdrone::World: drone placement deviates from the drone region");
                         }
                     }
@@ -940,7 +940,14 @@ namespace rl_tools {
                     object->segmentation_taxonomy = taxonomy;
                 }
             }
-            shared.segmentation_taxonomy = std::move(taxonomy);
+            shared.segmentation_taxonomy = taxonomy;
+            if constexpr (SPEC::SELF_VISIBLE) {
+                if(taxonomy){
+                    auto with_agent = std::make_shared<rendering::SegmentationTaxonomy>(*taxonomy);
+                    with_agent->classes[rendering::segmentation::AGENT] = "Agent";
+                    shared.segmentation_taxonomy = std::move(with_agent);
+                }
+            }
         }
     }
 

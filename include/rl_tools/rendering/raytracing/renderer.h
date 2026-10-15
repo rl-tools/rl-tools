@@ -7,6 +7,7 @@
 #include "types.h"
 #include "outputs/outputs.h"
 #include "scene.h"
+#include "../segmentation.h"
 #include "../../containers/tensor/tensor.h"
 
 #include <vector>
@@ -294,6 +295,7 @@ namespace rl_tools {
                 TI object = 0;          // global object index (scene objects + pool objects)
                 float rest[12];         // part -> assembly frame captured at spawn; the whole-assembly verbs compose pose ∘ rest
                 bool active = false;
+                unsigned int segmentation_class = rendering::segmentation::INHERIT;
             };
             struct OverlayState {
                 OverlaySlot slots[SPEC::MAX_OVERLAY_INSTANCES];

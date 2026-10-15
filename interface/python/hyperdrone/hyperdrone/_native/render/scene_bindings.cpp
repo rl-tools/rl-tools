@@ -190,6 +190,7 @@ static void register_dataset_bindings(nb::module_& m){
 
 NB_MODULE(hyperdrone_render_core, m){
     m.doc() = "Shared scene types and camera utilities for the RLtools raytracer";
+    m.attr("AGENT_SEGMENTATION_CLASS") = rlt::rendering::segmentation::AGENT;
     m.def("_set_verbosity", &hyperdrone::set_verbosity);
     register_rig_bindings(m);
     register_dataset_bindings(m);

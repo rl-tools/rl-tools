@@ -429,6 +429,9 @@ Dataset selection is compiled into the JIT module and also applies with `spec_he
 In semantic mode, initialization validates all scenes and pooled drone/gate assets against one
 taxonomy, then shares its immutable dictionary across them. Conflicting names or complete class
 mappings fail initialization; IDs are preserved. Scene rotation does not change the dictionary.
+Self-visible worlds label every drone placement with the reserved class
+`render.AGENT_SEGMENTATION_CLASS` (`0xFFFFFFFD`, `"Agent"` in `segmentation_classes`); dataset
+taxonomies may not use IDs from `0xFFFFFF00` upwards.
 
 ```python
 config = EnvConfig(dataset="procthor", output=("rgb", "semantic_segmentation"))
@@ -437,7 +440,7 @@ classes = env.segmentation_classes  # dict[int, str], an independent copy
 taxonomy = env.segmentation_taxonomy  # "ai2thor-hab"
 env.reset()
 labels = env.semantic_segmentation()
-names_present = {int(id): classes.get(int(id), "Background") for id in np.unique(labels)}
+agent_pixels = labels == render.AGENT_SEGMENTATION_CLASS
 env.close()
 ```
 
@@ -456,7 +459,7 @@ instances, labels = renderer.instance_segmentation(), renderer.semantic_segmenta
 classes = scene.segmentation_classes  # {class_id: name}, taxonomy: scene.segmentation_taxonomy
 ```
 
-Semantic IDs come from AI2THOR-Hab's taxonomy: unknown is `0` (including Ceiling, which has no dataset category); background is `0xFFFFFFFF` in both modes. Instance IDs identify scene instances: use `scene.instance_object(id)` then `scene.object_name(object_index)` for static hits. Overlay instance IDs are `scene.num_instances + placement.overlay * renderer.config.max_overlay_instances + placement.first_slot + part`. `spawn()` returns an `OverlayPlacement`; transform and despawn methods reject stale, foreign and forged handles. Semantic IDs must never be used as object indices. Loading remains welded by default for RGB; semantic rendering rejects a welded object containing multiple classes. Assemblies and asset-pool copies retain labels and the taxonomy. Composing conflicting taxonomies requires an explicit remapping before semantic rendering.
+Semantic IDs come from AI2THOR-Hab's taxonomy: unknown is `0` (including Ceiling, which has no dataset category); background is `0xFFFFFFFF` in both modes. Instance IDs identify scene instances: use `scene.instance_object(id)` then `scene.object_name(object_index)` for static hits. Overlay instance IDs are `scene.num_instances + placement.overlay * renderer.config.max_overlay_instances + placement.first_slot + part`. `spawn()` returns an `OverlayPlacement`; transform and despawn methods reject stale, foreign and forged handles. `spawn(..., segmentation_class=id)` labels every part of the placement `id` instead of its asset's authored classes, and `replace()` keeps that label. Semantic IDs must never be used as object indices. Loading remains welded by default for RGB; semantic rendering rejects a welded object containing multiple classes. Assemblies and asset-pool copies retain labels and the taxonomy. Composing conflicting taxonomies requires an explicit remapping before semantic rendering.
 
 Assign labels before `Renderer.init()`: `object.segmentation_class = id`, `scene.set_object_segmentation_class(index, id)`, `assembly.set_segmentation_class(index, id)`, or `pool.set_object_segmentation_class(asset, object_index, id)` retains the current taxonomy and explicitly makes that object's class valid, including welded objects. Assignment rejects IDs absent from that taxonomy. `object.assign_segmentation_class(id, taxonomy="custom", classes={0: "Unknown", 7: "Furniture"})` replaces the taxonomy; omitting taxonomy/classes selects unnamed numeric IDs.
 

@@ -108,4 +108,48 @@ namespace test_agent_parameters {
             }
         }
     }
+    template <typename DEVICE, typename WORLD>
+    void check_semantics(DEVICE& device, WORLD& world, const typename WORLD::SharedContext& shared){
+        using namespace rlt;
+        namespace outputs = rendering::raytracing::outputs;
+        using SEMANTIC = outputs::Segmentation<outputs::format::UInt32, outputs::labels::Semantic>;
+        using TI = typename WORLD::TI;
+        const auto& scene = shared.library.scenes[world.slots[world.active_slot].scene_id];
+        const uint32_t scene_instances = (uint32_t)scene.instances.size();
+        const uint32_t agent_class = rendering::segmentation::AGENT;
+        const auto& taxonomy = shared.segmentation_taxonomy;
+        if(taxonomy){
+            EXPECT_EQ(taxonomy->classes.at(agent_class), "Agent");
+        }
+        auto& renderer = get_renderer(device, world);
+        auto& instances_output = output(device, renderer, outputs::Segmentation<>{});
+        auto& semantic_output = output(device, renderer, SEMANTIC{});
+        using OUTPUT_SPEC = typename utils::typing::remove_reference_t<decltype(semantic_output)>::SPEC;
+        std::vector<uint32_t> instances(OUTPUT_SPEC::SIZE), semantic(OUTPUT_SPEC::SIZE);
+        Tensor<OUTPUT_SPEC> alias;
+        alias._data = instances.data();
+        copy(renderer.device, device, instances_output, alias);
+        alias._data = semantic.data();
+        copy(renderer.device, device, semantic_output, alias);
+        TI agent_pixels = 0;
+        for(TI pixel_i = 0; pixel_i < OUTPUT_SPEC::SIZE; pixel_i++){
+            const auto instance = instances[pixel_i];
+            if(instance == 0xFFFFFFFFu){
+                EXPECT_EQ(semantic[pixel_i], 0xFFFFFFFFu);
+            }
+            else if(instance >= scene_instances){
+                EXPECT_EQ(semantic[pixel_i], agent_class);
+                agent_pixels++;
+            }
+            else{
+                const auto& object = scene.objects[scene.instances[instance].object];
+                EXPECT_EQ(semantic[pixel_i], object.segmentation_class);
+                if(taxonomy){
+                    EXPECT_EQ(taxonomy->classes.count(semantic[pixel_i]), 1u);
+                }
+            }
+        }
+        EXPECT_GT(agent_pixels, 0);
+    }
+
 }

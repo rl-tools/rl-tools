@@ -240,7 +240,7 @@ namespace {
     }
 
     TEST_F(GlbEnvironment, numeric_label_boundaries){
-        for(const auto& value : {Json(2147483647u), Json(2147483648u), Json(4294967294u), Json(2147483648.0), Json(4294967294.0)}){
+        for(const auto& value : {Json(2147483647u), Json(2147483648u), Json(4294967039u), Json(2147483648.0), Json(4294967039.0)}){
             const auto patch = Json::array({{{"op", "add"}, {"path", "/scenes/1/extras/rl_tools/segmentation/classes/Large"}, {"value", value}}});
             const auto path = write_glb(std::nullopt, Json{value, value}, false, patch);
             rlt::rendering::Object object;
@@ -248,7 +248,7 @@ namespace {
             EXPECT_EQ(object.segmentation_class, value.get<uint32_t>());
             EXPECT_EQ(object.segmentation_taxonomy->classes.at(value.get<uint32_t>()), "Large");
         }
-        for(const auto& value : {Json(-1), Json(0xFFFFFFFFu), Json(4294967296ULL), Json(UINT64_MAX), Json(21.5), Json("21"), Json(true)}){
+        for(const auto& value : {Json(-1), Json(4294967040u), Json(4294967294u), Json(0xFFFFFFFFu), Json(4294967296ULL), Json(UINT64_MAX), Json(21.5), Json("21"), Json(true)}){
             const auto patch = Json::array({{{"op", "add"}, {"path", "/scenes/1/extras/rl_tools/segmentation/classes/Large"}, {"value", value}}});
             const auto path = write_glb(std::nullopt, Json{0, 0}, false, patch);
             rlt::rendering::Object object;
@@ -326,7 +326,7 @@ namespace {
         std::filesystem::copy_file(source, directory / "assets/object.glb");
         const auto input = directory / "configs/test.scene_instance.json";
         std::ofstream(input) << Json{{"stage_instance", {{"template_name", "stage"}}}, {"default_lighting", "no_lights"}, {"object_instances", {{{"template_name", "object"}}}}};
-        for(uint32_t id : {2147483647u, 2147483648u, 4294967294u}){
+        for(uint32_t id : {2147483647u, 2147483648u, 4294967039u}){
             std::ofstream(directory / "configs/object_semantic_id_mapping.json") << Json{{"Undefined", 0}, {"Large", id}};
             std::ofstream(directory / "configs/object.object_config.json") << Json{{"semantic_id", id}};
             rlt::rendering::datasets::procthor::conversion::Options options;

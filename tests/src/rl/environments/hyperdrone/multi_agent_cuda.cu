@@ -83,7 +83,7 @@ namespace test_multi_agent_cuda {
         using SHADING = rlt::rendering::raytracing::Low;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 16;
         static constexpr bool SELF_VISIBLE = true;
-        using CAMERA_PROFILE = rro::List<rro::RGB<rro::format::Float32>, rro::Segmentation<rro::format::UInt32, rro::labels::Instance>, rro::Probes>;
+        using CAMERA_PROFILE = rro::List<rro::RGB<rro::format::Float32>, rro::Segmentation<rro::format::UInt32, rro::labels::Instance>, rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>, rro::Probes>;
         using CAMERA_OUTPUTS = rlt::rl::environments::hyperdrone::CameraOutputs<CAMERA_PROFILE>;
     };
     using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
@@ -200,9 +200,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT_CUDA, HETEROGENEOUS_AGENTS_
     shared.drones[1].parameters.dynamics.dynamics = l2f::parameters::dynamics::registry<l2f::parameters::dynamics::REGISTRY::arpl, PARAMETERS_SPEC>;
     shared.drones[0].parameters.cameras[0].fov = 60;
     shared.drones[1].parameters.cameras[0].fov = 70;
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    rlt::rendering::datasets::glb::Dataset dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
-    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::enumerate(device, dataset, corpus);
     rlt::init(device_gpu, world, shared, dataset, corpus, 0, 1, 0);
 
     // one drone entity kind per agent
@@ -268,6 +268,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT_CUDA, HETEROGENEOUS_AGENTS_
     rlt::render(device_gpu, world, gpu.parameters, gpu.states, gpu.reset_mask);
     cudaDeviceSynchronize();
     test_agent_parameters::check_rigs(device, device_gpu, world, shared, tensors);
+    test_agent_parameters::check_semantics(device, world, shared);
     {
         const uint32_t S = (uint32_t)shared.library.scenes.front().instances.size();
         constexpr TI NUM_CAMERAS = INSTANCES * N_AGENTS;

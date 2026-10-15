@@ -159,8 +159,9 @@ def test_custom_world_metadata(tmp_path):
                            config=EnvConfig(spec_header=str(header), dataset="procthor", device="cpu"))
     try:
         assert env.segmentation_taxonomy == "ai2thor-hab"
-        assert env.segmentation_classes == CLASSES
+        agent = render.AGENT_SEGMENTATION_CLASS
+        assert env.segmentation_classes == {**CLASSES, agent: "Agent"}
         env.reset()
-        assert set(np.unique(env.semantic_segmentation())).issubset({0, 7, 0xFFFFFFFF})
+        assert set(np.unique(env.semantic_segmentation())).issubset({0, 7, agent, 0xFFFFFFFF})
     finally:
         env.close()

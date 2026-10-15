@@ -38,7 +38,6 @@ namespace rl_tools {
             OverlayAccelState* accel = nullptr;
             OWLBuffer traversables_buffer = nullptr;
             OWLBuffer attachments_buffer = nullptr;
-            OWLBuffer instance_classes_buffer = nullptr;
             // pageable staging for host-verb writes: cudaMemcpyAsync returns only after pageable
             // sources are consumed, so the lists can be refilled right away. The pending rows of a
             // staging mirror compact into row_indices/rows and scatter on the render stream.
@@ -55,6 +54,7 @@ namespace rl_tools {
 
         struct State {
             OWLBuffer outputs[(size_t)Slot::COUNT] = {};
+            OWLBuffer instance_classes_buffer = nullptr;
             OWLContext context = nullptr;
             OWLModule module = nullptr;
             OWLMissProg miss_prog = nullptr;
@@ -99,7 +99,6 @@ namespace rl_tools {
         template <typename SPEC>
         struct SceneState<rendering::raytracing::backends::Optix, SPEC> {
             OWLGroup world = nullptr;
-            OWLBuffer instance_classes_buffer = nullptr;
             OWLGroup filler_group = nullptr;
             std::vector<OWLGroup> object_groups;
             size_t num_scene_instances = 0;
@@ -977,17 +976,7 @@ namespace rl_tools {
                 }
             }
 
-            std::vector<unsigned int> host_instance_classes(scene.instances.size() + (SPEC::ENABLE_OVERLAYS ? (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES : 0), 0);
-            for(size_t instance_i = 0; instance_i < scene.instances.size(); instance_i++){
-                host_instance_classes[instance_i] = all_objects[scene.instances[instance_i].object]->segmentation_class;
-            }
-            if(host_instance_classes.empty()){
-                host_instance_classes.push_back(0);
-            }
-            OWLBuffer instance_classes_buffer = owlDeviceBufferCreate(context, OWL_UINT, host_instance_classes.size(), host_instance_classes.data());
-
             assets.world = world;
-            assets.instance_classes_buffer = instance_classes_buffer;
             assets.num_scene_instances = scene.instances.size();
             assets.object_groups.clear();
             for(OWLGroup object_group : object_groups){
@@ -1002,7 +991,19 @@ namespace rl_tools {
             namespace optix = rendering::raytracing::backends::optix;
             OWLContext context = (OWLContext)renderer.backend->context;
             OWLGroup world = (OWLGroup)assets.world;
-            OWLBuffer instance_classes_buffer = (OWLBuffer)assets.instance_classes_buffer;
+            // per renderer: the overlay rows carry each renderer's own placement classes
+            std::vector<unsigned int> host_instance_classes(scene.instances.size() + (SPEC::ENABLE_OVERLAYS ? (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES : 0), 0);
+            for(size_t instance_i = 0; instance_i < scene.instances.size(); instance_i++){
+                host_instance_classes[instance_i] = all_objects[scene.instances[instance_i].object]->segmentation_class;
+            }
+            if(host_instance_classes.empty()){
+                host_instance_classes.push_back(0);
+            }
+            if(renderer.backend->instance_classes_buffer != nullptr){
+                owlBufferDestroy(renderer.backend->instance_classes_buffer);
+            }
+            OWLBuffer instance_classes_buffer = owlDeviceBufferCreate(context, OWL_UINT, host_instance_classes.size(), host_instance_classes.data());
+            renderer.backend->instance_classes_buffer = instance_classes_buffer;
 
             if(renderer.backend->overlay_state != nullptr){
                 auto* previous_overlay_state = (optix::OverlayState*)renderer.backend->overlay_state;
@@ -1072,7 +1073,6 @@ namespace rl_tools {
                 }
                 overlay_state->attachments_buffer = owlDeviceBufferCreate(context, OWL_UINT, (size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA, nullptr);
                 rendering::raytracing::detail::reset_overlay_state(renderer);
-                overlay_state->instance_classes_buffer = instance_classes_buffer;
                 overlay_state->num_scene_instances = scene.instances.size();
             }
 
@@ -1281,6 +1281,7 @@ namespace rl_tools {
                 auto& row = overlay_state->structure_staging[base + slot];
                 row.active = overlay_host.slots[slot].active ? 1u : 0u;
                 row.object = (unsigned int)overlay_host.slots[slot].object;
+                row.segmentation_class = overlay_host.slots[slot].segmentation_class;
             }
             cudaMemcpyAsync(optix::overlay_accel_structure(overlay_state->accel) + base, &overlay_state->structure_staging[base], SPEC::MAX_OVERLAY_INSTANCES * sizeof(optix::OverlaySlotStructure), cudaMemcpyHostToDevice, cuda_stream);
             overlay_host.dirty = false;
@@ -1302,9 +1303,8 @@ namespace rl_tools {
             owlBufferUpload(overlay_state->attachments_buffer, attachments.data(), 0, attachments.size());
             renderer.attachments_dirty = false;
         }
-        // only semantic segmentation reads the overlay classes, and renderers sharing a scene build
-        // share its class buffer
-        unsigned int* instance_classes = SPEC::HAS_SEMANTIC_SEGMENTATION ? (unsigned int*)owlBufferGetPointer(overlay_state->instance_classes_buffer, 0) : nullptr;
+        // only semantic segmentation reads the overlay classes
+        unsigned int* instance_classes = SPEC::HAS_SEMANTIC_SEGMENTATION ? (unsigned int*)owlBufferGetPointer(renderer.backend->instance_classes_buffer, 0) : nullptr;
         optix::overlay_accel_build(overlay_state->accel, data(renderer.transforms), instance_classes, 1.0f, nullptr, cuda_stream, 0u);
         if constexpr (SPEC::HAS_FLOW){
             // the previous instant's TLASes (shifted id range, no segmentation classes) and the
@@ -1407,7 +1407,7 @@ namespace rl_tools {
             // accumulate ray gens; the shutter-close rebuild restores the steady state for
             // segmentation/probes before the resolve kernel averages the accumulators
             auto* overlay_state = (optix::OverlayState*)renderer.backend->overlay_state;
-            unsigned int* instance_classes = SPEC::HAS_SEMANTIC_SEGMENTATION ? (unsigned int*)owlBufferGetPointer(overlay_state->instance_classes_buffer, 0) : nullptr;
+            unsigned int* instance_classes = SPEC::HAS_SEMANTIC_SEGMENTATION ? (unsigned int*)owlBufferGetPointer(renderer.backend->instance_classes_buffer, 0) : nullptr;
             cudaStream_t coll_stream = collision_stream(device, renderer);
             devices::cuda::order_after(renderer.backend->ordering_event, coll_stream, cuda_stream);
             if constexpr (SPEC::HAS_RGB){
@@ -1515,6 +1515,10 @@ namespace rl_tools {
     void free(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
         log(device, device.logger, devices::logging::Verbosity::debug, rendering::raytracing::LOG_PREFIX, "destroying devicegroups ...");
         if(renderer.backend != nullptr){
+            if(renderer.backend->instance_classes_buffer != nullptr){
+                owlBufferDestroy(renderer.backend->instance_classes_buffer);
+                renderer.backend->instance_classes_buffer = nullptr;
+            }
             if(renderer.backend->context != nullptr && renderer.backend->library == nullptr){
                 owlContextDestroy((OWLContext)renderer.backend->context); // library-backed renderers borrow the context — the library destroys it
             }

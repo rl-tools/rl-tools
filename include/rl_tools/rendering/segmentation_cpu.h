@@ -5,6 +5,7 @@
 #define RL_TOOLS_RENDERING_SEGMENTATION_CPU_H
 
 #include "scene.h"
+#include "segmentation.h"
 #include <stdexcept>
 #include <type_traits>
 
@@ -38,7 +39,7 @@ namespace rl_tools {
             throw std::invalid_argument("semantic segmentation: taxonomy must have a name and class 0");
         }
         for(const auto& entry : taxonomy.classes){
-            if(entry.first == 0xFFFFFFFFu || entry.second.empty()){
+            if(entry.first >= rendering::segmentation::RESERVED || entry.second.empty()){
                 throw std::invalid_argument("semantic segmentation: invalid taxonomy class");
             }
         }
@@ -69,7 +70,7 @@ namespace rl_tools {
 
     template <typename DEVICE>
     void validate_segmentation_class(DEVICE&, uint32_t id, const std::shared_ptr<const rendering::SegmentationTaxonomy>& taxonomy){
-        if(id == 0xFFFFFFFFu || (taxonomy && !taxonomy->classes.count(id))){
+        if(id >= rendering::segmentation::RESERVED || (taxonomy && !taxonomy->classes.count(id))){
             throw std::invalid_argument("semantic segmentation: class ID is reserved or absent from the taxonomy");
         }
     }

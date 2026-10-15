@@ -554,7 +554,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
-    rendering::raytracing::OverlayPlacement spawn(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, rendering::raytracing::AssetHandle asset, const float transform[12]){
+    rendering::raytracing::OverlayPlacement spawn(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, rendering::raytracing::AssetHandle asset, const float transform[12], unsigned int segmentation_class = rendering::segmentation::INHERIT){
         static_assert(SPEC::ENABLE_OVERLAYS, "spawn requires an overlay-enabled renderer specification");
         using TI = typename SPEC::TI;
         if(overlay.index >= SPEC::NUM_OVERLAYS){
@@ -563,6 +563,10 @@ namespace rl_tools {
         }
         if(asset.index >= renderer.assets.size()){
             utils::assert_exit(device, false, "spawn: asset handle out of range");
+            return {0, 0, 0};
+        }
+        if(!rendering::segmentation::placement_class_valid(segmentation_class)){
+            utils::assert_exit(device, false, "spawn: reserved segmentation class");
             return {0, 0, 0};
         }
         auto& state = renderer.overlays[overlay.index];
@@ -579,6 +583,7 @@ namespace rl_tools {
             slot.object = renderer.asset_part_objects[record.first_part + part];
             std::memcpy(slot.rest, &renderer.asset_part_transforms[(record.first_part + part) * 12], sizeof(slot.rest));
             slot.active = true;
+            slot.segmentation_class = segmentation_class;
             const size_t row = (size_t)overlay.index * SPEC::MAX_OVERLAY_INSTANCES + first_slot + part;
             float world[12];
             rendering::compose_transforms(transform, slot.rest, world);

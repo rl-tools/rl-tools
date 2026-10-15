@@ -453,7 +453,7 @@ namespace rl_tools {
                         backend_state.overlay_bounds_max[3 * (size_t)global + axis] = bounds_max[axis];
                         backend_state.overlay_centroids[3 * (size_t)global + axis] = (bounds_min[axis] + bounds_max[axis]) * (T)0.5;
                     }
-                    backend_state.instance_classes[global] = backend_state.object_classes[host_slot.object];
+                    backend_state.instance_classes[global] = rendering::segmentation::effective_class(host_slot.segmentation_class, backend_state.object_classes[host_slot.object]);
                     primitives[num_active++] = global;
                 }
                 views[overlay].num_tlas_nodes = generic::build_bvh_nodes(

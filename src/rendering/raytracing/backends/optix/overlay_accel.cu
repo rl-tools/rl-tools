@@ -54,7 +54,7 @@ namespace rl_tools::rendering::raytracing::backends::optix{
                 instance.sbtOffset = object.sbt_offset;
                 instance.traversableHandle = object.traversable;
                 if(instance_classes != nullptr){
-                    instance_classes[instance_id_base + index] = object.segmentation_class;
+                    instance_classes[instance_id_base + index] = rendering::segmentation::effective_class(row.segmentation_class, object.segmentation_class);
                 }
             }
             else{

@@ -10,6 +10,7 @@
 #include "bindings.h"
 #include <nanobind/stl/array.h>
 #include <nanobind/stl/string.h>
+#include <nanobind/stl/optional.h>
 
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
 #include "cuda_staging.h"
@@ -513,16 +514,19 @@ namespace HYPERDRONE_MODULE_NAME {
                 throw std::runtime_error("hyperdrone: this renderer was compiled without overlays");
             }
         }
-        rrt::OverlayPlacement spawn(size_t overlay, size_t asset, const float transform[12]) {
+        rrt::OverlayPlacement spawn(size_t overlay, size_t asset, const float transform[12], unsigned int segmentation_class) {
             if constexpr (SPEC::ENABLE_OVERLAYS){
                 require_init();
                 if(overlay >= SPEC::NUM_OVERLAYS || asset >= renderer.assets.size()){
                     throw std::invalid_argument("hyperdrone: overlay or asset index out of range");
                 }
+                if(!rlt::rendering::segmentation::placement_class_valid(segmentation_class)){
+                    throw std::invalid_argument("hyperdrone: reserved segmentation class");
+                }
                 if(!can_spawn(overlay, asset)){
                     throw std::runtime_error("hyperdrone: overlay capacity exceeded");
                 }
-                return rlt::spawn(device, renderer, rrt::OverlayIndex{overlay}, rrt::AssetHandle{asset}, transform);
+                return rlt::spawn(device, renderer, rrt::OverlayIndex{overlay}, rrt::AssetHandle{asset}, transform, segmentation_class);
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer was compiled without overlays");
@@ -868,12 +872,12 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
         .def("attach", [](Renderer& self, size_t camera, size_t overlay){ self.attach(camera, overlay); })
         .def("detach", [](Renderer& self, size_t camera, size_t overlay){ self.detach(camera, overlay); })
         .def("can_spawn", [](Renderer& self, size_t overlay, size_t asset){ return self.can_spawn(overlay, asset); })
-        .def("spawn", [](Renderer& self, size_t overlay, size_t asset, Transform transform){
+        .def("spawn", [](Renderer& self, size_t overlay, size_t asset, Transform transform, std::optional<uint32_t> segmentation_class){
             float values[12];
             extract_transform(transform, values);
-            rrt::OverlayPlacement placement = self.spawn(overlay, asset, values);
+            rrt::OverlayPlacement placement = self.spawn(overlay, asset, values, segmentation_class.value_or(rlt::rendering::segmentation::INHERIT));
             return nb::make_tuple(placement.first_slot, placement.num_parts, placement.first_part);
-        }, nb::arg("overlay"), nb::arg("asset"), nb::arg("transform"))
+        }, nb::arg("overlay"), nb::arg("asset"), nb::arg("transform"), nb::arg("segmentation_class").none() = nb::none())
         .def("despawn", [](Renderer& self, size_t overlay, std::array<size_t, 3> placement){
             self.despawn(overlay, rrt::OverlayPlacement{placement[0], placement[1], placement[2]});
         }, nb::arg("overlay"), nb::arg("placement"))

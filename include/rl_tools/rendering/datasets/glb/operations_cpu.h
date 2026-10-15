@@ -7,6 +7,7 @@
 #include "glb.h"
 #include "../operations_cpu.h"
 #include "../../../mode/mode.h"
+#include "../../segmentation.h"
 
 // STATIC gives the stb implementation internal linkage so multiple TUs of one binary may include
 // this header without duplicate-symbol link errors; RL_TOOLS_STB_IMAGE_PROVIDED arbitrates with
@@ -242,7 +243,7 @@ namespace rl_tools {
                 return false;
             }
             const double number = value.get<double>();
-            if(!(number >= 0 && number < 4294967295.0)){
+            if(!(number >= 0 && number < (double)rendering::segmentation::RESERVED)){
                 return false;
             }
             id = static_cast<uint32_t>(number);

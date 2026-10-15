@@ -10,6 +10,7 @@ import pytest
 SURFACE = {
     "hyperdrone": ["set_verbosity", "verbosity"],
     "hyperdrone.render": [
+        "AGENT_SEGMENTATION_CLASS",
         "AssetPool",
         "FIDELITY",
         "FlowStatus",

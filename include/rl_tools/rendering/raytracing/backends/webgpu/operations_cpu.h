@@ -360,6 +360,7 @@ namespace rl_tools {
                     const size_t global = (size_t)ctx.num_scene_instances + num_overlay_slots * region + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES + slot;
                     const float* world = transforms_base + ((size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES + slot) * 12;
                     fill_instance_entry(ctx, global, (uint32_t)host_slot.object, world);
+                    ctx.instance_classes_host[global] = rendering::segmentation::effective_class(host_slot.segmentation_class, ctx.object_classes[host_slot.object]);
                     float bounds_min[3], bounds_max[3];
                     instance_world_bounds(ctx, (uint32_t)host_slot.object, world, ctx.instance_data_host[global].identity != 0, bounds_min, bounds_max);
                     for(int axis = 0; axis < 3; axis++){

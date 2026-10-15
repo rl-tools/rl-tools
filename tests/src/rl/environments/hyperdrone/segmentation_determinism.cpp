@@ -211,7 +211,8 @@ namespace test_shared_taxonomy {
         return value;
     }
 
-    void populate(SHARED& shared){
+    template <typename SHARED_CONTEXT>
+    void populate(SHARED_CONTEXT& shared){
         shared.library.scenes.resize(2);
         shared.library.metadata.resize(2);
         for(size_t scene_i = 0; scene_i < 2; scene_i++){
@@ -276,6 +277,37 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SEGMENTATION, TAXONOMY_VALIDATION_IS_TR
     EXPECT_FALSE(shared.segmentation_taxonomy);
     init_segmentation_taxonomy(device, shared, rlt::rendering::datasets::glb::Dataset{});
     EXPECT_EQ(overlay.segmentation_taxonomy, shared.segmentation_taxonomy);
+}
+
+namespace test_agent_class {
+    struct SPEC: test_shared_taxonomy::SPEC {
+        static constexpr bool SELF_VISIBLE = true;
+        static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 16;
+    };
+    using SHARED = rlt::rl::environments::hyperdrone::SharedContext<SPEC>;
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SEGMENTATION, SELF_VISIBLE_ADDS_AGENT_CLASS){
+    using namespace test_shared_taxonomy;
+    using rlt::init_segmentation_taxonomy;
+    constexpr auto AGENT = rlt::rendering::segmentation::AGENT;
+    DEVICE device;
+    test_agent_class::SHARED shared;
+    populate(shared);
+    auto& first = shared.library.scenes[0].objects[0];
+    auto& second = shared.library.scenes[1].objects[0];
+    init_segmentation_taxonomy(device, shared, rlt::rendering::datasets::glb::Dataset{});
+    ASSERT_TRUE(shared.segmentation_taxonomy);
+    EXPECT_EQ(shared.segmentation_taxonomy->name, "test");
+    EXPECT_EQ(shared.segmentation_taxonomy->classes.at(AGENT), "Agent");
+    EXPECT_EQ(shared.segmentation_taxonomy->classes.at(7), "Room");
+    EXPECT_EQ(shared.segmentation_taxonomy->classes.size(), 3u);
+    EXPECT_EQ(first.segmentation_taxonomy, second.segmentation_taxonomy);
+    EXPECT_EQ(first.segmentation_taxonomy->classes, taxonomy()->classes);
+    auto reserved = std::make_shared<rlt::rendering::SegmentationTaxonomy>(*taxonomy());
+    reserved->classes[AGENT] = "Drone";
+    shared.library.pool.assemblies[0].objects[0].segmentation_taxonomy = reserved;
+    EXPECT_THROW(init_segmentation_taxonomy(device, shared, rlt::rendering::datasets::glb::Dataset{}), std::invalid_argument);
 }
 
 int main(int argc, char** argv) {

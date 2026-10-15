@@ -91,9 +91,9 @@ namespace test_multicamera {
         shared.drones[0].parameters.dynamics.dynamics = rl::environments::l2f::parameters::dynamics::registry<rl::environments::l2f::parameters::dynamics::REGISTRY::x500, PARAMETERS_SPEC>;
         shared.drones[0].parameters.cameras[0].fov = 60;
         shared.drones[0].parameters.cameras[1].fov = 85;
-        rendering::datasets::procthor::GLB dataset{{}, {scene_path}};
+        rendering::datasets::glb::Dataset dataset{{}, {scene_path}};
         typename decltype(dataset)::Corpus corpus;
-        rendering::datasets::procthor::enumerate(host, dataset, corpus);
+        enumerate(host, dataset, corpus);
         init(device, world, shared, dataset, corpus, 0, 1, 0);
         typename DEVICE::SPEC::RANDOM::template ENGINE<> rng;
         malloc(device, rng);
@@ -239,6 +239,7 @@ namespace test_multicamera {
             copy(renderer.device, host, output(device, renderer, rl_tools::rendering::raytracing::outputs::Flow<>{}), flow_alias);
             copy(renderer.device, host, output(device, renderer, rl_tools::rendering::raytracing::outputs::Segmentation<>{}), segmentation_alias);
             test_agent_parameters::check_rigs(host, device, world, shared, staging);
+            test_agent_parameters::check_semantics(host, world, shared);
             for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
                 const auto& parameters = get_ref(host, staging.parameters, instance_i);
                 const auto& state = get_ref(host, staging.states, instance_i);

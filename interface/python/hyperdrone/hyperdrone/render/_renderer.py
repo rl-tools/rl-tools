@@ -373,8 +373,9 @@ class Renderer:
     def can_spawn(self, overlay, asset):
         return self._renderer.can_spawn(overlay, asset)
 
-    def spawn(self, overlay, asset, transform):
-        native = self._renderer.spawn(overlay, asset, _as_transform(transform))
+    def spawn(self, overlay, asset, transform, *, segmentation_class=None):
+        """Place an asset; segmentation_class labels every part instead of the asset's authored classes."""
+        native = self._renderer.spawn(overlay, asset, _as_transform(transform), segmentation_class)
         placement = OverlayPlacement(overlay=overlay, first_slot=native[0], num_parts=native[1], _generation=next(self._generation), _renderer=self._serial)
         self._live[(overlay, placement.first_slot)] = (placement, native)
         return placement

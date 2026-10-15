@@ -1,0 +1,41 @@
+import numpy as np
+import pytest
+
+from hyperdrone import render
+from test_render import look_forward, make_quad
+
+
+def test_placement_class_labels_every_part_without_changing_the_asset():
+    scene = render.Scene()
+    wall = render.Object()
+    wall.assign_segmentation_class(7, taxonomy="room", classes={0: "Unknown", 7: "Wall"})
+    wall.add_mesh(make_quad(8, half_size=20))
+    scene.add_object(wall)
+    obj = render.Object()
+    obj.add_mesh(make_quad(0, half_size=0.5))
+    pool = render.AssetPool()
+    asset = pool.add_object(obj)
+    renderer = render.Renderer(32, 32, output=("instance_segmentation", "semantic_segmentation"),
+                               fidelity="low", num_overlays=1, max_overlay_instances=2,
+                               max_overlays_per_camera=1)
+    renderer.init(scene, asset_pool=pool)
+    look_forward(renderer)
+    renderer.attach(0, 0)
+    agent = render.AGENT_SEGMENTATION_CLASS
+    left = renderer.spawn(0, asset, render.make_transform(position=(3, 0.7, 0)), segmentation_class=agent)
+    right = renderer.spawn(0, asset, render.make_transform(position=(3, -0.7, 0)))
+    renderer.update()
+    renderer.render()
+    instances = renderer.instance_segmentation()
+    labels = renderer.semantic_segmentation()
+    left_mask = instances == scene.num_instances + left.first_slot
+    right_mask = instances == scene.num_instances + right.first_slot
+    assert left_mask.any() and right_mask.any()
+    np.testing.assert_array_equal(labels[left_mask], agent)
+    np.testing.assert_array_equal(labels[right_mask], 0)
+    np.testing.assert_array_equal(labels[instances == 0], 7)
+    assert pool.object_segmentation_class(asset, 0) == 0
+    with pytest.raises(ValueError, match="reserved"):
+        renderer.spawn(0, asset, render.make_transform(position=(3, 0, 0)), segmentation_class=0xFFFFFFFF)
+    with pytest.raises(ValueError):
+        wall.assign_segmentation_class(agent, taxonomy="room", classes={0: "Unknown", agent: "Agent"})

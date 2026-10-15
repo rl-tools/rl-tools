@@ -1553,7 +1553,7 @@ namespace rl_tools {
                 }
                 data.identity = identity ? 1 : 0;
                 instance_record_base[global] = ctx.object_record_base[host_slot.object];
-                instance_classes[global] = ctx.object_classes[host_slot.object];
+                instance_classes[global] = rendering::segmentation::effective_class(host_slot.segmentation_class, ctx.object_classes[host_slot.object]);
                 num_active++;
             }
             overlay_num_active[overlay] = num_active;
@@ -1666,7 +1666,7 @@ namespace rl_tools {
                         }
                         data_entry.identity = identity ? 1 : 0;
                         instance_record_base[global] = ctx.object_record_base[host_slot.object];
-                        instance_classes[global] = ctx.object_classes[host_slot.object];
+                        instance_classes[global] = rendering::segmentation::effective_class(host_slot.segmentation_class, ctx.object_classes[host_slot.object]);
                         num_active++;
                     }
                 }
