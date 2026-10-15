@@ -62,9 +62,6 @@ namespace rl_tools {
     {
         uint32_t *fb_ptr;
         float *obs_ptr;           // observation output (3 floats per pixel), null when disabled
-        owl::vec2i  fb_size;      // total framebuffer size (full grid)
-        owl::vec2i  cam_size;     // per-camera resolution
-        int    grid_cols;    // number of columns in the grid
         int    num_cameras;  // total number of cameras
         OptixTraversableHandle world;
         OptixCameraData *cameras; // device array of all cameras
@@ -74,9 +71,6 @@ namespace rl_tools {
     {
         uint32_t *fb_ptr;
         float *obs_ptr;
-        owl::vec2i  fb_size;
-        owl::vec2i  cam_size;
-        int    grid_cols;
         int    num_cameras;
         OptixTraversableHandle world;
         OptixCameraData *cameras_open;
@@ -90,27 +84,10 @@ namespace rl_tools {
     {
         float *accum_ptr;         // 3 floats per pixel, linear radiance summed across passes
         const float *shutter_ptr; // per-pass shutter time in [0, 1]
-        owl::vec2i  fb_size;
-        owl::vec2i  cam_size;
-        int    grid_cols;
         int    num_cameras;
         OptixTraversableHandle world;
         OptixCameraData *cameras_open;
         OptixCameraData *cameras_close;
-    };
-
-
-    struct DepthRayGenData
-    {
-        float *depth_ptr;
-        owl::vec2i  fb_size;
-        owl::vec2i  cam_size;
-        int    grid_cols;
-        int    num_cameras;
-        OptixTraversableHandle world;
-        OptixCameraData *cameras;
-        uint32_t *color_ptr;
-        float color_scale;
     };
 
 
@@ -152,32 +129,6 @@ namespace rl_tools {
         int dummy;
     };
 
-    struct SegmentationRayGenData
-    {
-        uint32_t *seg_ptr;
-        owl::vec2i  fb_size;
-        owl::vec2i  cam_size;
-        int    grid_cols;
-        int    num_cameras;
-        OptixTraversableHandle world;
-        OptixCameraData *cameras;
-        uint32_t *color_ptr;
-        uint32_t *semantic_ptr;
-        uint32_t *semantic_color_ptr;
-    };
-
-    struct NormalsRayGenData
-    {
-        float *normals_ptr;
-        owl::vec2i  fb_size;
-        owl::vec2i  cam_size;
-        int    grid_cols;
-        int    num_cameras;
-        OptixTraversableHandle world;
-        OptixCameraData *cameras;
-        uint32_t *color_ptr;
-    };
-
     // one flow pass between the two instants, direction-neutral: the backward pass traces the
     // current instant (source) and lands on the previous one (target), the forward pass the
     // reverse; the overlay TLAS arrays come from the launch params by source_previous
@@ -185,9 +136,6 @@ namespace rl_tools {
     {
         float *flow_ptr;                 // 2 per pixel of the source grid: p_target - p_source in pixels
         uint32_t *status_ptr;            // FlowStatus per source pixel
-        owl::vec2i  fb_size;
-        owl::vec2i  cam_size;
-        int    grid_cols;
         int    num_cameras;
         OptixTraversableHandle world;
         OptixCameraData *cameras_source;
@@ -198,6 +146,20 @@ namespace rl_tools {
         uint32_t *color_ptr;
         uint32_t *status_color_ptr;
         float color_scale;
+    };
+
+    struct AuxiliaryRayGenData
+    {
+        FlowRayGenData flow;
+        float *depth_ptr;
+        uint32_t *depth_color_ptr;
+        uint32_t *seg_ptr;
+        uint32_t *seg_color_ptr;
+        uint32_t *semantic_ptr;
+        uint32_t *semantic_color_ptr;
+        float *normals_ptr;
+        uint32_t *normals_color_ptr;
+        float depth_scale;
     };
 
     struct CollisionRayGenData

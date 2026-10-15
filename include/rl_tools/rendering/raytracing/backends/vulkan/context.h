@@ -80,7 +80,7 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         float miss_color_0[3];
         float miss_color_1[3];
         uint32_t first_overlay_instance; // global instance ids >= this index the flow-delta table
-        uint32_t num_overlay_slots;      // NUM_OVERLAYS * MAX_OVERLAY_INSTANCES: flow-delta slab stride and the previous-instant id shift
+        uint32_t num_overlay_slots;      // NUM_OVERLAYS * MAX_OVERLAY_INSTANCES: flow-delta slab stride
         uint32_t output_offsets[(uint32_t)outputs::Slot::COUNT];
         float output_scales[(uint32_t)outputs::Slot::COUNT];
     };
@@ -128,6 +128,12 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         VkDeviceMemory memory = VK_NULL_HANDLE;
         void* mapped = nullptr;
         VkDeviceSize size = 0;
+        uint32_t memory_type_index = 0;
+    };
+
+    struct Readback{
+        std::vector<VkBufferCopy> regions;
+        bool dirty = false;
     };
 
     struct ImageResource{
@@ -154,19 +160,13 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         VkDescriptorSetLayout descriptor_set_layout = VK_NULL_HANDLE;
         VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;
         VkShaderModule module_rgb = VK_NULL_HANDLE;
-        VkShaderModule module_depth = VK_NULL_HANDLE;
+        VkShaderModule module_auxiliary = VK_NULL_HANDLE;
         VkShaderModule module_collision = VK_NULL_HANDLE;
-        VkShaderModule module_segmentation = VK_NULL_HANDLE;
-        VkShaderModule module_normals = VK_NULL_HANDLE;
-        VkShaderModule module_flow = VK_NULL_HANDLE;
         VkShaderModule module_flow_forward = VK_NULL_HANDLE;
         VkShaderModule module_resolve = VK_NULL_HANDLE;
         VkPipeline rgb_pipeline = VK_NULL_HANDLE;
-        VkPipeline depth_pipeline = VK_NULL_HANDLE;
+        VkPipeline auxiliary_pipeline = VK_NULL_HANDLE;
         VkPipeline collision_pipeline = VK_NULL_HANDLE;
-        VkPipeline segmentation_pipeline = VK_NULL_HANDLE;
-        VkPipeline normals_pipeline = VK_NULL_HANDLE;
-        VkPipeline flow_pipeline = VK_NULL_HANDLE;
         VkPipeline flow_forward_pipeline = VK_NULL_HANDLE;
         VkPipeline resolve_pipeline = VK_NULL_HANDLE;
         VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
@@ -175,6 +175,9 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
 
         BufferResource launch_params;
         BufferResource outputs;
+        BufferResource outputs_readback;
+        Readback render_readback;
+        Readback probe_readback;
         BufferResource camera_table;
         BufferResource cameras;
         BufferResource cameras_open;
@@ -216,11 +219,8 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         VkDeviceSize overlay_scratch_stride = 0;
 
         VkCommandBuffer cb_rgb = VK_NULL_HANDLE;
-        VkCommandBuffer cb_depth = VK_NULL_HANDLE;
+        VkCommandBuffer cb_auxiliary = VK_NULL_HANDLE;
         VkCommandBuffer cb_collision = VK_NULL_HANDLE;
-        VkCommandBuffer cb_segmentation = VK_NULL_HANDLE;
-        VkCommandBuffer cb_normals = VK_NULL_HANDLE;
-        VkCommandBuffer cb_flow = VK_NULL_HANDLE;
         VkCommandBuffer cb_flow_forward = VK_NULL_HANDLE;
         VkCommandBuffer cb_dynamic = VK_NULL_HANDLE; // dynamic motion blur frame, re-recorded per render_launch
         VkFence fence_render = VK_NULL_HANDLE;

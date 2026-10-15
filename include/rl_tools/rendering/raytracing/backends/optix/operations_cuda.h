@@ -27,13 +27,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     extern "C" char device_ptx[];
-    extern "C" char device_depth_ptx[];
-    extern "C" char device_segmentation_ptx[];
-    extern "C" char device_depth_segmentation_ptx[];
     extern "C" char device_normals_ptx[];
-    extern "C" char device_depth_normals_ptx[];
-    extern "C" char device_segmentation_normals_ptx[];
-    extern "C" char device_depth_segmentation_normals_ptx[];
 
     namespace rendering::raytracing::backends::optix {
         // inactive overlay slots point at a shared degenerate-triangle BLAS, so every overlay
@@ -73,10 +67,7 @@ namespace rl_tools {
             OWLParams coll_launch_params = nullptr;
             OverlayState* overlay_state = nullptr;
             OWLRayGen ray_gen = nullptr;
-            OWLRayGen depth_ray_gen = nullptr;
-            OWLRayGen segmentation_ray_gen = nullptr;
-            OWLRayGen normals_ray_gen = nullptr;
-            OWLRayGen flow_ray_gen = nullptr;
+            OWLRayGen auxiliary_ray_gen = nullptr;
             OWLRayGen flow_forward_ray_gen = nullptr;
             OWLBuffer flow_deltas_buffer = nullptr; // internal [2][slots][12] delta table, composed by update_launch
             OWLBuffer cameras_previous_buffer = nullptr;
@@ -284,42 +275,24 @@ namespace rl_tools {
             // ray type 2 (normals) only exists in the normals-enabled PTX variants; the count
             // must match the NUM_RAY_TYPES the selected PTX was compiled with (SBT stride)
             owlContextSetRayTypeCount(context, SPEC::HAS_NORMALS ? 3 : 2);
-            owlContextSetNumPayloadValues(context, 4); // color ptr (2), recursion depth, hit distance
-            // compiles the camera-table lookups out of the programs when every output selects every camera (the Vulkan and Metal backends use a pipeline constant); OWL reads the value at owlBuildPrograms
+            owlContextSetNumPayloadValues(context, SPEC::HAS_NORMALS ? 5 : 4);
+            // OWL retains specialization value pointers until owlBuildPrograms.
             static const unsigned int output_mask = SPEC::PLAN::MASK;
             static const int all_cameras = rendering::raytracing::outputs::Layout<SPEC>::ALL_CAMERAS ? 1 : 0;
+            static const int overlay_count = (int)SPEC::MAX_OVERLAYS_PER_CAMERA;
+            static const int cam_width = (int)SPEC::CAM_WIDTH;
+            static const int cam_height = (int)SPEC::CAM_HEIGHT;
+            static const int grid_cols = (int)SPEC::GRID_COLS;
             OWLBoundValueDecl bound_values[] = {
                 {{"output_mask", OWL_UINT, OWL_OFFSETOF(OverlayLaunchParams, output_mask)}, (void*)&output_mask},
                 {{"all_cameras", OWL_INT, OWL_OFFSETOF(OverlayLaunchParams, all_cameras)}, (void*)&all_cameras},
+                {{"overlay_count", OWL_INT, OWL_OFFSETOF(OverlayLaunchParams, overlay_count)}, (void*)&overlay_count},
+                {{"cam_width", OWL_INT, OWL_OFFSETOF(OverlayLaunchParams, cam_width)}, (void*)&cam_width},
+                {{"cam_height", OWL_INT, OWL_OFFSETOF(OverlayLaunchParams, cam_height)}, (void*)&cam_height},
+                {{"grid_cols", OWL_INT, OWL_OFFSETOF(OverlayLaunchParams, grid_cols)}, (void*)&grid_cols},
             };
-            owlContextSetBoundLaunchParamValues(context, bound_values, 2);
-            const char* ptx = nullptr;
-            if constexpr (SPEC::HAS_NORMALS) {
-                if constexpr (SPEC::HAS_SEGMENTATION && SPEC::HAS_DEPTH) {
-                    ptx = device_depth_segmentation_normals_ptx;
-                }
-                else if constexpr (SPEC::HAS_SEGMENTATION) {
-                    ptx = device_segmentation_normals_ptx;
-                }
-                else if constexpr (SPEC::HAS_DEPTH) {
-                    ptx = device_depth_normals_ptx;
-                }
-                else {
-                    ptx = device_normals_ptx;
-                }
-            }
-            else if constexpr (SPEC::HAS_SEGMENTATION && SPEC::HAS_DEPTH) {
-                ptx = device_depth_segmentation_ptx;
-            }
-            else if constexpr (SPEC::HAS_SEGMENTATION) {
-                ptx = device_segmentation_ptx;
-            }
-            else if constexpr (SPEC::HAS_DEPTH) {
-                ptx = device_depth_ptx;
-            }
-            else {
-                ptx = device_ptx;
-            }
+            owlContextSetBoundLaunchParamValues(context, bound_values, 6);
+            const char* ptx = SPEC::HAS_NORMALS ? device_normals_ptx : device_ptx;
             OWLModule module = owlModuleCreate(context, ptx);
 
             // RGB miss program (ray type 0)
@@ -432,9 +405,6 @@ namespace rl_tools {
                 OWLVarDecl ray_gen_vars[] = {
                     { "accum_ptr",     OWL_RAW_POINTER, OWL_OFFSETOF(AccumulateRayGenData, accum_ptr)},
                     { "shutter_ptr",   OWL_RAW_POINTER, OWL_OFFSETOF(AccumulateRayGenData, shutter_ptr)},
-                    { "fb_size",       OWL_INT2,   OWL_OFFSETOF(AccumulateRayGenData, fb_size)},
-                    { "cam_size",      OWL_INT2,   OWL_OFFSETOF(AccumulateRayGenData, cam_size)},
-                    { "grid_cols",     OWL_INT,    OWL_OFFSETOF(AccumulateRayGenData, grid_cols)},
                     { "num_cameras",   OWL_INT,    OWL_OFFSETOF(AccumulateRayGenData, num_cameras)},
                     { "world",         OWL_GROUP,  OWL_OFFSETOF(AccumulateRayGenData, world)},
                     { "cameras_open",  OWL_BUFPTR, OWL_OFFSETOF(AccumulateRayGenData, cameras_open)},
@@ -449,9 +419,6 @@ namespace rl_tools {
                 OWLVarDecl ray_gen_vars[] = {
                     { "fb_ptr",        OWL_RAW_POINTER, OWL_OFFSETOF(MotionBlurRayGenData, fb_ptr)},
                     { "obs_ptr",       OWL_RAW_POINTER, OWL_OFFSETOF(MotionBlurRayGenData, obs_ptr)},
-                    { "fb_size",       OWL_INT2,   OWL_OFFSETOF(MotionBlurRayGenData, fb_size)},
-                    { "cam_size",      OWL_INT2,   OWL_OFFSETOF(MotionBlurRayGenData, cam_size)},
-                    { "grid_cols",     OWL_INT,    OWL_OFFSETOF(MotionBlurRayGenData, grid_cols)},
                     { "num_cameras",   OWL_INT,    OWL_OFFSETOF(MotionBlurRayGenData, num_cameras)},
                     { "world",         OWL_GROUP,  OWL_OFFSETOF(MotionBlurRayGenData, world)},
                     { "cameras_open",  OWL_BUFPTR, OWL_OFFSETOF(MotionBlurRayGenData, cameras_open)},
@@ -466,9 +433,6 @@ namespace rl_tools {
                 OWLVarDecl ray_gen_vars[] = {
                     { "fb_ptr",       OWL_RAW_POINTER, OWL_OFFSETOF(RayGenData, fb_ptr)},
                     { "obs_ptr",      OWL_RAW_POINTER, OWL_OFFSETOF(RayGenData, obs_ptr)},
-                    { "fb_size",      OWL_INT2,   OWL_OFFSETOF(RayGenData, fb_size)},
-                    { "cam_size",     OWL_INT2,   OWL_OFFSETOF(RayGenData, cam_size)},
-                    { "grid_cols",    OWL_INT,    OWL_OFFSETOF(RayGenData, grid_cols)},
                     { "num_cameras",  OWL_INT,    OWL_OFFSETOF(RayGenData, num_cameras)},
                     { "world",       OWL_GROUP,  OWL_OFFSETOF(RayGenData, world)},
                     { "cameras",     OWL_BUFPTR, OWL_OFFSETOF(RayGenData, cameras)},
@@ -480,72 +444,14 @@ namespace rl_tools {
             }
         }
 
-        OWLRayGen depth_ray_gen = nullptr;
-        if constexpr (SPEC::HAS_DEPTH) {
-            OWLVarDecl depth_ray_gen_vars[] = {
-                { "depth_ptr",   OWL_RAW_POINTER, OWL_OFFSETOF(DepthRayGenData, depth_ptr)},
-                { "color_ptr", OWL_RAW_POINTER, OWL_OFFSETOF(DepthRayGenData, color_ptr)},
-                { "color_scale", OWL_FLOAT, OWL_OFFSETOF(DepthRayGenData, color_scale)},
-                { "fb_size",     OWL_INT2,   OWL_OFFSETOF(DepthRayGenData, fb_size)},
-                { "cam_size",    OWL_INT2,   OWL_OFFSETOF(DepthRayGenData, cam_size)},
-                { "grid_cols",   OWL_INT,    OWL_OFFSETOF(DepthRayGenData, grid_cols)},
-                { "num_cameras", OWL_INT,    OWL_OFFSETOF(DepthRayGenData, num_cameras)},
-                { "world",       OWL_GROUP,  OWL_OFFSETOF(DepthRayGenData, world)},
-                { "cameras",     OWL_BUFPTR, OWL_OFFSETOF(DepthRayGenData, cameras)},
-                { /* sentinel */ }
-            };
-            depth_ray_gen = owlRayGenCreate(context, module, "depthRayGen",
-                                            sizeof(DepthRayGenData), depth_ray_gen_vars, -1);
-        }
-
-        OWLRayGen segmentation_ray_gen = nullptr;
-        if constexpr (SPEC::HAS_SEGMENTATION) {
-            OWLVarDecl segmentation_ray_gen_vars[] = {
-                { "seg_ptr",     OWL_RAW_POINTER, OWL_OFFSETOF(SegmentationRayGenData, seg_ptr)},
-                { "color_ptr", OWL_RAW_POINTER, OWL_OFFSETOF(SegmentationRayGenData, color_ptr)},
-                { "semantic_ptr", OWL_RAW_POINTER, OWL_OFFSETOF(SegmentationRayGenData, semantic_ptr)},
-                { "semantic_color_ptr", OWL_RAW_POINTER, OWL_OFFSETOF(SegmentationRayGenData, semantic_color_ptr)},
-                { "fb_size",     OWL_INT2,   OWL_OFFSETOF(SegmentationRayGenData, fb_size)},
-                { "cam_size",    OWL_INT2,   OWL_OFFSETOF(SegmentationRayGenData, cam_size)},
-                { "grid_cols",   OWL_INT,    OWL_OFFSETOF(SegmentationRayGenData, grid_cols)},
-                { "num_cameras", OWL_INT,    OWL_OFFSETOF(SegmentationRayGenData, num_cameras)},
-                { "world",       OWL_GROUP,  OWL_OFFSETOF(SegmentationRayGenData, world)},
-                { "cameras",     OWL_BUFPTR, OWL_OFFSETOF(SegmentationRayGenData, cameras)},
-                { /* sentinel */ }
-            };
-            segmentation_ray_gen = owlRayGenCreate(context, module, "segmentationRayGen",
-                                                   sizeof(SegmentationRayGenData), segmentation_ray_gen_vars, -1);
-        }
-
-        OWLRayGen normals_ray_gen = nullptr;
-        if constexpr (SPEC::HAS_NORMALS) {
-            OWLVarDecl normals_ray_gen_vars[] = {
-                { "normals_ptr", OWL_RAW_POINTER, OWL_OFFSETOF(NormalsRayGenData, normals_ptr)},
-                { "color_ptr", OWL_RAW_POINTER, OWL_OFFSETOF(NormalsRayGenData, color_ptr)},
-                { "fb_size",     OWL_INT2,   OWL_OFFSETOF(NormalsRayGenData, fb_size)},
-                { "cam_size",    OWL_INT2,   OWL_OFFSETOF(NormalsRayGenData, cam_size)},
-                { "grid_cols",   OWL_INT,    OWL_OFFSETOF(NormalsRayGenData, grid_cols)},
-                { "num_cameras", OWL_INT,    OWL_OFFSETOF(NormalsRayGenData, num_cameras)},
-                { "world",       OWL_GROUP,  OWL_OFFSETOF(NormalsRayGenData, world)},
-                { "cameras",     OWL_BUFPTR, OWL_OFFSETOF(NormalsRayGenData, cameras)},
-                { /* sentinel */ }
-            };
-            normals_ray_gen = owlRayGenCreate(context, module, "normalsRayGen",
-                                              sizeof(NormalsRayGenData), normals_ray_gen_vars, -1);
-        }
-
-        OWLRayGen flow_ray_gen = nullptr;
         OWLRayGen flow_forward_ray_gen = nullptr;
-        if constexpr (SPEC::HAS_FLOW) {
+        if constexpr (SPEC::HAS_FLOW_FORWARD) {
             OWLVarDecl flow_ray_gen_vars[] = {
                 { "flow_ptr",       OWL_RAW_POINTER, OWL_OFFSETOF(FlowRayGenData, flow_ptr)},
                 { "color_ptr", OWL_RAW_POINTER, OWL_OFFSETOF(FlowRayGenData, color_ptr)},
                 { "status_color_ptr", OWL_RAW_POINTER, OWL_OFFSETOF(FlowRayGenData, status_color_ptr)},
                 { "color_scale", OWL_FLOAT, OWL_OFFSETOF(FlowRayGenData, color_scale)},
                 { "status_ptr",     OWL_RAW_POINTER, OWL_OFFSETOF(FlowRayGenData, status_ptr)},
-                { "fb_size",        OWL_INT2,   OWL_OFFSETOF(FlowRayGenData, fb_size)},
-                { "cam_size",       OWL_INT2,   OWL_OFFSETOF(FlowRayGenData, cam_size)},
-                { "grid_cols",      OWL_INT,    OWL_OFFSETOF(FlowRayGenData, grid_cols)},
                 { "num_cameras",    OWL_INT,    OWL_OFFSETOF(FlowRayGenData, num_cameras)},
                 { "world",          OWL_GROUP,  OWL_OFFSETOF(FlowRayGenData, world)},
                 { "cameras_source", OWL_BUFPTR, OWL_OFFSETOF(FlowRayGenData, cameras_source)},
@@ -555,18 +461,39 @@ namespace rl_tools {
                 { "source_previous", OWL_INT,   OWL_OFFSETOF(FlowRayGenData, source_previous)},
                 { /* sentinel */ }
             };
-            if constexpr(SPEC::HAS_FLOW_BACKWARD){
-                flow_ray_gen = owlRayGenCreate(context, module, "flowRayGen",
-                                               sizeof(FlowRayGenData), flow_ray_gen_vars, -1);
-            }
-            if constexpr (SPEC::HAS_FLOW_FORWARD) {
-                flow_forward_ray_gen = owlRayGenCreate(context, module, "flowForwardRayGen",
-                                                       sizeof(FlowRayGenData), flow_ray_gen_vars, -1);
-            }
+            flow_forward_ray_gen = owlRayGenCreate(context, module, "flowForwardRayGen", sizeof(FlowRayGenData), flow_ray_gen_vars, -1);
         }
 
-        const owl2i fb_size  = {(int)SPEC::FB_WIDTH, (int)SPEC::FB_HEIGHT};
-        const owl2i cam_size = {(int)SPEC::CAM_WIDTH, (int)SPEC::CAM_HEIGHT};
+        OWLRayGen auxiliary_ray_gen = nullptr;
+        if constexpr (SPEC::HAS_AUXILIARY) {
+            OWLVarDecl auxiliary_vars[] = {
+                { "flow_ptr",       OWL_RAW_POINTER, OWL_OFFSETOF(AuxiliaryRayGenData, flow) + OWL_OFFSETOF(FlowRayGenData, flow_ptr)},
+                { "color_ptr", OWL_RAW_POINTER, OWL_OFFSETOF(AuxiliaryRayGenData, flow) + OWL_OFFSETOF(FlowRayGenData, color_ptr)},
+                { "status_color_ptr", OWL_RAW_POINTER, OWL_OFFSETOF(AuxiliaryRayGenData, flow) + OWL_OFFSETOF(FlowRayGenData, status_color_ptr)},
+                { "color_scale", OWL_FLOAT, OWL_OFFSETOF(AuxiliaryRayGenData, flow) + OWL_OFFSETOF(FlowRayGenData, color_scale)},
+                { "status_ptr",     OWL_RAW_POINTER, OWL_OFFSETOF(AuxiliaryRayGenData, flow) + OWL_OFFSETOF(FlowRayGenData, status_ptr)},
+                { "num_cameras",    OWL_INT,    OWL_OFFSETOF(AuxiliaryRayGenData, flow) + OWL_OFFSETOF(FlowRayGenData, num_cameras)},
+                { "world",          OWL_GROUP,  OWL_OFFSETOF(AuxiliaryRayGenData, flow) + OWL_OFFSETOF(FlowRayGenData, world)},
+                { "cameras_source", OWL_BUFPTR, OWL_OFFSETOF(AuxiliaryRayGenData, flow) + OWL_OFFSETOF(FlowRayGenData, cameras_source)},
+                { "cameras_target", OWL_BUFPTR, OWL_OFFSETOF(AuxiliaryRayGenData, flow) + OWL_OFFSETOF(FlowRayGenData, cameras_target)},
+                { "flow_deltas",    OWL_RAW_POINTER, OWL_OFFSETOF(AuxiliaryRayGenData, flow) + OWL_OFFSETOF(FlowRayGenData, flow_deltas)},
+                { "source_first_overlay_instance", OWL_UINT, OWL_OFFSETOF(AuxiliaryRayGenData, flow) + OWL_OFFSETOF(FlowRayGenData, source_first_overlay_instance)},
+                { "source_previous", OWL_INT,   OWL_OFFSETOF(AuxiliaryRayGenData, flow) + OWL_OFFSETOF(FlowRayGenData, source_previous)},
+                { "depth_ptr", OWL_RAW_POINTER, OWL_OFFSETOF(AuxiliaryRayGenData, depth_ptr)},
+                { "depth_color_ptr", OWL_RAW_POINTER, OWL_OFFSETOF(AuxiliaryRayGenData, depth_color_ptr)},
+                { "seg_ptr", OWL_RAW_POINTER, OWL_OFFSETOF(AuxiliaryRayGenData, seg_ptr)},
+                { "seg_color_ptr", OWL_RAW_POINTER, OWL_OFFSETOF(AuxiliaryRayGenData, seg_color_ptr)},
+                { "semantic_ptr", OWL_RAW_POINTER, OWL_OFFSETOF(AuxiliaryRayGenData, semantic_ptr)},
+                { "semantic_color_ptr", OWL_RAW_POINTER, OWL_OFFSETOF(AuxiliaryRayGenData, semantic_color_ptr)},
+                { "normals_ptr", OWL_RAW_POINTER, OWL_OFFSETOF(AuxiliaryRayGenData, normals_ptr)},
+                { "normals_color_ptr", OWL_RAW_POINTER, OWL_OFFSETOF(AuxiliaryRayGenData, normals_color_ptr)},
+                { "depth_scale", OWL_FLOAT, OWL_OFFSETOF(AuxiliaryRayGenData, depth_scale)},
+                { /* sentinel */ }
+            };
+            auxiliary_ray_gen = owlRayGenCreate(context, module, "auxiliaryRayGen", sizeof(AuxiliaryRayGenData), auxiliary_vars, -1);
+            renderer.backend->auxiliary_ray_gen = auxiliary_ray_gen;
+        }
+
 
         if constexpr (SPEC::HAS_RGB) {
             if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
@@ -577,67 +504,40 @@ namespace rl_tools {
                 owlRayGenSetPointer(ray_gen, "fb_ptr", pointer(Slot::RGB_RGBA8));
                 owlRayGenSetPointer(ray_gen, "obs_ptr", pointer(Slot::RGB_FLOAT32));
             }
-            owlRayGenSet2i    (ray_gen, "fb_size", fb_size);
-            owlRayGenSet2i    (ray_gen, "cam_size", cam_size);
-            owlRayGenSet1i    (ray_gen, "grid_cols", SPEC::GRID_COLS);
             owlRayGenSet1i    (ray_gen, "num_cameras", SPEC::NUM_CAMERAS);
         }
-        if constexpr (SPEC::HAS_SEGMENTATION) {
-            owlRayGenSetPointer(segmentation_ray_gen, "seg_ptr", pointer(Slot::SEGMENTATION_UINT32));
-            owlRayGenSetPointer(segmentation_ray_gen, "color_ptr", pointer(Slot::SEGMENTATION_RGBA8));
-            owlRayGenSetPointer(segmentation_ray_gen, "semantic_ptr", pointer(Slot::SEMANTIC_UINT32));
-            owlRayGenSetPointer(segmentation_ray_gen, "semantic_color_ptr", pointer(Slot::SEMANTIC_RGBA8));
-            owlRayGenSet2i    (segmentation_ray_gen, "fb_size", fb_size);
-            owlRayGenSet2i    (segmentation_ray_gen, "cam_size", cam_size);
-            owlRayGenSet1i    (segmentation_ray_gen, "grid_cols", SPEC::GRID_COLS);
-            owlRayGenSet1i    (segmentation_ray_gen, "num_cameras", SPEC::NUM_CAMERAS);
-            renderer.backend->segmentation_ray_gen = segmentation_ray_gen;
-        }
-        if constexpr (SPEC::HAS_NORMALS) {
-            owlRayGenSetPointer(normals_ray_gen, "normals_ptr", pointer(Slot::NORMALS_FLOAT32));
-            owlRayGenSetPointer(normals_ray_gen, "color_ptr", pointer(Slot::NORMALS_RGBA8));
-            owlRayGenSet2i    (normals_ray_gen, "fb_size", fb_size);
-            owlRayGenSet2i    (normals_ray_gen, "cam_size", cam_size);
-            owlRayGenSet1i    (normals_ray_gen, "grid_cols", SPEC::GRID_COLS);
-            owlRayGenSet1i    (normals_ray_gen, "num_cameras", SPEC::NUM_CAMERAS);
-            renderer.backend->normals_ray_gen = normals_ray_gen;
-        }
-        if constexpr (SPEC::HAS_FLOW) {
+        if constexpr (SPEC::HAS_FLOW_FORWARD) {
             constexpr size_t FLOW_SLOTS = SPEC::ENABLE_OVERLAYS ? (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES : 0;
-            const OWLRayGen flow_ray_gens[2] = {flow_ray_gen, flow_forward_ray_gen};
-            const Slot flow_slots[2] = {Slot::FLOW_FLOAT32, Slot::FLOW_FORWARD_FLOAT32};
-            const Slot color_slots[2] = {Slot::FLOW_RGBA8, Slot::FLOW_FORWARD_RGBA8};
-            const Slot status_slots[2] = {Slot::FLOW_STATUS_UINT32, Slot::FLOW_FORWARD_STATUS_UINT32};
-            const Slot status_color_slots[2] = {Slot::FLOW_STATUS_RGBA8, Slot::FLOW_FORWARD_STATUS_RGBA8};
-            const float scales[2] = {flow_scale, flow_forward_scale};
-            for(int direction = 0; direction < 2; direction++){
-                if(flow_ray_gens[direction] == nullptr){
-                    continue;
-                }
-                owlRayGenSetPointer(flow_ray_gens[direction], "flow_ptr", pointer(flow_slots[direction]));
-                owlRayGenSetPointer(flow_ray_gens[direction], "color_ptr", pointer(color_slots[direction]));
-                owlRayGenSetPointer(flow_ray_gens[direction], "status_ptr", pointer(status_slots[direction]));
-                owlRayGenSetPointer(flow_ray_gens[direction], "status_color_ptr", pointer(status_color_slots[direction]));
-                owlRayGenSet1f(flow_ray_gens[direction], "color_scale", scales[direction]);
-                owlRayGenSet2i    (flow_ray_gens[direction], "fb_size", fb_size);
-                owlRayGenSet2i    (flow_ray_gens[direction], "cam_size", cam_size);
-                owlRayGenSet1i    (flow_ray_gens[direction], "grid_cols", SPEC::GRID_COLS);
-                owlRayGenSet1i    (flow_ray_gens[direction], "num_cameras", SPEC::NUM_CAMERAS);
-                owlRayGenSetPointer(flow_ray_gens[direction], "flow_deltas", flow_deltas_buffer != nullptr ? (const float*)owlBufferGetPointer(flow_deltas_buffer, 0) + (size_t)direction * FLOW_SLOTS * 12 : nullptr);
-                owlRayGenSet1ui   (flow_ray_gens[direction], "source_first_overlay_instance", 0u); // scene-dependent: rebound in init_renderer_scene before the SBT build
-                owlRayGenSet1i    (flow_ray_gens[direction], "source_previous", direction);
-            }
-            renderer.backend->flow_ray_gen = flow_ray_gen;
+            owlRayGenSetPointer(flow_forward_ray_gen, "flow_ptr", pointer(Slot::FLOW_FORWARD_FLOAT32));
+            owlRayGenSetPointer(flow_forward_ray_gen, "color_ptr", pointer(Slot::FLOW_FORWARD_RGBA8));
+            owlRayGenSetPointer(flow_forward_ray_gen, "status_ptr", pointer(Slot::FLOW_FORWARD_STATUS_UINT32));
+            owlRayGenSetPointer(flow_forward_ray_gen, "status_color_ptr", pointer(Slot::FLOW_FORWARD_STATUS_RGBA8));
+            owlRayGenSet1f(flow_forward_ray_gen, "color_scale", flow_forward_scale);
+            owlRayGenSet1i(flow_forward_ray_gen, "num_cameras", SPEC::NUM_CAMERAS);
+            owlRayGenSetPointer(flow_forward_ray_gen, "flow_deltas", flow_deltas_buffer != nullptr ? (const float*)owlBufferGetPointer(flow_deltas_buffer, 0) + FLOW_SLOTS * 12 : nullptr);
+            owlRayGenSet1ui(flow_forward_ray_gen, "source_first_overlay_instance", 0u);
+            owlRayGenSet1i(flow_forward_ray_gen, "source_previous", 1);
             renderer.backend->flow_forward_ray_gen = flow_forward_ray_gen;
         }
-        if constexpr (SPEC::HAS_DEPTH) {
-            owlRayGenSetPointer(depth_ray_gen, "depth_ptr", pointer(Slot::DEPTH_FLOAT32));
-            owlRayGenSetPointer(depth_ray_gen, "color_ptr", pointer(Slot::DEPTH_RGBA8));
-            owlRayGenSet1f(depth_ray_gen, "color_scale", depth_scale);
-            owlRayGenSet2i    (depth_ray_gen, "fb_size", fb_size);
-            owlRayGenSet2i    (depth_ray_gen, "cam_size", cam_size);
-            owlRayGenSet1i    (depth_ray_gen, "grid_cols", SPEC::GRID_COLS);
-            owlRayGenSet1i    (depth_ray_gen, "num_cameras", SPEC::NUM_CAMERAS);
+        if constexpr (SPEC::HAS_AUXILIARY) {
+            owlRayGenSetPointer(auxiliary_ray_gen, "flow_ptr", pointer(Slot::FLOW_FLOAT32));
+            owlRayGenSetPointer(auxiliary_ray_gen, "color_ptr", pointer(Slot::FLOW_RGBA8));
+            owlRayGenSetPointer(auxiliary_ray_gen, "status_ptr", pointer(Slot::FLOW_STATUS_UINT32));
+            owlRayGenSetPointer(auxiliary_ray_gen, "status_color_ptr", pointer(Slot::FLOW_STATUS_RGBA8));
+            owlRayGenSetPointer(auxiliary_ray_gen, "depth_ptr", pointer(Slot::DEPTH_FLOAT32));
+            owlRayGenSetPointer(auxiliary_ray_gen, "depth_color_ptr", pointer(Slot::DEPTH_RGBA8));
+            owlRayGenSetPointer(auxiliary_ray_gen, "seg_ptr", pointer(Slot::SEGMENTATION_UINT32));
+            owlRayGenSetPointer(auxiliary_ray_gen, "seg_color_ptr", pointer(Slot::SEGMENTATION_RGBA8));
+            owlRayGenSetPointer(auxiliary_ray_gen, "semantic_ptr", pointer(Slot::SEMANTIC_UINT32));
+            owlRayGenSetPointer(auxiliary_ray_gen, "semantic_color_ptr", pointer(Slot::SEMANTIC_RGBA8));
+            owlRayGenSetPointer(auxiliary_ray_gen, "normals_ptr", pointer(Slot::NORMALS_FLOAT32));
+            owlRayGenSetPointer(auxiliary_ray_gen, "normals_color_ptr", pointer(Slot::NORMALS_RGBA8));
+            owlRayGenSet1f(auxiliary_ray_gen, "depth_scale", depth_scale);
+            owlRayGenSet1f(auxiliary_ray_gen, "color_scale", flow_scale);
+            owlRayGenSet1i(auxiliary_ray_gen, "num_cameras", SPEC::NUM_CAMERAS);
+            owlRayGenSetPointer(auxiliary_ray_gen, "flow_deltas", flow_deltas_buffer != nullptr ? owlBufferGetPointer(flow_deltas_buffer, 0) : nullptr);
+            owlRayGenSet1ui(auxiliary_ray_gen, "source_first_overlay_instance", 0u);
+            owlRayGenSet1i(auxiliary_ray_gen, "source_previous", 0);
         }
 
         // The raygen-referenced buffers are created here so every raygen variable is set before
@@ -662,27 +562,19 @@ namespace rl_tools {
                 owlRayGenSetBuffer(ray_gen, "cameras", cameras_buffer);
             }
         }
-        if constexpr (SPEC::HAS_DEPTH) {
-            owlRayGenSetBuffer(depth_ray_gen, "cameras", cameras_buffer);
-        }
-        if constexpr (SPEC::HAS_SEGMENTATION) {
-            owlRayGenSetBuffer(segmentation_ray_gen, "cameras", cameras_buffer);
-        }
-        if constexpr (SPEC::HAS_NORMALS) {
-            owlRayGenSetBuffer(normals_ray_gen, "cameras", cameras_buffer);
-        }
         if constexpr (SPEC::HAS_FLOW) {
             OWLBuffer cameras_previous_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(OptixCameraData), SPEC::NUM_CAMERAS, nullptr);
             renderer.backend->cameras_previous_buffer = cameras_previous_buffer;
             renderer.cameras_previous._data = (rendering::raytracing::Camera<typename SPEC::T>*)owlBufferGetPointer(cameras_previous_buffer, 0);
-            if constexpr(SPEC::HAS_FLOW_BACKWARD){
-                owlRayGenSetBuffer(flow_ray_gen, "cameras_source", cameras_buffer);
-                owlRayGenSetBuffer(flow_ray_gen, "cameras_target", cameras_previous_buffer);
-            }
             if constexpr (SPEC::HAS_FLOW_FORWARD) {
                 owlRayGenSetBuffer(flow_forward_ray_gen, "cameras_source", cameras_previous_buffer);
                 owlRayGenSetBuffer(flow_forward_ray_gen, "cameras_target", cameras_buffer);
             }
+        }
+
+        if constexpr (SPEC::HAS_AUXILIARY) {
+            owlRayGenSetBuffer(auxiliary_ray_gen, "cameras_source", cameras_buffer);
+            owlRayGenSetBuffer(auxiliary_ray_gen, "cameras_target", SPEC::HAS_FLOW ? renderer.backend->cameras_previous_buffer : cameras_buffer);
         }
 
         renderer.backend->context = context;
@@ -691,10 +583,6 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_RGB) {
             renderer.backend->ray_gen = ray_gen;
         }
-        if constexpr (SPEC::HAS_DEPTH) {
-            renderer.backend->depth_ray_gen = depth_ray_gen;
-        }
-
         if constexpr(SPEC::HAS_PROBES){
             OWLVarDecl collision_ray_gen_vars[] = {
                 { "results",         OWL_BUFPTR, OWL_OFFSETOF(CollisionRayGenData, results)},
@@ -867,7 +755,7 @@ namespace rl_tools {
             }
             owlGeomTypeSetClosestHit(triangles_geom_type, 1, module, "collisionHit");
             if constexpr (SPEC::HAS_NORMALS) {
-                owlGeomTypeSetClosestHit(triangles_geom_type, 2, module, "normalsHit");
+                owlGeomTypeSetClosestHit(triangles_geom_type, 2, module, "auxiliaryHit");
             }
             return triangles_geom_type;
         }
@@ -1136,25 +1024,14 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_RGB) {
                 owlRayGenSetGroup((OWLRayGen)renderer.backend->ray_gen, "world", world);
             }
-            if constexpr (SPEC::HAS_DEPTH) {
-                owlRayGenSetGroup((OWLRayGen)renderer.backend->depth_ray_gen, "world", world);
-            }
-            if constexpr (SPEC::HAS_SEGMENTATION) {
-                owlRayGenSetGroup((OWLRayGen)renderer.backend->segmentation_ray_gen, "world", world);
-            }
-            if constexpr (SPEC::HAS_NORMALS) {
-                owlRayGenSetGroup((OWLRayGen)renderer.backend->normals_ray_gen, "world", world);
-            }
-            if constexpr (SPEC::HAS_FLOW) {
+            if constexpr (SPEC::HAS_FLOW_FORWARD) {
                 constexpr unsigned int FLOW_SLOTS = SPEC::ENABLE_OVERLAYS ? (unsigned int)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES : 0u;
-                if constexpr(SPEC::HAS_FLOW_BACKWARD){
-                    owlRayGenSetGroup((OWLRayGen)renderer.backend->flow_ray_gen, "world", world);
-                    owlRayGenSet1ui((OWLRayGen)renderer.backend->flow_ray_gen, "source_first_overlay_instance", (unsigned int)scene.instances.size());
-                }
-                if constexpr (SPEC::HAS_FLOW_FORWARD) {
-                    owlRayGenSetGroup((OWLRayGen)renderer.backend->flow_forward_ray_gen, "world", world);
-                    owlRayGenSet1ui((OWLRayGen)renderer.backend->flow_forward_ray_gen, "source_first_overlay_instance", (unsigned int)scene.instances.size() + FLOW_SLOTS);
-                }
+                owlRayGenSetGroup((OWLRayGen)renderer.backend->flow_forward_ray_gen, "world", world);
+                owlRayGenSet1ui((OWLRayGen)renderer.backend->flow_forward_ray_gen, "source_first_overlay_instance", (unsigned int)scene.instances.size() + FLOW_SLOTS);
+            }
+            if constexpr (SPEC::HAS_AUXILIARY) {
+                owlRayGenSetGroup(renderer.backend->auxiliary_ray_gen, "world", world);
+                owlRayGenSet1ui(renderer.backend->auxiliary_ray_gen, "source_first_overlay_instance", (unsigned int)scene.instances.size());
             }
             if(renderer.backend->collision_ray_gen){
                 owlRayGenSetGroup((OWLRayGen)renderer.backend->collision_ray_gen, "world", world);
@@ -1546,17 +1423,8 @@ namespace rl_tools {
             }
             optix::overlay_accel_build(overlay_state->accel, data(renderer.transforms), instance_classes, 1.0f, nullptr, cuda_stream, 0u);
             devices::cuda::order_after(renderer.backend->ordering_event, cuda_stream, coll_stream);
-            if constexpr (SPEC::HAS_DEPTH){
-                owlAsyncLaunch2D((OWLRayGen)renderer.backend->depth_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
-            }
-            if constexpr (SPEC::HAS_SEGMENTATION){
-                owlAsyncLaunch2D((OWLRayGen)renderer.backend->segmentation_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
-            }
-            if constexpr (SPEC::HAS_NORMALS){
-                owlAsyncLaunch2D((OWLRayGen)renderer.backend->normals_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
-            }
-            if constexpr (SPEC::HAS_FLOW_BACKWARD){
-                owlAsyncLaunch2D((OWLRayGen)renderer.backend->flow_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
+            if constexpr (SPEC::HAS_AUXILIARY) {
+                owlAsyncLaunch2D(renderer.backend->auxiliary_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
             }
             if constexpr (SPEC::HAS_FLOW_FORWARD){
                 owlAsyncLaunch2D((OWLRayGen)renderer.backend->flow_forward_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
@@ -1583,18 +1451,8 @@ namespace rl_tools {
             OWLRayGen ray_gen = (OWLRayGen)renderer.backend->ray_gen;
             owlAsyncLaunch2D(ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
         }
-        if constexpr (SPEC::HAS_DEPTH) {
-            OWLRayGen depth_ray_gen = (OWLRayGen)renderer.backend->depth_ray_gen;
-            owlAsyncLaunch2D(depth_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
-        }
-        if constexpr (SPEC::HAS_SEGMENTATION) {
-            owlAsyncLaunch2D((OWLRayGen)renderer.backend->segmentation_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
-        }
-        if constexpr (SPEC::HAS_NORMALS) {
-            owlAsyncLaunch2D((OWLRayGen)renderer.backend->normals_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
-        }
-        if constexpr (SPEC::HAS_FLOW_BACKWARD) {
-            owlAsyncLaunch2D((OWLRayGen)renderer.backend->flow_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
+        if constexpr (SPEC::HAS_AUXILIARY) {
+            owlAsyncLaunch2D(renderer.backend->auxiliary_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
         }
         if constexpr (SPEC::HAS_FLOW_FORWARD) {
             owlAsyncLaunch2D((OWLRayGen)renderer.backend->flow_forward_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);

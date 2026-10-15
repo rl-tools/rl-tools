@@ -1,11 +1,4 @@
-// Vulkan device programs for the RLtools raytracing renderer, compiled once per entry point
-// (ENTRY_RGB / ENTRY_DEPTH / ENTRY_COLLISION / ENTRY_SEGMENTATION / ENTRY_NORMALS / ENTRY_FLOW /
-// ENTRY_FLOW_FORWARD / ENTRY_RESOLVE). This file is a
-// function-for-function mirror of backends/metal/device.metal (which mirrors
-// backends/optix/device_impl.h) — keep the shading logic in sync; the golden-image parity
-// suite is the drift detector. Metal's RGBTracer<DEPTH> template recursion is restructured
-// here as shade_*_local + SecondaryRequest because GLSL forbids recursion: the leaf trace
-// shades without secondary rays (= DEPTH=1 behavior).
+// Shading mirrors Metal/OptiX; shade_*_local + SecondaryRequest replace recursive secondary rays because GLSL forbids recursion.
 // Struct layouts (LaunchParams, MeshRecord, InstanceData) and binding/spec-constant indices
 // must match include/rl_tools/rendering/raytracing/backends/vulkan/context.h.
 #version 460
@@ -172,7 +165,7 @@ layout(std430, set = 0, binding = 2) readonly buffer CamerasOpenBuffer{ Camera c
 layout(std430, set = 0, binding = 14) buffer RgbAccumulationBuffer{ float rgb_accumulation[]; };
 #endif
 
-#if defined(ENTRY_RGB) || defined(ENTRY_NORMALS)
+#if defined(ENTRY_RGB) || defined(ENTRY_AUXILIARY)
 layout(buffer_reference, std430, buffer_reference_align = 4) readonly buffer IntArray{ int v[]; };
 layout(buffer_reference, std430, buffer_reference_align = 4) readonly buffer FloatArray{ float v[]; };
 
@@ -249,13 +242,11 @@ vec3 transform_normal_to_world(int instance, vec3 n){
 }
 #endif
 
-
-#if defined(ENTRY_SEGMENTATION)
+#if defined(ENTRY_AUXILIARY)
 layout(std430, set = 0, binding = 13) readonly buffer InstanceClassesBuffer{ uint instance_classes[]; };
 #endif
 
-
-#if defined(ENTRY_FLOW) || defined(ENTRY_FLOW_FORWARD)
+#if defined(ENTRY_AUXILIARY) || defined(ENTRY_FLOW_FORWARD)
 layout(std430, set = 0, binding = 15) readonly buffer FlowDeltasBuffer{ float flow_deltas[]; };
 layout(std430, set = 0, binding = 16) readonly buffer CamerasPreviousBuffer{ Camera cameras_previous[]; };
 layout(std430, set = 0, binding = 17) readonly buffer OverlayNumActivePreviousBuffer{ uint overlay_num_active_previous[]; };
@@ -417,7 +408,7 @@ bool trace_shadow_occluded(int camera, vec3 pos, vec3 direction, float max_dist)
 }
 #endif
 
-#if defined(ENTRY_RGB) || defined(ENTRY_NORMALS)
+#if defined(ENTRY_RGB) || defined(ENTRY_AUXILIARY)
 ivec3 fetch_index(int mesh, int primitive){
     return ivec3(meshes[mesh].index.v[3 * primitive], meshes[mesh].index.v[3 * primitive + 1], meshes[mesh].index.v[3 * primitive + 2]);
 }
@@ -807,27 +798,6 @@ void main(){
 }
 #endif
 
-#if defined(ENTRY_DEPTH)
-void main(){
-    const PixelLaunchContext ctx = pixel_launch_context(gl_GlobalInvocationID.xy);
-    if((ctx.outputs & DEPTH_SLOTS) == 0u){
-        return;
-    }
-    Camera cam = cameras_close[ctx.cam_idx];
-    const vec2 screen = (vec2(ctx.local_x, ctx.local_y) + vec2(0.5)) / vec2(params.cam_width, params.cam_height);
-    const vec3 direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
-    const vec3 normal = normalize(cross(camera_dir_du(cam), camera_dir_dv(cam)));
-    const Hit hit = intersect_composed(ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30, false);
-    const float depth = hit.valid ? hit.t * abs(dot(direction, normal)) : uintBitsToFloat(0x7f800000u);
-    if(output_selected(ctx, OUTPUT_DEPTH_FLOAT32)){
-        outputs[params.output_offsets[OUTPUT_DEPTH_FLOAT32] + output_element(ctx, OUTPUT_DEPTH_FLOAT32)] = floatBitsToUint(depth);
-    }
-    if(output_selected(ctx, OUTPUT_DEPTH_RGBA8)){
-        outputs[params.output_offsets[OUTPUT_DEPTH_RGBA8] + output_element(ctx, OUTPUT_DEPTH_RGBA8)] = depth_to_rgba(depth, params.output_scales[OUTPUT_DEPTH_RGBA8]);
-    }
-}
-#endif
-
 #if defined(ENTRY_RESOLVE)
 // divides the accumulated linear radiance by the sample count and writes the declared outputs
 // with the same transfer curve + quantization as the single-dispatch path
@@ -908,81 +878,7 @@ void main(){
 }
 #endif
 
-#if defined(ENTRY_SEGMENTATION)
-// single-sample by design: instance labels cannot be averaged, so anti-aliasing and motion
-// blur do not apply (shutter-close camera, pixel-center ray)
-void main(){
-    const uvec2 pixel_id = gl_GlobalInvocationID.xy;
-    const PixelLaunchContext ctx = pixel_launch_context(pixel_id);
-    if((ctx.outputs & SEGMENTATION_SLOTS) == 0u){
-        return;
-    }
-    Camera cam = cameras_close[ctx.cam_idx];
-    const vec2 screen = (vec2(ctx.local_x, ctx.local_y) + vec2(0.5, 0.5)) / vec2(params.cam_width, params.cam_height);
-    const vec3 direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
-    Hit hit = intersect_composed(ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30, false);
-    const uint instance = hit.valid ? uint(hit.instance_id) : 0xFFFFFFFFu;
-    if(output_selected(ctx, OUTPUT_SEGMENTATION_UINT32)){
-        outputs[params.output_offsets[OUTPUT_SEGMENTATION_UINT32] + output_element(ctx, OUTPUT_SEGMENTATION_UINT32)] = instance;
-    }
-    if(output_selected(ctx, OUTPUT_SEGMENTATION_RGBA8)){
-        outputs[params.output_offsets[OUTPUT_SEGMENTATION_RGBA8] + output_element(ctx, OUTPUT_SEGMENTATION_RGBA8)] = segmentation_id_to_rgba(instance);
-    }
-    if(output_selected(ctx, OUTPUT_SEMANTIC_UINT32) || output_selected(ctx, OUTPUT_SEMANTIC_RGBA8)){
-        const uint semantic = hit.valid ? instance_classes[uint(hit.instance_id)] : 0xFFFFFFFFu;
-        if(output_selected(ctx, OUTPUT_SEMANTIC_UINT32)){
-            outputs[params.output_offsets[OUTPUT_SEMANTIC_UINT32] + output_element(ctx, OUTPUT_SEMANTIC_UINT32)] = semantic;
-        }
-        if(output_selected(ctx, OUTPUT_SEMANTIC_RGBA8)){
-            outputs[params.output_offsets[OUTPUT_SEMANTIC_RGBA8] + output_element(ctx, OUTPUT_SEMANTIC_RGBA8)] = segmentation_id_to_rgba(semantic);
-        }
-    }
-}
-#endif
-
-#if defined(ENTRY_NORMALS)
-// single-sample by design: unit normals cannot be averaged, so anti-aliasing and motion blur
-// do not apply (shutter-close camera, pixel-center ray); world-frame geometric normal,
-// oriented against the ray, zero on miss
-void main(){
-    const uvec2 pixel_id = gl_GlobalInvocationID.xy;
-    const PixelLaunchContext ctx = pixel_launch_context(pixel_id);
-    if((ctx.outputs & NORMALS_SLOTS) == 0u){
-        return;
-    }
-    Camera cam = cameras_close[ctx.cam_idx];
-    const vec2 screen = (vec2(ctx.local_x, ctx.local_y) + vec2(0.5, 0.5)) / vec2(params.cam_width, params.cam_height);
-    const vec3 direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
-    Hit hit = intersect_composed(ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30, false);
-    vec3 normal = vec3(0.0);
-    if(hit.valid){
-        const int mesh = int(instance_record_base[hit.instance_id]) + hit.geometry_index;
-        const ivec3 index = fetch_index(mesh, hit.primitive_index);
-        vec3 vertex_a = fetch_vertex(mesh, index.x);
-        vec3 vertex_b = fetch_vertex(mesh, index.y);
-        vec3 vertex_c = fetch_vertex(mesh, index.z);
-        if(instance_data[hit.instance_id].identity == 0u){
-            vertex_a = transform_point_to_world(hit.instance_id, vertex_a);
-            vertex_b = transform_point_to_world(hit.instance_id, vertex_b);
-            vertex_c = transform_point_to_world(hit.instance_id, vertex_c);
-        }
-        normal = normalize(cross(vertex_b - vertex_a, vertex_c - vertex_a));
-        if(dot(direction, normal) > 0.0){
-            normal = -normal;
-        }
-    }
-    if(output_selected(ctx, OUTPUT_NORMALS_FLOAT32)){
-        outputs[params.output_offsets[OUTPUT_NORMALS_FLOAT32] + output_element(ctx, OUTPUT_NORMALS_FLOAT32) * 3] = floatBitsToUint(normal.x);
-        outputs[params.output_offsets[OUTPUT_NORMALS_FLOAT32] + output_element(ctx, OUTPUT_NORMALS_FLOAT32) * 3 + 1] = floatBitsToUint(normal.y);
-        outputs[params.output_offsets[OUTPUT_NORMALS_FLOAT32] + output_element(ctx, OUTPUT_NORMALS_FLOAT32) * 3 + 2] = floatBitsToUint(normal.z);
-    }
-    if(output_selected(ctx, OUTPUT_NORMALS_RGBA8)){
-        outputs[params.output_offsets[OUTPUT_NORMALS_RGBA8] + output_element(ctx, OUTPUT_NORMALS_RGBA8)] = normal_to_rgba(normal);
-    }
-}
-#endif
-
-#if defined(ENTRY_FLOW) || defined(ENTRY_FLOW_FORWARD)
+#if defined(ENTRY_AUXILIARY) || defined(ENTRY_FLOW_FORWARD)
 // FlowStatus codes (rl_tools/rendering/raytracing/types.h)
 const uint FLOW_STATUS_VALID = 0u;
 const uint FLOW_STATUS_MISS = 1u;
@@ -1058,19 +954,10 @@ bool project_camera(Camera cam, vec3 point, out float screen_x, out float screen
 // tested for visibility from the target camera against the target instant with the relative
 // margin FLOW_VISIBILITY_EPSILON. Status priority MISS, BEHIND, OUT_OF_FRAME, OCCLUDED, VALID;
 // the vector is zero for MISS and BEHIND and the geometric flow otherwise
-void main(){
-    const uvec2 pixel_id = gl_GlobalInvocationID.xy;
-    const PixelLaunchContext ctx = pixel_launch_context(pixel_id);
-    if((ctx.outputs & (SOURCE_PREVIOUS ? FLOW_FORWARD_SLOTS : FLOW_BACKWARD_SLOTS)) == 0u){
-        return;
-    }
-    Camera cam = SOURCE_PREVIOUS ? cameras_previous[ctx.cam_idx] : cameras_close[ctx.cam_idx];
+void write_flow(PixelLaunchContext ctx, Camera cam, vec3 direction, Hit hit){
     Camera cam_target = SOURCE_PREVIOUS ? cameras_close[ctx.cam_idx] : cameras_previous[ctx.cam_idx];
-    const uint source_first_overlay_instance = params.first_overlay_instance + (SOURCE_PREVIOUS ? params.num_overlay_slots : 0u);
+    const uint source_first_overlay_instance = params.first_overlay_instance + (SOURCE_PREVIOUS ? params.num_overlay_slots * (1u + (fc_dynamic_motion_blur ? uint(fc_motion_samples) : 0u)) : 0u);
     const uint delta_slab = SOURCE_PREVIOUS ? params.num_overlay_slots * 12u : 0u;
-    const vec2 screen = (vec2(ctx.local_x, ctx.local_y) + vec2(0.5, 0.5)) / vec2(params.cam_width, params.cam_height);
-    const vec3 direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
-    Hit hit = intersect_composed_instant(SOURCE_PREVIOUS, ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30, false);
     vec2 flow = vec2(0.0);
     uint status = FLOW_STATUS_MISS;
     if(hit.valid){
@@ -1114,6 +1001,101 @@ void main(){
     }
     if(output_selected(ctx, status_color_slot)){
         outputs[params.output_offsets[status_color_slot] + output_element(ctx, status_color_slot)] = flow_status_to_rgba(status);
+    }
+}
+#if defined(ENTRY_FLOW_FORWARD)
+void main(){
+    PixelLaunchContext ctx = pixel_launch_context(gl_GlobalInvocationID.xy);
+    ctx.outputs &= fc_output_mask;
+    if((ctx.outputs & FLOW_FORWARD_SLOTS) == 0u){
+        return;
+    }
+    Camera cam = cameras_previous[ctx.cam_idx];
+    const vec2 screen = (vec2(ctx.local_x, ctx.local_y) + vec2(0.5, 0.5)) / vec2(params.cam_width, params.cam_height);
+    const vec3 direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
+    Hit hit = intersect_composed_instant(true, ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30, false);
+    write_flow(ctx, cam, direction, hit);
+}
+#endif
+#endif
+
+#if defined(ENTRY_AUXILIARY)
+void write_depth(PixelLaunchContext ctx, Camera cam, vec3 direction, Hit hit){
+    const vec3 normal = normalize(cross(camera_dir_du(cam), camera_dir_dv(cam)));
+    const float depth = hit.valid ? hit.t * abs(dot(direction, normal)) : uintBitsToFloat(0x7f800000u);
+    if(output_selected(ctx, OUTPUT_DEPTH_FLOAT32)){
+        outputs[params.output_offsets[OUTPUT_DEPTH_FLOAT32] + output_element(ctx, OUTPUT_DEPTH_FLOAT32)] = floatBitsToUint(depth);
+    }
+    if(output_selected(ctx, OUTPUT_DEPTH_RGBA8)){
+        outputs[params.output_offsets[OUTPUT_DEPTH_RGBA8] + output_element(ctx, OUTPUT_DEPTH_RGBA8)] = depth_to_rgba(depth, params.output_scales[OUTPUT_DEPTH_RGBA8]);
+    }
+}
+void write_segmentation(PixelLaunchContext ctx, Hit hit){
+    const uint instance = hit.valid ? uint(hit.instance_id) : 0xFFFFFFFFu;
+    if(output_selected(ctx, OUTPUT_SEGMENTATION_UINT32)){
+        outputs[params.output_offsets[OUTPUT_SEGMENTATION_UINT32] + output_element(ctx, OUTPUT_SEGMENTATION_UINT32)] = instance;
+    }
+    if(output_selected(ctx, OUTPUT_SEGMENTATION_RGBA8)){
+        outputs[params.output_offsets[OUTPUT_SEGMENTATION_RGBA8] + output_element(ctx, OUTPUT_SEGMENTATION_RGBA8)] = segmentation_id_to_rgba(instance);
+    }
+    if(output_selected(ctx, OUTPUT_SEMANTIC_UINT32) || output_selected(ctx, OUTPUT_SEMANTIC_RGBA8)){
+        const uint semantic = hit.valid ? instance_classes[uint(hit.instance_id)] : 0xFFFFFFFFu;
+        if(output_selected(ctx, OUTPUT_SEMANTIC_UINT32)){
+            outputs[params.output_offsets[OUTPUT_SEMANTIC_UINT32] + output_element(ctx, OUTPUT_SEMANTIC_UINT32)] = semantic;
+        }
+        if(output_selected(ctx, OUTPUT_SEMANTIC_RGBA8)){
+            outputs[params.output_offsets[OUTPUT_SEMANTIC_RGBA8] + output_element(ctx, OUTPUT_SEMANTIC_RGBA8)] = segmentation_id_to_rgba(semantic);
+        }
+    }
+}
+void write_normals(PixelLaunchContext ctx, vec3 direction, Hit hit){
+    vec3 normal = vec3(0.0);
+    if(hit.valid){
+        const int mesh = int(instance_record_base[hit.instance_id]) + hit.geometry_index;
+        const ivec3 index = fetch_index(mesh, hit.primitive_index);
+        vec3 vertex_a = fetch_vertex(mesh, index.x);
+        vec3 vertex_b = fetch_vertex(mesh, index.y);
+        vec3 vertex_c = fetch_vertex(mesh, index.z);
+        if(instance_data[hit.instance_id].identity == 0u){
+            vertex_a = transform_point_to_world(hit.instance_id, vertex_a);
+            vertex_b = transform_point_to_world(hit.instance_id, vertex_b);
+            vertex_c = transform_point_to_world(hit.instance_id, vertex_c);
+        }
+        normal = normalize(cross(vertex_b - vertex_a, vertex_c - vertex_a));
+        if(dot(direction, normal) > 0.0){
+            normal = -normal;
+        }
+    }
+    if(output_selected(ctx, OUTPUT_NORMALS_FLOAT32)){
+        outputs[params.output_offsets[OUTPUT_NORMALS_FLOAT32] + output_element(ctx, OUTPUT_NORMALS_FLOAT32) * 3] = floatBitsToUint(normal.x);
+        outputs[params.output_offsets[OUTPUT_NORMALS_FLOAT32] + output_element(ctx, OUTPUT_NORMALS_FLOAT32) * 3 + 1] = floatBitsToUint(normal.y);
+        outputs[params.output_offsets[OUTPUT_NORMALS_FLOAT32] + output_element(ctx, OUTPUT_NORMALS_FLOAT32) * 3 + 2] = floatBitsToUint(normal.z);
+    }
+    if(output_selected(ctx, OUTPUT_NORMALS_RGBA8)){
+        outputs[params.output_offsets[OUTPUT_NORMALS_RGBA8] + output_element(ctx, OUTPUT_NORMALS_RGBA8)] = normal_to_rgba(normal);
+    }
+}
+void main(){
+    PixelLaunchContext ctx = pixel_launch_context(gl_GlobalInvocationID.xy);
+    ctx.outputs &= fc_output_mask;
+    if((ctx.outputs & (DEPTH_SLOTS | SEGMENTATION_SLOTS | NORMALS_SLOTS | FLOW_BACKWARD_SLOTS)) == 0u){
+        return;
+    }
+    Camera cam = cameras_close[ctx.cam_idx];
+    const vec2 screen = (vec2(ctx.local_x, ctx.local_y) + vec2(0.5, 0.5)) / vec2(params.cam_width, params.cam_height);
+    const vec3 direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
+    Hit hit = intersect_composed(ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30, false);
+    if((ctx.outputs & DEPTH_SLOTS) != 0u){
+        write_depth(ctx, cam, direction, hit);
+    }
+    if((ctx.outputs & SEGMENTATION_SLOTS) != 0u){
+        write_segmentation(ctx, hit);
+    }
+    if((ctx.outputs & NORMALS_SLOTS) != 0u){
+        write_normals(ctx, direction, hit);
+    }
+    if((ctx.outputs & FLOW_BACKWARD_SLOTS) != 0u){
+        write_flow(ctx, cam, direction, hit);
     }
 }
 #endif

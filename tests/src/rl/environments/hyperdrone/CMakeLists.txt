@@ -258,8 +258,6 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
                 RLtools::Test
                 owl::owl
                 rendering_raytracing_device_ptx
-                rendering_raytracing_device_segmentation_ptx
-                rendering_raytracing_device_depth_segmentation_ptx
                 assimp::assimp
                 rendering_raytracing_stb
         )
@@ -275,8 +273,6 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
                 RLtools::Test
                 owl::owl
                 rendering_raytracing_device_ptx
-                rendering_raytracing_device_segmentation_ptx
-                rendering_raytracing_device_depth_segmentation_ptx
                 assimp::assimp
                 rendering_raytracing_stb
         )
@@ -292,7 +288,7 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
                 RLtools::Test
                 owl::owl
                 rendering_raytracing_device_ptx
-                rendering_raytracing_device_depth_segmentation_normals_ptx
+                rendering_raytracing_device_normals_ptx
                 assimp::assimp
                 rendering_raytracing_stb
         )
@@ -353,8 +349,6 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
                 RLtools::Test
                 owl::owl
                 rendering_raytracing_device_ptx
-                rendering_raytracing_device_segmentation_ptx
-                rendering_raytracing_device_depth_segmentation_ptx
                 assimp::assimp
                 rendering_raytracing_stb
         )

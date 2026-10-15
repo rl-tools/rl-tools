@@ -8,11 +8,8 @@
 #include <cstddef>
 
 extern "C" const uint32_t* rl_tools_rendering_raytracing_vulkan_device_spirv_rgb(size_t* size_bytes);
-extern "C" const uint32_t* rl_tools_rendering_raytracing_vulkan_device_spirv_depth(size_t* size_bytes);
+extern "C" const uint32_t* rl_tools_rendering_raytracing_vulkan_device_spirv_auxiliary(size_t* size_bytes);
 extern "C" const uint32_t* rl_tools_rendering_raytracing_vulkan_device_spirv_collision(size_t* size_bytes);
-extern "C" const uint32_t* rl_tools_rendering_raytracing_vulkan_device_spirv_segmentation(size_t* size_bytes);
-extern "C" const uint32_t* rl_tools_rendering_raytracing_vulkan_device_spirv_normals(size_t* size_bytes);
-extern "C" const uint32_t* rl_tools_rendering_raytracing_vulkan_device_spirv_flow(size_t* size_bytes);
 extern "C" const uint32_t* rl_tools_rendering_raytracing_vulkan_device_spirv_flow_forward(size_t* size_bytes);
 extern "C" const uint32_t* rl_tools_rendering_raytracing_vulkan_device_spirv_resolve(size_t* size_bytes);
 
@@ -21,20 +18,11 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
     inline const uint32_t* device_spirv_rgb(size_t& size_bytes){
         return rl_tools_rendering_raytracing_vulkan_device_spirv_rgb(&size_bytes);
     }
-    inline const uint32_t* device_spirv_depth(size_t& size_bytes){
-        return rl_tools_rendering_raytracing_vulkan_device_spirv_depth(&size_bytes);
+    inline const uint32_t* device_spirv_auxiliary(size_t& size_bytes){
+        return rl_tools_rendering_raytracing_vulkan_device_spirv_auxiliary(&size_bytes);
     }
     inline const uint32_t* device_spirv_collision(size_t& size_bytes){
         return rl_tools_rendering_raytracing_vulkan_device_spirv_collision(&size_bytes);
-    }
-    inline const uint32_t* device_spirv_segmentation(size_t& size_bytes){
-        return rl_tools_rendering_raytracing_vulkan_device_spirv_segmentation(&size_bytes);
-    }
-    inline const uint32_t* device_spirv_normals(size_t& size_bytes){
-        return rl_tools_rendering_raytracing_vulkan_device_spirv_normals(&size_bytes);
-    }
-    inline const uint32_t* device_spirv_flow(size_t& size_bytes){
-        return rl_tools_rendering_raytracing_vulkan_device_spirv_flow(&size_bytes);
     }
     inline const uint32_t* device_spirv_flow_forward(size_t& size_bytes){
         return rl_tools_rendering_raytracing_vulkan_device_spirv_flow_forward(&size_bytes);

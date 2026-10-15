@@ -350,6 +350,9 @@ TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, SELECTED_OUTPUTS_MATCH_JOINT) {
     generate_probe_directions(device, joint);
     probe(device, joint);
     single_case(device, bundle, joint, outputs::RGB<outputs::format::Float32>{});
+    single_case(device, bundle, joint, outputs::Depth<>{});
+    single_case(device, bundle, joint, outputs::Segmentation<>{});
+    single_case(device, bundle, joint, outputs::Flow<>{});
     single_case(device, bundle, joint, DepthColor{});
     single_case(device, bundle, joint, outputs::Normals<outputs::format::RGBA8>{});
     single_case(device, bundle, joint, outputs::Segmentation<outputs::format::RGBA8, outputs::labels::Semantic>{});
@@ -380,6 +383,50 @@ TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, DYNAMIC_MOTION_BLUR_FLOAT_RGB_ONLY) {
     }
     single_case(device, bundle, joint, outputs::RGB<outputs::format::Float32>{});
     free(device, joint);
+}
+
+TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, DYNAMIC_MOTION_BLUR_FORWARD_OVERLAY_FLOW) {
+    DEVICE device;
+    init(device);
+    device.logger.verbosity = devices::logging::Verbosity::warning;
+    auto bundle = scene(device);
+    using Forward = outputs::Flow<outputs::direction::Forward>;
+    using ForwardStatus = outputs::FlowStatus<outputs::direction::Forward>;
+    using SPEC = rrt::Specification<Config<outputs::List<outputs::RGB<>, outputs::Segmentation<>, Forward, ForwardStatus>, false, true, true>>;
+    static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR);
+    rrt::AssetPool pool;
+    rrt::Object object;
+    rrt::Mesh triangle;
+    triangle.vertices = {0, -100, -100, 0, 100, -100, 0, 0, 100};
+    triangle.indices = {0, 1, 2};
+    object.meshes.push_back(triangle);
+    const auto asset = add(device, pool, object);
+    rrt::Renderer<SPEC, BACKEND> renderer;
+    malloc(device, renderer);
+    init(device, renderer, bundle, pool);
+    const float open[12] = {1, 0, 0, 1.5f, 0, 1, 0, 0, 0, 0, 1, 0};
+    const float close[12] = {1, 0, 0, 1.5f, 0, 1, 0, .25f, 0, 0, 1, 0};
+    const auto placement = spawn(device, renderer, rrt::OverlayIndex{0}, asset, open);
+    attach(device, renderer, 0, rrt::OverlayIndex{0});
+    set_transform_pair(device, renderer, rrt::OverlayIndex{0}, placement, open, close);
+    update(device, renderer);
+    const rrt::Camera<float> camera{{0, 0, 0}, {1, 1, -1}, {0, -2, 0}, {0, 0, 2}};
+    golden::copy_in(device, renderer.device, &camera, cameras(device, renderer));
+    golden::copy_in(device, renderer.device, &camera, cameras_open(device, renderer));
+    golden::copy_in(device, renderer.device, &camera, cameras_previous(device, renderer));
+    render(device, renderer);
+    const auto flow = read(device, renderer, Forward{});
+    const auto status = read(device, renderer, ForwardStatus{});
+    const auto ids = read(device, renderer, outputs::Segmentation<>{});
+    const float horizontal_flow = -.25f / 1.5f / 2.f * float(SPEC::CAM_WIDTH);
+    for(size_t pixel = 0; pixel < SPEC::CAM_PIXELS; pixel++) {
+        EXPECT_EQ(ids[pixel], 1u);
+        EXPECT_NEAR(flow[pixel * 2], horizontal_flow, 1e-5f);
+        EXPECT_NEAR(flow[pixel * 2 + 1], 0.f, 1e-5f);
+        const bool in_frame = float(pixel % SPEC::CAM_WIDTH) + .5f + horizontal_flow >= 0.f;
+        EXPECT_EQ(status[pixel], in_frame ? rrt::FlowStatus::VALID : rrt::FlowStatus::OUT_OF_FRAME);
+    }
+    free(device, renderer);
 }
 
 TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, ANGLED_NORMAL_COLOR) {
@@ -443,7 +490,7 @@ TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, DEPTH_MISS_REPRESENTATIONS) {
     free(device, renderer);
 }
 
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_TYPED_OUTPUTS_ACTIVE_BACKEND) && defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_WEBGPU)
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_TYPED_OUTPUTS_ACTIVE_BACKEND) && (defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_WEBGPU) || defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_VULKAN))
 TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, INPUT_COPIES_LEAVE_OUTPUTS_ON_DEVICE) {
     DEVICE device;
     init(device);
@@ -457,6 +504,14 @@ TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, INPUT_COPIES_LEAVE_OUTPUTS_ON_DEVICE) {
     using SPEC = rrt::Specification<Config<outputs::List<outputs::RGB<>, outputs::Depth<>, outputs::Probes>, false, false, true>>;
     rrt::Renderer<SPEC, BACKEND> renderer;
     malloc(device, renderer);
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_VULKAN)
+    namespace vk = rrt::backends::vulkan;
+    auto& ctx = vk::context(renderer);
+    if(ctx.outputs_readback.buffer == VK_NULL_HANDLE) {
+        vk::stage_outputs(device, ctx);
+        vk::bind_outputs(device, renderer);
+    }
+#endif
     init(device, renderer, bundle, pool);
     set_inputs(device, renderer, 0);
     generate_probe_directions(device, renderer);
@@ -468,17 +523,20 @@ TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, INPUT_COPIES_LEAVE_OUTPUTS_ON_DEVICE) {
     auto& depth = output(device, renderer, outputs::Depth<>{});
     auto& rgb = output(device, renderer, outputs::RGB<>{});
     auto& probes = output(device, renderer, outputs::Probes{});
-    std::fill_n(data(depth), SPEC::CAM_PIXELS, -99.f);
-    std::fill_n(data(rgb), SPEC::CAM_PIXELS, 0u);
+    auto* depth_values = data(depth);
+    auto* rgb_values = data(rgb);
+    auto* probe_values = data(probes);
+    std::fill_n(depth_values, SPEC::CAM_PIXELS, -99.f);
+    std::fill_n(rgb_values, SPEC::CAM_PIXELS, 0u);
     const auto poison_probes = [&] {
         for(DEVICE::index_t index = 0; index < SPEC::NUM_PROBES; index++) {
-            data(probes)[index].distance = -99.f;
-            data(probes)[index].hit = 42;
+            probe_values[index].distance = -99.f;
+            probe_values[index].hit = 42;
         }
     };
     const auto expect_images_unread = [&] {
-        EXPECT_TRUE(std::all_of(data(depth), data(depth) + SPEC::CAM_PIXELS, [](float value) { return value == -99.f; }));
-        EXPECT_TRUE(std::all_of(data(rgb), data(rgb) + SPEC::CAM_PIXELS, [](uint32_t value) { return value == 0u; }));
+        EXPECT_TRUE(std::all_of(depth_values, depth_values + SPEC::CAM_PIXELS, [](float value) { return value == -99.f; }));
+        EXPECT_TRUE(std::all_of(rgb_values, rgb_values + SPEC::CAM_PIXELS, [](uint32_t value) { return value == 0u; }));
     };
     poison_probes();
     render_launch(device, renderer);
@@ -496,16 +554,16 @@ TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, INPUT_COPIES_LEAVE_OUTPUTS_ON_DEVICE) {
     update(device, renderer);
     expect_images_unread();
     probe_launch(device, renderer);
-    const auto probe_values = read(device, renderer, outputs::Probes{});
-    EXPECT_EQ(probe_values[0].hit, 1);
-    EXPECT_NEAR(probe_values[0].distance, 2.25f, 1e-5f);
+    const auto probe_copy = read(device, renderer, outputs::Probes{});
+    EXPECT_EQ(probe_copy[0].hit, 1);
+    EXPECT_NEAR(probe_copy[0].distance, 2.25f, 1e-5f);
     expect_images_unread();
 
     poison_probes();
     probe_launch(device, renderer);
     render_launch(device, renderer);
     expect_images_unread();
-    EXPECT_EQ(data(probes)[0].hit, 42);
+    EXPECT_EQ(probe_values[0].hit, 42);
     auto camera_depth = view(device, depth, DEVICE::index_t(0));
     auto row = view(device, camera_depth, DEVICE::index_t(1));
     std::vector<float> row_values;
@@ -513,20 +571,23 @@ TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, INPUT_COPIES_LEAVE_OUTPUTS_ON_DEVICE) {
     for(float value : row_values) {
         EXPECT_NEAR(value, 2.25f, 1e-5f);
     }
-    EXPECT_EQ(data(rgb)[0], 0xff00ff00u);
-    EXPECT_EQ(data(probes)[0].hit, 42);
+    EXPECT_EQ(rgb_values[0], 0xff00ff00u);
+    EXPECT_EQ(probe_values[0].hit, 42);
 
     camera_values[0].pos[0] = .75f;
     golden::copy_in(device, renderer.device, camera_values.data(), cameras(device, renderer));
     render_launch(device, renderer);
     render_sync(device, renderer);
     for(DEVICE::index_t pixel = 0; pixel < SPEC::CAM_PIXELS; pixel++) {
-        EXPECT_NEAR(data(depth)[pixel], 1.75f, 1e-5f);
+        EXPECT_NEAR(depth_values[pixel], 1.75f, 1e-5f);
     }
-    EXPECT_EQ(data(probes)[0].hit, 42);
+    EXPECT_EQ(probe_values[0].hit, 42);
     probe_sync(device, renderer);
-    EXPECT_EQ(data(probes)[0].hit, 1);
-    EXPECT_NEAR(data(probes)[0].distance, 2.25f, 1e-5f);
+    EXPECT_EQ(probe_values[0].hit, 1);
+    EXPECT_NEAR(probe_values[0].distance, 2.25f, 1e-5f);
+    EXPECT_EQ(data(depth), depth_values);
+    EXPECT_EQ(data(rgb), rgb_values);
+    EXPECT_EQ(data(probes), probe_values);
     free(device, renderer);
 }
 #endif

@@ -29,7 +29,7 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   `cameras_previous()`/`transforms_previous()` (flow: the previous instant),
   and `output(device, renderer, descriptor)`. Residency is a
   backend property: CUDA device memory on OptiX, host on generic and WebGPU (WebGPU settles
-  outputs from staging at the sync boundary), shared/mapped on Metal/Vulkan.
+  outputs from staging at the sync boundary), shared/mapped on Metal. Vulkan uses mapped device-local outputs when they fit; otherwise, device-local outputs are copied into stable host tensors at synchronization and output-copy boundaries.
 - **Data moves via tensor copies and kernels.** No raw backend handles or `cudaStream_t` appear in
   public signatures. Device producers (extraction kernels) write the input tensors in place;
   device consumers read the output tensors in place; host readers/writers cross the residency
@@ -52,6 +52,7 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   dispatches encoders through C++ overloads; GPU backends lower the same plan into their shader
   constants and bindings. Raw and colored forms share the quantity calculation, and requesting
   only a colored form allocates no raw image. AA and motion blur apply only to RGB.
+  OptiX and Vulkan share the shutter-close primary intersection across depth, segmentation, normals, and backward flow; forward flow traces the previous instant separately.
 - **Flow has two independent directions.** Backward flow is `p_previous - p_current` on the
   current grid; forward flow is `p_current - p_previous` on the previous grid. Either direction
   requires previous cameras and overlay poses, but neither requires the other output. A flow
