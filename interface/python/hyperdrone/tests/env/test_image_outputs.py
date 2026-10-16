@@ -13,7 +13,7 @@ from test_multi_environment import rigged_asset_path, scene_directory
 
 OUTPUTS = (RGB("float32"), Depth(), Segmentation(), Normals(), Flow(), FlowStatus())
 CONFIG = EnvConfig(instances_per_environment=2, width=16, height=16, fidelity="low", cameras=(CameraSpec("front", outputs=OUTPUTS),))
-# The 100-degree rear camera reaches 4 mm depth; float reprojection after an identity reset reaches 9.85e-4 pixels on OptiX.
+# At 4–6 mm depth, float reprojection after an identity reset reaches 1.52e-3 pixels on OptiX.
 RESET_FLOW_ATOL = 2e-3
 
 
@@ -217,8 +217,13 @@ def test_environment_cuda_image_outputs(scene_directory):
 def test_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, device):
     if device == "cuda" and render._backend() != "optix":
         pytest.skip("CUDA Worlds require OptiX")
+    for instances_per_world in (2, 9):
+        _check_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, device, instances_per_world)
+
+
+def _check_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, device, instances_per_world):
     asset = rigged_asset_path("x500")
-    header = tmp_path / "outputs.h"
+    header = tmp_path / f"outputs_{instances_per_world}.h"
     source = (Path(__file__).parent / "user_spec_header.h").read_text()
     source = source.replace("        static constexpr TI MAX_DRONES = 3;", """
         static constexpr TI N_AGENTS = 2;
@@ -231,26 +236,37 @@ def test_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, device)
         using CAMERA_OUTPUTS = rl_tools::rl::environments::hyperdrone::CameraOutputs<DEPTH_PROFILE, OUTPUT_PROFILE, DEPTH_PROFILE>;
         using OBSERVATION = rl_tools::rl::environments::hyperdrone::ImageObservation<1>;
 """).replace("        static constexpr TI N_CAMERA_AGENTS = 1;", "")
+    source = source.replace("INSTANCES_PER_ENVIRONMENT = 2;", f"INSTANCES_PER_ENVIRONMENT = {instances_per_world};")
     header.write_text(source)
     with closing(MultiEnvironment([scene_directory / "ProcTHOR-Train-1.glb"] * 2, config=EnvConfig(spec_header=str(header), num_environments=2, device=device), drone_asset=str(asset), seed=4)) as env:
+        assert env.total_instances == 2 * instances_per_world
         assert (env.num_agents, env.num_camera_agents, env.num_cameras_per_agent, env.num_views) == (2, 2, 3, 6)
         assert env.outputs[RGB("float32")].layout.cameras == ((0, "camera1"), (1, "camera1"))
         assert env.outputs[Depth()].layout.cameras == tuple((agent, f"camera{mount}") for agent in range(2) for mount in range(3))
         assert env.action_dim == 8
         env.reset()
         initial_spawns = env.spawn_points()
-        assert env.observe_privileged().shape == (4, 36)
+        assert env.observe_privileged().shape == (env.total_instances, 36)
         assert all(len(point["poses"]) == 2 for point in initial_spawns)
         env.render()
-        assert env.outputs[Flow()].read().shape == (4, 2, 16, 16, 2)
-        np.testing.assert_allclose(env.outputs[Flow()].read(), 0, atol=1e-3)
+        assert env.outputs[Flow()].read().shape == (env.total_instances, 2, 16, 16, 2)
+        np.testing.assert_allclose(env.outputs[Flow()].read(), 0, atol=RESET_FLOW_ATOL)
         for _ in range(5):
-            env.step(np.ones((4, env.action_dim), dtype=np.float32))
+            env.step(np.ones((env.total_instances, env.action_dim), dtype=np.float32))
         env.render()
-        assert np.any(np.abs(env.outputs[Flow()].read()) > 0.001)
-        env.reset(np.array([True, False, False, False]), spawn_points=initial_spawns[:1])
+        moved = env.outputs[Flow()].read()
+        status = env.outputs[FlowStatus()].read()
+        assert np.any(np.abs(moved[status == render.FlowStatus.VALID]) > 0.001)
+        mask = np.zeros(env.total_instances, dtype=bool)
+        mask[::instances_per_world] = True
+        if instances_per_world > 2:
+            mask[instances_per_world - 1::instances_per_world] = True
+        env.reset(mask, spawn_points=[spawn for spawn, selected in zip(initial_spawns, mask) if selected])
         env.render()
-        np.testing.assert_allclose(env.outputs[Flow()].read()[0], 0, atol=1e-3)
+        flow = env.outputs[Flow()].read()
+        np.testing.assert_allclose(flow[mask], 0, atol=RESET_FLOW_ATOL)
+        np.testing.assert_array_equal(flow[~mask], moved[~mask])
+        np.testing.assert_array_equal(env.outputs[FlowStatus()].read()[~mask], status[~mask])
         assert not np.isnan(env.outputs[Depth()].read()).any()
         assert np.isfinite(env.outputs[Normals()].read()).all()
 
