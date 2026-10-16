@@ -135,7 +135,7 @@ def test_native_spy_preserves_rollout_and_environment_lifecycle(tmp_path, num_ca
     from test_taxonomy import room_glb
 
     scenes = [room_glb(tmp_path / "first.glb", taxonomy=None), room_glb(tmp_path / "second.glb", taxonomy=None, extent=6)]
-    config = EnvConfig(instances_per_environment=2, width=32, height=32, fidelity="low", cameras=tuple(CameraSpec(name, outputs=(RGB(),)) for name in ("front", "rear")[:num_cameras_per_agent]), observation=ImageObservation(cameras=("front", "rear")[:num_cameras_per_agent]))
+    config = EnvConfig(instances_per_environment=2, width=32, height=32, fidelity="low", cameras=tuple(CameraSpec(name, outputs=(RGB("float32"),)) for name in ("front", "rear")[:num_cameras_per_agent]), observation=ImageObservation(cameras=("front", "rear")[:num_cameras_per_agent]))
     control = MultiEnvironment(scenes, config=config, seed=1337)
     observed = MultiEnvironment(scenes, config=config, seed=1337)
     try:

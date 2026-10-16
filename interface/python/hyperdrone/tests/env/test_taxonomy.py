@@ -13,7 +13,7 @@ from hyperdrone.env import EnvConfig, MultiEnvironment
 
 
 CONFIG = EnvConfig(instances_per_environment=2, width=16, height=16, fidelity="low",
-                   cameras=(CameraSpec("front", outputs=(RGB(), Segmentation(labels="semantic"))),), device="cpu")
+                   cameras=(CameraSpec("front", outputs=(RGB("float32"), Segmentation(labels="semantic"))),), device="cpu")
 CLASSES = {0: "Unknown", 7: "Room"}
 
 
@@ -139,7 +139,7 @@ def test_unnamed_and_nonsemantic(tmp_path):
     finally:
         env.close()
     scenes = [room_glb(tmp_path / "one.glb"), room_glb(tmp_path / "two.glb", taxonomy="other")]
-    for outputs in ((RGB(),), (RGB(), Segmentation())):
+    for outputs in ((RGB("float32"),), (RGB("float32"), Segmentation())):
         env = MultiEnvironment(scenes, config=replace(CONFIG, cameras=(CameraSpec("front", outputs=outputs),), dataset="procthor"))
         try:
             assert env.segmentation_taxonomy == ""

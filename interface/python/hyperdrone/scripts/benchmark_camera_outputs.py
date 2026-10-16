@@ -76,9 +76,9 @@ def main():
     wall = render.Object()
     wall.add_mesh(render.Mesh(np.array([[2, -4, -4], [2, 4, -4], [2, 4, 4], [2, -4, 4]], dtype=np.float32), np.array([[0, 2, 1], [0, 3, 2]], dtype=np.int32), color=(0.3, 0.6, 0.9)))
     scene.add_object(wall)
-    full, full_metrics = measure(scene, (CameraSpec("front", (RGB(), Depth())), CameraSpec("rear", (RGB(), Depth()))))
-    sparse, sparse_metrics = measure(scene, (CameraSpec("front", (RGB(), Depth())), CameraSpec("rear", (RGB("rgba8"),))))
-    for descriptor in (RGB(), Depth()):
+    full, full_metrics = measure(scene, (CameraSpec("front", (RGB("float32"), Depth())), CameraSpec("rear", (RGB("float32"), Depth()))))
+    sparse, sparse_metrics = measure(scene, (CameraSpec("front", (RGB("float32"), Depth())), CameraSpec("rear", (RGB("rgba8"),))))
+    for descriptor in (RGB("float32"), Depth()):
         np.testing.assert_array_equal(full.outputs[descriptor].read()[::2], sparse.outputs[descriptor].read())
     report = {"backend": full.backend, "width": WIDTH, "height": HEIGHT, "rigs": BATCH_SIZE, "destination": "cpu", "full": full_metrics, "sparse": sparse_metrics}
     print(json.dumps(report, indent=2))

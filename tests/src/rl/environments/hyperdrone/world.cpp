@@ -118,12 +118,37 @@ namespace test_hyperdrone_world {
 
 using namespace test_hyperdrone_world;
 
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, AUXILIARY_CAMERAS_PRESERVE_POLICY_RANDOM_STREAM) {
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, AUXILIARY_CAMERAS_SAMPLE_INDEPENDENTLY_OF_POLICY_STREAM) {
     using rlt::init;
     DEVICE device;
     RNG rng;
     init(device, rng, 991);
-    EXPECT_TRUE(camera_sampling_test::unchanged_policy_sampling<WORLD_SPEC>(device, rng));
+    EXPECT_TRUE(camera_sampling_test::independent_auxiliary_sampling<WORLD_SPEC>(device, rng));
+    EXPECT_TRUE(camera_sampling_test::unobserved_preserves_sampling<WORLD_SPEC>(device, rng));
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, AUXILIARY_CAMERAS_PRESERVE_PORTABLE_RANDOM_STREAMS) {
+    using rlt::init;
+    using rlt::malloc;
+    using rlt::free;
+    DEVICE device;
+    rlt::devices::generic::random::PortableState scalar;
+    init(device, scalar, 991);
+    EXPECT_TRUE(camera_sampling_test::independent_auxiliary_sampling<WORLD_SPEC>(device, scalar));
+    EXPECT_TRUE(camera_sampling_test::unobserved_preserves_sampling<WORLD_SPEC>(device, scalar));
+    init(device, scalar, 0x55555556u);
+    EXPECT_NE(scalar.state, 0u);
+    const auto initialized = scalar.state;
+    rlt::random::uniform_real_distribution(device.random, (T)0, (T)1, scalar);
+    EXPECT_NE(scalar.state, initialized);
+    rlt::devices::generic::random::ArrayENGINE<rlt::devices::generic::random::ArraySpecification<TI, 4>> array, reference;
+    malloc(device, array);
+    malloc(device, reference);
+    init(device, array, 991);
+    init(device, reference, 991);
+    EXPECT_TRUE(camera_sampling_test::array_preserves_sampling<WORLD_SPEC>(device, array, reference));
+    free(device, reference);
+    free(device, array);
 }
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, CAMERA_OUTPUT_LAYOUT) {

@@ -8,7 +8,8 @@ Configs implement the JitConfig protocol: defines() -> {NAME: value} compile def
 canonical() -> stable human-readable string of the configuration, key() -> its short hash,
 which names the artifact. Config files land as configs/<key>.txt inside the
 build tree, one NAME=VALUE line each; the shared hyperdrone_jit.cmake turns each file into
-a MODULE target named <component>_<key>.
+a MODULE target named <component>_<key>. A config with camera_config() -> C++ header text
+also gets configs/<key>/camera_config.h, included through HYPERDRONE_CAMERA_CONFIG_HEADER.
 
 Build trees live at <cache>/<component>-<variant>-<tag> (one per component and variant so
 switching variants never invalidates another's cache); all configure/build steps run under
@@ -16,6 +17,7 @@ a per-tree file lock so concurrent processes cannot race one CMake tree.
 """
 import hashlib
 import importlib.util
+import os
 import sys
 from dataclasses import dataclass, field
 
@@ -54,35 +56,29 @@ def canonical_key(canonical):
     return hashlib.sha1(canonical.encode()).hexdigest()[:16]
 
 
+def _replace_if_changed(path, contents):
+    if path.exists() and path.read_text() == contents:
+        return False
+    # per-process staging name: concurrent writers of the same config must not race on one
+    # staging path; the final rename is atomic and idempotent (identical content)
+    staging = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    staging.write_text(contents)
+    staging.replace(path)
+    return True
+
+
 def _write_config_file(directory, config):
-    import os
     config_dir = directory / "configs"
     config_dir.mkdir(exist_ok=True)
-    config_file = config_dir / f"{config.key()}.txt"
     defines = dict(config.defines())
-    generated_headers = getattr(config, "generated_headers", lambda: {})()
     changed = False
-    for name, contents in sorted(generated_headers.items()):
-        from pathlib import PurePosixPath
-        path = PurePosixPath(name)
-        if path.is_absolute() or ".." in path.parts or str(path) != name:
-            raise ValueError(f"invalid generated header path {name!r}")
-        header = config_dir / config.key() / name
-        header.parent.mkdir(parents=True, exist_ok=True)
-        if not header.exists() or header.read_text() != contents:
-            staging = header.with_name(f"{header.name}.{os.getpid()}.tmp")
-            staging.write_text(contents)
-            staging.replace(header)
-            changed = True
-    if "camera_config.h" in generated_headers:
+    if hasattr(config, "camera_config"):
+        header = config_dir / config.key() / "camera_config.h"
+        header.parent.mkdir(exist_ok=True)
+        changed = _replace_if_changed(header, config.camera_config())
         defines["HYPERDRONE_CAMERA_CONFIG_HEADER"] = f'"{config.key()}/camera_config.h"'
     lines = "".join(f"{name}={value}\n" for name, value in sorted(defines.items()))
-    if not config_file.exists() or config_file.read_text() != lines:
-        staging = config_dir / f"{config.key()}.{os.getpid()}.tmp"
-        staging.write_text(lines)
-        staging.replace(config_file)
-        changed = True
-    return changed
+    return _replace_if_changed(config_dir / f"{config.key()}.txt", lines) or changed
 
 
 def ensure(component, config):

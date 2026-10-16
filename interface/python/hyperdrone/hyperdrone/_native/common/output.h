@@ -73,7 +73,7 @@ namespace hyperdrone {
     }
     template <typename F, typename P>
     OutputDescriptor output_descriptor(camera_outputs::Depth<F, P>){
-        return {"depth", output_format<F>(), {}, {}, P::SCALE};
+        return {"depth", output_format<F>(), {}, {}, std::is_same<F, camera_outputs::format::RGBA8>::value ? P::SCALE : 0};
     }
     template <typename F, typename L>
     OutputDescriptor output_descriptor(camera_outputs::Segmentation<F, L>){
@@ -85,7 +85,7 @@ namespace hyperdrone {
     }
     template <typename D, typename F, typename P>
     OutputDescriptor output_descriptor(camera_outputs::Flow<D, F, P>){
-        return {"flow", output_format<F>(), output_direction<D>(), {}, P::SCALE};
+        return {"flow", output_format<F>(), output_direction<D>(), {}, std::is_same<F, camera_outputs::format::RGBA8>::value ? P::SCALE : 0};
     }
     template <typename D, typename F>
     OutputDescriptor output_descriptor(camera_outputs::FlowStatus<D, F>){

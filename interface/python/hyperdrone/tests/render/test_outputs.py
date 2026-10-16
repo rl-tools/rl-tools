@@ -9,13 +9,13 @@ from hyperdrone.camera import CameraSpec, RGB, Depth, Segmentation, Normals, Flo
 from test_render import make_scene, make_quad, look_forward
 
 
-IMAGE_OUTPUTS = (RGB(), RGB(format="rgba8"), Depth(), Depth(format="rgba8", scale=3), Segmentation(), Segmentation(format="rgba8"), Segmentation(labels="semantic"), Segmentation(labels="semantic", format="rgba8"), Normals(), Normals(format="rgba8"), Flow(), Flow(format="rgba8"), FlowStatus(), FlowStatus(format="rgba8"), Flow(direction="forward"), Flow(direction="forward", format="rgba8"), FlowStatus(direction="forward"), FlowStatus(direction="forward", format="rgba8"))
+IMAGE_OUTPUTS = (RGB("float32"), RGB(format="rgba8"), Depth(), Depth(format="rgba8", scale=3), Segmentation(), Segmentation(format="rgba8"), Segmentation(labels="semantic"), Segmentation(labels="semantic", format="rgba8"), Normals(), Normals(format="rgba8"), Flow(), Flow(format="rgba8"), FlowStatus(), FlowStatus(format="rgba8"), Flow(direction="forward"), Flow(direction="forward", format="rgba8"), FlowStatus(direction="forward"), FlowStatus(direction="forward", format="rgba8"))
 
 
 def test_camera_config_canonicalization():
-    cameras = (CameraSpec("front", outputs=(RGB(), Depth())), CameraSpec("rear", outputs=(Depth(),)))
+    cameras = (CameraSpec("front", outputs=(RGB("float32"), Depth())), CameraSpec("rear", outputs=(Depth(),)))
     config = render.RendererConfig(width=8, height=8, cameras=cameras, batch_size=4)
-    renamed = (CameraSpec("policy", outputs=(Depth(), RGB())), CameraSpec("display", outputs=(Depth(),)))
+    renamed = (CameraSpec("policy", outputs=(Depth(), RGB("float32"))), CameraSpec("display", outputs=(Depth(),)))
     assert config.key() == replace(config, cameras=renamed).key()
     assert config.num_cameras == 8
     assert config.key() != replace(config, cameras=tuple(reversed(cameras))).key()
@@ -145,7 +145,7 @@ def test_cuda_output_destinations_and_streams():
     torch = pytest.importorskip("torch")
     if not torch.cuda.is_available():
         pytest.skip("PyTorch needs CUDA")
-    renderer = render.Renderer(16, 16, cameras=(CameraSpec("front", outputs=(RGB(), Depth(), Probes())),), num_probes=4, fidelity="low")
+    renderer = render.Renderer(16, 16, cameras=(CameraSpec("front", outputs=(RGB("float32"), Depth(), Probes())),), num_probes=4, fidelity="low")
     renderer.init(make_scene(2))
     look_forward(renderer)
     renderer.generate_probe_directions()
@@ -153,7 +153,7 @@ def test_cuda_output_destinations_and_streams():
     renderer.probe_launch()
     consumer = torch.cuda.Stream()
     with torch.cuda.stream(consumer):
-        for handle in (renderer.outputs[RGB()], renderer.outputs[Depth()], renderer.outputs[Probes()].distance, renderer.outputs[Probes()].hit):
+        for handle in (renderer.outputs[RGB("float32")], renderer.outputs[Depth()], renderer.outputs[Probes()].distance, renderer.outputs[Probes()].hit):
             expected = handle.read()
             live = torch.from_dlpack(handle.blocks[0])
             destination = torch.empty_like(live)
@@ -180,14 +180,14 @@ def test_cuda_transport_without_tensor_framework():
     capsule_pointer.restype = ctypes.c_void_p
     consumer = ctypes.c_void_p()
     assert runtime.cudaStreamCreate(ctypes.byref(consumer)) == 0
-    renderer = render.Renderer(16, 16, cameras=(CameraSpec("front", outputs=(RGB(), Depth(), Probes())),), num_probes=4, fidelity="low")
+    renderer = render.Renderer(16, 16, cameras=(CameraSpec("front", outputs=(RGB("float32"), Depth(), Probes())),), num_probes=4, fidelity="low")
     renderer.init(make_scene(2))
     look_forward(renderer)
     renderer.generate_probe_directions()
     renderer.render_launch()
     renderer.probe_launch()
     try:
-        for handle in (renderer.outputs[RGB()], renderer.outputs[Depth()], renderer.outputs[Probes()].distance, renderer.outputs[Probes()].hit):
+        for handle in (renderer.outputs[RGB("float32")], renderer.outputs[Depth()], renderer.outputs[Probes()].distance, renderer.outputs[Probes()].hit):
             snapshot = handle.read()
             block = handle.blocks[0]
             capsule = block.__dlpack__(stream=consumer.value)

@@ -383,10 +383,10 @@ def test_config_validation_errors():
             EnvConfig(motion_blur_samples=samples)
     with pytest.raises(ValueError, match="unknown preset"):
         EnvConfig(preset="nonexistent")
-    for cameras in ((), ("front",), (CameraSpec("front", (RGB(),)), CameraSpec("front", (RGB(),)))):
+    for cameras in ((), ("front",), (CameraSpec("front", (RGB("float32"),)), CameraSpec("front", (RGB("float32"),)))):
         with pytest.raises(ValueError):
             EnvConfig(cameras=cameras)
-    profiles = (CameraSpec("front", (RGB(),)), CameraSpec("chase", (RGB(),)))
+    profiles = (CameraSpec("front", (RGB("float32"),)), CameraSpec("chase", (RGB("float32"),)))
     with pytest.raises(ValueError, match="one observation camera"):
         EnvConfig(task="target_frame", cameras=profiles, observation=ImageObservation(("front", "chase")))
     EnvConfig(task="target_frame", cameras=profiles, observation=ImageObservation(("front",)))
@@ -446,7 +446,7 @@ CONFIG_MULTI_AGENT = EnvConfig(instances_per_environment=2, num_agents=7, num_ca
 
 @pytest.mark.parametrize("camera_agents", [1, 2])
 def test_multi_camera_model_parameters_and_replay(scene_directory, camera_agents):
-    config = replace(CONFIG_MULTI_AGENT, num_environments=2, num_agents=2, num_camera_agents=camera_agents, cameras=(CameraSpec("front", (RGB(),)), CameraSpec("chase", (RGB(),))), observation=ImageObservation(("front", "chase")))
+    config = replace(CONFIG_MULTI_AGENT, num_environments=2, num_agents=2, num_camera_agents=camera_agents, cameras=(CameraSpec("front", (RGB("float32"),)), CameraSpec("chase", (RGB("float32"),))), observation=ImageObservation(("front", "chase")))
     drones = [{"asset": rigged_asset_path(name), "parameters": {
         "dynamics": {"dynamics": {"model": name}},
         "cameras": {"front": {"fov": fov}, "chase": {"fov": fov + 10, "mount": {"pose": {"position": [-1, 0, 0.5]}}}},
@@ -789,7 +789,7 @@ def test_x500_target_frame(scene_directory):
 
 @pytest.mark.parametrize("cameras", [1, 2])
 def test_moving_gate(scene_directory, cameras):
-    profiles = tuple(CameraSpec(f"camera{index}", (RGB(),)) for index in range(cameras))
+    profiles = tuple(CameraSpec(f"camera{index}", (RGB("float32"),)) for index in range(cameras))
     config = EnvConfig(instances_per_environment=2, width=16, height=16, task="moving_gate", cameras=profiles, observation=ImageObservation(tuple(camera.name for camera in profiles)))
     with pytest.raises(ValueError, match="needs assets"):
         MultiEnvironment(scene_directory, config=config, seed=4)
@@ -1058,7 +1058,7 @@ namespace hyperdrone_env_user {
 
 def test_flow_reference_does_not_depend_on_image_reads(scene_directory):
     from hyperdrone import render
-    config = replace(CONFIG, width=16, height=16, cameras=(CameraSpec("front", (RGB(), Flow(), FlowStatus())),))
+    config = replace(CONFIG, width=16, height=16, cameras=(CameraSpec("front", (RGB("float32"), Flow(), FlowStatus())),))
     records = []
     for read_every_step in (False, True):
         with closing(MultiEnvironment(scene_directory, config=config, seed=541)) as env:
@@ -1083,7 +1083,7 @@ def test_flow_reference_survives_same_step_reacquisition(scene_directory, device
     from hyperdrone import render
     if device == "cuda" and render._backend() != "optix":
         pytest.skip("CUDA Worlds require OptiX")
-    config = replace(CONFIG, width=16, height=16, cameras=(CameraSpec("front", (RGB(), Flow(), FlowStatus())),), device=device)
+    config = replace(CONFIG, width=16, height=16, cameras=(CameraSpec("front", (RGB("float32"), Flow(), FlowStatus())),), device=device)
     with closing(MultiEnvironment(scene_directory, config=config, seed=541)) as env:
         env.reset()
         env.observe()

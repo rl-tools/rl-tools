@@ -150,12 +150,12 @@ class EnvConfig:
             values["HYPERDRONE_ENV_SPEC_HEADER"] = os.path.abspath(self.spec_header)
         return values
 
-    def generated_headers(self):
-        return {"camera_config.h": camera_config_header(self.cameras, self.observation, environment=True)}
+    def camera_config(self):
+        return camera_config_header(self.cameras, self.observation, environment=True)
 
     def canonical(self):
         canonical = " ".join(f"{name}={value}" for name, value in sorted(self.defines().items()))
-        canonical += " camera_schema=1 " + self.generated_headers()["camera_config.h"]
+        canonical += " " + self.camera_config()
         if self.spec_header is not None:
             with open(self.spec_header, "rb") as header:
                 canonical += f" spec_hash={hashlib.sha256(header.read()).hexdigest()[:16]}"

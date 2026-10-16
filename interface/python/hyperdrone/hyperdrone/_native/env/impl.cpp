@@ -14,6 +14,7 @@
 #endif
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
 #include <cuda_runtime.h>
+#include "../common/cuda_device.h"
 #endif
 #ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
 #include <rl_tools/rl/environments/hyperdrone/spy/operations_cpu.h>
@@ -39,6 +40,7 @@ namespace HYPERDRONE_MODULE_NAME {
     using rl_tools::get_renderer;
     using rl_tools::copy;
     using rl_tools::request_render;
+    using rl_tools::capture_pending;
     using rl_tools::data;
     using rl_tools::render_sync;
     using rl_tools::probe_sync;
@@ -52,21 +54,7 @@ namespace HYPERDRONE_MODULE_NAME {
     using RNG = rlt::devices::random::CUDA::ENGINE<rlt::devices::random::CUDA::Specification<TI, TOTAL>>;
 #endif
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-    struct CurrentDevice {
-        int previous = 0;
-        int device;
-        explicit CurrentDevice(int device): device(device){
-            cudaGetDevice(&previous);
-            if(previous != device){
-                cudaSetDevice(device);
-            }
-        }
-        ~CurrentDevice(){
-            if(previous != device){
-                cudaSetDevice(previous);
-            }
-        }
-    };
+    using CurrentDevice = hyperdrone::CurrentCudaDevice;
 #else
     struct CurrentDevice {
         explicit CurrentDevice(int){}
@@ -78,11 +66,10 @@ namespace HYPERDRONE_MODULE_NAME {
     using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 #endif
 
+    using DECLARED_OUTPUTS = typename WORLD::RENDERER_CONFIG::DECLARED_OUTPUTS;
+
     std::vector<hyperdrone::OutputMetadata> environment_output_metadata(){
-        auto metadata = hyperdrone::output_metadata<typename WORLD::RENDERER_SPEC>();
-        if constexpr (WORLD::RENDERER_CONFIG::INTERNAL_PROBES){
-            metadata.pop_back();
-        }
+        auto metadata = hyperdrone::output_metadata_list<typename WORLD::RENDERER_SPEC>(DECLARED_OUTPUTS{});
         for(auto& value: metadata){
             auto reshape = [](hyperdrone::OutputLayout& layout){
                 const size_t views = layout.shape[0] / WORLD::INSTANCES;
@@ -149,6 +136,18 @@ namespace HYPERDRONE_MODULE_NAME {
         void require_sampled(const char* verb) const {
             if(!all_sampled){
                 throw std::runtime_error(std::string("hyperdrone: reset every instance before ") + verb);
+            }
+        }
+        void require_current(TI member, bool probes, const char* verb) const {
+            if(capture_pending(device, env.environments[member]) || !(probes ? probed[member] : captured[member])){
+                throw std::runtime_error(std::string(probes ? "hyperdrone: render and probe before " : "hyperdrone: render or observe before ") + verb + " this output");
+            }
+        }
+        void invalidate_pending_probes(){
+            for(TI member = 0; member < NUM_ENVIRONMENTS; member++){
+                if(capture_pending(device, env.environments[member])){
+                    probed[member] = false;
+                }
             }
         }
         std::array<bool, TOTAL> reset_selection(const bool* mask, bool resident){
@@ -688,6 +687,7 @@ namespace HYPERDRONE_MODULE_NAME {
         impl->require_sampled("step");
         const CurrentDevice current(impl->device_id);
         const auto action_tensor = impl->input(actions, resident, impl->actions_staging);
+        impl->invalidate_pending_probes();
         rlt::step(impl->device, impl->env, impl->parameters, impl->states, action_tensor, impl->next_states, impl->rng);
         rlt::reward(impl->device, impl->env, impl->parameters, impl->states, action_tensor, impl->next_states, impl->rewards, impl->rng);
         rlt::copy(impl->device, impl->device, impl->next_states, impl->states);
@@ -697,6 +697,7 @@ namespace HYPERDRONE_MODULE_NAME {
         using rlt::render;
         impl->require_sampled("render");
         const CurrentDevice current(impl->device_id);
+        impl->invalidate_pending_probes();
         for(TI member = 0; member < NUM_ENVIRONMENTS; member++){
             auto& world = impl->env.environments[member];
             if(world.render_pending){
@@ -716,9 +717,11 @@ namespace HYPERDRONE_MODULE_NAME {
         impl->require_sampled("probe");
         const CurrentDevice current(impl->device_id);
         for(TI member = 0; member < NUM_ENVIRONMENTS; member++){
-            if(!impl->captured[member]){
+            if(capture_pending(impl->device, impl->env.environments[member]) || !impl->captured[member]){
                 throw std::runtime_error("hyperdrone: render the camera poses before probing");
             }
+        }
+        for(TI member = 0; member < NUM_ENVIRONMENTS; member++){
             auto& renderer = get_renderer(impl->device, impl->env.environments[member]);
             probe(impl->device, renderer);
             impl->probed[member] = true;
@@ -738,13 +741,13 @@ namespace HYPERDRONE_MODULE_NAME {
         const size_t count = layout.size() / NUM_ENVIRONMENTS;
         const size_t bytes = count * layout.item_size;
         const CurrentDevice current(impl->device_id);
-        hyperdrone::visit_output<typename WORLD::RENDERER_SPEC>(index, [&](auto tag){
+        hyperdrone::visit_output(index, [&](auto tag){
             using OUTPUT = typename decltype(tag)::TYPE;
             constexpr bool PROBES = std::is_same<OUTPUT, rro::Probes>::value;
             for(TI member = 0; member < NUM_ENVIRONMENTS; member++){
-                if(!(PROBES ? impl->probed[member] : impl->captured[member])){
-                    throw std::runtime_error(PROBES ? "hyperdrone: probe before reading this output" : "hyperdrone: render or observe before reading this output");
-                }
+                impl->require_current(member, PROBES, "reading");
+            }
+            for(TI member = 0; member < NUM_ENVIRONMENTS; member++){
                 auto& renderer = get_renderer(impl->device, impl->env.environments[member]);
                 auto& source = output(impl->device, renderer, OUTPUT{});
                 auto* target = static_cast<unsigned char*>(destination) + member * bytes;
@@ -788,7 +791,7 @@ namespace HYPERDRONE_MODULE_NAME {
                 }
 #endif
             }
-        });
+        }, DECLARED_OUTPUTS{});
     }
 
     OutputBlock Environment::output_block(size_t index, size_t member, const std::string& field){
@@ -806,12 +809,10 @@ namespace HYPERDRONE_MODULE_NAME {
         result.device_id = metadata.device_id;
         result.owner = impl;
         const CurrentDevice current(impl->device_id);
-        hyperdrone::visit_output<typename WORLD::RENDERER_SPEC>(index, [&](auto tag){
+        hyperdrone::visit_output(index, [&](auto tag){
             using OUTPUT = typename decltype(tag)::TYPE;
             constexpr bool PROBES = std::is_same<OUTPUT, rro::Probes>::value;
-            if(!(PROBES ? impl->probed[member] : impl->captured[member])){
-                throw std::runtime_error(PROBES ? "hyperdrone: probe before exporting this output" : "hyperdrone: render or observe before exporting this output");
-            }
+            impl->require_current(member, PROBES, "exporting");
             auto& renderer = get_renderer(impl->device, impl->env.environments[member]);
             auto& source = output(impl->device, renderer, OUTPUT{});
             result.pointer = reinterpret_cast<unsigned char*>(data(source)) + result.layout.offset;
@@ -831,13 +832,14 @@ namespace HYPERDRONE_MODULE_NAME {
                 render_sync(impl->device, renderer);
             }
 #endif
-        });
+        }, DECLARED_OUTPUTS{});
         return result;
     }
 
     template <typename WORLD_TYPE>
     void observe_into(Environment::Impl& impl, float* out, bool resident){
         if constexpr (WORLD_TYPE::HAS_IMAGE_OBSERVATION){
+            impl.invalidate_pending_probes();
             impl.output(out, resident, impl.observations_staging, [&](auto& observations){
                 using rlt::observe;
                 observe(impl.device, impl.env, impl.parameters, impl.states, typename WORLD_TYPE::Observation{}, observations, impl.rng);

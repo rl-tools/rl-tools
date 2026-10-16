@@ -38,20 +38,6 @@ class OutputHandle:
         self._packed = OutputHandle(owner, index, metadata, camera_names, "packed") if not field and "packed" in metadata else None
 
     @property
-    def distance(self):
-        try:
-            return self.fields["distance"]
-        except KeyError:
-            raise AttributeError("this output has no distance field") from None
-
-    @property
-    def hit(self):
-        try:
-            return self.fields["hit"]
-        except KeyError:
-            raise AttributeError("this output has no hit field") from None
-
-    @property
     def packed(self):
         if self._packed is None:
             raise AttributeError("this output has no packed representation")
@@ -78,12 +64,23 @@ class OutputHandle:
         return tuple(self._owner.output_block(self._index, block, self._field) for block in range(self.layout.block_count))
 
 
+class ProbeOutputHandle(OutputHandle):
+    @property
+    def distance(self):
+        return self.fields["distance"]
+
+    @property
+    def hit(self):
+        return self.fields["hit"]
+
+
 class OutputCollection(Mapping):
     def __init__(self, owner, cameras=()):
         camera_names = tuple(camera if isinstance(camera, str) else camera.name for camera in cameras)
         self._handles = {}
         for index, metadata in enumerate(owner.output_metadata()):
-            handle = OutputHandle(owner, index, metadata, camera_names)
+            handle_type = ProbeOutputHandle if metadata["descriptor"]["quantity"] == "probes" else OutputHandle
+            handle = handle_type(owner, index, metadata, camera_names)
             if handle.descriptor in self._handles:
                 raise ValueError(f"native output metadata contains duplicate descriptor {handle.descriptor!r}")
             self._handles[handle.descriptor] = handle

@@ -16,6 +16,13 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void init(const DEVICE<DEV_SPEC>& dev, devices::generic::random::ENGINE<SPEC>& rng, typename DEV_SPEC::MATH::index_t seed = 1){
         rng.state = 0b10101010101010101010101010101010 + seed;
     }
+    template <typename DEVICE>
+    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE&, devices::generic::random::PortableState& rng, unsigned int seed = 1){
+        rng.state = 0xaaaaaaaau + seed;
+        if(rng.state == 0){
+            rng.state = 0xaaaaaaaau;
+        }
+    }
     namespace random{
         namespace generic{
             template <typename MATH_DEV>

@@ -124,11 +124,37 @@ static bool cuda_available(){
 template <typename DEVICE_TYPE, typename RNG_TYPE>
 __global__ void auxiliary_sampling_kernel(DEVICE_TYPE device, RNG_TYPE rng, bool* result) {
     using rlt::get;
+    using rlt::split;
     auto& state = get(rng.states, 0, 0);
-    *result = camera_sampling_test::unchanged_policy_sampling<WORLD_SPEC>(device, state);
+    auto reference = state;
+    auto child = split(device, rng);
+    static_assert(rlt::utils::typing::is_same_v<decltype(child), decltype(reference)>);
+    auto after = state;
+    bool unchanged = true;
+    bool different = false;
+    for (unsigned int draw = 0; draw < 8; draw++) {
+        const T expected = rlt::random::uniform_real_distribution(device.random, (T)0, (T)1, reference);
+        const T actual = rlt::random::uniform_real_distribution(device.random, (T)0, (T)1, after);
+        const T auxiliary = rlt::random::uniform_real_distribution(device.random, (T)0, (T)1, child);
+        unchanged = unchanged && expected == actual;
+        different = different || expected != auxiliary;
+    }
+    *result = unchanged && different && camera_sampling_test::independent_auxiliary_sampling<WORLD_SPEC>(device, state) && camera_sampling_test::unobserved_preserves_sampling<WORLD_SPEC>(device, state);
 }
 
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD_CUDA, AUXILIARY_CAMERAS_PRESERVE_POLICY_RANDOM_STREAM) {
+template <typename DEVICE_TYPE, typename RNG_TYPE>
+__global__ void auxiliary_portable_sampling_kernel(DEVICE_TYPE device, RNG_TYPE rng, RNG_TYPE reference, bool* result) {
+    using rlt::init;
+    rlt::devices::generic::random::PortableState scalar;
+    init(device, scalar, 0x55555556u);
+    const auto initialized = scalar.state;
+    rlt::random::uniform_real_distribution(device.random, (T)0, (T)1, scalar);
+    const bool nonzero = initialized != 0 && scalar.state != initialized;
+    init(device, scalar, 991);
+    *result = nonzero && camera_sampling_test::independent_auxiliary_sampling<WORLD_SPEC>(device, scalar) && camera_sampling_test::unobserved_preserves_sampling<WORLD_SPEC>(device, scalar) && camera_sampling_test::array_preserves_sampling<WORLD_SPEC>(device, rng, reference);
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD_CUDA, AUXILIARY_CAMERAS_SAMPLE_INDEPENDENTLY_OF_POLICY_STREAM) {
     using rlt::init;
     using rlt::malloc;
     using rlt::free;
@@ -149,6 +175,39 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD_CUDA, AUXILIARY_CAMERAS_PRESERVE_
     EXPECT_TRUE(host_result);
     ASSERT_EQ(cudaFree(result), cudaSuccess);
     free(device, rng);
+    free(device);
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD_CUDA, AUXILIARY_CAMERAS_PRESERVE_PORTABLE_RANDOM_STREAMS) {
+    using rlt::init;
+    using rlt::malloc;
+    using rlt::free;
+    using rlt::copy;
+    if (!cuda_available()) {
+        GTEST_SKIP() << "CUDA device unavailable";
+    }
+    DEVICE host;
+    DEVICE_GPU device;
+    init(device);
+    using ARRAY = rlt::devices::generic::random::ArrayENGINE<rlt::devices::generic::random::ArraySpecification<TI, 4>>;
+    ARRAY source, rng, reference;
+    malloc(host, source);
+    malloc(device, rng);
+    malloc(device, reference);
+    init(host, source, 991);
+    copy(host, device, source, rng);
+    copy(host, device, source, reference);
+    bool* result;
+    ASSERT_EQ(cudaMalloc(&result, sizeof(bool)), cudaSuccess);
+    rlt::devices::cuda::TAG<DEVICE_GPU, true> tag_device{};
+    auxiliary_portable_sampling_kernel<<<1, 1, 0, device.stream>>>(tag_device, rng, reference, result);
+    bool host_result = false;
+    ASSERT_EQ(cudaMemcpy(&host_result, result, sizeof(bool), cudaMemcpyDeviceToHost), cudaSuccess);
+    EXPECT_TRUE(host_result);
+    ASSERT_EQ(cudaFree(result), cudaSuccess);
+    free(device, reference);
+    free(device, rng);
+    free(host, source);
     free(device);
 }
 

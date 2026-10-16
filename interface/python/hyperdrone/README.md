@@ -132,7 +132,7 @@ packed = torch.from_dlpack(output.packed.blocks[0])
 output.layout  # shape, dtype, axes, selected camera identities, device, block count
 ```
 
-Snapshots own their data. `read(out=...)` requires the compiled shape and dtype and copies directly into supported CPU/CUDA buffers; CUDA callers supply `stream=torch.cuda.current_stream().cuda_stream` when using a nondefault stream. Live blocks retain their native allocation and support DLPack consumer-stream ordering; subsequent captures and environment resets may overwrite their contents. RGBA8 uses `uint8[..., 4]`, and `.packed` views the same words as `uint32[...]`. A standalone renderer has one block; MultiEnvironment exposes one block per World and copies into contiguous caller-owned buffers for aggregate reads. Existing blocks retain their original scene-slot allocation after scene rotation, while new block requests resolve current storage.
+Snapshots own their data. `read(out=...)` requires the compiled shape and dtype and copies directly into supported CPU/CUDA buffers; CUDA callers supply `stream=torch.cuda.current_stream().cuda_stream` when using a nondefault stream. Live blocks retain their native allocation, keeping it alive after `close()`, and support DLPack consumer-stream ordering; subsequent captures and environment resets may overwrite their contents. RGBA8 uses `uint8[..., 4]`, and `.packed` views the same words as `uint32[...]`. A standalone renderer has one block; MultiEnvironment exposes one block per World and copies into contiguous caller-owned buffers for aggregate reads. Existing blocks retain their original scene-slot allocation after scene rotation, while new block requests resolve current storage.
 
 Inputs accept any DLPack producer. CUDA-resident camera input (OptiX):
 `set_cameras` dispatches on `__dlpack_device__`, so a CUDA tensor — a torch GPU tensor,
@@ -224,11 +224,11 @@ With `EnvConfig(preset="x500_fpv", num_agents=7, num_camera_agents=7)`, each ins
 
 `num_camera_agents` defaults to 1 and selects agents `[0, num_camera_agents)` to carry the declared rig. Every physical camera shares resolution and capture timing; all agents still receive actions and appear in state, privileged observations, and rendered geometry. `cameras=(CameraSpec("front", ...), CameraSpec("chase", ...))` declares two mounts per camera-equipped agent. Runtime `parameters={"cameras": {"front": fpv, "chase": chase}}` sets named mount/FOV overrides; omitted names retain their values. Custom C++ specifications expose names `camera0`, `camera1`, and so on.
 
-`observation=ImageObservation(cameras=("front",))` selects policy inputs independently of physical cameras. Every selected mount must explicitly declare float32 RGB; auxiliary cameras do not change policy dimensions or history allocation. `observation=None` omits image history and policy observations while retaining rendering, dynamics, privileged state, and applicable IMU access. `observe()` and Gym construction reject a missing policy observation. Frame retention and history-stack composition remain defined by the native task. `frames()` reshapes the processed policy observation, including task composition; `env.outputs[RGB()].read()` returns raw renderer pixels.
+`observation=ImageObservation(cameras=("front",))` selects policy inputs independently of physical cameras. Every selected mount must explicitly declare float32 RGB; auxiliary cameras do not change policy dimensions or history allocation. `observation=None` omits image history and policy observations while retaining rendering, dynamics, privileged state, and applicable IMU access. `observe()` and Gym construction reject a missing policy observation. Frame retention and history-stack composition remain defined by the native task. `frames()` reshapes the processed policy observation, including task composition; `env.outputs[RGB("float32")].read()` returns raw renderer pixels.
 
 For declared `Probes()` outputs, call `env.render()` before the first `env.probe()`. Probing uses the last rendered camera and geometry poses; it does not refresh those poses or advance the task's capture cadence. Read the results through `env.outputs[Probes()].distance` and `.hit`.
 
-Every `env.reset()`, including an all-false mask, invalidates image and probe reads because task reset work may overwrite raw buffers. Call `render()` or `observe()` before reading images again, then `probe()` before reading probe results.
+Every `env.reset()`, including an all-false mask, invalidates image and probe reads because task reset work may overwrite raw buffers, and so does any `step()` that makes a frame due. Call `render()` or `observe()` before reading images again, then `probe()` before reading probe results. Intermediate IMU ticks and acquisition calls that produce no frame preserve valid image and probe results; a capture performed internally by `step()` invalidates earlier probe results.
 
 All environment semantics — reset, reward, termination, scene scheduling, observation
 composition — live on the C++ side (`rl_tools::rl::environments::hyperdrone::MultiEnvironment<World>`);
@@ -254,6 +254,8 @@ wrapper — verb overloads registering and moving entities, compiled reward, ter
 `hyperdrone/examples/Orbiter.ipynb` walks through one, and `tests/env/test_orbiter.py`
 compiles and flies its header. The environment's raytracing backend follows
 `HYPERDRONE_RENDER_BACKEND` like the renderer.
+
+Custom task wrappers with their own capture cadence overload the device-first `capture_pending(device, world)` operation alongside `render()` so output access and Spy follow that cadence.
 
 Custom C++ World specifications declare one output list per mount in `CAMERA_OUTPUTS`; the mount count is derived from that list. For example, inside a specification:
 
@@ -401,7 +403,7 @@ Camera profiles declare immutable output descriptors from `hyperdrone.camera`:
 
 | Descriptor | Default dtype | Per-camera shape | Contract |
 |---|---|---|---|
-| `RGB()` | float32 | `(H, W, 3)` | Raw sRGB; `format="rgba8"` exposes four uint8 channels |
+| `RGB()` | uint8 | `(H, W, 4)` | sRGB with alpha 255, like C++ `RGB<>`; `RGB("float32")` gives float32 `(H, W, 3)` |
 | `Depth()` | float32 | `(H, W)` | Camera-forward depth at shutter close; miss `+inf` |
 | `Segmentation(labels="instance")` | uint32 | `(H, W)` | Instance IDs; miss `0xFFFFFFFF` |
 | `Segmentation(labels="semantic")` | uint32 | `(H, W)` | Semantic classes; miss `0xFFFFFFFF` |
@@ -409,14 +411,14 @@ Camera profiles declare immutable output descriptors from `hyperdrone.camera`:
 | `Flow(direction="backward")` | float32 | `(H, W, 2)` | Current-to-previous `(dx, dy)` displacement in pixels |
 | `FlowStatus(direction="backward")` | uint32 | `(H, W)` | VALID, MISS, BEHIND, OUT_OF_FRAME, OCCLUDED |
 
-All image descriptors also support `format="rgba8"`. Depth and flow `scale=` applies only to RGBA8; raw descriptors normalize it to the native defaults. Flow and its status are independently selected, and both `direction="forward"` and `"backward"` can coexist. One native quantity/representation slot must use identical parameters across the rig, including cameras with disjoint selections. MISS and BEHIND flow vectors are zero; OUT_OF_FRAME and OCCLUDED retain geometric displacement. `render.FlowStatus` contains status values; `camera.FlowStatus` selects the status output.
+All image descriptors also support `format="rgba8"`. Depth and flow `scale=` applies only to RGBA8; raw descriptors reject a non-default scale. Flow and its status are independently selected, and both `direction="forward"` and `"backward"` can coexist. One native quantity/representation slot must use identical parameters across the rig, including cameras with disjoint selections. MISS and BEHIND flow vectors are zero; OUT_OF_FRAME and OCCLUDED retain geometric displacement. `render.FlowStatus` contains status values; `camera.FlowStatus` selects the status output.
 
 ```python
 from hyperdrone.camera import CameraSpec, RGB, Depth, Flow, FlowStatus
 from hyperdrone.env import EnvConfig, ImageObservation, MultiEnvironment
 
 profiles = (
-    CameraSpec("front", (RGB(), Depth(), Flow(), FlowStatus())),
+    CameraSpec("front", (RGB("float32"), Depth(), Flow(), FlowStatus())),
     CameraSpec("chase", (RGB("rgba8"),)),
     CameraSpec("down", (Depth(),)),
 )
@@ -456,7 +458,7 @@ Self-visible worlds label every drone placement with the reserved class
 taxonomies may not use IDs from `0xFFFFFF00` upwards.
 
 ```python
-config = EnvConfig(dataset="procthor", cameras=(CameraSpec("front", (RGB(), Segmentation(labels="semantic"))),))
+config = EnvConfig(dataset="procthor", cameras=(CameraSpec("front", (RGB("float32"), Segmentation(labels="semantic"))),))
 env = MultiEnvironment(scenes, config=config)
 classes = env.segmentation_classes  # dict[int, str], an independent copy
 taxonomy = env.segmentation_taxonomy  # "ai2thor-hab"

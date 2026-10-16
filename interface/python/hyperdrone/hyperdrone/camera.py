@@ -2,6 +2,7 @@
 
 from dataclasses import asdict, dataclass
 import math
+import struct
 from typing import Literal, TypeAlias
 
 
@@ -13,22 +14,24 @@ def _choice(name, value, choices):
         raise ValueError(f"{name} must be one of {choices}, got {value!r}")
 
 
-def _scale(value):
+def _display_scale(descriptor, default):
+    value = descriptor.scale
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
         raise ValueError("display scale must be a finite positive number")
-    import struct
     try:
-        result = struct.unpack("f", struct.pack("f", value))[0]
+        scale = struct.unpack("f", struct.pack("f", value))[0]
     except OverflowError:
         raise ValueError("display scale must be representable as float32") from None
-    if not math.isfinite(result) or result == 0:
+    if not math.isfinite(scale) or scale == 0:
         raise ValueError("display scale must be representable as float32")
-    return result
+    if descriptor.format != "rgba8" and scale != default:
+        raise ValueError(f"{type(descriptor).__name__} scale applies only to format='rgba8'")
+    object.__setattr__(descriptor, "scale", scale)
 
 
 @dataclass(frozen=True)
 class RGB:
-    format: Literal["float32", "rgba8"] = "float32"
+    format: Literal["float32", "rgba8"] = "rgba8"
 
     def __post_init__(self):
         _choice("RGB format", self.format, ("float32", "rgba8"))
@@ -41,8 +44,7 @@ class Depth:
 
     def __post_init__(self):
         _choice("depth format", self.format, ("float32", "rgba8"))
-        scale = _scale(self.scale)
-        object.__setattr__(self, "scale", scale if self.format == "rgba8" else 10.0)
+        _display_scale(self, 10.0)
 
 
 @dataclass(frozen=True)
@@ -72,8 +74,7 @@ class Flow:
     def __post_init__(self):
         _choice("flow direction", self.direction, ("backward", "forward"))
         _choice("flow format", self.format, ("float32", "rgba8"))
-        scale = _scale(self.scale)
-        object.__setattr__(self, "scale", scale if self.format == "rgba8" else 20.0)
+        _display_scale(self, 20.0)
 
 
 @dataclass(frozen=True)
@@ -239,10 +240,6 @@ def camera_config_header(cameras, observation=None, *, environment=False):
         lines.append(f"    using OBSERVATION = {observation_type};")
     lines.append("}")
     return "\n".join(lines) + "\n"
-
-
-def camera_config_canonical(cameras, observation=None, *, environment=False):
-    return camera_config_header(cameras, observation, environment=environment)
 
 
 __all__ = ["CameraSpec", "RGB", "Depth", "Segmentation", "Normals", "Flow", "FlowStatus", "Probes", "ImageObservation", "OutputDescriptor"]

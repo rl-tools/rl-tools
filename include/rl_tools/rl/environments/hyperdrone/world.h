@@ -36,6 +36,9 @@ namespace rl_tools::rl::environments::hyperdrone {
 
     struct NoObservation {
         static constexpr unsigned int COUNT = 0;
+        RL_TOOLS_FUNCTION_PLACEMENT static constexpr bool observes(unsigned int) {
+            return false;
+        }
     };
 
     template <unsigned int... MOUNTS>
@@ -45,6 +48,9 @@ namespace rl_tools::rl::environments::hyperdrone {
         RL_TOOLS_FUNCTION_PLACEMENT static constexpr unsigned int mount(unsigned int index) {
             constexpr unsigned int mounts[] = {MOUNTS...};
             return mounts[index];
+        }
+        RL_TOOLS_FUNCTION_PLACEMENT static constexpr bool observes(unsigned int mount) {
+            return ((mount == MOUNTS) || ...);
         }
     };
 

@@ -9,6 +9,7 @@
 #include "pose.h"
 
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
+#include <rl_tools/random/operations_generic_array.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
 #include <rl_tools/rendering/datasets/operations_cpu.h>
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
@@ -70,6 +71,11 @@ namespace rl_tools {
         if(world.history_step == 0){
             world.history_step = 1;
         }
+    }
+
+    template <typename DEVICE, typename SPEC>
+    bool capture_pending(DEVICE&, const rl::environments::hyperdrone::World<SPEC>& world){
+        return world.render_pending;
     }
 
     template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
@@ -387,24 +393,20 @@ namespace rl_tools {
         }
         template <typename DEVICE, typename SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT void _sample_camera_parameters(DEVICE& device, const DroneParameters<SPEC>& drone, AgentParameters<SPEC>& agent, RNG& rng) {
+            using TI = typename SPEC::TI;
             using OBSERVATION = typename SPEC::OBSERVATION;
             if constexpr (OBSERVATION::COUNT > 0) {
-                for (typename SPEC::TI observation_i = 0; observation_i < OBSERVATION::COUNT; observation_i++) {
+                for (TI observation_i = 0; observation_i < OBSERVATION::COUNT; observation_i++) {
                     const auto mount = OBSERVATION::mount(observation_i);
                     _sample_view_parameters<DEVICE, SPEC>(device, drone.cameras[mount], agent.cameras[mount], rng);
                 }
             }
-            // Auxiliary cameras must not change the policy or dynamics random stream.
-            auto auxiliary_rng = rng;
-            for (typename SPEC::TI mount = 0; mount < SPEC::CAMERA_OUTPUTS::COUNT; mount++) {
-                bool observed = false;
-                if constexpr (OBSERVATION::COUNT > 0) {
-                    for (typename SPEC::TI observation_i = 0; observation_i < OBSERVATION::COUNT; observation_i++) {
-                        observed = observed || OBSERVATION::mount(observation_i) == mount;
+            if constexpr (OBSERVATION::COUNT < SPEC::CAMERA_OUTPUTS::COUNT) {
+                auto auxiliary_rng = split(device, rng);
+                for (TI mount = 0; mount < SPEC::CAMERA_OUTPUTS::COUNT; mount++) {
+                    if (!OBSERVATION::observes(mount)) {
+                        _sample_view_parameters<DEVICE, SPEC>(device, drone.cameras[mount], agent.cameras[mount], auxiliary_rng);
                     }
-                }
-                if (!observed) {
-                    _sample_view_parameters<DEVICE, SPEC>(device, drone.cameras[mount], agent.cameras[mount], auxiliary_rng);
                 }
             }
         }

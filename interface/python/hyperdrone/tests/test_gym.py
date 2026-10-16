@@ -24,7 +24,7 @@ def scene_directory(tmp_path_factory):
 def test_vector_env_api(scene_directory):
     from hyperdrone.gym import VectorEnv
 
-    config = EnvConfig(num_environments=1, instances_per_environment=2, width=16, height=16, cameras=(CameraSpec("front", (RGB(),)), CameraSpec("down", (Depth(),))), observation=ImageObservation(("front",)))
+    config = EnvConfig(num_environments=1, instances_per_environment=2, width=16, height=16, cameras=(CameraSpec("front", (RGB("float32"),)), CameraSpec("down", (Depth(),))), observation=ImageObservation(("front",)))
     env = VectorEnv(scene_directory, config=config, seed=11)
     try:
         assert env.num_envs == 2

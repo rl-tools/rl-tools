@@ -55,11 +55,11 @@ class RendererConfig:
     def has_probes(self):
         return any(Probes() in camera.outputs for camera in self.cameras)
 
-    def generated_headers(self):
-        return {"camera_config.h": camera_config_header(self.cameras)}
+    def camera_config(self):
+        return camera_config_header(self.cameras)
 
     def canonical(self):
-        return ";".join(f"{name}={value}" for name, value in sorted(self.defines().items())) + "\n" + camera_config_header(self.cameras)
+        return ";".join(f"{name}={value}" for name, value in sorted(self.defines().items())) + "\n" + self.camera_config()
 
     def key(self):
         return jit.canonical_key(self.canonical())

@@ -7,28 +7,12 @@
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/vector.h>
 #include <cuda_runtime.h>
+#include "cuda_device.h"
 
 #include <stdexcept>
 #include <vector>
 
 namespace hyperdrone {
-    struct CurrentCudaDevice {
-        int previous = 0;
-        int selected;
-
-        explicit CurrentCudaDevice(int device): selected(device){
-            cudaGetDevice(&previous);
-            if(previous != selected){
-                cudaSetDevice(selected);
-            }
-        }
-        ~CurrentCudaDevice(){
-            if(previous != selected){
-                cudaSetDevice(previous);
-            }
-        }
-    };
-
     struct CudaBuffer {
         void* pointer = nullptr;
         int device_ordinal = 0;

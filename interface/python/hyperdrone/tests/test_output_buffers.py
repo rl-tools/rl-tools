@@ -30,7 +30,7 @@ class NativeBuffers:
 
 def test_snapshot_destination_and_native_camera_identity():
     owner = NativeBuffers()
-    outputs = OutputCollection(owner, (CameraSpec("front", (Depth(),)), CameraSpec("rear", (RGB(),))))
+    outputs = OutputCollection(owner, (CameraSpec("front", (Depth(),)), CameraSpec("rear", (RGB("float32"),))))
     output = outputs[Depth()]
     assert output.layout.cameras == ((0, "front"), (1, "rear"))
     assert output.layout.axes == ("camera", "height", "width")
@@ -54,11 +54,12 @@ def test_live_blocks_and_unconfigured_outputs():
     outputs = OutputCollection(owner)
     assert list(outputs) == [Depth()]
     assert outputs[Depth()].layout.cameras == (0, 3)
+    assert not hasattr(outputs[Depth()], "distance")
     view = np.from_dlpack(outputs[Depth()].blocks[0])
     owner.values += 3
     np.testing.assert_array_equal(view, owner.values)
     with pytest.raises(KeyError, match="not configured"):
-        outputs[RGB()]
+        outputs[RGB("float32")]
 
 
 def test_probe_fields_use_native_shapes_and_dtypes():

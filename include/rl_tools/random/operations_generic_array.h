@@ -35,6 +35,14 @@ namespace rl_tools{
         static_assert(RNG_SPEC::NUM_RNGS >= INSTANCES, "the batch needs one RNG state per environment instance");
         return get(rng.states, 0, instance_i);
     }
+    // Scalar random operations on an array use stream zero; a split must own its state rather than alias the array.
+    template <typename DEVICE, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT auto split(DEVICE& device, RNG& rng){
+        auto result = instance_rng<1>(rng, 0);
+        using TI = typename DEVICE::index_t;
+        init(device, result, random::uniform_int_distribution(device.random, (TI)0, (TI)0x7fffffff, result));
+        return result;
+    }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, devices::generic::random::ArrayENGINE<SPEC>& rng){
         malloc(device, rng.states);

@@ -11,7 +11,7 @@ from hyperdrone.env import EnvConfig, MultiEnvironment
 from test_multi_environment import rigged_asset_path, scene_directory
 
 
-OUTPUTS = (RGB(), Depth(), Segmentation(), Normals(), Flow(), FlowStatus())
+OUTPUTS = (RGB("float32"), Depth(), Segmentation(), Normals(), Flow(), FlowStatus())
 CONFIG = EnvConfig(instances_per_environment=2, width=16, height=16, fidelity="low", cameras=(CameraSpec("front", outputs=OUTPUTS),))
 # The 100-degree rear camera reaches 4 mm depth; float reprojection after an identity reset reaches 9.85e-4 pixels on OptiX.
 RESET_FLOW_ATOL = 2e-3
@@ -23,7 +23,7 @@ def profiles(count, outputs=OUTPUTS):
 
 def test_environment_output_config():
     assert CONFIG.key() == replace(CONFIG, cameras=profiles(1, tuple(reversed(OUTPUTS)))).key()
-    assert CONFIG.key() != replace(CONFIG, cameras=profiles(1, (RGB(),))).key()
+    assert CONFIG.key() != replace(CONFIG, cameras=profiles(1, (RGB("float32"),))).key()
     assert CONFIG.key() != replace(CONFIG, cameras=profiles(2)).key()
     assert CONFIG.key() == replace(CONFIG, cameras=(CameraSpec("renamed", outputs=OUTPUTS),), observation=ImageObservation(cameras=("renamed",))).key()
     with pytest.raises(ValueError, match="must declare RGB"):
@@ -62,10 +62,12 @@ def test_environment_capture_and_partial_reset(scene_directory, device, task, ca
             with pytest.raises(ValueError, match="shape and dtype"):
                 handle.read(out=out.astype(np.float64))
         actions = np.zeros((2, env.action_dim), dtype=np.float32)
-        initial = env.outputs[Flow()].read()
         for _ in range(15):
             env.step(actions)
-        np.testing.assert_array_equal(env.outputs[Flow()].read(), initial)
+        with pytest.raises(RuntimeError, match="render or observe"):
+            env.outputs[Flow()].read()
+        with pytest.raises(RuntimeError, match="render or observe"):
+            env.outputs[Flow()].blocks
         env.render()
         moved = env.outputs[Flow()].read()
         valid = env.outputs[FlowStatus()].read() == render.FlowStatus.VALID
@@ -109,8 +111,8 @@ def test_auxiliary_outputs_preserve_policy_observations(scene_directory, device)
     if device == "cuda" and render._backend() != "optix":
         pytest.skip("CUDA Worlds require OptiX")
     config = replace(CONFIG, device=device, observation=ImageObservation(cameras=("front",)))
-    mixed = (CameraSpec("front", outputs=OUTPUTS), CameraSpec("diagnostic", outputs=(RGB(), RGB(format="rgba8"))), CameraSpec("down", outputs=(Depth(),)))
-    with closing(MultiEnvironment(scene_directory, config=replace(config, cameras=profiles(1, (RGB(),))), seed=3)) as base, closing(MultiEnvironment(scene_directory, config=replace(config, cameras=mixed), seed=3)) as extra:
+    mixed = (CameraSpec("front", outputs=OUTPUTS), CameraSpec("diagnostic", outputs=(RGB("float32"), RGB(format="rgba8"))), CameraSpec("down", outputs=(Depth(),)))
+    with closing(MultiEnvironment(scene_directory, config=replace(config, cameras=profiles(1, (RGB("float32"),))), seed=3)) as base, closing(MultiEnvironment(scene_directory, config=replace(config, cameras=mixed), seed=3)) as extra:
         for env in (base, extra):
             env.reset()
         assert base.observation_dim == extra.observation_dim == 16 * 16 * 3
@@ -122,7 +124,7 @@ def test_auxiliary_outputs_preserve_policy_observations(scene_directory, device)
                 env.step(np.zeros((2, env.action_dim), dtype=np.float32))
         with pytest.raises(KeyError):
             base.outputs[Depth()]
-        assert extra.outputs[RGB()].layout.cameras == ((0, "front"), (0, "diagnostic"))
+        assert extra.outputs[RGB("float32")].layout.cameras == ((0, "front"), (0, "diagnostic"))
         assert extra.outputs[Depth()].layout.cameras == ((0, "front"), (0, "down"))
         assert extra.outputs[RGB(format="rgba8")].layout.shape == (2, 1, 16, 16, 4)
 
@@ -162,6 +164,21 @@ def test_raw_only_sparse_outputs_and_blocks(scene_directory, device):
         probe_snapshot = probes.distance.read()
         if probes.distance.layout.device[0] == 1:
             np.testing.assert_array_equal(np.concatenate([np.from_dlpack(block) for block in probes.distance.blocks]), probe_snapshot)
+        env.step(np.zeros((env.total_instances, env.action_dim), dtype=np.float32))
+        with pytest.raises(RuntimeError, match="render the camera poses"):
+            env.probe()
+        with pytest.raises(RuntimeError, match="render and probe"):
+            probes.distance.read()
+        with pytest.raises(RuntimeError, match="render or observe"):
+            handle.read()
+        with pytest.raises(RuntimeError, match="render or observe"):
+            handle.blocks
+        env.render()
+        with pytest.raises(RuntimeError, match="render and probe"):
+            probes.distance.read()
+        env.probe()
+        probes.distance.read()
+        expected = handle.read()
         env.rotate_scene()
         env.close()
         if handle.layout.device[0] == 1:
@@ -217,7 +234,7 @@ def test_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, device)
     header.write_text(source)
     with closing(MultiEnvironment([scene_directory / "ProcTHOR-Train-1.glb"] * 2, config=EnvConfig(spec_header=str(header), num_environments=2, device=device), drone_asset=str(asset), seed=4)) as env:
         assert (env.num_agents, env.num_camera_agents, env.num_cameras_per_agent, env.num_views) == (2, 2, 3, 6)
-        assert env.outputs[RGB()].layout.cameras == ((0, "camera1"), (1, "camera1"))
+        assert env.outputs[RGB("float32")].layout.cameras == ((0, "camera1"), (1, "camera1"))
         assert env.outputs[Depth()].layout.cameras == tuple((agent, f"camera{mount}") for agent in range(2) for mount in range(3))
         assert env.action_dim == 8
         env.reset()
@@ -260,6 +277,74 @@ def test_flow_between_intermittent_captures(scene_directory, cameras):
         np.testing.assert_allclose(env.outputs[Flow()].read(), 0, atol=2e-4)
 
 
+@pytest.mark.parametrize("acquisition", ["render", "observe"])
+def test_intermittent_capture_preserves_outputs_and_probes(scene_directory, acquisition):
+    config = replace(CONFIG, preset="x500_fpv_imu", task="visual_inertial_localization", device="cpu", cameras=profiles(1, (*OUTPUTS, Probes())))
+    with closing(MultiEnvironment(scene_directory, config=config, seed=5)) as env:
+        acquire = getattr(env, acquisition)
+        depth = env.outputs[Depth()]
+        probes = env.outputs[Probes()].distance
+        env.reset()
+        env.step()
+        with pytest.raises(RuntimeError, match="render or observe"):
+            depth.read()
+        with pytest.raises(RuntimeError, match="render the camera poses"):
+            env.probe()
+        acquire()
+        captured = depth.read()
+        env.probe()
+        probed = probes.read()
+        for _ in range(2, env.frame_stride):
+            env.step()
+            np.testing.assert_array_equal(depth.read(), captured)
+            np.testing.assert_array_equal(probes.read(), probed)
+            assert len(depth.blocks) == len(probes.blocks) == 1
+            acquire()
+            np.testing.assert_array_equal(depth.read(), captured)
+            np.testing.assert_array_equal(probes.read(), probed)
+            env.probe()
+            np.testing.assert_array_equal(probes.read(), probed)
+        env.step()
+        with pytest.raises(RuntimeError, match="render or observe"):
+            depth.read()
+        with pytest.raises(RuntimeError, match="render or observe"):
+            depth.blocks
+        with pytest.raises(RuntimeError, match="render and probe"):
+            probes.read()
+        with pytest.raises(RuntimeError, match="render the camera poses"):
+            env.probe()
+        acquire()
+        captured = depth.read()
+        assert np.any(np.abs(env.outputs[Flow()].read()) > 1e-4)
+        with pytest.raises(RuntimeError, match="render and probe"):
+            probes.read()
+        env.probe()
+        for _ in range(env.frame_stride):
+            env.step()
+        with pytest.raises(RuntimeError, match="render or observe"):
+            depth.read()
+        env.step()
+        assert np.any(depth.read() != captured)
+        with pytest.raises(RuntimeError, match="render and probe"):
+            probes.read()
+        acquire()
+        with pytest.raises(RuntimeError, match="render and probe"):
+            probes.blocks
+        env.probe()
+        probes.read()
+        env.reset()
+        with pytest.raises(RuntimeError, match="render or observe"):
+            depth.read()
+        with pytest.raises(RuntimeError, match="render the camera poses"):
+            env.probe()
+        acquire()
+        np.testing.assert_allclose(env.outputs[Flow()].read(), 0, atol=2e-4)
+        with pytest.raises(RuntimeError, match="render and probe"):
+            probes.read()
+        env.probe()
+        probes.read()
+
+
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_cuda_batched_transport_without_tensor_framework(scene_directory, device):
     if render._backend() != "optix":
@@ -278,14 +363,14 @@ def test_cuda_batched_transport_without_tensor_framework(scene_directory, device
     capsule_pointer.restype = ctypes.c_void_p
     consumer = ctypes.c_void_p()
     assert runtime.cudaStreamCreate(ctypes.byref(consumer)) == 0
-    cameras = (CameraSpec("front", outputs=(RGB(), Depth())), CameraSpec("aux", outputs=(RGB(format="rgba8"), Probes())))
+    cameras = (CameraSpec("front", outputs=(RGB("float32"), Depth())), CameraSpec("aux", outputs=(RGB(format="rgba8"), Probes())))
     config = replace(CONFIG, num_environments=2, cameras=cameras, device=device)
     env = MultiEnvironment([scene_directory / "ProcTHOR-Train-1.glb"] * 2, config=config, seed=11)
     try:
         env.reset()
         env.render()
         env.probe()
-        for handle in (env.outputs[RGB()], env.outputs[Depth()], env.outputs[RGB(format="rgba8")], env.outputs[Probes()].distance, env.outputs[Probes()].hit):
+        for handle in (env.outputs[RGB("float32")], env.outputs[Depth()], env.outputs[RGB(format="rgba8")], env.outputs[Probes()].distance, env.outputs[Probes()].hit):
             snapshot = handle.read()
             for member, block in enumerate(handle.blocks):
                 capsule = block.__dlpack__(stream=consumer.value)
