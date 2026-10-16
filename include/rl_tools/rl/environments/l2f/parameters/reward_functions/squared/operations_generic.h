@@ -44,7 +44,7 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
             if constexpr(SPEC::STATIC_PARAMETERS::ACTION_INTERFACE == parameters::ActionInterface::CTBR){
                 if(action_i == 0){
                     T collective = (normalized_action + (T)1) / (T)2;
-                    if constexpr(rl_tools::utils::typing::is_same_v<typename Multirotor<SPEC>::ACTUATION, actuation::IdealRates>){
+                    if constexpr(rl_tools::utils::typing::is_same_v<typename Multirotor<SPEC>::ACTUATION_MODEL, actuation::IdealRates>){
                         action_diff = collective - (T)1 / parameters.ideal_rates.thrust_to_weight;
                     }
                     else{

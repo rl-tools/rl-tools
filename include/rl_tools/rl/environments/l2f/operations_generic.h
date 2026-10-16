@@ -212,13 +212,13 @@ namespace rl_tools
             using TI = typename DEVICE::index_t;
             constexpr TI N_SUBSTEPS = SPEC::STATIC_PARAMETERS::N_SUBSTEPS;
             if constexpr(N_SUBSTEPS == 1){
-                utils::integrators::rk4<DEVICE, T, typename SPEC::PARAMETERS, STATE, MULTIROTOR::ACTION_DIM, multirotor_dynamics_dispatch<DEVICE, T, typename SPEC::PARAMETERS, STATE, typename MULTIROTOR::ACTUATION>>(device, parameters, state, actuation, parameters.integration.dt, next_state);
+                utils::integrators::rk4<DEVICE, T, typename SPEC::PARAMETERS, STATE, MULTIROTOR::ACTION_DIM, multirotor_dynamics_dispatch<DEVICE, T, typename SPEC::PARAMETERS, STATE, typename MULTIROTOR::ACTUATION_MODEL>>(device, parameters, state, actuation, parameters.integration.dt, next_state);
             }
             else{
                 T substep_dt = parameters.integration.dt / N_SUBSTEPS;
                 auto substep_state = state;
                 for(TI substep_i = 0; substep_i < N_SUBSTEPS; substep_i++){
-                    utils::integrators::rk4<DEVICE, T, typename SPEC::PARAMETERS, STATE, MULTIROTOR::ACTION_DIM, multirotor_dynamics_dispatch<DEVICE, T, typename SPEC::PARAMETERS, STATE, typename MULTIROTOR::ACTUATION>>(device, parameters, substep_state, actuation, substep_dt, next_state);
+                    utils::integrators::rk4<DEVICE, T, typename SPEC::PARAMETERS, STATE, MULTIROTOR::ACTION_DIM, multirotor_dynamics_dispatch<DEVICE, T, typename SPEC::PARAMETERS, STATE, typename MULTIROTOR::ACTUATION_MODEL>>(device, parameters, substep_state, actuation, substep_dt, next_state);
                     substep_state = next_state;
                 }
             }
@@ -264,7 +264,7 @@ namespace rl_tools
                 substep_state = next_state;
             }
         }
-        else if constexpr(utils::typing::is_same_v<typename MULTIROTOR::ACTUATION, rl::environments::l2f::actuation::IdealRates>){
+        else if constexpr(utils::typing::is_same_v<typename MULTIROTOR::ACTUATION_MODEL, rl::environments::l2f::actuation::IdealRates>){
             auto commanded = state;
             rl::environments::l2f::ideal_rates_actuation(device, env, parameters, commanded, action, actuation, rng);
             rl::environments::l2f::integrate(device, env, parameters, commanded, actuation, next_state);

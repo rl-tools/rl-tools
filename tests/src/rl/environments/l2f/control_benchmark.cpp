@@ -75,7 +75,7 @@ void hash_state(std::uint64_t& hash, const STATE& state) {
 template<typename STATIC_PARAMETERS, bool VERIFY>
 void measure(const std::string& label, TI count) {
     using ENVIRONMENT = rlt::rl::environments::Multirotor<l2f::Specification<T, TI, STATIC_PARAMETERS>>;
-    constexpr bool IDEAL = std::is_same_v<typename ENVIRONMENT::ACTUATION, l2f::actuation::IdealRates>;
+    constexpr bool IDEAL = std::is_same_v<typename ENVIRONMENT::ACTUATION_MODEL, l2f::actuation::IdealRates>;
     using rlt::init;
     using rlt::initial_state;
     using rlt::step;

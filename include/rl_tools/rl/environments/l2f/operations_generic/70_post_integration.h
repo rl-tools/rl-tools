@@ -294,7 +294,7 @@ namespace rl_tools::rl::environments::l2f{
         using MULTIROTOR = Multirotor<SPEC>;
         using T = typename STATE_SPEC::T;
         using TI = typename DEVICE::index_t;
-        if constexpr(utils::typing::is_same_v<typename MULTIROTOR::ACTUATION, actuation::IdealRates>){
+        if constexpr(utils::typing::is_same_v<typename MULTIROTOR::ACTUATION_MODEL, actuation::IdealRates>){
             T collective = math::clamp(device.math, get(action, 0, 0), (T)-1, (T)1);
             T rotor_thrust = ideal_rates_collective_acceleration(device, parameters, collective) * parameters.dynamics.mass / (T)PARAMETERS::N;
             for(TI rpm_i = 0; rpm_i < PARAMETERS::N; rpm_i++){

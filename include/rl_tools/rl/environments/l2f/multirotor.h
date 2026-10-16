@@ -1167,10 +1167,10 @@ namespace rl_tools::rl::environments{
         static constexpr TI ACTION_DIM = 4;
         static constexpr TI EPISODE_STEP_LIMIT = SPEC::STATIC_PARAMETERS::EPISODE_STEP_LIMIT;
         static constexpr auto ACTION_INTERFACE = SPEC::STATIC_PARAMETERS::ACTION_INTERFACE;
-        using ACTUATION = typename l2f::actuation::Model<typename SPEC::STATIC_PARAMETERS>::TYPE;
+        using ACTUATION_MODEL = typename l2f::actuation::Model<typename SPEC::STATIC_PARAMETERS>::TYPE;
         // CTBR commands into the rotor model close the PD rate loop at the substep rate
-        static constexpr bool RATE_CONTROLLER = ACTION_INTERFACE == l2f::parameters::ActionInterface::CTBR && rl_tools::utils::typing::is_same_v<ACTUATION, l2f::actuation::Rotors>;
-        static_assert(ACTION_INTERFACE == l2f::parameters::ActionInterface::CTBR || rl_tools::utils::typing::is_same_v<ACTUATION, l2f::actuation::Rotors>, "motor commands drive the rotor actuation model only");
+        static constexpr bool RATE_CONTROLLER = ACTION_INTERFACE == l2f::parameters::ActionInterface::CTBR && rl_tools::utils::typing::is_same_v<ACTUATION_MODEL, l2f::actuation::Rotors>;
+        static_assert(ACTION_INTERFACE == l2f::parameters::ActionInterface::CTBR || rl_tools::utils::typing::is_same_v<ACTUATION_MODEL, l2f::actuation::Rotors>, "motor commands drive the rotor actuation model only");
 
         // static constexpr TI ACTION_HISTORY_LENGTH = SPEC::STATIC_PARAMETERS::ACTION_HISTORY_LENGTH;
 

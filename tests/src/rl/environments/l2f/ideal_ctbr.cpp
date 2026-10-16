@@ -108,10 +108,10 @@ TEST(L2F_IDEAL_RATES, THRUST_TO_WEIGHT_FOLLOWS_THE_ROTOR_MODEL){
     EXPECT_NEAR(derived.thrust_to_weight, thrust / (crazyflie.mass * gravity), 1e-12);
     EXPECT_EQ(derived.rate_limit[0], 20);
     EXPECT_EQ(derived.rate_limit[2], 20);
-    static_assert(std::is_same_v<Environment<>::ACTUATION, l2f::actuation::IdealRates>);
+    static_assert(std::is_same_v<Environment<>::ACTUATION_MODEL, l2f::actuation::IdealRates>);
     static_assert(!Environment<>::RATE_CONTROLLER);
     static_assert(Environment<>::ACTION_INTERFACE == l2f::parameters::ActionInterface::CTBR);
-    static_assert(std::is_same_v<rlt::rl::environments::Multirotor<l2f::Specification<T, TI, FACTORY::STATIC_PARAMETERS>>::ACTUATION, l2f::actuation::Rotors>);
+    static_assert(std::is_same_v<rlt::rl::environments::Multirotor<l2f::Specification<T, TI, FACTORY::STATIC_PARAMETERS>>::ACTUATION_MODEL, l2f::actuation::Rotors>);
     EXPECT_EQ(Environment<>::SPEC::STATIC_PARAMETERS::PARAMETER_VALUES.ideal_rates.thrust_to_weight, l2f::parameters::ideal_rates(FACTORY::STATIC_PARAMETERS::PARAMETER_VALUES.dynamics).thrust_to_weight);
 }
 
@@ -253,7 +253,7 @@ TEST(HYPERDRONE_CONTROLLERS, DIRECT_CTBR_BORROWS_STATIC_AND_STRIDED_COMMANDS){
     static_assert(std::is_empty_v<CTBR::State> && std::is_empty_v<CTBR::Buffer>);
     static_assert(std::is_empty_v<MOTOR::State> && std::is_empty_v<MOTOR::Buffer>);
     static_assert(CTBR_CONFIG::DynamicsParameters<FACTORY::STATIC_PARAMETERS>::ACTION_INTERFACE == l2f::parameters::ActionInterface::CTBR);
-    static_assert(std::is_same_v<rlt::rl::environments::Multirotor<l2f::Specification<T, TI, CTBR_CONFIG::DynamicsParameters<StaticParameters<>>>>::ACTUATION, l2f::actuation::IdealRates>);
+    static_assert(std::is_same_v<rlt::rl::environments::Multirotor<l2f::Specification<T, TI, CTBR_CONFIG::DynamicsParameters<StaticParameters<>>>>::ACTUATION_MODEL, l2f::actuation::IdealRates>);
     using SHAPE = rlt::tensor::Shape<TI, 2, 8>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, false, rlt::tensor::Stride<TI, 16, 2>>> commands{};
     rlt::Tensor<rlt::tensor::Specification<int, TI, rlt::tensor::Shape<TI, 2>, false>> parameters{}, states{};
