@@ -5,6 +5,7 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_BACKENDS_OPTIX_DEVICE_IMPL_H
 
 #include "device.h"
+#include "overlay_accel.h"
 #include "../../outputs/slots.h"
 #include <optix_device.h>
 
@@ -29,9 +30,21 @@ namespace rl_tools
     return tile_row * optixLaunchParams.grid_cols + tile_col;
   }
 
+  inline __device__ owl::vec3f normalize_shading(const owl::vec3f& v) {
+    return v * rsqrtf(dot(v, v));
+  }
+
+  inline __device__ float power_five(float value)
+  {
+    const float squared = value * value;
+    return squared * squared * value;
+  }
+
   inline __device__ float linear_to_srgb(float x) {
-    if (x <= 0.0031308f) return 12.92f * x;
-    return 1.055f * powf(x, 1.f / 2.4f) - 0.055f;
+    if (x <= 0.0031308f) {
+      return 12.92f * x;
+    }
+    return 1.055f * __powf(x, 1.f / 2.4f) - 0.055f;
   }
 
   inline __device__ uint32_t make_srgb_rgba_from_linear(owl::vec3f color) {
@@ -179,7 +192,7 @@ namespace rl_tools
                  tmin,
                  fminf(best_t, tmax),
                  0.0f,
-                 OptixVisibilityMask(255),
+                 OptixVisibilityMask(rendering::raytracing::backends::optix::overlay_visibility_mask(overlay)),
                  OPTIX_RAY_FLAG_DISABLE_ANYHIT,
                  0, NUM_RAY_TYPES, 1, // no-op miss: an overlay miss keeps the current color
                  p0, p1, q2, q3);
@@ -188,7 +201,7 @@ namespace rl_tools
     return color;
   }
 
-  inline __device__ bool trace_shadow_occluded(OptixTraversableHandle world, const owl::vec3f &pos, const owl::vec3f &direction, float max_dist)
+  inline __device__ bool trace_shadow_occluded(OptixTraversableHandle world, const owl::vec3f &pos, const owl::vec3f &direction, float max_dist, unsigned int visibility)
   {
     unsigned int u0 = __float_as_uint(max_dist);
     unsigned int u1 = 0;
@@ -199,7 +212,7 @@ namespace rl_tools
                1e-3f,
                max_dist,
                0.0f,
-               OptixVisibilityMask(255),
+               OptixVisibilityMask(visibility),
                OPTIX_RAY_FLAG_DISABLE_ANYHIT | OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT,
                1, NUM_RAY_TYPES, 1,
                u0, u1, u2);
@@ -208,12 +221,14 @@ namespace rl_tools
 
   inline __device__ bool trace_shadow_occluded_composed(OptixTraversableHandle world, int camera, const owl::vec3f &pos, const owl::vec3f &direction, float max_dist)
   {
-    if (trace_shadow_occluded(world, pos, direction, max_dist)) return true;
+    if (trace_shadow_occluded(world, pos, direction, max_dist, 255u)) return true;
     const int overlay_count = optixLaunchParams.overlay_count;
     for (int k = 0; k < overlay_count; k++) {
       const uint32_t overlay = optixLaunchParams.attachments[camera * overlay_count + k];
       if (overlay == 0xFFFFFFFFu) continue;
-      if (trace_shadow_occluded((OptixTraversableHandle)optixLaunchParams.overlays[overlay], pos, direction, max_dist)) return true;
+      if (trace_shadow_occluded((OptixTraversableHandle)optixLaunchParams.overlays[overlay], pos, direction, max_dist, rendering::raytracing::backends::optix::overlay_visibility_mask(overlay))) {
+        return true;
+      }
     }
     return false;
   }
@@ -430,7 +445,7 @@ namespace rl_tools
         const owl::vec3f vertex_a = transform_point_to_world(self.vertex[index.x]);
         const owl::vec3f vertex_b = transform_point_to_world(self.vertex[index.y]);
         const owl::vec3f vertex_c = transform_point_to_world(self.vertex[index.z]);
-        normal_geometric = normalize(cross(vertex_b - vertex_a, vertex_c - vertex_a));
+        normal_geometric = normalize_shading(cross(vertex_b - vertex_a, vertex_c - vertex_a));
         ray_dir = optixGetWorldRayDirection();
       }
 
@@ -513,11 +528,11 @@ namespace rl_tools
 
     const owl::vec3f edge1 = vertex_b - vertex_a;
     const owl::vec3f edge2 = vertex_c - vertex_a;
-    const owl::vec3f normal_geometric = normalize(cross(edge1, edge2));
+    const owl::vec3f normal_geometric = normalize_shading(cross(edge1, edge2));
 
     owl::vec3f N;
     if (self.normal) {
-      N = normalize(transform_normal_to_world(w0 * self.normal[index.x] + bary.x * self.normal[index.y] + bary.y * self.normal[index.z]));
+      N = normalize_shading(transform_normal_to_world(w0 * self.normal[index.x] + bary.x * self.normal[index.y] + bary.y * self.normal[index.z]));
     } else {
       N = normal_geometric;
     }
@@ -564,12 +579,12 @@ namespace rl_tools
         float det = duv1.x * duv2.y - duv2.x * duv1.y;
         if (fabsf(det) > 1e-8f) {
           float inv_det = 1.f / det;
-          owl::vec3f T = normalize(inv_det * (duv2.y * edge1 - duv1.y * edge2));
-          T = normalize(T - dot(T, N) * N);
+          owl::vec3f T = normalize_shading(inv_det * (duv2.y * edge1 - duv1.y * edge2));
+          T = normalize_shading(T - dot(T, N) * N);
           owl::vec3f B = cross(N, T);
           owl::vec4f nm_sample = tex2D<float4>(self.normal_map, w0 * tc0.x + bary.x * tc1.x + bary.y * tc2.x, w0 * tc0.y + bary.x * tc1.y + bary.y * tc2.y);
           owl::vec3f n_tangent = owl::vec3f(nm_sample.x * 2.f - 1.f, -(nm_sample.y * 2.f - 1.f), nm_sample.z * 2.f - 1.f);
-          N = normalize(T * n_tangent.x + B * n_tangent.y + N * n_tangent.z);
+          N = normalize_shading(T * n_tangent.x + B * n_tangent.y + N * n_tangent.z);
         }
       }
 
@@ -613,21 +628,21 @@ namespace rl_tools
           if (light.type != 0 && trace_shadow_occluded_composed(self.world, camera, hit_point + N * 2e-3f, L, light_distance)) continue;
         }
 
-        owl::vec3f H = normalize(V + L);
+        owl::vec3f H = normalize_shading(V + L);
         float NdotH = fmaxf(dot(N, H), 0.f);
         float VdotH = fmaxf(dot(V, H), 0.f);
 
         float denom_D = NdotH * NdotH * (alpha2 - 1.f) + 1.f;
-        float D = alpha2 / (3.14159265f * denom_D * denom_D);
+        float D = __fdividef(alpha2, 3.14159265f * denom_D * denom_D);
 
-        float G1_V = NdotV / (NdotV * (1.f - k) + k);
-        float G1_L = NdotL / (NdotL * (1.f - k) + k);
+        float G1_V = __fdividef(NdotV, NdotV * (1.f - k) + k);
+        float G1_L = __fdividef(NdotL, NdotL * (1.f - k) + k);
         float G = G1_V * G1_L;
 
-        float pow5 = powf(1.f - VdotH, 5.f);
+        float pow5 = power_five(1.f - VdotH);
         owl::vec3f F = F0 + (owl::vec3f(1.f) - F0) * pow5;
 
-        owl::vec3f specular = D * G * F * (1.f / (4.f * NdotV * NdotL + 1e-4f));
+        owl::vec3f specular = D * G * F * (__fdividef(1.f, 4.f * NdotV * NdotL + 1e-4f));
         owl::vec3f kd = (owl::vec3f(1.f) - F) * (1.f - metallic);
         owl::vec3f diffuse = kd * base_color * (1.f / 3.14159265f);
 
@@ -656,7 +671,7 @@ namespace rl_tools
 
         const owl::vec3f reflected_color = trace_rgb_color_composed(self.world, camera, depth + 1, hit_point, reflect_dir, 1e-3f, 1e20f);
 
-        float fresnel_refl = F0.x + (1.f - F0.x) * powf(1.f - fmaxf(dot(V, N), 0.f), 5.f);
+        float fresnel_refl = F0.x + (1.f - F0.x) * power_five(1.f - fmaxf(dot(V, N), 0.f));
         float reflection_weight = fresnel_refl * (1.f - roughness);
         color = color * (1.f - reflection_weight) + reflected_color * reflection_weight;
       }
@@ -770,7 +785,7 @@ namespace rl_tools
           1e-3f,
           __uint_as_float(u0),
           0.0f,
-          OptixVisibilityMask(255),
+          OptixVisibilityMask(rendering::raytracing::backends::optix::overlay_visibility_mask(overlay)),
           OPTIX_RAY_FLAG_DISABLE_ANYHIT,
           1, NUM_RAY_TYPES, 1,
           u0, u1, u2);
@@ -829,12 +844,14 @@ namespace rl_tools
   // the collision ray type with terminate-on-first-hit, like the punctual-light shadows
   inline __device__ bool trace_flow_visibility_occluded(OptixTraversableHandle world, const unsigned long long *overlays, int camera, const owl::vec3f &pos, const owl::vec3f &direction, float max_dist)
   {
-    if (trace_shadow_occluded(world, pos, direction, max_dist)) return true;
+    if (trace_shadow_occluded(world, pos, direction, max_dist, 255u)) return true;
     const int overlay_count = optixLaunchParams.overlay_count;
     for (int k = 0; k < overlay_count; k++) {
       const uint32_t overlay = optixLaunchParams.attachments[camera * overlay_count + k];
       if (overlay == 0xFFFFFFFFu) continue;
-      if (trace_shadow_occluded((OptixTraversableHandle)overlays[overlay], pos, direction, max_dist)) return true;
+      if (trace_shadow_occluded((OptixTraversableHandle)overlays[overlay], pos, direction, max_dist, rendering::raytracing::backends::optix::overlay_visibility_mask(overlay))) {
+        return true;
+      }
     }
     return false;
   }
@@ -933,7 +950,7 @@ namespace rl_tools
           0.f,
           __uint_as_float(u0),
           0.0f,
-          OptixVisibilityMask(255),
+          OptixVisibilityMask(rendering::raytracing::backends::optix::overlay_visibility_mask(overlay)),
           OPTIX_RAY_FLAG_DISABLE_ANYHIT,
           1, NUM_RAY_TYPES, 1,
           u0, u1, u2);
@@ -963,7 +980,7 @@ namespace rl_tools
       for(int slot = 0; slot < overlay_count; slot++){
         const uint32_t overlay = optixLaunchParams.attachments[ctx.cam_idx * overlay_count + slot];
         if(overlay != 0xffffffffu){
-          optixTrace((OptixTraversableHandle)optixLaunchParams.overlays[overlay], (const float3&)cam.pos, (const float3&)direction, 0.f, __uint_as_float(distance), 0.f, OptixVisibilityMask(255), OPTIX_RAY_FLAG_DISABLE_ANYHIT, 2, NUM_RAY_TYPES, 1, distance, instance, nx, ny, nz);
+          optixTrace((OptixTraversableHandle)optixLaunchParams.overlays[overlay], (const float3&)cam.pos, (const float3&)direction, 0.f, __uint_as_float(distance), 0.f, OptixVisibilityMask(rendering::raytracing::backends::optix::overlay_visibility_mask(overlay)), OPTIX_RAY_FLAG_DISABLE_ANYHIT, 2, NUM_RAY_TYPES, 1, distance, instance, nx, ny, nz);
         }
       }
     }
@@ -976,7 +993,7 @@ namespace rl_tools
       for(int slot = 0; slot < overlay_count; slot++){
         const uint32_t overlay = optixLaunchParams.attachments[ctx.cam_idx * overlay_count + slot];
         if(overlay != 0xffffffffu){
-          optixTrace((OptixTraversableHandle)optixLaunchParams.overlays[overlay], (const float3&)cam.pos, (const float3&)direction, 0.f, __uint_as_float(distance), 0.f, OptixVisibilityMask(255), OPTIX_RAY_FLAG_DISABLE_ANYHIT, 1, NUM_RAY_TYPES, 1, distance, hit, instance);
+          optixTrace((OptixTraversableHandle)optixLaunchParams.overlays[overlay], (const float3&)cam.pos, (const float3&)direction, 0.f, __uint_as_float(distance), 0.f, OptixVisibilityMask(rendering::raytracing::backends::optix::overlay_visibility_mask(overlay)), OPTIX_RAY_FLAG_DISABLE_ANYHIT, 1, NUM_RAY_TYPES, 1, distance, hit, instance);
         }
       }
     }

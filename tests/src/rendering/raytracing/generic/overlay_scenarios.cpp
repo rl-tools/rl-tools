@@ -617,3 +617,75 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, MIXED_DYNAMIC_SHARING_SCOPES){
     expect_same_instance_pixels(second, 0, 1, shared_subset_id);
     expect_repeat_after_noop_update(device, owner.renderer, second);
 }
+
+TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, ATTACHMENT_TIES_AND_PARTIAL_ACCEL_GROUP){
+    using namespace rl_tools;
+    using rendering::raytracing::OverlayIndex;
+    DEVICE device;
+    init(device);
+    rendering::Bundle<float> bundle;
+    add(device, bundle.scene, overlay_scenarios::detail::make_quad(10, {{0.2f, 0.2f, 0.2f}}, 8));
+    rendering::datasets::compute_bounds(device, bundle);
+    AssetPool pool;
+    const auto red = add(device, pool, overlay_scenarios::detail::make_quad(10, {{1, 0, 0}}, 3));
+    const auto blue = add(device, pool, overlay_scenarios::detail::make_quad(10, {{0, 0, 1}}, 3));
+    const auto green = add(device, pool, overlay_scenarios::detail::make_quad(10, {{0, 1, 0}}, 2));
+    RendererOwner<OverlaySpec> owner(device);
+    auto& renderer = owner.renderer;
+    init(device, renderer, bundle, pool);
+    set_identical_cameras(device, renderer);
+    const auto scene_only = capture(device, renderer);
+    const float identity[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+    std::array<rendering::raytracing::OverlayPlacement, OverlaySpec::NUM_OVERLAYS> placements{};
+    for(TI overlay : {0u, 1u, 7u, 8u, 9u}){
+        placements[overlay] = spawn(device, renderer, OverlayIndex{overlay}, overlay % 2 ? blue : red, identity);
+    }
+    spawn(device, renderer, OverlayIndex{6}, green, identity);
+    const std::array<std::array<TI, 2>, 4> attachments = {{{0, 1}, {1, 0}, {7, 8}, {8, 9}}};
+    for(TI camera = 0; camera < OverlaySpec::NUM_CAMERAS; camera++){
+        for(TI overlay : attachments[camera]){
+            attach(device, renderer, camera, OverlayIndex{overlay});
+        }
+    }
+    update(device, renderer);
+    const auto first = capture(device, renderer);
+    constexpr TI CENTER = OverlaySpec::CAM_HEIGHT / 2 * OverlaySpec::CAM_WIDTH + OverlaySpec::CAM_WIDTH / 2;
+    for(TI camera = 0; camera < OverlaySpec::NUM_CAMERAS; camera++){
+        EXPECT_EQ(first.segmentation[camera * OverlaySpec::CAM_PIXELS + CENTER], 1 + attachments[camera][0] * OverlaySpec::MAX_OVERLAY_INSTANCES);
+    }
+    EXPECT_NE(first.rgb[CENTER], first.rgb[OverlaySpec::CAM_PIXELS + CENTER]);
+    detach(device, renderer, TI{0}, OverlayIndex{0});
+    update(device, renderer);
+    const auto detached = capture(device, renderer);
+    EXPECT_EQ(detached.segmentation[CENTER], 1 + OverlaySpec::MAX_OVERLAY_INSTANCES);
+    attach(device, renderer, TI{0}, OverlayIndex{0});
+    update(device, renderer);
+    const auto reattached = capture(device, renderer);
+    EXPECT_EQ(first.rgb, reattached.rgb);
+    EXPECT_EQ(first.segmentation, reattached.segmentation);
+
+    float pose[12] = {1, 0, 0, 5, 0, 1, 0, 0, 0, 0, 1, 0};
+    for(TI overlay : {0u, 1u, 7u, 8u, 9u}){
+        set_transform(device, renderer, OverlayIndex{overlay}, placements[overlay], pose);
+    }
+    update(device, renderer);
+    const auto scene_tie = capture(device, renderer);
+    EXPECT_EQ(scene_only.rgb, scene_tie.rgb);
+    EXPECT_EQ(scene_only.depth, scene_tie.depth);
+    EXPECT_EQ(scene_only.segmentation, scene_tie.segmentation);
+
+    pose[3] = 10;
+    set_transform(device, renderer, OverlayIndex{0}, placements[0], pose);
+    update(device, renderer);
+    const T position[3] = {10, 0, 0}, target[3] = {11, 0, 0}, up[3] = {0, 0, 1};
+    const auto camera = make_camera_data(position, target, up, OverlaySpec::CONFIG::FOV, T{1});
+    std::array<rendering::raytracing::Camera<T>, OverlaySpec::NUM_CAMERAS> moved_cameras;
+    moved_cameras.fill(camera);
+    golden::copy_in(device, renderer.device, moved_cameras.data(), cameras(device, renderer));
+    const auto scene_miss = capture(device, renderer);
+    for(TI camera_index = 0; camera_index < OverlaySpec::NUM_CAMERAS; camera_index++){
+        const auto center = camera_index * OverlaySpec::CAM_PIXELS + CENTER;
+        EXPECT_EQ(scene_miss.segmentation[center], camera_index < 2 ? 1u : 0xFFFFFFFFu);
+        EXPECT_EQ(is_miss(scene_miss.depth[center]), camera_index >= 2);
+    }
+}

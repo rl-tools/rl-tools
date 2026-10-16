@@ -14,6 +14,11 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 // Implemented in src/rendering/raytracing/backends/optix/overlay_accel.cu (linked via the
 // rendering_raytracing_backend* targets); this header stays compilable by non-CUDA TUs.
 namespace rl_tools::rendering::raytracing::backends::optix{
+    // One visibility bit per logical overlay preserves attachment order while sharing an IAS.
+    constexpr unsigned int OVERLAYS_PER_ACCEL = 8;
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr unsigned int overlay_visibility_mask(unsigned int overlay){
+        return 1u << (overlay % OVERLAYS_PER_ACCEL);
+    }
     struct OverlaySlotStructure{
         unsigned int active;
         unsigned int object;
@@ -30,15 +35,15 @@ namespace rl_tools::rendering::raytracing::backends::optix{
     // num_instants: 1 for the steady state alone, 2 when flow keeps the previous instant's TLASes
     // resident next to the current ones — instant i's instances carry the global ids
     // [num_scene_instances + i * slots, num_scene_instances + (i + 1) * slots)
-    OverlayAccelState* overlay_accel_create(void* optix_device_context, unsigned int num_overlays, unsigned int max_instances, unsigned int num_scene_instances, unsigned long long filler_traversable, unsigned int num_instants);
+    OverlayAccelState* overlay_accel_create(void* optix_device_context, unsigned int num_overlays, unsigned int max_instances, unsigned int num_scene_instances, unsigned long long filler_traversable, unsigned int num_instants, bool allow_update);
     void overlay_accel_destroy(OverlayAccelState* state);
     // device pointer to the [num_overlays * max_instances] slot structure table (staging target)
     OverlaySlotStructure* overlay_accel_structure(OverlayAccelState* state);
     // per-object BLAS traversables + SBT offsets + classes; upload once, after owlBuildSBT
     void overlay_accel_upload_objects(OverlayAccelState* state, const OverlayObjectEntry* objects, unsigned int num_objects);
-    // per-overlay TLAS handles of one instant; stable across rebuilds (fixed output buffers), valid after create
+    // per-overlay TLAS handles of one instant, shared within a group; stable across rebuilds (fixed output buffers), valid after create
     const unsigned long long* overlay_accel_traversables(const OverlayAccelState* state, unsigned int instant);
-    // enqueues the instance fill kernel and one optixAccelBuild per overlay of the given instant
+    // enqueues the instance fill kernel and one optixAccelBuild per overlay group of the given instant
     // on stream; no host sync. transforms: [num_overlays * max_instances * 12] device
     // geometry-to-world rows; instance_classes: per global instance id, device — the kernel
     // maintains the overlay range of instant 0 (null skips the classes: the previous instant
@@ -47,6 +52,8 @@ namespace rl_tools::rendering::raytracing::backends::optix{
     // per-launch param uploads (which would race: OWL stages launch params through a single
     // pinned host buffer)
     void overlay_accel_build(OverlayAccelState* state, const float* transforms, unsigned int* instance_classes, float shutter_t, float* shutter_out, cudaStream_t stream, unsigned int instant);
+    // requires unchanged slot structure since the last build
+    void overlay_accel_refit(OverlayAccelState* state, const float* transforms, unsigned int* instance_classes, float shutter_t, float* shutter_out, cudaStream_t stream, unsigned int instant);
     // divides the linear accumulators by num_samples and writes the packed frame buffer (+
     // observation) with the exact quantization of the single-launch path, at each camera's rows
     // of the device camera table (outputs::fill_camera_table); a null accumulator skips the resolve

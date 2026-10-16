@@ -44,7 +44,7 @@ namespace rl_tools::rendering::raytracing::backends::optix{
             const OverlaySlotStructure row = structure[index];
             OptixInstance instance{};
             instance.instanceId = instance_id_base + index; // global id layout (contract: segmentation_object, operations_cpu_common.h); the previous instant's range follows the current one
-            instance.visibilityMask = 255;
+            instance.visibilityMask = overlay_visibility_mask(index / max_instances);
             instance.flags = OPTIX_INSTANCE_FLAG_NONE;
             if(row.active != 0){
                 for(int element = 0; element < 12; element++){
@@ -72,6 +72,8 @@ namespace rl_tools::rendering::raytracing::backends::optix{
     struct OverlayAccelState{
         OptixDeviceContext context;
         unsigned int num_overlays;
+        unsigned int num_groups;
+        bool allow_update;
         unsigned int max_instances;
         unsigned int num_scene_instances;
         unsigned int num_instants;
@@ -79,9 +81,9 @@ namespace rl_tools::rendering::raytracing::backends::optix{
         OverlaySlotStructure* structure = nullptr;
         OverlayObjectEntry* objects = nullptr;
         OptixInstance* instances = nullptr; // [num_instants][num_overlays * max_instances]
-        CUdeviceptr tlas_slab = 0;           // [num_instants][num_overlays] fixed output buffers
+        CUdeviceptr tlas_slab = 0;           // [num_instants][num_groups] fixed output buffers
         size_t tlas_stride = 0;
-        CUdeviceptr scratch_slab = 0;        // per overlay, shared by the instants (builds are stream-ordered)
+        CUdeviceptr scratch_slab = 0;        // per group, shared by the stream-ordered instants
         size_t scratch_stride = 0;
         std::vector<unsigned long long> traversables; // [num_instants][num_overlays]
     };
@@ -90,30 +92,37 @@ namespace rl_tools::rendering::raytracing::backends::optix{
         inline size_t num_slots(const OverlayAccelState& state){
             return (size_t)state.num_overlays * state.max_instances;
         }
-        inline OptixBuildInput make_build_input(const OverlayAccelState& state, unsigned int instant, unsigned int overlay){
+        inline OptixBuildInput make_build_input(const OverlayAccelState& state, unsigned int instant, unsigned int group){
             OptixBuildInput build_input{};
             build_input.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
-            build_input.instanceArray.instances = (CUdeviceptr)(state.instances + (size_t)instant * num_slots(state) + (size_t)overlay * state.max_instances);
-            build_input.instanceArray.numInstances = state.max_instances;
+            build_input.instanceArray.instances = (CUdeviceptr)(state.instances + (size_t)instant * num_slots(state) + (size_t)group * OVERLAYS_PER_ACCEL * state.max_instances);
+            const unsigned int remaining = state.num_overlays - group * OVERLAYS_PER_ACCEL;
+            build_input.instanceArray.numInstances = (remaining < OVERLAYS_PER_ACCEL ? remaining : OVERLAYS_PER_ACCEL) * state.max_instances;
             return build_input;
         }
-        inline OptixAccelBuildOptions build_options(){
+        inline OptixAccelBuildOptions build_options(const OverlayAccelState& state){
             OptixAccelBuildOptions options{};
             options.buildFlags = OPTIX_BUILD_FLAG_PREFER_FAST_TRACE;
+            if(state.allow_update){
+                options.buildFlags |= OPTIX_BUILD_FLAG_ALLOW_UPDATE;
+            }
             options.operation = OPTIX_BUILD_OPERATION_BUILD;
             return options;
         }
-        inline void enqueue_builds(OverlayAccelState& state, cudaStream_t stream, unsigned int instant){
-            const OptixAccelBuildOptions options = build_options();
-            for(unsigned int overlay = 0; overlay < state.num_overlays; overlay++){
-                const OptixBuildInput build_input = make_build_input(state, instant, overlay);
-                const size_t tlas_index = (size_t)instant * state.num_overlays + overlay;
+        inline void enqueue_builds(OverlayAccelState& state, cudaStream_t stream, unsigned int instant, OptixBuildOperation operation = OPTIX_BUILD_OPERATION_BUILD){
+            OptixAccelBuildOptions options = build_options(state);
+            options.operation = operation;
+            for(unsigned int group = 0; group < state.num_groups; group++){
+                const OptixBuildInput build_input = make_build_input(state, instant, group);
+                const size_t tlas_index = (size_t)instant * state.num_groups + group;
                 OptixTraversableHandle handle = 0;
                 check_optix(optixAccelBuild(state.context, stream, &options, &build_input, 1,
-                                            state.scratch_slab + (CUdeviceptr)overlay * state.scratch_stride, state.scratch_stride,
+                                            state.scratch_slab + (CUdeviceptr)group * state.scratch_stride, state.scratch_stride,
                                             state.tlas_slab + (CUdeviceptr)tlas_index * state.tlas_stride, state.tlas_stride,
                                             &handle, nullptr, 0), "optixAccelBuild");
-                state.traversables[tlas_index] = handle; // stable: fixed output buffer per overlay and instant
+                for(unsigned int logical = group * OVERLAYS_PER_ACCEL; logical < state.num_overlays && logical < (group + 1) * OVERLAYS_PER_ACCEL; logical++){
+                    state.traversables[(size_t)instant * state.num_overlays + logical] = handle;
+                }
             }
         }
         inline void enqueue_fill(OverlayAccelState& state, const float* transforms, unsigned int* instance_classes, float shutter_t, float* shutter_out, cudaStream_t stream, unsigned int instant){
@@ -125,13 +134,15 @@ namespace rl_tools::rendering::raytracing::backends::optix{
         }
     }
 
-    OverlayAccelState* overlay_accel_create(void* optix_device_context, unsigned int num_overlays, unsigned int max_instances, unsigned int num_scene_instances, unsigned long long filler_traversable, unsigned int num_instants){
+    OverlayAccelState* overlay_accel_create(void* optix_device_context, unsigned int num_overlays, unsigned int max_instances, unsigned int num_scene_instances, unsigned long long filler_traversable, unsigned int num_instants, bool allow_update){
         namespace detail = overlay_accel_detail;
         static const OptixResult optix_init_result = optixInit();
         detail::check_optix(optix_init_result, "optixInit");
         auto* state = new OverlayAccelState{};
         state->context = (OptixDeviceContext)optix_device_context;
         state->num_overlays = num_overlays;
+        state->num_groups = (num_overlays + OVERLAYS_PER_ACCEL - 1) / OVERLAYS_PER_ACCEL;
+        state->allow_update = allow_update;
         state->max_instances = max_instances;
         state->num_scene_instances = num_scene_instances;
         state->num_instants = num_instants;
@@ -141,14 +152,14 @@ namespace rl_tools::rendering::raytracing::backends::optix{
         detail::check_cuda(cudaMemset(state->structure, 0, num_slots * sizeof(OverlaySlotStructure)), "structure cudaMemset");
         detail::check_cuda(cudaMalloc(&state->instances, (size_t)num_instants * num_slots * sizeof(OptixInstance)), "instances cudaMalloc");
 
-        const OptixAccelBuildOptions options = detail::build_options();
+        const OptixAccelBuildOptions options = detail::build_options(*state);
         const OptixBuildInput size_input = detail::make_build_input(*state, 0, 0);
         OptixAccelBufferSizes sizes{};
         detail::check_optix(optixAccelComputeMemoryUsage(state->context, &options, &size_input, 1, &sizes), "optixAccelComputeMemoryUsage");
         state->tlas_stride = detail::align_up(sizes.outputSizeInBytes, OPTIX_ACCEL_BUFFER_BYTE_ALIGNMENT);
-        state->scratch_stride = detail::align_up(sizes.tempSizeInBytes, OPTIX_ACCEL_BUFFER_BYTE_ALIGNMENT);
-        detail::check_cuda(cudaMalloc((void**)&state->tlas_slab, (size_t)num_instants * num_overlays * state->tlas_stride), "tlas cudaMalloc");
-        detail::check_cuda(cudaMalloc((void**)&state->scratch_slab, (size_t)num_overlays * state->scratch_stride), "scratch cudaMalloc");
+        state->scratch_stride = detail::align_up(sizes.tempSizeInBytes > sizes.tempUpdateSizeInBytes ? sizes.tempSizeInBytes : sizes.tempUpdateSizeInBytes, OPTIX_ACCEL_BUFFER_BYTE_ALIGNMENT);
+        detail::check_cuda(cudaMalloc((void**)&state->tlas_slab, (size_t)num_instants * state->num_groups * state->tlas_stride), "tlas cudaMalloc");
+        detail::check_cuda(cudaMalloc((void**)&state->scratch_slab, (size_t)state->num_groups * state->scratch_stride), "scratch cudaMalloc");
         state->traversables.assign((size_t)num_instants * num_overlays, 0);
 
         // initial build: the zeroed structure emits filler-only instances (transforms/objects/classes
@@ -194,6 +205,12 @@ namespace rl_tools::rendering::raytracing::backends::optix{
         detail::enqueue_builds(*state, stream, instant);
     }
 
+    void overlay_accel_refit(OverlayAccelState* state, const float* transforms, unsigned int* instance_classes, float shutter_t, float* shutter_out, cudaStream_t stream, unsigned int instant){
+        namespace detail = overlay_accel_detail;
+        detail::enqueue_fill(*state, transforms, instance_classes, shutter_t, shutter_out, stream, instant);
+        detail::enqueue_builds(*state, stream, instant, OPTIX_BUILD_OPERATION_UPDATE);
+    }
+
     namespace overlay_accel_detail{
         __device__ inline unsigned int resolve_make_8bit(float f){
             const int value = (int)(f * 256.0f);
@@ -203,7 +220,7 @@ namespace rl_tools::rendering::raytracing::backends::optix{
             if(x <= 0.0031308f){
                 return 12.92f * x;
             }
-            return 1.055f * powf(x, 1.0f / 2.4f) - 0.055f;
+            return 1.055f * __powf(x, 1.0f / 2.4f) - 0.055f;
         }
         __device__ inline float resolve_clamp01(float x){
             return fminf(fmaxf(x, 0.0f), 1.0f);

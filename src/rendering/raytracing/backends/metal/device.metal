@@ -291,7 +291,7 @@ inline intersection_result<triangle_data, instancing> intersect_composed(
             clamped.max_distance = best.distance;
         }
         intersection_result<triangle_data, instancing> hit = i.intersect(clamped, entry.structure);
-        if (hit.type != intersection_type::none) {
+        if (hit.type != intersection_type::none && (best.type == intersection_type::none || hit.distance < best.distance)) {
             best = hit;
         }
     }

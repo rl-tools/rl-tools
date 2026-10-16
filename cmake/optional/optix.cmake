@@ -13,13 +13,16 @@ if(RL_TOOLS_OPTIX_NVCC_ON_PATH)
 endif()
 
 include(FetchContent)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/../patches/owl_compile_options.cmake")
 FetchContent_Declare(
     OWL
     GIT_REPOSITORY https://github.com/NVIDIA/OWL.git
     GIT_TAG        e5db326767ff759854477f892ba7a2936ad8406d
+    PATCH_COMMAND "${CMAKE_COMMAND}" "-DOWL_SOURCE_DIR=<SOURCE_DIR>" -P "${CMAKE_CURRENT_LIST_DIR}/../patches/owl_compile_options.cmake"
     EXCLUDE_FROM_ALL
 )
 rl_tools_fetchcontent_makeavailable_quiet(OWL)
+execute_process(COMMAND "${CMAKE_COMMAND}" "-DOWL_SOURCE_DIR=${owl_SOURCE_DIR}" -P "${CMAKE_CURRENT_LIST_DIR}/../patches/owl_compile_options.cmake" COMMAND_ERROR_IS_FATAL ANY)
 
 target_link_libraries(rl_tools_full INTERFACE owl::owl assimp::assimp)
 target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_RENDERING_ENABLE_RAYTRACING RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
