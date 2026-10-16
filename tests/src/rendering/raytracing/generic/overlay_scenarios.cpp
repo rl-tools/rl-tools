@@ -617,3 +617,50 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, MIXED_DYNAMIC_SHARING_SCOPES){
     expect_same_instance_pixels(second, 0, 1, shared_subset_id);
     expect_repeat_after_noop_update(device, owner.renderer, second);
 }
+
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX) && defined(RL_TOOLS_RENDERING_RAYTRACING_OVERLAY_TEST_ACTIVE_BACKEND)
+TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, ATTACHMENT_TIES_AND_PARTIAL_ACCEL_GROUP){
+    using namespace rl_tools;
+    using rendering::raytracing::OverlayIndex;
+    DEVICE device;
+    init(device);
+    rendering::Bundle<float> bundle;
+    add(device, bundle.scene, overlay_scenarios::detail::make_quad(10, {{0.2f, 0.2f, 0.2f}}, 8));
+    rendering::datasets::compute_bounds(device, bundle);
+    AssetPool pool;
+    const auto red = add(device, pool, overlay_scenarios::detail::make_quad(10, {{1, 0, 0}}, 3));
+    const auto blue = add(device, pool, overlay_scenarios::detail::make_quad(10, {{0, 0, 1}}, 3));
+    const auto green = add(device, pool, overlay_scenarios::detail::make_quad(10, {{0, 1, 0}}, 2));
+    RendererOwner<OverlaySpec> owner(device);
+    auto& renderer = owner.renderer;
+    init(device, renderer, bundle, pool);
+    set_identical_cameras(device, renderer);
+    const float identity[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+    for(TI overlay : {0u, 1u, 7u, 8u, 9u}){
+        spawn(device, renderer, OverlayIndex{overlay}, overlay % 2 ? blue : red, identity);
+    }
+    spawn(device, renderer, OverlayIndex{6}, green, identity);
+    const std::array<std::array<TI, 2>, 4> attachments = {{{0, 1}, {1, 0}, {7, 8}, {8, 9}}};
+    for(TI camera = 0; camera < OverlaySpec::NUM_CAMERAS; camera++){
+        for(TI overlay : attachments[camera]){
+            attach(device, renderer, camera, OverlayIndex{overlay});
+        }
+    }
+    update(device, renderer);
+    const auto first = capture(device, renderer);
+    constexpr TI CENTER = OverlaySpec::CAM_HEIGHT / 2 * OverlaySpec::CAM_WIDTH + OverlaySpec::CAM_WIDTH / 2;
+    for(TI camera = 0; camera < OverlaySpec::NUM_CAMERAS; camera++){
+        EXPECT_EQ(first.segmentation[camera * OverlaySpec::CAM_PIXELS + CENTER], 1 + attachments[camera][0] * OverlaySpec::MAX_OVERLAY_INSTANCES);
+    }
+    EXPECT_NE(first.rgb[CENTER], first.rgb[OverlaySpec::CAM_PIXELS + CENTER]);
+    detach(device, renderer, TI{0}, OverlayIndex{0});
+    update(device, renderer);
+    const auto detached = capture(device, renderer);
+    EXPECT_EQ(detached.segmentation[CENTER], 1 + OverlaySpec::MAX_OVERLAY_INSTANCES);
+    attach(device, renderer, TI{0}, OverlayIndex{0});
+    update(device, renderer);
+    const auto reattached = capture(device, renderer);
+    EXPECT_EQ(first.rgb, reattached.rgb);
+    EXPECT_EQ(first.segmentation, reattached.segmentation);
+}
+#endif

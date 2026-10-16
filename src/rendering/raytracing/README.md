@@ -103,6 +103,8 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   per-frame instance-descriptor composition is CPU-side by architecture). End-to-end example:
   `src/rendering/raytracing/example/drone_device.cu`.
 
+OptiX packs up to eight logical overlays into each acceleration structure, using visibility masks to preserve per-camera attachments and global instance IDs. Dynamic motion blur rebuilds the first shutter sample to consume device-written object changes, then refits transforms for subsequent samples and shutter close.
+
 ## Declaring outputs
 
 ```cpp

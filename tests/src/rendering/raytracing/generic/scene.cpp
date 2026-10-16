@@ -34,6 +34,7 @@
 
 namespace rlt = rl_tools;
 namespace rro = rlt::rendering::raytracing::outputs;
+using rlt::attach;
 using rlt::output;
 
 #ifdef RL_TOOLS_RENDERING_RAYTRACING_SCENE_TEST_ACTIVE_BACKEND
@@ -2180,7 +2181,7 @@ struct OVERLAY_PBR_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     using OUTPUTS = rro::List<rro::RGB<>, rro::Probes>;
     static constexpr TI CAM_WIDTH = 32, CAM_HEIGHT = 32, NUM_CAMERAS = 2, NUM_PROBES = 4;
     using SHADING = rlt::rendering::raytracing::VeryHigh;
-    static constexpr TI NUM_OVERLAYS = 1, MAX_OVERLAY_INSTANCES = 8, MAX_OVERLAYS_PER_CAMERA = 1;
+    static constexpr TI NUM_OVERLAYS = 2, MAX_OVERLAY_INSTANCES = 8, MAX_OVERLAYS_PER_CAMERA = 1;
 };
 using OVERLAY_PBR_SPEC = rlt::rendering::raytracing::Specification<OVERLAY_PBR_CONFIG>;
 
@@ -2208,6 +2209,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SECONDARY_RAYS){
     rlt::generate_probe_directions(device, renderer);
     rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0}); // camera 0 sees the overlay cube, camera 1 does not
+    attach(device, renderer, (TI)1, OverlayIndex{1});
 
     float transform[12];
     const float position[3] = {2, 0, 2}; // between the light and the floor, off-axis so the floor stays visible
@@ -2240,7 +2242,7 @@ struct OVERLAY_PROBE_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     using OUTPUTS = rro::List<rro::RGB<>, rro::Probes>;
     static constexpr TI CAM_WIDTH = 4, CAM_HEIGHT = 4, NUM_CAMERAS = 2, NUM_PROBES = 4;
     using SHADING = rlt::rendering::raytracing::Low;
-    static constexpr TI NUM_OVERLAYS = 1, MAX_OVERLAY_INSTANCES = 8, MAX_OVERLAYS_PER_CAMERA = 1;
+    static constexpr TI NUM_OVERLAYS = 2, MAX_OVERLAY_INSTANCES = 8, MAX_OVERLAYS_PER_CAMERA = 1;
 };
 using OVERLAY_PROBE_SPEC = rlt::rendering::raytracing::Specification<OVERLAY_PROBE_CONFIG>;
 
@@ -2257,6 +2259,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_PROBES){
     rlt::generate_probe_directions(device, renderer);
     rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0}); // only camera 0 senses the overlay
+    attach(device, renderer, (TI)1, OverlayIndex{1});
 
     float transform[12];
     const float position[3] = {-3, 0, 0}; // forward probe (looking -x, away from the anchor) hits the near face at x=-2

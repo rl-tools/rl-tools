@@ -251,3 +251,69 @@ TEST(RL_TOOLS_OVERLAY_PRODUCER_SUITE, MOTION_TENSOR_WRITE_EQUALS_VERB){
     const auto visibility = difference(baseline, producer);
     EXPECT_GT(visibility.rgb, MIN_MOVE_CHANGED_PIXELS) << "producer frame did not move away from the baseline (stale transforms)";
 }
+
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX) && defined(RL_TOOLS_RENDERING_RAYTRACING_OVERLAY_PRODUCER_ACTIVE_BACKEND)
+namespace producer_contract {
+    struct StructureConfig: PairConfig {
+        static constexpr TI NUM_OVERLAYS = 2;
+    };
+}
+
+TEST(RL_TOOLS_OVERLAY_PRODUCER_SUITE, MOTION_STRUCTURE_WRITE_WITHOUT_UPDATE){
+    using namespace rl_tools;
+    using namespace producer_contract;
+    using rendering::raytracing::OverlayIndex;
+    using SPEC = rendering::raytracing::Specification<StructureConfig>;
+    DEVICE device;
+    init(device);
+    rendering::Bundle<float> bundle;
+    add(device, bundle.scene, make_quad(10, 0.2f, 0.2f, 0.2f, 8));
+    rendering::datasets::compute_bounds(device, bundle);
+    rendering::raytracing::AssetPool pool;
+    const auto red = add(device, pool, make_quad(0.6f, 1, 0, 0, 3));
+    const auto green = add(device, pool, make_quad(1, 0, 1, 0, 2));
+    rendering::raytracing::Renderer<SPEC, BACKEND> renderer;
+    malloc(device, renderer);
+    init(device, renderer, bundle, pool);
+    generate_probe_directions(device, renderer);
+    const auto identity = pose(0, 0, 0);
+    spawn(device, renderer, OverlayIndex{0}, red, identity.data());
+    spawn(device, renderer, OverlayIndex{1}, green, identity.data());
+    attach(device, renderer, TI{0}, OverlayIndex{0});
+    const T position[3] = {0, 0, 0}, target[3] = {1, 0, 0}, up[3] = {0, 0, 1};
+    const auto camera = make_camera_data(position, target, up, T{80}, T{1});
+    golden::copy_in(device, renderer.device, &camera, cameras(device, renderer));
+    golden::copy_in(device, renderer.device, &camera, cameras_open(device, renderer));
+    update(device, renderer);
+    auto capture = [&](){
+        render_launch(device, renderer);
+        probe_launch(device, renderer);
+        synchronize(device, renderer);
+        Frame frame;
+        golden::copy_out(renderer.device, device, output(device, renderer, rro::RGB<>{}), frame.rgb);
+        golden::copy_out(renderer.device, device, output(device, renderer, rro::Depth<>{}), frame.depth);
+        return frame;
+    };
+    const auto before = capture();
+    using Structure = rendering::raytracing::backends::optix::OverlaySlotStructure;
+    Structure first{}, second{};
+    ASSERT_EQ(cudaMemcpy(&first, overlay_structure(device, renderer), sizeof(first), cudaMemcpyDeviceToHost), cudaSuccess);
+    ASSERT_EQ(cudaMemcpy(&second, overlay_structure(device, renderer) + SPEC::MAX_OVERLAY_INSTANCES, sizeof(second), cudaMemcpyDeviceToHost), cudaSuccess);
+    first.object = second.object;
+    ASSERT_EQ(cudaMemcpyAsync(overlay_structure(device, renderer), &first, sizeof(first), cudaMemcpyHostToDevice), cudaSuccess);
+    const auto replaced = capture();
+    constexpr TI CENTER = SPEC::CAM_HEIGHT / 2 * SPEC::CAM_WIDTH + SPEC::CAM_WIDTH / 2;
+    EXPECT_NE(before.rgb[CENTER], replaced.rgb[CENTER]);
+    EXPECT_LT(replaced.depth[CENTER], before.depth[CENTER] - 0.9f);
+    first.active = 0;
+    ASSERT_EQ(cudaMemcpyAsync(overlay_structure(device, renderer), &first, sizeof(first), cudaMemcpyHostToDevice), cudaSuccess);
+    const auto inactive = capture();
+    EXPECT_GT(inactive.depth[CENTER], 7.0f);
+    first.active = 1;
+    ASSERT_EQ(cudaMemcpyAsync(overlay_structure(device, renderer), &first, sizeof(first), cudaMemcpyHostToDevice), cudaSuccess);
+    const auto restored = capture();
+    EXPECT_EQ(replaced.rgb, restored.rgb);
+    EXPECT_EQ(replaced.depth, restored.depth);
+    free(device, renderer);
+}
+#endif

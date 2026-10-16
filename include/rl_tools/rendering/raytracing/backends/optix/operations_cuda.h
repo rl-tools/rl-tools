@@ -1059,7 +1059,7 @@ namespace rl_tools {
                     object_entries[object_i].sbt_offset = owlGroupGetSBTOffset(overlay_state->object_groups[object_i]);
                     object_entries[object_i].segmentation_class = all_objects[object_i]->segmentation_class;
                 }
-                overlay_state->accel = optix::overlay_accel_create(owlContextGetOptixContext(context, 0), SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES, (unsigned int)scene.instances.size(), (unsigned long long)owlGroupGetTraversable(overlay_state->filler_group, 0), SPEC::HAS_FLOW ? 2u : 1u);
+                overlay_state->accel = optix::overlay_accel_create(owlContextGetOptixContext(context, 0), SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES, (unsigned int)scene.instances.size(), (unsigned long long)owlGroupGetTraversable(overlay_state->filler_group, 0), SPEC::HAS_FLOW ? 2u : 1u, SPEC::ENABLE_DYNAMIC_MOTION_BLUR);
                 optix::overlay_accel_upload_objects(overlay_state->accel, object_entries.data(), (unsigned int)object_entries.size());
                 constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
                 overlay_state->structure_staging.assign(SLOTS, optix::OverlaySlotStructure{});
@@ -1404,10 +1404,7 @@ namespace rl_tools {
         cudaStream_t cuda_stream = (cudaStream_t)owlParamsGetCudaStream(launch_params, 0);
         optix::fork(device, renderer.backend->ordering_event, cuda_stream, 0);
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
-            // one enqueue-only pass per motion sample: overlay TLAS rebuild from the per-sample
-            // transforms slab (the fill kernel also publishes the pass's shutter time), then the
-            // accumulate ray gens; the shutter-close rebuild restores the steady state for
-            // segmentation/probes before the resolve kernel averages the accumulators
+            // The first sample rebuilds to consume device-written slot structures; subsequent samples only change transforms.
             auto* overlay_state = (optix::OverlayState*)renderer.backend->overlay_state;
             unsigned int* instance_classes = SPEC::HAS_SEMANTIC_SEGMENTATION ? (unsigned int*)owlBufferGetPointer(renderer.backend->instance_classes_buffer, 0) : nullptr;
             cudaStream_t coll_stream = collision_stream(device, renderer);
@@ -1418,12 +1415,17 @@ namespace rl_tools {
             constexpr size_t SLAB = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12;
             for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
                 const float shutter_t = ((float)sample + 0.5f) / (float)SPEC::MOTION_BLUR_SAMPLES;
-                optix::overlay_accel_build(overlay_state->accel, data(renderer.transforms_motion) + sample * SLAB, instance_classes, shutter_t, renderer.backend->shutter_device, cuda_stream, 0u);
+                if(sample == 0){
+                    optix::overlay_accel_build(overlay_state->accel, data(renderer.transforms_motion) + sample * SLAB, instance_classes, shutter_t, renderer.backend->shutter_device, cuda_stream, 0u);
+                }
+                else{
+                    optix::overlay_accel_refit(overlay_state->accel, data(renderer.transforms_motion) + sample * SLAB, instance_classes, shutter_t, renderer.backend->shutter_device, cuda_stream, 0u);
+                }
                 if constexpr (SPEC::HAS_RGB){
                     owlAsyncLaunch2D((OWLRayGen)renderer.backend->ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
                 }
             }
-            optix::overlay_accel_build(overlay_state->accel, data(renderer.transforms), instance_classes, 1.0f, nullptr, cuda_stream, 0u);
+            optix::overlay_accel_refit(overlay_state->accel, data(renderer.transforms), instance_classes, 1.0f, nullptr, cuda_stream, 0u);
             devices::cuda::order_after(renderer.backend->ordering_event, cuda_stream, coll_stream);
             if constexpr (SPEC::HAS_AUXILIARY) {
                 owlAsyncLaunch2D(renderer.backend->auxiliary_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
