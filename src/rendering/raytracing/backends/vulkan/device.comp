@@ -305,7 +305,7 @@ Hit intersect_composed(int camera, vec3 origin, vec3 direction, float tmin, floa
         if(overlay_num_active[overlay] == 0u){ continue; }
         const float clamped_tmax = best.valid ? best.t : tmax;
         Hit hit = trace_single(overlay_tlas[nonuniformEXT(overlay)], origin, direction, tmin, clamped_tmax, flags);
-        if(hit.valid){
+        if(hit.valid && (!best.valid || hit.t < best.t)){
             best = hit;
         }
     }
@@ -920,7 +920,7 @@ Hit intersect_composed_instant(bool previous, int camera, vec3 origin, vec3 dire
         else{
             hit = trace_single(overlay_tlas[nonuniformEXT(overlay)], origin, direction, tmin, clamped_tmax, flags);
         }
-        if(hit.valid){
+        if(hit.valid && (!best.valid || hit.t < best.t)){
             best = hit;
         }
     }

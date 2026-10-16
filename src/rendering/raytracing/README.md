@@ -66,6 +66,7 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
 - **Determinism is a contract.** Fixed seed ⇒ identical results, no atomics. The global
   instance-id layout (scene instances `[0,S)`, overlay `o` slot `s` at `S + o*MAX + s`) is
   cross-backend API surface consumed by segmentation.
+  When composing the scene and attached overlays, equal-distance hits retain the earlier result: scene first, then attachment-slot order. This does not define tie-breaking among primitives inside one acceleration structure.
 - **Dynamic motion blur** (`ENABLE_DYNAMIC_MOTION_BLUR`, requires motion blur + overlays):
   `render_launch` internally runs `MOTION_BLUR_SAMPLES` sequential passes, rebuilding the
   overlay acceleration structures from the per-sample `transforms_motion()` slabs between
