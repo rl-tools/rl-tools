@@ -23,7 +23,6 @@ using Interface = l2f::parameters::ActionInterface;
 template<Interface MODE>
 struct StaticParameters: FACTORY::STATIC_PARAMETERS {
     static constexpr auto ACTION_INTERFACE = MODE;
-    static constexpr l2f::parameters::IdealCTBR<T> IDEAL_CTBR{};
     static constexpr TI N_SUBSTEPS = MODE == Interface::CTBR ? 10 : 1;
     using STATE_BASE = l2f::StateBase<l2f::StateSpecification<T, TI>>;
     using STATE_PD = l2f::StateCTBRController<l2f::StateSpecification<T, TI, STATE_BASE>>;
@@ -73,9 +72,10 @@ void hash_state(std::uint64_t& hash, const STATE& state) {
     append(state.torque);
 }
 
-template<Interface MODE, bool VERIFY>
+template<typename STATIC_PARAMETERS, bool VERIFY>
 void measure(const std::string& label, TI count) {
-    using ENVIRONMENT = rlt::rl::environments::Multirotor<l2f::Specification<T, TI, StaticParameters<MODE>>>;
+    using ENVIRONMENT = rlt::rl::environments::Multirotor<l2f::Specification<T, TI, STATIC_PARAMETERS>>;
+    constexpr bool IDEAL = std::is_same_v<typename ENVIRONMENT::ACTUATION, l2f::actuation::IdealRates>;
     using rlt::init;
     using rlt::initial_state;
     using rlt::step;
@@ -97,19 +97,19 @@ void measure(const std::string& label, TI count) {
         initial_state(device, environment, parameters, initial[row]);
         initial[row].position[0] = T(row % 11) * T(0.01);
         initial[row].angular_velocity[2] = T(row % 7) * T(0.01);
-        if constexpr(MODE == Interface::CTBR){
+        if constexpr(ENVIRONMENT::RATE_CONTROLLER){
             initial[row].previous_angular_velocity[2] = initial[row].angular_velocity[2];
         }
     }
     for(TI tick = 0; tick < STEPS; tick++) {
         const T phase = T(tick % 64) * T(6.283185307179586 / 64);
-        if constexpr(MODE == Interface::IDEAL_CTBR){
-            set(commands[tick], 0, 0, parameters.dynamics.mass * T(9.81) * (1 + T(0.05) * std::sin(phase)));
-            set(commands[tick], 0, 1, T(0.2) * std::sin(phase));
-            set(commands[tick], 0, 2, T(0.2) * std::cos(phase));
-            set(commands[tick], 0, 3, T(0.1));
+        if constexpr(IDEAL){
+            set(commands[tick], 0, 0, T(2) * (1 + T(0.05) * std::sin(phase)) / parameters.ideal_rates.thrust_to_weight - T(1));
+            set(commands[tick], 0, 1, T(0.2) * std::sin(phase) / parameters.ideal_rates.rate_limit[0]);
+            set(commands[tick], 0, 2, T(0.2) * std::cos(phase) / parameters.ideal_rates.rate_limit[1]);
+            set(commands[tick], 0, 3, T(0.1) / parameters.ideal_rates.rate_limit[2]);
         }
-        else if constexpr(MODE == Interface::CTBR){
+        else if constexpr(ENVIRONMENT::RATE_CONTROLLER){
             set(commands[tick], 0, 0, parameters.dynamics.hovering_throttle_relative * T(2) - T(1) + T(0.002) * std::sin(phase));
             set(commands[tick], 0, 1, T(0.2) * std::sin(phase) / parameters.ctbr_controller.rate_limit[0]);
             set(commands[tick], 0, 2, T(0.2) * std::cos(phase) / parameters.ctbr_controller.rate_limit[1]);
@@ -184,11 +184,11 @@ void measure(const std::string& label, TI count) {
 
 int main(){
     for(TI count: {TI(1), TI(32), TI(4096)}){
-        measure<Interface::DIRECT_MOTOR, true>("motor", count);
-        measure<Interface::CTBR, true>("ctbr_pd", count);
-        measure<Interface::IDEAL_CTBR, true>("ctbr", count);
-        measure<Interface::DIRECT_MOTOR, false>("motor", count);
-        measure<Interface::CTBR, false>("ctbr_pd", count);
-        measure<Interface::IDEAL_CTBR, false>("ctbr", count);
+        measure<StaticParameters<Interface::DIRECT_MOTOR>, true>("motor", count);
+        measure<StaticParameters<Interface::CTBR>, true>("ctbr_pd", count);
+        measure<l2f::WithIdealRates<StaticParameters<Interface::DIRECT_MOTOR>>, true>("ctbr_ideal", count);
+        measure<StaticParameters<Interface::DIRECT_MOTOR>, false>("motor", count);
+        measure<StaticParameters<Interface::CTBR>, false>("ctbr_pd", count);
+        measure<l2f::WithIdealRates<StaticParameters<Interface::DIRECT_MOTOR>>, false>("ctbr_ideal", count);
     }
 }

@@ -11,9 +11,12 @@ MASK = np.array([True, False, True, False])
 COMPONENTS = ("position", "orientation", "linear_velocity", "angular_velocity", "motor_command")
 
 
+NO_ACTION_NOISE = {"dynamics": {"mdp": {"action_noise": {"normalized_rpm": 0}}}}
+
+
 @pytest.fixture(scope="module")
 def ctbr():
-    return dynamics.Sim(N, control="ctbr", device="cpu")
+    return dynamics.Sim(N, control="ctbr", actuation="ideal", device="cpu", parameters=NO_ACTION_NOISE)
 
 
 @pytest.fixture(scope="module")
@@ -37,47 +40,53 @@ def copy_state(source, destination):
         destination.state[name] = source.state[name]
 
 
-def test_ctbr_physical_units_and_current_step_rates(ctbr):
+def test_ctbr_normalized_commands_and_current_step_rates(ctbr):
     ctbr.reset()
-    drone = ctbr.parameters["dynamics"]["dynamics"]
-    hover = -drone["mass"] * drone["gravity"][2]
+    ideal = ctbr.parameters["dynamics"]["ideal_rates"]
+    rate_limit = np.asarray(ideal["rate_limit"], dtype=np.float32)
+    hover = 2 / ideal["thrust_to_weight"] - 1
     actions = np.zeros((N, 4), dtype=np.float32)
+    actions[:, 0] = -1
     actions[0, 0] = hover
-    actions[1, 3] = 2
-    actions[2, 1] = 1
-    actions[3, 2] = -1
+    actions[1, 3] = 0.1
+    actions[2, 1] = 0.05
+    actions[3, 2] = -0.05
     ctbr.step(actions)
     np.testing.assert_allclose(ctbr.state["position"][0], 0, atol=1e-7)
     np.testing.assert_allclose(ctbr.state["linear_velocity"][1:, 2], -9.81 * ctbr.dt, atol=1e-6)
-    np.testing.assert_array_equal(ctbr.state["angular_velocity"], actions[:, 1:])
-    np.testing.assert_allclose(ctbr.state["orientation"][1], [np.cos(ctbr.dt), 0, 0, np.sin(ctbr.dt)], atol=1e-6)
+    np.testing.assert_allclose(ctbr.state["angular_velocity"], actions[:, 1:] * rate_limit, atol=1e-6)
+    yaw_rate = 0.1 * rate_limit[2]
+    np.testing.assert_allclose(ctbr.state["orientation"][1], [np.cos(yaw_rate * ctbr.dt / 2), 0, 0, np.sin(yaw_rate * ctbr.dt / 2)], atol=1e-6)
     actions[:, 1:] *= -1
     ctbr.step(actions)
-    np.testing.assert_array_equal(ctbr.state["angular_velocity"], actions[:, 1:])
+    np.testing.assert_allclose(ctbr.state["angular_velocity"], actions[:, 1:] * rate_limit, atol=1e-6)
     np.testing.assert_allclose(ctbr.state["orientation"], np.tile([1, 0, 0, 0], (N, 1)), atol=1e-6)
+    assert ctbr.control == "ctbr" and ctbr.actuation == "ideal"
     assert ctbr.num_rotors == ctbr.action_dim == 4
     assert ctbr.rotor_rpm().shape == (N, ctbr.num_rotors)
-    np.testing.assert_array_equal(ctbr.action_low, [0, -20, -20, -20])
-    np.testing.assert_array_equal(ctbr.action_high, [np.inf, 20, 20, 20])
+    np.testing.assert_array_equal(ctbr.action_low, [-1, -1, -1, -1])
+    np.testing.assert_array_equal(ctbr.action_high, [1, 1, 1, 1])
     with pytest.raises(ValueError, match="shape"):
         ctbr.step(np.zeros((N, 3)))
 
 
-def test_ctbr_limits_follow_per_instance_thrust(ctbr):
+def test_ctbr_limits_follow_per_instance_thrust_to_weight(ctbr):
     ctbr.reset()
-    drone = ctbr.parameters["dynamics"]["dynamics"]
-    coefficients = np.asarray(drone["rotor_thrust_coefficients"])
-    ctbr.set_instance_parameters({"dynamics": {"dynamics": {"rotor_thrust_coefficients": (coefficients * 2).tolist()}}}, MASK)
+    ideal = ctbr.parameters["dynamics"]["ideal_rates"]
+    gravity = -ctbr.parameters["dynamics"]["dynamics"]["gravity"][2]
+    ctbr.set_instance_parameters({"dynamics": {"ideal_rates": {"thrust_to_weight": 2 * ideal["thrust_to_weight"]}}}, MASK)
     actions = np.zeros((N, 4), dtype=np.float32)
-    actions[:, 0] = 1e6
+    actions[:, 0] = 100
     ctbr.step(actions)
-    maximum = drone["action_limit"]["max"]
-    thrust = (coefficients[:, 0] + coefficients[:, 1] * maximum + coefficients[:, 2] * maximum ** 2).sum()
-    expected = (thrust * np.where(MASK, 2, 1) / drone["mass"] + drone["gravity"][2]) * ctbr.dt
-    np.testing.assert_allclose(ctbr.state["linear_velocity"][:, 2], expected, atol=1e-6)
+    expected = (ideal["thrust_to_weight"] * np.where(MASK, 2, 1) - 1) * gravity * ctbr.dt
+    np.testing.assert_allclose(ctbr.state["linear_velocity"][:, 2], expected, rtol=1e-5)
     actions[:, 1:] = [100, -100, 100]
     ctbr.step(actions)
-    np.testing.assert_array_equal(ctbr.state["angular_velocity"], np.tile([20, -20, 20], (N, 1)))
+    np.testing.assert_allclose(ctbr.state["angular_velocity"], np.tile(np.asarray(ideal["rate_limit"]) * [1, -1, 1], (N, 1)), rtol=1e-6)
+    ctbr.reset()
+    np.testing.assert_array_equal([entry["dynamics"]["ideal_rates"] for entry in ctbr.instance_parameters()], [ideal] * N)
+    with pytest.raises(ValueError, match="vary per instance"):
+        ctbr.set_instance_parameters({"dynamics": {"integration": {"dt": 2 * ctbr.dt}}}, MASK)
 
 
 def test_position_masked_reset_preserves_other_rows(position_sims):

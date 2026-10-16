@@ -180,12 +180,7 @@ namespace rl_tools{
             state.rotor_history_step = 0;
             for(TI step_i = 0; step_i < STATE_SPEC::HISTORY_LENGTH; step_i++){
                 for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
-                    if constexpr(SPEC::STATIC_PARAMETERS::ACTION_INTERFACE == parameters::ActionInterface::IDEAL_CTBR){
-                        state.action_history[step_i][action_i] = 0;
-                    }
-                    else{
-                        state.action_history[step_i][action_i] = (state.rpm[action_i] - parameters.dynamics.action_limit.min) / (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min) * 2 - 1;
-                    }
+                    state.action_history[step_i][action_i] = (state.rpm[action_i] - parameters.dynamics.action_limit.min) / (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min) * 2 - 1;
                 }
             }
         }

@@ -27,6 +27,7 @@ from .._dlpack import is_cuda
 from .._outputs import VALID_MOTION_BLUR_SAMPLES
 from ..camera import CameraSpec, RGB, ImageObservation, camera_config_header, backend_requirement, validate_cameras, validate_observation
 from .._output_buffers import OutputCollection
+from .._control import ACTUATIONS, CONTROLS, validate_control
 from .._parameters import resolve
 
 PRESETS = {"crazyflie": 0, "x500_fpv": 1, "x500_fpv_imu": 2}
@@ -72,10 +73,10 @@ class EnvConfig:
     motion_blur_samples: int = 1
     dataset: str = "glb"
     control: str = "motor"
+    actuation: str = "rotors"
 
     def __post_init__(self):
-        if self.control not in ("motor", "ctbr", "position"):
-            raise ValueError("hyperdrone: control must be 'motor', 'ctbr' or 'position'")
+        validate_control(self.control, self.actuation)
         for name in ("num_environments", "instances_per_environment", "width", "height", "num_agents", "num_camera_agents"):
             if type(getattr(self, name)) is not int or getattr(self, name) < 1:
                 raise ValueError(f"hyperdrone: {name} must be a positive integer")
@@ -105,8 +106,8 @@ class EnvConfig:
                 "other needs geometry to see) — use preset='x500_fpv'"
             )
         if self.task == "visual_inertial_localization":
-            if self.control != "motor":
-                raise ValueError("hyperdrone: visual_inertial_localization selects its own controller")
+            if self.control != "motor" or self.actuation != "rotors":
+                raise ValueError("hyperdrone: visual_inertial_localization selects its own controller and actuation")
             if self.preset != "x500_fpv_imu":
                 raise ValueError(
                     "hyperdrone: task 'visual_inertial_localization' needs an IMU in the "
@@ -147,7 +148,8 @@ class EnvConfig:
             "HYPERDRONE_ENV_MB_SAMPLES": self.motion_blur_samples,
             "HYPERDRONE_ENV_PRESET": PRESETS[self.preset],
             "HYPERDRONE_ENV_TASK": TASKS[self.task],
-            "HYPERDRONE_ENV_CONTROL": ("motor", "ctbr", "position").index(self.control),
+            "HYPERDRONE_ENV_CONTROL": CONTROLS.index(self.control),
+            "HYPERDRONE_ENV_ACTUATION": ACTUATIONS.index(self.actuation),
             "HYPERDRONE_ENV_N_AGENTS": self.num_agents,
             "HYPERDRONE_ENV_N_CAMERA_AGENTS": self.num_camera_agents,
             "HYPERDRONE_ENV_DEVICE_CUDA": 1 if self.world_device == "cuda" else 0,
@@ -254,7 +256,7 @@ class MultiEnvironment:
     {partial dict}}. The asset is the body/prop_* GLB rendered into the instance's cameras
     (required per entry when the compiled world is SELF_VISIBLE, rejected otherwise); the parameters are merged
     over the shared constructor base (see parameters) and may only touch what varies per drone: dynamics.dynamics
-    (a "model" key loads an l2f registry entry), dynamics.imu and cameras. The same GLB may appear
+    (a "model" key loads an l2f registry entry), dynamics.imu, dynamics.ideal_rates and cameras. The same GLB may appear
     in several entries; distinct GLBs load once and need the same part count (the body swaps in
     place at reset). The table holds at most max_drone_types entries. drone_asset=X is the one-entry
     table [{"asset": X}]; without either, the table is the nominal drone.
@@ -292,6 +294,7 @@ class MultiEnvironment:
         self._module = jit.module(component(), self.config)
         self._synchronized_resets = self._module.synchronized_resets
         self.control = self._module.control
+        self.actuation = self._module.actuation
         self.action_low = np.asarray(self._module.action_low, dtype=np.float32)
         self.action_high = np.asarray(self._module.action_high, dtype=np.float32)
         for name, value in self._module.dimensions.items():
@@ -341,7 +344,7 @@ class MultiEnvironment:
 
     @staticmethod
     def _check_per_drone(overrides):
-        shared = sorted(set(overrides.get("dynamics", {})) - {"dynamics", "imu"})
+        shared = sorted(set(overrides.get("dynamics", {})) - {"dynamics", "imu", "ideal_rates"})
         if shared:
             raise ValueError(f"hyperdrone: dynamics {shared} are shared by all instances; set them through parameters=")
 
@@ -377,7 +380,7 @@ class MultiEnvironment:
         return self._named_cameras(json.loads(self._environment.instance_parameters()))
 
     def set_instance_parameters(self, overrides, mask=None):
-        """Overrides current parameters until reset: one dict for all selected instances or a list with one dict per selected instance. Multi-agent dicts contain "agents", one override dict per agent; use {} to keep an agent unchanged. Per-agent keys are dynamics.dynamics, dynamics.imu, cameras and "drone". cameras maps mount names to partial overrides. Switching "drone" starts from that table entry's nominal before merging other overrides. Integration and other shared settings belong in constructor parameters=. Rotor overrides must preserve each rotor's XY quadrant and spin direction."""
+        """Overrides current parameters until reset: one dict for all selected instances or a list with one dict per selected instance. Multi-agent dicts contain "agents", one override dict per agent; use {} to keep an agent unchanged. Per-agent keys are dynamics.dynamics, dynamics.imu, dynamics.ideal_rates, cameras and "drone". cameras maps mount names to partial overrides. Switching "drone" starts from that table entry's nominal before merging other overrides. Integration and other shared settings belong in constructor parameters=. Rotor overrides must preserve each rotor's XY quadrant and spin direction."""
         mask = self._host_mask(mask)
         selected = np.flatnonzero(mask)
         if isinstance(overrides, dict):

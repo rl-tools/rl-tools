@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from .. import _jit as jit
+from .._control import ACTUATIONS, CONTROLS, validate_control
 
 MODELS = (
     "crazyflie",
@@ -31,16 +32,16 @@ STATE_COMPONENTS = {
 class SimConfig:
     num_drones: int
     control: str = "motor"
+    actuation: str = "rotors"
 
     def __post_init__(self):
         if type(self.num_drones) is not int or self.num_drones < 1:
             raise ValueError("num_drones must be a positive integer")
-        if self.control not in ("motor", "ctbr", "position"):
-            raise ValueError("control must be 'motor', 'ctbr' or 'position'")
+        validate_control(self.control, self.actuation)
 
     def canonical(self):
         # must match build_config_string() in _native/dynamics/impl.cpp exactly
-        return f"n={self.num_drones} control={('motor', 'ctbr', 'position').index(self.control)}"
+        return f"n={self.num_drones} control={CONTROLS.index(self.control)} actuation={ACTUATIONS.index(self.actuation)}"
 
     def key(self):
         return jit.canonical_key(self.canonical())
@@ -48,5 +49,6 @@ class SimConfig:
     def defines(self):
         return {
             "HYPERDRONE_DYNAMICS_NUM_DRONES": self.num_drones,
-            "HYPERDRONE_DYNAMICS_CONTROL": ("motor", "ctbr", "position").index(self.control),
+            "HYPERDRONE_DYNAMICS_CONTROL": CONTROLS.index(self.control),
+            "HYPERDRONE_DYNAMICS_ACTUATION": ACTUATIONS.index(self.actuation),
         }

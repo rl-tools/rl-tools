@@ -25,13 +25,7 @@ namespace rl_tools::rl::environments::l2f{
     namespace parameters{
         enum class ActionInterface{
             DIRECT_MOTOR,
-            CTBR,
-            IDEAL_CTBR
-        };
-        template <typename T>
-        struct IdealCTBR{
-            T thrust_max = 0; // N; zero uses the current vehicle's maximum collective thrust.
-            T rate_limit[3] = {20, 20, 20}; // body FLU, rad/s
+            CTBR
         };
         template <typename T, typename TI, TI N>
         struct Dynamics{
@@ -121,6 +115,11 @@ namespace rl_tools::rl::environments::l2f{
             T kp[3];
             T kd[3];
             T torque_limit[3];
+        };
+        template <typename T>
+        struct IdealRates{
+            T thrust_to_weight;
+            T rate_limit[3]; // body FLU, rad/s
         };
         template <typename T>
         struct Integration{
@@ -226,6 +225,13 @@ namespace rl_tools::rl::environments::l2f{
         using CTBRController = parameters::CTBRController<typename SPECC::T>;
         CTBRController ctbr_controller;
     };
+    template <typename SPECC>
+    struct ParametersIdealRates: SPECC::NEXT_COMPONENT{
+        using NEXT_COMPONENT = typename SPECC::NEXT_COMPONENT;
+        static constexpr typename SPECC::TI N = NEXT_COMPONENT::N;
+        using IdealRates = parameters::IdealRates<typename SPECC::T>;
+        IdealRates ideal_rates;
+    };
 
     struct DefaultParametersDomainRandomizationOptions{
         static constexpr bool THRUST_TO_WEIGHT = false;
@@ -283,6 +289,48 @@ namespace rl_tools::rl::environments::l2f{
         ObservationDelay observation_delay;
     };
 
+    namespace actuation{
+        struct Rotors{};
+        struct IdealRates{};
+        template <typename STATIC_PARAMETERS, typename = utils::typing::void_t<>>
+        struct Model{
+            using TYPE = Rotors;
+        };
+        template <typename STATIC_PARAMETERS>
+        struct Model<STATIC_PARAMETERS, utils::typing::void_t<typename STATIC_PARAMETERS::ACTUATION>>{
+            using TYPE = typename STATIC_PARAMETERS::ACTUATION;
+        };
+    }
+    namespace parameters{
+        template <typename T>
+        constexpr T sqrt_constexpr(T value){
+            T root = value > 1 ? value : 1;
+            for(int iteration = 0; iteration < 64; iteration++){
+                root = (root + value / root) / 2;
+            }
+            return root;
+        }
+        template <typename T, typename TI, TI N>
+        constexpr IdealRates<T> ideal_rates(const Dynamics<T, TI, N>& dynamics, T rate_limit = 20){
+            T thrust = 0;
+            for(TI rotor = 0; rotor < N; rotor++){
+                const T command = dynamics.action_limit.max;
+                const auto& coefficients = dynamics.rotor_thrust_coefficients[rotor];
+                thrust += dynamics.rotor_thrust_directions[rotor][2] * (coefficients[0] + coefficients[1] * command + coefficients[2] * command * command);
+            }
+            const T gravity = sqrt_constexpr(dynamics.gravity[0] * dynamics.gravity[0] + dynamics.gravity[1] * dynamics.gravity[1] + dynamics.gravity[2] * dynamics.gravity[2]);
+            return {thrust / (dynamics.mass * gravity), {rate_limit, rate_limit, rate_limit}};
+        }
+    }
+    // the ideal-rates twin of a rotor-model static parameter set: same vehicle, thrust-to-weight derived from its rotors
+    template <typename T_BASE>
+    struct WithIdealRates: T_BASE{
+        using BASE = T_BASE;
+        using ACTUATION = actuation::IdealRates;
+        static constexpr auto ACTION_INTERFACE = parameters::ActionInterface::CTBR;
+        using PARAMETERS = ParametersIdealRates<ParametersSpecification<typename BASE::PARAMETERS::T, typename BASE::PARAMETERS::TI, typename BASE::PARAMETERS>>;
+        static constexpr PARAMETERS PARAMETER_VALUES = {BASE::PARAMETER_VALUES, parameters::ideal_rates(BASE::PARAMETER_VALUES.dynamics)};
+    };
 //    enum class LatentStateType{
 //        Empty,
 //        RandomForce
@@ -826,6 +874,7 @@ namespace rl_tools::rl::environments::l2f{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+        static constexpr bool REQUIRES_INTEGRATION = false;
         T linear_acceleration[3]; // this is just to save computation when simulating IMU measurements. Wihtout this we would need to recalculate the acceleration in the observation operation. This is not part of the minimal state in the sense that the transition dynamics are independent of the acceleration given the other parts of the state and the action
     };
 
@@ -1117,6 +1166,11 @@ namespace rl_tools::rl::environments{
         static constexpr TI N_AGENTS = 1;
         static constexpr TI ACTION_DIM = 4;
         static constexpr TI EPISODE_STEP_LIMIT = SPEC::STATIC_PARAMETERS::EPISODE_STEP_LIMIT;
+        static constexpr auto ACTION_INTERFACE = SPEC::STATIC_PARAMETERS::ACTION_INTERFACE;
+        using ACTUATION = typename l2f::actuation::Model<typename SPEC::STATIC_PARAMETERS>::TYPE;
+        // CTBR commands into the rotor model close the PD rate loop at the substep rate
+        static constexpr bool RATE_CONTROLLER = ACTION_INTERFACE == l2f::parameters::ActionInterface::CTBR && rl_tools::utils::typing::is_same_v<ACTUATION, l2f::actuation::Rotors>;
+        static_assert(ACTION_INTERFACE == l2f::parameters::ActionInterface::CTBR || rl_tools::utils::typing::is_same_v<ACTUATION, l2f::actuation::Rotors>, "motor commands drive the rotor actuation model only");
 
         // static constexpr TI ACTION_HISTORY_LENGTH = SPEC::STATIC_PARAMETERS::ACTION_HISTORY_LENGTH;
 

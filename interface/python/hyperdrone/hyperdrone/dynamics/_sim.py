@@ -46,8 +46,8 @@ class Sim:
     A seed initializes independent dynamics and observation streams once. Reset restores selected drones' nominal parameters and state; sample_states=True samples their initial states from a continuing host stream. Host accessors return owned arrays; *_dlpack accessors borrow publication buffers until the next producer update. Consumers must finish reading borrowed buffers before that update.
     """
 
-    def __init__(self, num_drones, *, parameters=None, seed=0, device="cpu", control="motor"):
-        self._config = SimConfig(num_drones=num_drones, control=control)
+    def __init__(self, num_drones, *, parameters=None, seed=0, device="cpu", control="motor", actuation="rotors"):
+        self._config = SimConfig(num_drones=num_drones, control=control, actuation=actuation)
         if type(seed) is not int or not 0 <= seed <= 0xFFFFFFFF:
             raise ValueError("hyperdrone: seed must be an integer in [0, 2**32 - 1]")
         self.device = _resolve_device(device)
@@ -76,6 +76,10 @@ class Sim:
     @property
     def control(self):
         return self._config.control
+
+    @property
+    def actuation(self):
+        return self._config.actuation
 
     @property
     def action_low(self):

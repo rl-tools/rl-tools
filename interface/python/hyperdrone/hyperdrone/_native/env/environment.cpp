@@ -84,6 +84,7 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     m.attr("render_backend") = rlt::rendering::raytracing::backends::name<typename WORLD::RENDERER::BACKEND>();
     m.attr("synchronized_resets") = SynchronizedResets<WORLD>::VALUE;
     m.attr("control") = WORLD::ACTION_DIM == 0 ? "autonomous" : WORLD::CONTROLLER::NAME;
+    m.attr("actuation") = hyperdrone::actuation_name<typename WORLD::DYNAMICS_ENV::ACTUATION>();
     using BOUNDS = hyperdrone::ActionBounds<typename WORLD::CONTROLLER>;
     nb::list action_low, action_high;
     for(TI index = 0; index < WORLD::ACTION_DIM; index++){

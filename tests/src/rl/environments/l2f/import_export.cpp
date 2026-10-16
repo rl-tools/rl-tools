@@ -282,7 +282,7 @@ namespace {
             SCOPED_TRACE(throttle);
             SCALAR commands[4] = {throttle, throttle, throttle, throttle};
             STATE derivative{};
-            multirotor_dynamics(device, parameters, state, commands, derivative);
+            multirotor_dynamics(device, parameters, state, commands, derivative, l2f::actuation::Rotors{});
             const SCALAR expected_acceleration = throttle == SCALAR(0) ? -gravity : throttle == SCALAR(1) ? SCALAR(2.5) * gravity : SCALAR(0);
             for(TI axis = 0; axis < 3; axis++){
                 EXPECT_NEAR(derivative.linear_velocity[axis], axis == 2 ? expected_acceleration : SCALAR(0), 4 * tolerance * gravity);

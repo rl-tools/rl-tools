@@ -189,6 +189,8 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::ParametersCTBRController<PARAM_SPEC>& parameters, bool top_level=true);
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::ParametersIdealRates<PARAM_SPEC>& parameters, bool top_level=true);
+    template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::ParametersDomainRandomization<PARAM_SPEC>& parameters, bool top_level=true);
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::ParametersTrajectory<PARAM_SPEC>& parameters, bool top_level=true);
@@ -324,6 +326,14 @@ namespace rl_tools{
         json_string += "\"kp\": [" + rl::environments::l2f::detail::lossless_to_string(parameters.kp[0]) + ", " + rl::environments::l2f::detail::lossless_to_string(parameters.kp[1]) + ", " + rl::environments::l2f::detail::lossless_to_string(parameters.kp[2]) + "], ";
         json_string += "\"kd\": [" + rl::environments::l2f::detail::lossless_to_string(parameters.kd[0]) + ", " + rl::environments::l2f::detail::lossless_to_string(parameters.kd[1]) + ", " + rl::environments::l2f::detail::lossless_to_string(parameters.kd[2]) + "], ";
         json_string += "\"torque_limit\": [" + rl::environments::l2f::detail::lossless_to_string(parameters.torque_limit[0]) + ", " + rl::environments::l2f::detail::lossless_to_string(parameters.torque_limit[1]) + ", " + rl::environments::l2f::detail::lossless_to_string(parameters.torque_limit[2]) + "]";
+        json_string += "}";
+        return json_string;
+    }
+    template <typename DEVICE, typename SPEC, typename T>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::parameters::IdealRates<T>& parameters) {
+        std::string json_string = "{";
+        json_string += "\"thrust_to_weight\": " + rl::environments::l2f::detail::lossless_to_string(parameters.thrust_to_weight) + ", ";
+        json_string += "\"rate_limit\": [" + rl::environments::l2f::detail::lossless_to_string(parameters.rate_limit[0]) + ", " + rl::environments::l2f::detail::lossless_to_string(parameters.rate_limit[1]) + ", " + rl::environments::l2f::detail::lossless_to_string(parameters.rate_limit[2]) + "]";
         json_string += "}";
         return json_string;
     }
@@ -469,6 +479,14 @@ namespace rl_tools{
         std::string json_string = top_level ? "{" : "";
         json_string += json(device, env, static_cast<const typename PARAM_SPEC::NEXT_COMPONENT&>(parameters), false);
         json_string += ", \"ctbr_controller\": " + json(device, env, parameters.ctbr_controller);
+        json_string += (top_level ? "}" : "");
+        return json_string;
+    }
+    template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::ParametersIdealRates<PARAM_SPEC>& parameters, bool top_level){
+        std::string json_string = top_level ? "{" : "";
+        json_string += json(device, env, static_cast<const typename PARAM_SPEC::NEXT_COMPONENT&>(parameters), false);
+        json_string += ", \"ideal_rates\": " + json(device, env, parameters.ideal_rates);
         json_string += (top_level ? "}" : "");
         return json_string;
     }
@@ -870,6 +888,8 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::ParametersCTBRController<PARAM_SPEC>& parameters);
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::ParametersIdealRates<PARAM_SPEC>& parameters);
+    template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::ParametersDomainRandomization<PARAM_SPEC>& parameters);
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::ParametersTrajectory<PARAM_SPEC>& parameters);
@@ -942,6 +962,13 @@ namespace rl_tools{
             parameters.kp[i] = json_object["kp"][i];
             parameters.kd[i] = json_object["kd"][i];
             parameters.torque_limit[i] = json_object["torque_limit"][i];
+        }
+    }
+    template <typename DEVICE, typename SPEC, typename T>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::IdealRates<T>& parameters) {
+        parameters.thrust_to_weight = json_object["thrust_to_weight"];
+        for(typename DEVICE::index_t i = 0; i < 3; i++){
+            parameters.rate_limit[i] = json_object["rate_limit"][i];
         }
     }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
@@ -1058,6 +1085,11 @@ namespace rl_tools{
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::ParametersCTBRController<PARAM_SPEC>& parameters){
         from_json(device, env, json_object, static_cast<typename PARAM_SPEC::NEXT_COMPONENT&>(parameters));
         from_json(device, env, json_object["ctbr_controller"], parameters.ctbr_controller);
+    }
+    template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::ParametersIdealRates<PARAM_SPEC>& parameters){
+        from_json(device, env, json_object, static_cast<typename PARAM_SPEC::NEXT_COMPONENT&>(parameters));
+        from_json(device, env, json_object["ideal_rates"], parameters.ideal_rates);
     }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::DomainRandomization<PARAM_SPEC>& parameters) {

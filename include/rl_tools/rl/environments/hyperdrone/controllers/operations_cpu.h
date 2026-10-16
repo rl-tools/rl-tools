@@ -4,6 +4,5 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_CONTROLLERS_OPERATIONS_CPU_H
 
 #include "direct/operations_cpu.h"
-#include "ctbr/operations_cpu.h"
 #include "raptor/operations_cpu.h"
 #endif
