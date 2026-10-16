@@ -1,6 +1,16 @@
 #pragma once
 #include "../common/verbosity.h"
-#include <rl_tools/operations/cpu.h>
+#include <rl_tools/operations/cpu_mux.h>
+
+#define HYPERDRONE_ENV_STRINGIFY_INNER(x) #x
+#define HYPERDRONE_ENV_STRINGIFY(x) HYPERDRONE_ENV_STRINGIFY_INNER(x)
+
+// Custom controller operations must precede their callers' template definitions.
+#ifdef HYPERDRONE_ENV_SPEC_HEADER
+#include HYPERDRONE_ENV_STRINGIFY(HYPERDRONE_ENV_SPEC_HEADER)
+#endif
+
+#include "../common/control.h"
 #include <rl_tools/rl/environments/hyperdrone/operations_cpu.h>
 #if defined(HYPERDRONE_ENV_TASK) && HYPERDRONE_ENV_TASK == 1
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cpu.h>
@@ -26,20 +36,11 @@
 #include <functional>
 #include "../common/output.h"
 
-#if !defined(HYPERDRONE_ENV_NUM_ENVIRONMENTS) || !defined(HYPERDRONE_ENV_INSTANCES) || !defined(HYPERDRONE_ENV_CAM_WIDTH) || !defined(HYPERDRONE_ENV_CAM_HEIGHT) || !defined(HYPERDRONE_ENV_SHADING) || !defined(HYPERDRONE_ENV_MB_SAMPLES) || !defined(HYPERDRONE_ENV_PRESET) || !defined(HYPERDRONE_ENV_TASK) || !defined(HYPERDRONE_ENV_N_AGENTS) || !defined(HYPERDRONE_ENV_N_CAMERA_AGENTS) || !defined(HYPERDRONE_CAMERA_CONFIG_HEADER) || !defined(HYPERDRONE_ENV_DEVICE_CUDA)
+#if !defined(HYPERDRONE_ENV_NUM_ENVIRONMENTS) || !defined(HYPERDRONE_ENV_INSTANCES) || !defined(HYPERDRONE_ENV_CAM_WIDTH) || !defined(HYPERDRONE_ENV_CAM_HEIGHT) || !defined(HYPERDRONE_ENV_SHADING) || !defined(HYPERDRONE_ENV_MB_SAMPLES) || !defined(HYPERDRONE_ENV_PRESET) || !defined(HYPERDRONE_ENV_TASK) || !defined(HYPERDRONE_ENV_N_AGENTS) || !defined(HYPERDRONE_ENV_N_CAMERA_AGENTS) || !defined(HYPERDRONE_CAMERA_CONFIG_HEADER) || !defined(HYPERDRONE_ENV_DEVICE_CUDA) || !defined(HYPERDRONE_ENV_CONTROL)
 #error "every HYPERDRONE_ENV_* configuration define must be set (hyperdrone.env.EnvConfig.defines())"
 #endif
 #if HYPERDRONE_ENV_DEVICE_CUDA && !defined(HYPERDRONE_ENV_CUDA)
 #error "a CUDA World needs the OptiX variant"
-#endif
-
-#define HYPERDRONE_ENV_STRINGIFY_INNER(x) #x
-#define HYPERDRONE_ENV_STRINGIFY(x) HYPERDRONE_ENV_STRINGIFY_INNER(x)
-
-// the escape hatch: a user header defining hyperdrone_env_user::WORLD (a fully built
-// World or task chain); preset/task/instance defines are superseded by the user type
-#ifdef HYPERDRONE_ENV_SPEC_HEADER
-#include HYPERDRONE_ENV_STRINGIFY(HYPERDRONE_ENV_SPEC_HEADER)
 #endif
 
 #include HYPERDRONE_CAMERA_CONFIG_HEADER
@@ -49,7 +50,7 @@ namespace rro = rlt::rendering::raytracing::outputs;
 
 // Each configuration needs a distinct C++ type in nanobind's shared type registry.
 namespace HYPERDRONE_MODULE_NAME {
-    using HOST_DEVICE = rlt::devices::CPU<hyperdrone::CPUSpecification>;
+    using HOST_DEVICE = rlt::devices::DEVICE_FACTORY<hyperdrone::CPUSpecification>;
     using T = float;
     using TI = HOST_DEVICE::index_t;
     constexpr bool CUDA_WORLD = HYPERDRONE_ENV_DEVICE_CUDA == 1;
@@ -109,6 +110,7 @@ namespace HYPERDRONE_MODULE_NAME {
 #error "unknown HYPERDRONE_ENV_PRESET"
 #endif
     struct WORLD_SPEC: PRESET_SPEC {
+        using CONTROLLER = typename hyperdrone::ControlConfig<HYPERDRONE_ENV_CONTROL>::TYPE;
         using CAMERA_OUTPUTS = hyperdrone_camera_config::CAMERA_OUTPUTS;
         using OBSERVATION = hyperdrone_camera_config::OBSERVATION;
         static constexpr TI INSTANCES_PER_ENVIRONMENT = HYPERDRONE_ENV_INSTANCES;

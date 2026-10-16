@@ -10,10 +10,6 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
         template<typename T, typename TI>
         constexpr Dynamics<T, TI, 4> base = {
             // Rotor positions
-//                array([[ 0.20895 , -0.240666,  0.      ],
-//                [-0.20895 ,  0.240666,  0.      ],
-//                [ 0.20895 ,  0.240666,  0.      ],
-//                [-0.20895 , -0.240666,  0.      ]])
             {
                 {
                     +0.20895,
@@ -22,17 +18,17 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
                 },
                 {
                     -0.20895,
+                    -0.240666,
+                    0
+                },
+                {
+                    -0.20895,
                     +0.240666,
                     0
                 },
                 {
                     +0.20895,
                     +0.240666,
-                    0
-                },
-                {
-                    -0.20895,
-                    -0.240666,
                     0
                 },
             },
@@ -46,8 +42,8 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
             // Rotor torque directions
             {
                 {0, 0, -1},
-                {0, 0, -1},
                 {0, 0, +1},
+                {0, 0, -1},
                 {0, 0, +1},
             },
             // thrust constants

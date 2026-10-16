@@ -294,7 +294,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, MATCH_X500_ROTORS){
     DEVICE device;
     rlt::rendering::raytracing::ObjectAssembly assembly;
     ASSERT_TRUE((rlt::load<rlt::rendering::raytracing::High, true>(device, assembly, DRONE_PATH)));
-    constexpr auto dynamics = rlt::rl::environments::l2f::parameters::dynamics::x500::remap<T, TI>;
+    constexpr auto dynamics = rlt::rl::environments::l2f::parameters::dynamics::x500::real<T, TI>;
     RIG rig;
     ASSERT_TRUE(rlt::init(device, rig, assembly, dynamics.rotor_positions, dynamics.rotor_torque_directions, (TI)4));
     ASSERT_EQ(rig.num_coordinates, 4);

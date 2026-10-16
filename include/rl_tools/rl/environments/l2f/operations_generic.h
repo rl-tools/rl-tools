@@ -24,6 +24,7 @@
 #include "operations_generic/40_observe.h"
 #include "operations_generic/50_state_algebra.h"
 #include "operations_generic/60_dynamics.h"
+#include "operations_generic/60_dynamics_ideal_ctbr.h"
 #include "operations_generic/70_post_integration.h"
 #include "operations_generic/80_abs_diff.h"
 
@@ -40,22 +41,26 @@ namespace rl_tools
     RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE&, rl::environments::Multirotor<SPEC>& env){
         env.parameters = SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
     }
-    template<typename DEVICE, typename SPEC, typename T, typename TI, TI N, typename... Args>
-    RL_TOOLS_FUNCTION_PLACEMENT static void permute_rotors(DEVICE& device, const rl::environments::Multirotor<SPEC>&, rl::environments::l2f::parameters::Dynamics<T, TI, N>& dynamics, Args... args){
-        TI indices[N] = {static_cast<TI>(args)...};
-        auto copy = dynamics;
-        for (TI rotor_i=0; rotor_i < N; rotor_i++){
-            for (TI j=0; j < 3; j++){
-                dynamics.rotor_positions[rotor_i][j] = copy.rotor_positions[indices[rotor_i]][j];
-                dynamics.rotor_thrust_directions[rotor_i][j] = copy.rotor_thrust_directions[indices[rotor_i]][j];
-                dynamics.rotor_torque_directions[rotor_i][j] = copy.rotor_torque_directions[indices[rotor_i]][j];
+    template<typename DEVICE, typename T, typename TI, TI N>
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_canonical_quadrotor(DEVICE&, const rl::environments::l2f::parameters::Dynamics<T, TI, N>& dynamics){
+        if constexpr(N != 4){
+            return false;
+        }
+        else{
+            for(TI rotor = 0; rotor < 4; rotor++){
+                T x_sign = (rotor == 0 || rotor == 3) ? (T)1 : (T)-1;
+                T y_sign = rotor < 2 ? (T)-1 : (T)1;
+                T yaw_sign = rotor % 2 == 0 ? (T)-1 : (T)1;
+                if(!(x_sign * dynamics.rotor_positions[rotor][0] > 0 && y_sign * dynamics.rotor_positions[rotor][1] > 0 && dynamics.rotor_torque_constants[rotor] > 0)){
+                    return false;
+                }
+                for(TI axis = 0; axis < 3; axis++){
+                    if(dynamics.rotor_thrust_directions[rotor][axis] != (axis == 2 ? (T)1 : (T)0) || dynamics.rotor_torque_directions[rotor][axis] != (axis == 2 ? yaw_sign : (T)0)){
+                        return false;
+                    }
+                }
             }
-            for (TI j=0; j < 3; j++){
-                dynamics.rotor_thrust_coefficients[rotor_i][j] = copy.rotor_thrust_coefficients[indices[rotor_i]][j];
-            }
-            dynamics.rotor_torque_constants[rotor_i] = copy.rotor_torque_constants[indices[rotor_i]];
-            dynamics.rotor_time_constants_rising[rotor_i] = copy.rotor_time_constants_rising[indices[rotor_i]];
-            dynamics.rotor_time_constants_falling[rotor_i] = copy.rotor_time_constants_falling[indices[rotor_i]];
+            return true;
         }
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
@@ -230,6 +235,7 @@ namespace rl_tools
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT void action_to_motor_commands(DEVICE& device, const Multirotor<SPEC>&, const PARAMETERS& parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, typename SPEC::T motor_commands[4], RNG& rng){
+            static_assert(SPEC::STATIC_PARAMETERS::ACTION_INTERFACE != parameters::ActionInterface::IDEAL_CTBR);
             if constexpr(SPEC::STATIC_PARAMETERS::ACTION_INTERFACE == rl::environments::l2f::parameters::ActionInterface::CTBR){
                 ctbr_action_to_motor_commands(device, parameters, state, action, motor_commands, rng);
             }
@@ -266,7 +272,30 @@ namespace rl_tools
         constexpr auto ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
         static_assert(ACTION_SPEC::ROWS == 1);
         static_assert(ACTION_SPEC::COLS == ACTION_DIM);
-        if constexpr(SPEC::STATIC_PARAMETERS::N_SUBSTEPS == 1){
+        if constexpr(SPEC::STATIC_PARAMETERS::ACTION_INTERFACE == rl::environments::l2f::parameters::ActionInterface::IDEAL_CTBR){
+            using STATIC = typename SPEC::STATIC_PARAMETERS;
+            static_assert(STATIC::N_SUBSTEPS > 0);
+            static_assert(STATIC::IDEAL_CTBR.thrust_max >= 0);
+            static_assert(STATIC::IDEAL_CTBR.rate_limit[0] > 0 && STATIC::IDEAL_CTBR.rate_limit[0] <= STATIC::STATE_LIMIT_ANGULAR_VELOCITY_X);
+            static_assert(STATIC::IDEAL_CTBR.rate_limit[1] > 0 && STATIC::IDEAL_CTBR.rate_limit[1] <= STATIC::STATE_LIMIT_ANGULAR_VELOCITY_Y);
+            static_assert(STATIC::IDEAL_CTBR.rate_limit[2] > 0 && STATIC::IDEAL_CTBR.rate_limit[2] <= STATIC::STATE_LIMIT_ANGULAR_VELOCITY_Z);
+            Matrix<matrix::Specification<T, TI, 1, ACTION_DIM, false>> applied;
+            for(TI index = 0; index < ACTION_DIM; index++){
+                set(applied, 0, index, clamp_ideal_ctbr_action(device, env, parameters, index, get(action, 0, index)));
+            }
+            auto substep_state = state;
+            for(TI axis = 0; axis < 3; axis++){
+                substep_state.angular_velocity[axis] = get(applied, 0, axis + 1);
+            }
+            T dt = parameters.integration.dt / STATIC::N_SUBSTEPS;
+            for(TI substep = 0; substep < STATIC::N_SUBSTEPS; substep++){
+                utils::integrators::rk4<DEVICE, T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, ideal_ctbr_dynamics<DEVICE, T, typename SPEC::PARAMETERS, STATE>>(device, parameters, substep_state, applied._data, dt, next_state);
+                substep_state = next_state;
+            }
+            post_integration(device, env, parameters, state, applied, next_state, rng);
+            return parameters.integration.dt;
+        }
+        else if constexpr(SPEC::STATIC_PARAMETERS::N_SUBSTEPS == 1){
             T action_scaled[ACTION_DIM];
             rl::environments::l2f::action_to_motor_commands(device, env, parameters, state, action, action_scaled, rng);
             utils::integrators::rk4  <DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, parameters, state, action_scaled, parameters.integration.dt, next_state);

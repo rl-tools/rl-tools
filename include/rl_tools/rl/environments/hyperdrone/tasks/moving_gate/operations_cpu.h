@@ -128,7 +128,7 @@ namespace rl_tools {
                 sample_initial_state(device, world, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), rng);
             }
         }
-        request_render(device, world, reset_mask);
+        complete_reset(device, world, reset_mask, rng);
     }
 
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC>

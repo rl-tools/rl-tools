@@ -1,3 +1,14 @@
+add_executable(test_rl_environments_l2f_control_benchmark control_benchmark.cpp)
+target_link_libraries(test_rl_environments_l2f_control_benchmark PRIVATE RLtools::RLtools)
+
+add_executable(test_rl_environments_l2f_motor_allocation motor_allocation.cpp)
+target_link_libraries(test_rl_environments_l2f_motor_allocation PRIVATE RLtools::RLtools GTest::gtest_main)
+gtest_discover_tests(test_rl_environments_l2f_motor_allocation)
+
+add_executable(test_rl_environments_l2f_ideal_ctbr ideal_ctbr.cpp)
+target_link_libraries(test_rl_environments_l2f_ideal_ctbr PRIVATE RLtools::RLtools GTest::gtest_main)
+gtest_discover_tests(test_rl_environments_l2f_ideal_ctbr)
+
 add_executable(test_rl_environments_l2f_inertial_velocity inertial_velocity.cpp)
 target_link_libraries(test_rl_environments_l2f_inertial_velocity PRIVATE RLtools::RLtools GTest::gtest_main)
 gtest_discover_tests(test_rl_environments_l2f_inertial_velocity)

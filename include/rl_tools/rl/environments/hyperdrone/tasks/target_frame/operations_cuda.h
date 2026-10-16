@@ -285,7 +285,7 @@ namespace rl_tools{
         auto world_rng = rl::environments::hyperdrone::cuda::instance_rng(device, world, rng);
         rl::environments::hyperdrone::tasks::target_frame::cuda::sample_initial_state_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, parameters, states, reset_mask, world_rng);
         check_status(device);
-        request_render(device, world, reset_mask);
+        complete_reset(device, world, reset_mask, rng);
     }
     template <typename DEV_SPEC, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename OBSERVATION_SPEC, typename RNG>
     void observe(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, typename TASK_SPEC::NEXT_WORLD::Observation observation_type, Tensor<OBSERVATION_SPEC>& observations, RNG& rng){

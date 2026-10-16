@@ -16,6 +16,8 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f{
+    template<typename DEVICE, typename PARAMETERS, typename T, typename TI>
+    RL_TOOLS_FUNCTION_PLACEMENT T rotor_command_from_thrust(DEVICE&, const PARAMETERS&, TI, T);
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateBase<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateBase<STATE_SPEC>& next_state, RNG& rng) {
         using T = typename STATE_SPEC::T;
@@ -47,7 +49,12 @@ namespace rl_tools::rl::environments::l2f{
         static_assert(ACTION_SPEC::COLS == MULTIROTOR::ACTION_DIM);
         post_integration(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(next_state), rng);
         for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
-            next_state.last_action[action_i] = math::clamp(device.math, get(action, 0, action_i), (T)-1, (T)1);
+            if constexpr(SPEC::STATIC_PARAMETERS::ACTION_INTERFACE == parameters::ActionInterface::IDEAL_CTBR){
+                next_state.last_action[action_i] = get(action, 0, action_i);
+            }
+            else{
+                next_state.last_action[action_i] = math::clamp(device.math, get(action, 0, action_i), (T)-1, (T)1);
+            }
         }
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
@@ -292,7 +299,10 @@ namespace rl_tools::rl::environments::l2f{
         using MULTIROTOR = Multirotor<SPEC>;
         using T = typename STATE_SPEC::T;
         for(typename DEVICE::index_t rpm_i = 0; rpm_i < MULTIROTOR::ACTION_DIM; rpm_i++){
-            if constexpr(STATE_SPEC::CLOSED_FORM) {
+            if constexpr(SPEC::STATIC_PARAMETERS::ACTION_INTERFACE == parameters::ActionInterface::IDEAL_CTBR){
+                next_state.rpm[rpm_i] = rotor_command_from_thrust(device, parameters, rpm_i, get(action, 0, 0) / MULTIROTOR::ACTION_DIM);
+            }
+            else if constexpr(STATE_SPEC::CLOSED_FORM) {
                 T setpoint_clamped = math::clamp(typename DEVICE::SPEC::MATH{}, get(action, 0, rpm_i), parameters.dynamics.action_limit.min, parameters.dynamics.action_limit.max);
                 T tau = setpoint_clamped >= state.rpm[rpm_i] ? parameters.dynamics.rotor_time_constants_rising[rpm_i] : parameters.dynamics.rotor_time_constants_falling[rpm_i] ;
                 T alpha = math::exp(device.math, - parameters.integration.dt / tau);
@@ -334,7 +344,12 @@ namespace rl_tools::rl::environments::l2f{
         if constexpr(STATE_SPEC::HISTORY_LENGTH > 0){
             TI current_step = state.rotor_history_step;
             for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
-                next_state.action_history[current_step][action_i] = math::clamp(device.math, get(action, 0, action_i), (T)-1, (T)1);
+                if constexpr(SPEC::STATIC_PARAMETERS::ACTION_INTERFACE == parameters::ActionInterface::IDEAL_CTBR){
+                    next_state.action_history[current_step][action_i] = get(action, 0, action_i);
+                }
+                else{
+                    next_state.action_history[current_step][action_i] = math::clamp(device.math, get(action, 0, action_i), (T)-1, (T)1);
+                }
             }
             next_state.rotor_history_step = (state.rotor_history_step + 1) % STATE_SPEC::HISTORY_LENGTH;
         }

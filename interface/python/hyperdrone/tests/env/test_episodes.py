@@ -10,6 +10,8 @@ class BatchEnvironment:
     total_instances = 2
     observation_dim = 2
     action_dim = 1
+    action_low = np.array([-1], dtype=np.float32)
+    action_high = np.array([1], dtype=np.float32)
     episode_step_limit = 3
 
     def __init__(self, *args, **kwargs):
@@ -97,3 +99,19 @@ def test_zero_disables_time_limit(env):
 def test_reset_rejects_reseeding(env):
     with pytest.raises(ValueError, match="seed is fixed"):
         env.reset(seed=1)
+
+
+@pytest.mark.parametrize("lower,upper", [([-1] * 4, [1] * 4), ([0, -20, -20, -20], [np.inf, 20, 20, 20]), ([-np.inf] * 8, [np.inf] * 8)])
+def test_command_bounds_reach_gym(monkeypatch, lower, upper):
+    class ControlledBatch(BatchEnvironment):
+        action_dim = len(lower)
+        action_low = np.asarray(lower, dtype=np.float32)
+        action_high = np.asarray(upper, dtype=np.float32)
+    monkeypatch.setattr(gym, "MultiEnvironment", ControlledBatch)
+    environment = gym.VectorEnv("unused")
+    try:
+        np.testing.assert_array_equal(environment.single_action_space.low, lower)
+        np.testing.assert_array_equal(environment.single_action_space.high, upper)
+        assert environment.action_space.shape == (2, len(lower))
+    finally:
+        environment.close()

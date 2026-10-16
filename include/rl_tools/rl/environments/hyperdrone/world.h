@@ -9,6 +9,7 @@
 #include "../l2f/multirotor.h"
 #include "pose.h"
 #include "rig/rig.h"
+#include "controllers/direct/direct.h"
 #include "../../../rendering/raytracing/renderer.h"
 #include "../../../rendering/datasets/procthor/procthor.h"
 #include "../../../rendering/datasets/annotations/free_space.h"
@@ -59,6 +60,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         using T = T_T;
         using TI = T_TI;
         using DYNAMICS_STATIC_PARAMETERS = T_DYNAMICS_STATIC_PARAMETERS;
+        using CONTROLLER = controllers::direct::Config<DYNAMICS_STATIC_PARAMETERS::ACTION_INTERFACE>;
         // derive-and-shadow: override by deriving from this Specification and shadowing members
         static constexpr TI INSTANCES_PER_ENVIRONMENT = 64;
         static constexpr TI N_AGENTS = 1;
@@ -246,8 +248,9 @@ namespace rl_tools::rl::environments::hyperdrone {
     struct DroneParameters {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
-        using DYNAMICS_ENV = Multirotor<l2f::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::DYNAMICS_STATIC_PARAMETERS>>;
-        typename DYNAMICS_ENV::Parameters dynamics = SPEC::DYNAMICS_STATIC_PARAMETERS::PARAMETER_VALUES;
+        using DYNAMICS_STATIC_PARAMETERS = typename SPEC::CONTROLLER::template DynamicsParameters<typename SPEC::DYNAMICS_STATIC_PARAMETERS>;
+        using DYNAMICS_ENV = Multirotor<l2f::Specification<typename SPEC::T, typename SPEC::TI, DYNAMICS_STATIC_PARAMETERS>>;
+        typename DYNAMICS_ENV::Parameters dynamics = DYNAMICS_STATIC_PARAMETERS::PARAMETER_VALUES;
         Camera<T> cameras[SPEC::CAMERA_OUTPUTS::COUNT];
     };
     template <typename T_SPEC>
@@ -311,7 +314,10 @@ namespace rl_tools::rl::environments::hyperdrone {
         static_assert(!SPEC::SELF_VISIBLE || SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE > 0, "SELF_VISIBLE needs entity slots: set MAX_ENTITY_SLOTS_PER_INSTANCE");
         static_assert(SPEC::N_AGENTS == 1 || SPEC::SELF_VISIBLE, "multi-agent Worlds require SELF_VISIBLE: agents seeing each other needs geometry to see");
 
-        using DYNAMICS_ENV = Multirotor<l2f::Specification<T, TI, typename SPEC::DYNAMICS_STATIC_PARAMETERS>>;
+        using CONTROLLER_CONFIG = typename SPEC::CONTROLLER;
+        using CONTROLLER = typename CONTROLLER_CONFIG::template Bind<numeric_types::Policy<T>, TI, SPEC::INSTANCES_PER_ENVIRONMENT * SPEC::N_AGENTS>;
+        using DYNAMICS_STATIC_PARAMETERS = typename CONTROLLER_CONFIG::template DynamicsParameters<typename SPEC::DYNAMICS_STATIC_PARAMETERS>;
+        using DYNAMICS_ENV = Multirotor<l2f::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS>>;
         using State = utils::typing::conditional_t<SPEC::N_AGENTS == 1, typename DYNAMICS_ENV::State, world::MultiAgentState<typename DYNAMICS_ENV::State, TI, SPEC::N_AGENTS>>;
         using Parameters = hyperdrone::Parameters<SPEC>;
 
@@ -324,7 +330,8 @@ namespace rl_tools::rl::environments::hyperdrone {
         static constexpr bool HAS_IMAGE_OBSERVATION = OBSERVATION::COUNT > 0;
         static constexpr TI N_OBSERVATION_CAMERAS_PER_AGENT = OBSERVATION::COUNT;
         static constexpr TI N_OBSERVATION_VIEWS = N_CAMERA_AGENTS * N_OBSERVATION_CAMERAS_PER_AGENT;
-        static constexpr TI ACTION_DIM = N_AGENTS * DYNAMICS_ENV::ACTION_DIM;
+        static constexpr TI ACTION_DIM = N_AGENTS * CONTROLLER::COMMAND_DIM;
+        static constexpr TI ACTUATION_DIM = N_AGENTS * DYNAMICS_ENV::ACTION_DIM;
         static constexpr TI EPISODE_STEP_LIMIT = DYNAMICS_ENV::EPISODE_STEP_LIMIT;
         static constexpr TI IMAGE_CHANNELS = 3;
 
@@ -388,6 +395,9 @@ namespace rl_tools::rl::environments::hyperdrone {
         TI scene_version = 0;  // scene selections so far, init's included
         TI member_index = 0;
         TI rng_offset = 0;
+        CONTROLLER controller;
+        typename CONTROLLER::State controller_state;
+        typename CONTROLLER::Buffer controller_buffer;
         DYNAMICS_ENV dynamics;
 
         // per-frame runtime state, resident on the environment's compute device

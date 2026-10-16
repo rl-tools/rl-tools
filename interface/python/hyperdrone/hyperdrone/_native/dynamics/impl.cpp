@@ -1,11 +1,11 @@
 #if defined(HYPERDRONE_DYNAMICS_CUDA)
 #define RL_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
 #define RL_TOOLS_FUNCTION_PLACEMENT __host__ __device__
-#include <rl_tools/operations/cpu.h>
+#include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/operations/cuda.h>
 #define HYPERDRONE_HD __host__ __device__
 #else
-#include <rl_tools/operations/cpu.h>
+#include <rl_tools/operations/cpu_mux.h>
 #define HYPERDRONE_HD
 #endif
 
@@ -13,6 +13,10 @@
 #include <rl_tools/rl/environments/l2f/parameters/default.h>
 
 #include "iface.h"
+#include "../common/control.h"
+#if defined(HYPERDRONE_DYNAMICS_CUDA)
+#include <rl_tools/rl/environments/hyperdrone/controllers/raptor/operations_cuda.h>
+#endif
 
 #include <cmath>
 #include <cstdio>
@@ -21,9 +25,10 @@
 #include <string>
 #include <vector>
 #include <limits>
+#include <type_traits>
 
-#ifndef HYPERDRONE_DYNAMICS_NUM_DRONES
-#error "HYPERDRONE_DYNAMICS_NUM_DRONES must be defined"
+#if !defined(HYPERDRONE_DYNAMICS_NUM_DRONES) || !defined(HYPERDRONE_DYNAMICS_CONTROL)
+#error "HYPERDRONE_DYNAMICS_NUM_DRONES and HYPERDRONE_DYNAMICS_CONTROL must be defined"
 #endif
 
 namespace rlt = rl_tools;
@@ -35,17 +40,19 @@ namespace hyperdrone_dynamics_impl {
     using rlt::from_json;
     using rlt::initial_state;
     using rlt::sample_initial_state;
-    using DEVICE_CPU = rlt::devices::CPU<rlt::devices::DefaultCPUSpecification>;
+    using DEVICE_CPU = rlt::devices::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
     using T = float;
     using TI = DEVICE_CPU::index_t;
 
     constexpr TI NUM_DRONES = HYPERDRONE_DYNAMICS_NUM_DRONES;
+    using CONTROLLER_CONFIG = typename hyperdrone::ControlConfig<HYPERDRONE_DYNAMICS_CONTROL>::TYPE;
+    using CONTROLLER = CONTROLLER_CONFIG::Bind<rlt::numeric_types::Policy<T>, TI, NUM_DRONES, true>;
 
     using namespace rlt::rl::environments::l2f;
 
     using FACTORY = parameters::DEFAULT_PARAMETERS_FACTORY<T, TI, 5>;
 
-    struct STATIC_PARAMETERS{
+    struct DYNAMICS_PARAMETERS{
         static constexpr auto ACTION_INTERFACE = parameters::ActionInterface::DIRECT_MOTOR;
         static constexpr TI N_SUBSTEPS = 1;
         static constexpr TI ACTION_HISTORY_LENGTH = 16;
@@ -75,11 +82,14 @@ namespace hyperdrone_dynamics_impl {
         static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
     };
 
+    using STATIC_PARAMETERS = CONTROLLER_CONFIG::DynamicsParameters<DYNAMICS_PARAMETERS>;
     using ENVIRONMENT_SPEC = Specification<T, TI, STATIC_PARAMETERS>;
     using ENVIRONMENT = rlt::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
     using STATE = typename ENVIRONMENT::State;
     using PARAMETERS = typename ENVIRONMENT::Parameters;
-    constexpr TI ACTION_DIM = ENVIRONMENT::ACTION_DIM;
+    constexpr TI ACTION_DIM = CONTROLLER::COMMAND_DIM;
+    constexpr TI NATIVE_ACTION_DIM = ENVIRONMENT::ACTION_DIM;
+    constexpr TI NUM_ROTORS = PARAMETERS::N;
     constexpr TI OBSERVATION_DIM = ENVIRONMENT::Observation::DIM;
 
 
@@ -92,7 +102,7 @@ namespace hyperdrone_dynamics_impl {
         for(int i = 0; i < 4; i++){
             orientation[i] = state.orientation[i];
         }
-        for(TI i = 0; i < ACTION_DIM; i++){
+        for(TI i = 0; i < NUM_ROTORS; i++){
             rpm[i] = state.rpm[i];
         }
     }
@@ -157,7 +167,7 @@ namespace hyperdrone_dynamics_impl {
         const TI drone = blockIdx.x * blockDim.x + threadIdx.x;
         if(drone < NUM_DRONES){
             publish_one(states[drone], &position[drone * 3], &orientation[drone * 4],
-                        &linear_velocity[drone * 3], &angular_velocity[drone * 3], &rpm[drone * ACTION_DIM]);
+                        &linear_velocity[drone * 3], &angular_velocity[drone * 3], &rpm[drone * NUM_ROTORS]);
         }
     }
 
@@ -169,16 +179,16 @@ namespace hyperdrone_dynamics_impl {
         if(drone >= NUM_DRONES){
             return;
         }
-        rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ACTION_DIM, false>> action;
-        for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-            rlt::set(action, 0, action_i, actions[drone * ACTION_DIM + action_i]);
+        rlt::Matrix<rlt::matrix::Specification<T, TI, 1, NATIVE_ACTION_DIM, false>> action;
+        for(TI action_i = 0; action_i < NATIVE_ACTION_DIM; action_i++){
+            rlt::set(action, 0, action_i, actions[drone * NATIVE_ACTION_DIM + action_i]);
         }
         STATE state = states[drone];
         STATE next_state;
         rlt::step(device, envs[drone], parameters[drone], state, action, next_state, rng_states[drone]);
         next_states[drone] = next_state;
         publish_one(next_state, &position[drone * 3], &orientation[drone * 4],
-                    &linear_velocity[drone * 3], &angular_velocity[drone * 3], &rpm[drone * ACTION_DIM]);
+                    &linear_velocity[drone * 3], &angular_velocity[drone * 3], &rpm[drone * NUM_ROTORS]);
     }
 
     __global__ void kernel_observe(DEVICE_CUDA device, const ENVIRONMENT* envs, PARAMETERS* parameters,
@@ -215,6 +225,14 @@ namespace hyperdrone_dynamics_impl {
     constexpr TI BLOCK_DIM = 256;
     constexpr TI GRID_DIM = (NUM_DRONES + BLOCK_DIM - 1) / BLOCK_DIM;
 
+    template<typename VALUE, TI... DIMS>
+    auto tensor_view(VALUE* pointer, rlt::tensor::Shape<TI, DIMS...>){
+        using SHAPE = rlt::tensor::Shape<TI, DIMS...>;
+        rlt::Tensor<rlt::tensor::Specification<std::remove_const_t<VALUE>, TI, SHAPE, true, rlt::tensor::RowMajorStride<SHAPE>, std::is_const_v<VALUE>>> view;
+        view._data = pointer;
+        return view;
+    }
+
     struct SimImpl final : hyperdrone::dynamics::Sim {
         using ENGINE = DEVICE_CPU::SPEC::RANDOM::ENGINE<>;
 
@@ -226,6 +244,10 @@ namespace hyperdrone_dynamics_impl {
         ENGINE master_engine;
         PARAMETERS nominal_parameters = STATIC_PARAMETERS::PARAMETER_VALUES;
         bool initialized = false;
+        CONTROLLER controller;
+        CONTROLLER::State controller_state;
+        CONTROLLER::Buffer controller_buffer;
+        rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, NUM_DRONES>>> controller_reset;
 
         // SoA buffers (device-resident on the CUDA variant)
         float *buffer_position, *buffer_orientation, *buffer_linear_velocity, *buffer_angular_velocity, *buffer_rpm;
@@ -246,7 +268,17 @@ namespace hyperdrone_dynamics_impl {
         int device_ordinal;
 #endif
 
+        auto& controller_device(){
+#if defined(HYPERDRONE_DYNAMICS_CUDA)
+            return device_cuda;
+#else
+            return device_cpu;
+#endif
+        }
+
         SimImpl(){
+            using rlt::init;
+            init(device_cpu);
             envs.resize(NUM_DRONES);
             parameters.resize(NUM_DRONES);
             states.resize(NUM_DRONES);
@@ -273,10 +305,11 @@ namespace hyperdrone_dynamics_impl {
             buffer_orientation = device_alloc<float>(NUM_DRONES * 4);
             buffer_linear_velocity = device_alloc<float>(NUM_DRONES * 3);
             buffer_angular_velocity = device_alloc<float>(NUM_DRONES * 3);
-            buffer_rpm = device_alloc<float>(NUM_DRONES * ACTION_DIM);
+            buffer_rpm = device_alloc<float>(NUM_DRONES * NUM_ROTORS);
             buffer_observations = device_alloc<float>(NUM_DRONES * OBSERVATION_DIM);
             buffer_camera_bases = device_alloc<float>(NUM_DRONES * 12);
-            cudaStreamCreate(&cuda_stream);
+            init(device_cuda);
+            cuda_stream = device_cuda.stream;
             cudaEventCreateWithFlags(&ordering_event, cudaEventDisableTiming);
             cudaPointerAttributes attributes;
             cudaPointerGetAttributes(&attributes, buffer_position);
@@ -287,7 +320,7 @@ namespace hyperdrone_dynamics_impl {
             host_orientation.resize(NUM_DRONES * 4);
             host_linear_velocity.resize(NUM_DRONES * 3);
             host_angular_velocity.resize(NUM_DRONES * 3);
-            host_rpm.resize(NUM_DRONES * ACTION_DIM);
+            host_rpm.resize(NUM_DRONES * NUM_ROTORS);
             host_observations.resize(NUM_DRONES * OBSERVATION_DIM);
             host_camera_bases.resize(NUM_DRONES * 12);
             buffer_position = host_position.data();
@@ -298,13 +331,23 @@ namespace hyperdrone_dynamics_impl {
             buffer_observations = host_observations.data();
             buffer_camera_bases = host_camera_bases.data();
 #endif
+            auto& device = controller_device();
+            malloc(device, controller);
+            malloc(device, controller_state);
+            malloc(device, controller_buffer);
+            malloc(device, controller_reset);
         }
 
         ~SimImpl() override {
+            synchronize();
+            auto& device = controller_device();
+            free(device, controller_reset);
+            free(device, controller_buffer);
+            free(device, controller_state);
+            free(device, controller);
 #if defined(HYPERDRONE_DYNAMICS_CUDA)
-            cudaStreamSynchronize(cuda_stream);
             cudaEventDestroy(ordering_event);
-            cudaStreamDestroy(cuda_stream);
+            free(device_cuda);
             cudaFree(device_envs); cudaFree(device_parameters);
             cudaFree(device_states); cudaFree(device_next_states);
             cudaFree(device_actions); cudaFree(device_mount); cudaFree(device_rng); cudaFree(device_observe_rng);
@@ -324,8 +367,40 @@ namespace hyperdrone_dynamics_impl {
             hyperdrone::dynamics::Config c;
             c.num_drones = NUM_DRONES;
             c.action_dim = ACTION_DIM;
+            c.num_rotors = NUM_ROTORS;
             c.observation_dim = OBSERVATION_DIM;
             return c;
+        }
+
+        const float* action_bounds(bool upper) const override {
+            using BOUNDS = hyperdrone::ActionBounds<CONTROLLER>;
+            return upper ? BOUNDS::upper.data() : BOUNDS::lower.data();
+        }
+
+        void reset_controller(const bool* mask = nullptr){
+            using rlt::reset;
+            auto& device = controller_device();
+            if(mask == nullptr){
+                reset(device, controller, controller_state, master_engine);
+            }
+            else {
+#if defined(HYPERDRONE_DYNAMICS_CUDA)
+                cudaMemcpyAsync(rlt::data(controller_reset), mask, NUM_DRONES * sizeof(bool), cudaMemcpyHostToDevice, cuda_stream);
+#else
+                std::memcpy(rlt::data(controller_reset), mask, NUM_DRONES * sizeof(bool));
+#endif
+                reset(device, controller, controller_state, controller_reset, master_engine);
+            }
+        }
+
+        template<typename DEVICE>
+        const T* native_actions(DEVICE& device, const PARAMETERS* parameters, const STATE* states, const T* actions){
+            using rlt::control;
+            auto parameter_view = tensor_view(parameters, rlt::tensor::Shape<TI, NUM_DRONES>{});
+            auto state_view = tensor_view(states, rlt::tensor::Shape<TI, NUM_DRONES>{});
+            auto command_view = tensor_view(actions, rlt::tensor::Shape<TI, NUM_DRONES, ACTION_DIM>{});
+            auto output = control(device, controller, controller_state, controller_buffer, parameter_view, state_view, command_view, master_engine);
+            return rlt::data(output);
         }
 
         const char* device_name() const override {
@@ -391,6 +466,10 @@ namespace hyperdrone_dynamics_impl {
             if(!(parsed.integration.dt > 0)){
                 throw std::invalid_argument("hyperdrone: integration.dt must be positive");
             }
+            using rlt::validate;
+            if(!validate(device_cpu, controller, parsed.dynamics)){
+                throw std::invalid_argument("hyperdrone: controller requires canonical Crazyflie/RAPTOR motor allocation");
+            }
             nominal_parameters = parsed;
             rl_tools::init(device_cpu, master_engine, seed);
             const auto step_seed = rlt::random::uniform_int_distribution(device_cpu.random, uint32_t(0), std::numeric_limits<uint32_t>::max() - uint32_t(NUM_DRONES), master_engine);
@@ -408,6 +487,11 @@ namespace hyperdrone_dynamics_impl {
             kernel_init_rng<<<GRID_DIM, BLOCK_DIM, 0, cuda_stream>>>(device_observe_rng, observe_seed);
             cudaStreamSynchronize(cuda_stream);
 #endif
+            using rlt::init;
+            if(!init(controller_device(), controller)){
+                throw std::runtime_error("hyperdrone: cannot load controller checkpoint");
+            }
+            reset_controller();
             initialized = true;
         }
 
@@ -426,7 +510,7 @@ namespace hyperdrone_dynamics_impl {
 #else
             for(TI drone = 0; drone < NUM_DRONES; drone++){
                 publish_one(states[drone], &buffer_position[drone * 3], &buffer_orientation[drone * 4],
-                            &buffer_linear_velocity[drone * 3], &buffer_angular_velocity[drone * 3], &buffer_rpm[drone * ACTION_DIM]);
+                            &buffer_linear_velocity[drone * 3], &buffer_angular_velocity[drone * 3], &buffer_rpm[drone * NUM_ROTORS]);
             }
 #endif
         }
@@ -453,6 +537,7 @@ namespace hyperdrone_dynamics_impl {
             }
             upload_parameters();
             upload_states_and_publish();
+            reset_controller(mask);
         }
 
         void step(const float* actions, int actions_device_type, unsigned long long producer_stream) override {
@@ -469,8 +554,9 @@ namespace hyperdrone_dynamics_impl {
             else {
                 cudaMemcpyAsync(device_actions, actions, NUM_DRONES * ACTION_DIM * sizeof(float), cudaMemcpyHostToDevice, cuda_stream);
             }
+            const T* actuation = native_actions(device_cuda, device_parameters, device_states, device_actions);
             kernel_step<<<GRID_DIM, BLOCK_DIM, 0, cuda_stream>>>(device_cuda, device_envs, device_parameters,
-                                                                 device_states, device_next_states, device_actions,
+                                                                 device_states, device_next_states, actuation,
                                                                  device_rng,
                                                                  buffer_position, buffer_orientation,
                                                                  buffer_linear_velocity, buffer_angular_velocity, buffer_rpm);
@@ -482,18 +568,19 @@ namespace hyperdrone_dynamics_impl {
                 throw std::runtime_error("hyperdrone: the cpu dynamics variant accepts host actions only");
             }
             (void)producer_stream;
+            actions = native_actions(device_cpu, parameters.data(), states.data(), actions);
             #ifdef _OPENMP
             #pragma omp parallel for
             #endif
             for(TI drone = 0; drone < NUM_DRONES; drone++){
-                rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ACTION_DIM, false>> action;
-                for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-                    rlt::set(action, 0, action_i, actions[drone * ACTION_DIM + action_i]);
+                rlt::Matrix<rlt::matrix::Specification<T, TI, 1, NATIVE_ACTION_DIM, false>> action;
+                for(TI action_i = 0; action_i < NATIVE_ACTION_DIM; action_i++){
+                    rlt::set(action, 0, action_i, actions[drone * NATIVE_ACTION_DIM + action_i]);
                 }
                 rlt::step(device_cpu, envs[drone], parameters[drone], states[drone], action, next_states[drone], engines[drone]);
                 states[drone] = next_states[drone];
                 publish_one(states[drone], &buffer_position[drone * 3], &buffer_orientation[drone * 4],
-                            &buffer_linear_velocity[drone * 3], &buffer_angular_velocity[drone * 3], &buffer_rpm[drone * ACTION_DIM]);
+                            &buffer_linear_velocity[drone * 3], &buffer_angular_velocity[drone * 3], &buffer_rpm[drone * NUM_ROTORS]);
             }
 #endif
         }
@@ -527,20 +614,21 @@ namespace hyperdrone_dynamics_impl {
                         for(int i = 0; i < 3; i++){ state.angular_velocity[i] = values_host[drone * 3 + i]; }
                         break;
                     case hyperdrone::dynamics::StateComponent::RPM:
-                        for(TI i = 0; i < ACTION_DIM; i++){ state.rpm[i] = values_host[drone * ACTION_DIM + i]; }
+                        for(TI i = 0; i < NUM_ROTORS; i++){ state.rpm[i] = values_host[drone * NUM_ROTORS + i]; }
                         break;
                     default:
                         throw std::runtime_error("hyperdrone: unknown state component");
                 }
             }
             upload_states_and_publish();
+            reset_controller();
         }
 
         void read_rotor_rpm(float* out_host) override {
             download_states();
             for(TI drone = 0; drone < NUM_DRONES; drone++){
-                for(TI rotor_i = 0; rotor_i < ACTION_DIM; rotor_i++){
-                    out_host[drone * ACTION_DIM + rotor_i] = rotor_rpm_from_command(device_cpu, parameters[drone], states[drone].rpm[rotor_i]);
+                for(TI rotor_i = 0; rotor_i < NUM_ROTORS; rotor_i++){
+                    out_host[drone * NUM_ROTORS + rotor_i] = rotor_rpm_from_command(device_cpu, parameters[drone], states[drone].rpm[rotor_i]);
                 }
             }
         }
@@ -612,6 +700,10 @@ namespace hyperdrone_dynamics_impl {
                         }
                     }
                     from_json(device_cpu, envs[drone], requested, updated[drone]);
+                    using rlt::validate;
+                    if(!validate(device_cpu, controller, updated[drone].dynamics)){
+                        throw std::invalid_argument("hyperdrone: controller requires canonical Crazyflie/RAPTOR motor allocation");
+                    }
                 }
             }
             if(entry != entries.size()){
@@ -620,13 +712,14 @@ namespace hyperdrone_dynamics_impl {
             synchronize();
             parameters.swap(updated);
             upload_parameters();
+            reset_controller(mask);
         }
 
     };
 
     static char config_string_buffer[64];
     const char* build_config_string(){
-        std::snprintf(config_string_buffer, sizeof(config_string_buffer), "n=%d", (int)NUM_DRONES);
+        std::snprintf(config_string_buffer, sizeof(config_string_buffer), "n=%d control=%d", (int)NUM_DRONES, HYPERDRONE_DYNAMICS_CONTROL);
         return config_string_buffer;
     }
 }

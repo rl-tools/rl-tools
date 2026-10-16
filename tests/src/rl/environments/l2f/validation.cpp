@@ -25,6 +25,7 @@ namespace static_parameter_builder{
     using namespace rl_tools::rl::environments::l2f;
     static constexpr bool CLOSED_FORM = true;
     struct ENVIRONMENT_STATIC_PARAMETERS{
+        static constexpr auto ACTION_INTERFACE = parameters::ActionInterface::DIRECT_MOTOR;
         static constexpr TI N_SUBSTEPS = 1;
         static constexpr TI ACTION_HISTORY_LENGTH = 16;
         static constexpr TI EPISODE_STEP_LIMIT = 500;
@@ -94,6 +95,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, VALIDATION) {
     ENVIRONMENT::State state, next_state;
     ENVIRONMENT::Parameters parameters;
     rlt::malloc(device, env);
+    rlt::init(device, env);
     rlt::initial_parameters(device, env, parameters);
     rlt::initial_state(device, env, parameters, state);
 

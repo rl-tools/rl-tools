@@ -4,6 +4,7 @@
 #endif
 #include "environment.h"
 #if HYPERDRONE_ENV_DEVICE_CUDA
+#include <rl_tools/rl/environments/hyperdrone/controllers/raptor/operations_cuda.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cuda.h>
 #if HYPERDRONE_ENV_TASK == 1
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cuda.h>
@@ -253,6 +254,10 @@ namespace HYPERDRONE_MODULE_NAME {
             throw std::invalid_argument("hyperdrone: provide one camera parameter dict per camera");
         }
         rlt::from_json(impl.host(), world.dynamics, parameters.at("dynamics"), dynamics);
+        using rlt::validate;
+        if(!validate(impl.host(), world.controller, dynamics.dynamics)){
+            throw std::invalid_argument("hyperdrone: controller requires canonical Crazyflie/RAPTOR motor allocation");
+        }
         for(TI camera_i = 0; camera_i < WORLD::N_CAMERAS_PER_AGENT; camera_i++){
             rlt::from_json(impl.host(), world, values.at(camera_i), cameras[camera_i]);
         }
@@ -529,6 +534,9 @@ namespace HYPERDRONE_MODULE_NAME {
             }
         }
         impl->publish_parameters_from_host();
+        const auto reset_mask = impl->input(mask, !CUDA_WORLD, impl->mask_staging);
+        using rlt::reset_controller;
+        reset_controller(impl->device, impl->env, reset_mask, impl->rng);
         for(TI environment_i = 0; environment_i < NUM_ENVIRONMENTS; environment_i++){
             request_render(impl->device, impl->env.environments[environment_i]);
         }

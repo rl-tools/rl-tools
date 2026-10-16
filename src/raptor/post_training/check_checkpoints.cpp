@@ -98,16 +98,11 @@ int main(){
 
     std::vector<std::tuple<std::string, ENVIRONMENT::Parameters::Dynamics>> query_dynamics;
 
-    auto permute_rotors_px4_to_cf = [&device, &dispatch_env](const auto& dynamics){
-        auto copy = dynamics;
-        rlt::permute_rotors(device, dispatch_env, copy, 0, 3, 1, 2);
-        return copy;
-    };
 
     query_dynamics.emplace_back("crazyflie", rlt::rl::environments::l2f::parameters::dynamics::crazyflie<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>);
-    query_dynamics.emplace_back("x500", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::x500::real<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
-    query_dynamics.emplace_back("mrs", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::mrs<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
-    query_dynamics.emplace_back("fs", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::fs::base<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
+    query_dynamics.emplace_back("x500", rlt::rl::environments::l2f::parameters::dynamics::x500::real<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>);
+    query_dynamics.emplace_back("mrs", rlt::rl::environments::l2f::parameters::dynamics::mrs<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>);
+    query_dynamics.emplace_back("fs", rlt::rl::environments::l2f::parameters::dynamics::fs::base<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>);
 
     std::ifstream dynamics_parameter_index_file(dynamics_parameter_index);
     if (!dynamics_parameter_index_file){

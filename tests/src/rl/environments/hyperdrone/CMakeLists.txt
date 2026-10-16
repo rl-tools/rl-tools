@@ -1,7 +1,19 @@
 if(NOT RL_TOOLS_DISABLE_TAR)
+    add_executable(test_rl_environments_hyperdrone_controllers controllers.cpp)
+    target_link_libraries(test_rl_environments_hyperdrone_controllers PRIVATE RLtools::RLtools GTest::gtest_main)
+    if(TARGET rendering_raytracing_backend)
+        target_link_libraries(test_rl_environments_hyperdrone_controllers PRIVATE rendering_raytracing_backend rendering_raytracing_stb)
+    endif()
+    gtest_discover_tests(test_rl_environments_hyperdrone_controllers)
     add_executable(test_rl_environments_hyperdrone_raptor raptor.cpp)
     target_link_libraries(test_rl_environments_hyperdrone_raptor PRIVATE RLtools::RLtools GTest::gtest_main)
     gtest_discover_tests(test_rl_environments_hyperdrone_raptor)
+    if(RL_TOOLS_BACKEND_ENABLE_CUDA)
+        add_executable(test_rl_environments_hyperdrone_raptor_cuda raptor_cuda.cu)
+        target_link_libraries(test_rl_environments_hyperdrone_raptor_cuda PRIVATE RLtools::RLtools GTest::gtest_main)
+        set_target_properties(test_rl_environments_hyperdrone_raptor_cuda PROPERTIES CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED ON)
+        gtest_discover_tests(test_rl_environments_hyperdrone_raptor_cuda)
+    endif()
 endif()
 
 add_executable(test_rl_environments_hyperdrone_on_policy_gradient on_policy_gradient.cpp)
@@ -179,6 +191,7 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
         HYPERDRONE_ENV_SHADING=0
         HYPERDRONE_ENV_MB_SAMPLES=1
         HYPERDRONE_ENV_PRESET=0
+        HYPERDRONE_ENV_CONTROL=0
         HYPERDRONE_ENV_TASK=0
         HYPERDRONE_ENV_N_AGENTS=1
         HYPERDRONE_ENV_N_CAMERA_AGENTS=1
