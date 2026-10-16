@@ -192,9 +192,9 @@ struct Spec: ExistingSpec {
 };
 ```
 
-`l2f::WithIdealRates` sets `ACTUATION = l2f::actuation::IdealRates` (the default is `Rotors`) and appends the `ParametersIdealRates` component with the thrust-to-weight ratio derived from the base vehicle's rotors. l2f derives the adapter between signal and model: identity when they agree, the PD rate controller for CTBR commands on rotors (which needs `ParametersCTBRController` and `StateCTBRController` in the chains), and a compile-time error for motor commands on ideal rates.
+`l2f::WithIdealRates` sets `ACTUATION_MODEL = l2f::actuation::IdealRates` (the default is `Rotors`) and appends the `ParametersIdealRates` component with the thrust-to-weight ratio derived from the base vehicle's rotors. l2f derives the adapter between signal and model: identity when they agree, the PD rate controller for CTBR commands on rotors (which needs `ParametersRateController` and `StateRateController` in the chains), and a compile-time error for motor commands on ideal rates.
 
-Include controller operations before World operations so static overload lookup sees them. The shared `control(device, controller, state, buffer, parameters, physical_states, commands, rng)` returns borrowed native actuation; it aliases commands for direct control and controller output for RAPTOR. Custom batched state-sampling overrides finish with `complete_reset(device, world, mask, rng)` to clear selected controller rows and request rendering.
+Include controller operations before World operations so static overload lookup sees them. The shared `control(device, controller, state, buffer, parameters, physical_states, commands, rng)` returns the borrowed dynamics actions; it aliases commands for direct control and controller output for RAPTOR. Custom batched state-sampling overrides finish with `complete_reset(device, world, mask, rng)` to clear selected controller rows and request rendering.
 
 The contract is structural: `Config` supplies `Bind` and `DynamicsParameters`; the bound controller exposes `COMMAND_DIM`, `ACTION_INTERFACE`, `NAME`, `SUPPORTS_SCALAR`, `State` and `Buffer`. Device-first overloads in `rl_tools` provide allocation/free, initialization, reset, control and dynamics validation; constexpr `command_bounds` supplies API metadata. Persistent memory belongs in `State`, scratch in `Buffer`; `transition_action` selects the native reward input from the command or resulting physical state, so deferred rewards do not depend on mutable controller output.
 
@@ -202,7 +202,7 @@ The C++ controller layer follows these consumers and constraints:
 
 | Consumers | Design constraint |
 | --- | --- |
-| CPU/CUDA Worlds, multi-agent batches and dynamics-only `Sim` | One static controller selection binds native actuation and command metadata; borrowed tensors avoid command copies and RAPTOR batches inference. |
+| CPU/CUDA Worlds, multi-agent batches and dynamics-only `Sim` | One static controller selection binds dynamics actions and command metadata; borrowed tensors avoid command copies and RAPTOR batches inference. |
 | TargetFrame, MovingGate and scene placement | Tasks retain sampling and rewards; shared reset completion clears controller memory, and World adapts scene targets before inference. |
 | Motor training, PD CTBR, ideal rates and existing checkpoints | One normalized action convention and one state and observation layout across signals and actuation models; canonical motor indexing is shared. |
 | Web, localization and trajectory callers | Reusable controller parameters, recurrent state and scratch; localization retains its existing observation preparation. |

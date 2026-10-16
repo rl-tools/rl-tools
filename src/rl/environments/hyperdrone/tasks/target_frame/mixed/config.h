@@ -50,7 +50,7 @@ namespace obs = l2f::observation;
     using PARAMETERS_DISTURBANCES = l2f::ParametersDisturbances<l2f::ParametersSpecification<T, TI, PARAMETERS_IMU>>;
     using PARAMETERS_RANDOMIZED = l2f::ParametersDomainRandomization<l2f::ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, PARAMETERS_DISTURBANCES>>;
 
-    using PARAMETERS_TYPE = l2f::ParametersCTBRController<l2f::ParametersSpecification<T, TI, PARAMETERS_RANDOMIZED>>;
+    using PARAMETERS_TYPE = l2f::ParametersRateController<l2f::ParametersSpecification<T, TI, PARAMETERS_RANDOMIZED>>;
 
     static constexpr auto MODEL = l2f::parameters::dynamics::REGISTRY::crazyflie_openmv;
 
@@ -106,10 +106,10 @@ namespace obs = l2f::observation;
     static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
         1.7, 2.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     };
-    static constexpr typename PARAMETERS_TYPE::CTBRController ctbr_controller = {
+    static constexpr typename PARAMETERS_TYPE::RateController rate_controller = {
         0, 1, {4, 4, 2}, {216, 216, 96}, {5.76, 5.76, 1.6}, {0.003, 0.003, 0.0012}
     };
-    static constexpr PARAMETERS_TYPE nominal_parameters = { { {{{dynamics, integration, mdp}, imu}, disturbances}, domain_randomization }, ctbr_controller };
+    static constexpr PARAMETERS_TYPE nominal_parameters = { { {{{dynamics, integration, mdp}, imu}, disturbances}, domain_randomization }, rate_controller };
 
     static constexpr TI ACTION_HISTORY_LENGTH = 8;
 
@@ -126,8 +126,8 @@ namespace obs = l2f::observation;
             static constexpr T KI = static_cast<T>(0.01);
         };
         using STATE_BASE_MAHONY = l2f::StateMahony<MAHONY_PARAMETERS>;
-        using STATE_BASE_CTBR = l2f::StateCTBRController<l2f::StateSpecification<T, TI, STATE_BASE_MAHONY>>;
-        using STATE_TYPE = l2f::StateRotorsHistory<l2f::StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, l2f::StateRandomForce<l2f::StateSpecification<T, TI, l2f::StateLastAction<l2f::StateSpecification<T, TI, STATE_BASE_CTBR>>>>>>;
+        using STATE_BASE_RATE_CONTROLLER = l2f::StateRateController<l2f::StateSpecification<T, TI, STATE_BASE_MAHONY>>;
+        using STATE_TYPE = l2f::StateRotorsHistory<l2f::StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, l2f::StateRandomForce<l2f::StateSpecification<T, TI, l2f::StateLastAction<l2f::StateSpecification<T, TI, STATE_BASE_RATE_CONTROLLER>>>>>>;
         using OBSERVATION_TYPE = obs::Position<obs::PositionSpecification<T, TI,
                 obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI,
                 obs::LinearVelocity<obs::LinearVelocitySpecification<T, TI,

@@ -32,9 +32,9 @@ namespace rl_tools{
             parameters.imu = env.parameters.imu;
         }
         template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_parameters(DEVICE& device, Multirotor<SPEC>& env, ParametersCTBRController<PARAMETER_SPEC>& parameters, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_parameters(DEVICE& device, Multirotor<SPEC>& env, ParametersRateController<PARAMETER_SPEC>& parameters, RNG& rng){
             sample_initial_parameters(device, env, static_cast<typename PARAMETER_SPEC::NEXT_COMPONENT&>(parameters), rng);
-            parameters.ctbr_controller = env.parameters.ctbr_controller;
+            parameters.rate_controller = env.parameters.rate_controller;
         }
         template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_parameters(DEVICE& device, Multirotor<SPEC>& env, ParametersIdealRates<PARAMETER_SPEC>& parameters, RNG& rng){

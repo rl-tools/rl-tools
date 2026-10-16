@@ -21,7 +21,7 @@ namespace rl_tools::rl::zoo::l2f{
         static constexpr TI TRAJECTORY_DT = 1000000 / CONTROL_FREQUENCY;
         using REWARD_FUNCTION = typename BASE::REWARD_FUNCTION;
         using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, EPISODE_STEP_LIMIT, REWARD_FUNCTION>;
-        using PARAMETERS_TYPE = ParametersCTBRController<ParametersSpecification<T, TI,
+        using PARAMETERS_TYPE = ParametersRateController<ParametersSpecification<T, TI,
             ParametersTrajectory<ParametersTrajectorySpecification<T, TI, TRAJECTORY_LENGTH, TRAJECTORY_DT,
             ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DefaultParametersDomainRandomizationOptions,
             ParametersDisturbances<ParametersSpecification<T, TI,
@@ -54,7 +54,7 @@ namespace rl_tools::rl::zoo::l2f{
                 {(T)0.0, (T)10.0, (T)10.0, (T)10.0}, // d_action
                 00.00 // position_error_integral
         };
-        static constexpr typename PARAMETERS_TYPE::CTBRController ctbr_controller = {
+        static constexpr typename PARAMETERS_TYPE::RateController rate_controller = {
             (T)0,
             (T)1,
             {(T)4, (T)4, (T)2},
@@ -90,7 +90,7 @@ namespace rl_tools::rl::zoo::l2f{
                 trajectory,
                 trajectory_parameters
             },
-            ctbr_controller
+            rate_controller
         };
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
@@ -103,8 +103,8 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr TI TRAJECTORY_TRACKING_LOOKAHEAD_INTERVAL = BASE::ENVIRONMENT_STATIC_PARAMETERS::TRAJECTORY_TRACKING_LOOKAHEAD_INTERVAL;
             using STATE_BASE_INNER = StateBase<StateSpecification<T, TI>>;
             using STATE_BASE_LAST_ACTION = StateLastAction<StateSpecification<T, TI, STATE_BASE_INNER>>;
-            using STATE_BASE_CTBR = StateCTBRController<StateSpecification<T, TI, STATE_BASE_LAST_ACTION>>;
-            using STATE_WITH_RANDOM_FORCE = StateRandomForce<StateSpecification<T, TI, STATE_BASE_CTBR>>;
+            using STATE_BASE_RATE_CONTROLLER = StateRateController<StateSpecification<T, TI, STATE_BASE_LAST_ACTION>>;
+            using STATE_WITH_RANDOM_FORCE = StateRandomForce<StateSpecification<T, TI, STATE_BASE_RATE_CONTROLLER>>;
             using STATE_WITH_ROTORS = StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, STATE_WITH_RANDOM_FORCE>>;
             using STATE_TYPE = StateTrajectory<StateSpecification<T, TI, STATE_WITH_ROTORS>>;
             using OBSERVATION_TYPE = typename BASE::ENVIRONMENT_STATIC_PARAMETERS::OBSERVATION_TYPE;

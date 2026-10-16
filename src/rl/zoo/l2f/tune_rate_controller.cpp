@@ -23,7 +23,7 @@ using PARAMETER_POLICY = rlt::numeric_types::UseCase<rlt::numeric_types::categor
 using TYPE_POLICY = rlt::numeric_types::Policy<float, PARAMETER_POLICY>;
 using ENVIRONMENT = typename rlt::rl::zoo::l2f::ENVIRONMENT_ATTITUDE_SETPOINT_CTBR_FACTORY<DEVICE, TYPE_POLICY, TI>::ENVIRONMENT;
 using T = typename ENVIRONMENT::T;
-using CTBR_CONTROLLER = typename ENVIRONMENT::Parameters::CTBRController;
+using RATE_CONTROLLER_PARAMETERS = typename ENVIRONMENT::Parameters::RateController;
 using ACTION = rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM, false>>;
 
 constexpr TI STEPS = 160;
@@ -44,7 +44,7 @@ struct Result{
 };
 
 struct Candidate{
-    CTBR_CONTROLLER controller;
+    RATE_CONTROLLER_PARAMETERS controller;
     Result result;
     T motor_delay_scale = 1;
     T kp_scale = 1;
@@ -79,21 +79,21 @@ void scale_motor_delay(PARAMETERS& parameters, T scale){
 
 template <typename PARAMETERS>
 void set_rate_action(const PARAMETERS& parameters, TI axis, T rate_reference, ACTION& action){
-    T thrust_range = parameters.ctbr_controller.thrust_max - parameters.ctbr_controller.thrust_min;
+    T thrust_range = parameters.rate_controller.thrust_max - parameters.rate_controller.thrust_min;
     T collective = parameters.dynamics.hovering_throttle_relative;
     T normalized_collective = thrust_range > (T)1e-6
-        ? (T)2 * (collective - parameters.ctbr_controller.thrust_min) / thrust_range - (T)1
+        ? (T)2 * (collective - parameters.rate_controller.thrust_min) / thrust_range - (T)1
         : (T)0;
     rlt::set(action, 0, 0, clamp_value(normalized_collective, (T)-1, (T)1));
     for(TI axis_i = 0; axis_i < 3; axis_i++){
         T value = axis_i == axis ? rate_reference : (T)0;
-        T limit = parameters.ctbr_controller.rate_limit[axis_i];
+        T limit = parameters.rate_controller.rate_limit[axis_i];
         T normalized = limit > (T)1e-6 ? value / limit : (T)0;
         rlt::set(action, 0, axis_i + 1, clamp_value(normalized, (T)-1, (T)1));
     }
 }
 
-Result evaluate_axis(DEVICE& device, ENVIRONMENT& env, const CTBR_CONTROLLER& controller, T motor_delay_scale, TI axis, T rate_reference){
+Result evaluate_axis(DEVICE& device, ENVIRONMENT& env, const RATE_CONTROLLER_PARAMETERS& controller, T motor_delay_scale, TI axis, T rate_reference){
     RNG rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, 0);
@@ -105,7 +105,7 @@ Result evaluate_axis(DEVICE& device, ENVIRONMENT& env, const CTBR_CONTROLLER& co
 
     rlt::initial_parameters(device, env, parameters);
     scale_motor_delay(parameters, motor_delay_scale);
-    parameters.ctbr_controller = controller;
+    parameters.rate_controller = controller;
     rlt::initial_state(device, env, parameters, state);
 
     Result result;
@@ -152,7 +152,7 @@ Result evaluate_axis(DEVICE& device, ENVIRONMENT& env, const CTBR_CONTROLLER& co
     return result;
 }
 
-Result evaluate_controller(DEVICE& device, ENVIRONMENT& env, const CTBR_CONTROLLER& controller, T motor_delay_scale){
+Result evaluate_controller(DEVICE& device, ENVIRONMENT& env, const RATE_CONTROLLER_PARAMETERS& controller, T motor_delay_scale){
     Result result;
     for(TI axis = 0; axis < 3; axis++){
         for(TI sign_i = 0; sign_i < 2; sign_i++){
@@ -168,7 +168,7 @@ Result evaluate_controller(DEVICE& device, ENVIRONMENT& env, const CTBR_CONTROLL
     return result;
 }
 
-CTBR_CONTROLLER scale_gains(CTBR_CONTROLLER controller, T kp_scale, T kd_scale){
+RATE_CONTROLLER_PARAMETERS scale_gains(RATE_CONTROLLER_PARAMETERS controller, T kp_scale, T kd_scale){
     for(TI axis = 0; axis < 3; axis++){
         controller.kp[axis] *= kp_scale;
         controller.kd[axis] *= kd_scale;
@@ -178,7 +178,7 @@ CTBR_CONTROLLER scale_gains(CTBR_CONTROLLER controller, T kp_scale, T kd_scale){
 
 void print_candidate(const Candidate& candidate){
     const Result& result = candidate.result;
-    const CTBR_CONTROLLER& controller = candidate.controller;
+    const RATE_CONTROLLER_PARAMETERS& controller = candidate.controller;
     std::cout
         << "score=" << std::setw(9) << result.score
         << " motor_delay_scale=" << std::setw(5) << candidate.motor_delay_scale
@@ -201,7 +201,7 @@ void write_summary_header(std::ofstream& output){
 
 void write_summary_row(std::ofstream& output, const Candidate& candidate){
     const Result& result = candidate.result;
-    const CTBR_CONTROLLER& controller = candidate.controller;
+    const RATE_CONTROLLER_PARAMETERS& controller = candidate.controller;
     output
         << candidate.motor_delay_scale << ","
         << candidate.kp_scale << ","
@@ -240,7 +240,7 @@ void write_trace_csv(DEVICE& device, ENVIRONMENT& env, const Candidate candidate
     for(TI scale_i = 0; scale_i < N_MOTOR_DELAY_SCALES; scale_i++){
         rlt::initial_parameters(device, env, parameters[scale_i]);
         scale_motor_delay(parameters[scale_i], candidates[scale_i].motor_delay_scale);
-        parameters[scale_i].ctbr_controller = candidates[scale_i].controller;
+        parameters[scale_i].rate_controller = candidates[scale_i].controller;
         for(TI case_i = 0; case_i < N_CASES; case_i++){
             rlt::malloc(device, rngs[scale_i][case_i]);
             rlt::init(device, rngs[scale_i][case_i], scale_i * N_CASES + case_i);
@@ -403,7 +403,7 @@ int main(int argc, char** argv){
                 candidate.motor_delay_scale = MOTOR_DELAY_SCALES[scale_i];
                 candidate.kp_scale = kp_scale;
                 candidate.kd_scale = kd_scale;
-                candidate.controller = scale_gains(env.parameters.ctbr_controller, kp_scale, kd_scale);
+                candidate.controller = scale_gains(env.parameters.rate_controller, kp_scale, kd_scale);
                 candidate.result = evaluate_controller(device, env, candidate.controller, candidate.motor_delay_scale);
                 print_candidate(candidate);
                 write_summary_row(summary, candidate);

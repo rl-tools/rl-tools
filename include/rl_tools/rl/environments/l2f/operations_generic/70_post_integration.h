@@ -294,7 +294,7 @@ namespace rl_tools::rl::environments::l2f{
         using MULTIROTOR = Multirotor<SPEC>;
         using T = typename STATE_SPEC::T;
         using TI = typename DEVICE::index_t;
-        if constexpr(utils::typing::is_same_v<typename MULTIROTOR::ACTUATION_MODEL, actuation::IdealRates>){
+        if constexpr(rl_tools::utils::typing::is_same_v<typename MULTIROTOR::ACTUATION_MODEL, actuation::IdealRates>){
             T collective = math::clamp(device.math, get(action, 0, 0), (T)-1, (T)1);
             T rotor_thrust = ideal_rates_collective_acceleration(device, parameters, collective) * parameters.dynamics.mass / (T)PARAMETERS::N;
             for(TI rpm_i = 0; rpm_i < PARAMETERS::N; rpm_i++){
@@ -326,7 +326,7 @@ namespace rl_tools::rl::environments::l2f{
         next_state.torque[2] = state.torque[2];
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateCTBRController<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateCTBRController<STATE_SPEC>& next_state, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateRateController<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateRateController<STATE_SPEC>& next_state, RNG& rng) {
         using TI = typename DEVICE::index_t;
         post_integration(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(next_state), rng);
         if constexpr(!Multirotor<SPEC>::RATE_CONTROLLER || SPEC::STATIC_PARAMETERS::N_SUBSTEPS == 1){

@@ -242,8 +242,8 @@ namespace rl_tools{
                     }
                 }
                 auto& rng_state = get(rng.states, 0, instance_i);
-                Matrix<matrix::Specification<typename ACTION_SPEC::T, TI, 1, WORLD::ACTUATION_DIM, false>> action_matrix;
-                for(TI action_i = 0; action_i < WORLD::ACTUATION_DIM; action_i++){
+                Matrix<matrix::Specification<typename ACTION_SPEC::T, TI, 1, WORLD::DYNAMICS_ACTION_DIM, false>> action_matrix;
+                for(TI action_i = 0; action_i < WORLD::DYNAMICS_ACTION_DIM; action_i++){
                     set(action_matrix, 0, action_i, get(device, actions, instance_i, action_i));
                 }
                 _step<DEVICE, SPEC>(device, dynamics, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), action_matrix, get_ref(device, next_states, instance_i), rng_state);
@@ -462,7 +462,7 @@ namespace rl_tools{
         constexpr TI BLOCKSIZE = 32;
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        auto actuation = control(device, world.controller, world.controller_state, world.controller_buffer, parameters, states, actions, rng);
+        auto dynamics_actions = control(device, world.controller, world.controller_state, world.controller_buffer, parameters, states, actions, rng);
         if(world.render_pending){
             if constexpr(rl::environments::hyperdrone::World<SPEC>::HAS_IMAGE_OBSERVATION && SPEC::HISTORY_LENGTH > 1){
                 render(device, world, parameters, states, world.render_reset);
@@ -478,7 +478,7 @@ namespace rl_tools{
             advance_flow_launch(device, get_renderer(device, world));
         }
         auto world_rng = rl::environments::hyperdrone::cuda::instance_rng(device, world, rng);
-        rl::environments::hyperdrone::cuda::step_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, parameters, states, actuation, next_states, world_rng, data(world.prev_cameras), world.render_reset, data(world.episode_start), world.history_step);
+        rl::environments::hyperdrone::cuda::step_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, parameters, states, dynamics_actions, next_states, world_rng, data(world.prev_cameras), world.render_reset, data(world.episode_start), world.history_step);
         check_status(device);
         world.history_step++;
         set_all(device, world.render_reset, false);

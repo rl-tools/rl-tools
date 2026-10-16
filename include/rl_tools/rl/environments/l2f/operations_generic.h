@@ -140,7 +140,7 @@ namespace rl_tools
                 normalized[action_i] = math::clamp(device.math, normalized[action_i], -(T)1, (T)1);
             }
             T collective = (normalized[0] + (T)1) / (T)2;
-            collective = parameters.ctbr_controller.thrust_min + collective * (parameters.ctbr_controller.thrust_max - parameters.ctbr_controller.thrust_min);
+            collective = parameters.rate_controller.thrust_min + collective * (parameters.rate_controller.thrust_max - parameters.rate_controller.thrust_min);
             collective = math::clamp(device.math, collective, (T)0, (T)1);
             T collective_command = parameters.dynamics.action_limit.min + collective * (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min);
             T total_thrust = 0;
@@ -151,15 +151,15 @@ namespace rl_tools
             T angular_acceleration_measured[3];
             T desired_angular_acceleration[3];
             for(TI axis_i = 0; axis_i < 3; axis_i++){
-                T rate_setpoint = normalized[axis_i + 1] * parameters.ctbr_controller.rate_limit[axis_i];
+                T rate_setpoint = normalized[axis_i + 1] * parameters.rate_controller.rate_limit[axis_i];
                 rate_error[axis_i] = rate_setpoint - state.angular_velocity[axis_i];
                 angular_acceleration_measured[axis_i] = (state.angular_velocity[axis_i] - state.previous_angular_velocity[axis_i]) / controller_dt;
-                desired_angular_acceleration[axis_i] = parameters.ctbr_controller.kp[axis_i] * rate_error[axis_i] - parameters.ctbr_controller.kd[axis_i] * angular_acceleration_measured[axis_i];
+                desired_angular_acceleration[axis_i] = parameters.rate_controller.kp[axis_i] * rate_error[axis_i] - parameters.rate_controller.kd[axis_i] * angular_acceleration_measured[axis_i];
             }
             T torque[3];
             rl_tools::utils::vector_operations::matrix_vector_product<DEVICE, T, 3, 3>(parameters.dynamics.J, desired_angular_acceleration, torque);
             for(TI axis_i = 0; axis_i < 3; axis_i++){
-                T limit = parameters.ctbr_controller.torque_limit[axis_i];
+                T limit = parameters.rate_controller.torque_limit[axis_i];
                 if(limit > 0){
                     torque[axis_i] = math::clamp(device.math, torque[axis_i], -limit, limit);
                 }
@@ -190,7 +190,7 @@ namespace rl_tools
         }
         // normalized [thrust, rates] into collective acceleration and body rates; the rates are written into the state because the ideal model tracks them instantly
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT void ideal_rates_actuation(DEVICE& device, const Multirotor<SPEC>&, const PARAMETERS& parameters, STATE& state, const Matrix<ACTION_SPEC>& action, typename SPEC::T actuation[4], RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT void ideal_rates_actuation_input(DEVICE& device, const Multirotor<SPEC>&, const PARAMETERS& parameters, STATE& state, const Matrix<ACTION_SPEC>& action, typename SPEC::T actuation_input[4], RNG& rng){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             T normalized[4];
@@ -199,26 +199,26 @@ namespace rl_tools
                 normalized[action_i] += random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, parameters.mdp.action_noise.normalized_rpm, rng);
                 normalized[action_i] = math::clamp(device.math, normalized[action_i], -(T)1, (T)1);
             }
-            actuation[0] = ideal_rates_collective_acceleration(device, parameters, normalized[0]);
+            actuation_input[0] = ideal_rates_collective_acceleration(device, parameters, normalized[0]);
             for(TI axis_i = 0; axis_i < 3; axis_i++){
-                actuation[axis_i + 1] = normalized[axis_i + 1] * parameters.ideal_rates.rate_limit[axis_i];
-                state.angular_velocity[axis_i] = actuation[axis_i + 1];
+                actuation_input[axis_i + 1] = normalized[axis_i + 1] * parameters.ideal_rates.rate_limit[axis_i];
+                state.angular_velocity[axis_i] = actuation_input[axis_i + 1];
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE>
-        RL_TOOLS_FUNCTION_PLACEMENT void integrate(DEVICE& device, const Multirotor<SPEC>&, const PARAMETERS& parameters, const STATE& state, const typename SPEC::T actuation[4], STATE& next_state){
+        RL_TOOLS_FUNCTION_PLACEMENT void integrate(DEVICE& device, const Multirotor<SPEC>&, const PARAMETERS& parameters, const STATE& state, const typename SPEC::T actuation_input[4], STATE& next_state){
             using MULTIROTOR = Multirotor<SPEC>;
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             constexpr TI N_SUBSTEPS = SPEC::STATIC_PARAMETERS::N_SUBSTEPS;
             if constexpr(N_SUBSTEPS == 1){
-                utils::integrators::rk4<DEVICE, T, typename SPEC::PARAMETERS, STATE, MULTIROTOR::ACTION_DIM, multirotor_dynamics_dispatch<DEVICE, T, typename SPEC::PARAMETERS, STATE, typename MULTIROTOR::ACTUATION_MODEL>>(device, parameters, state, actuation, parameters.integration.dt, next_state);
+                rl_tools::utils::integrators::rk4<DEVICE, T, typename SPEC::PARAMETERS, STATE, MULTIROTOR::ACTION_DIM, multirotor_dynamics_dispatch<DEVICE, T, typename SPEC::PARAMETERS, STATE, typename MULTIROTOR::ACTUATION_MODEL>>(device, parameters, state, actuation_input, parameters.integration.dt, next_state);
             }
             else{
                 T substep_dt = parameters.integration.dt / N_SUBSTEPS;
                 auto substep_state = state;
                 for(TI substep_i = 0; substep_i < N_SUBSTEPS; substep_i++){
-                    utils::integrators::rk4<DEVICE, T, typename SPEC::PARAMETERS, STATE, MULTIROTOR::ACTION_DIM, multirotor_dynamics_dispatch<DEVICE, T, typename SPEC::PARAMETERS, STATE, typename MULTIROTOR::ACTUATION_MODEL>>(device, parameters, substep_state, actuation, substep_dt, next_state);
+                    rl_tools::utils::integrators::rk4<DEVICE, T, typename SPEC::PARAMETERS, STATE, MULTIROTOR::ACTION_DIM, multirotor_dynamics_dispatch<DEVICE, T, typename SPEC::PARAMETERS, STATE, typename MULTIROTOR::ACTUATION_MODEL>>(device, parameters, substep_state, actuation_input, substep_dt, next_state);
                     substep_state = next_state;
                 }
             }
@@ -250,14 +250,14 @@ namespace rl_tools
         using TI = typename DEVICE::index_t;
         static_assert(ACTION_SPEC::ROWS == 1);
         static_assert(ACTION_SPEC::COLS == MULTIROTOR::ACTION_DIM);
-        T actuation[MULTIROTOR::ACTION_DIM];
+        T actuation_input[MULTIROTOR::ACTION_DIM];
         if constexpr(MULTIROTOR::RATE_CONTROLLER){
             constexpr TI N_SUBSTEPS = SPEC::STATIC_PARAMETERS::N_SUBSTEPS;
             T substep_dt = parameters.integration.dt / N_SUBSTEPS;
             auto substep_state = state;
             for(TI substep_i = 0; substep_i < N_SUBSTEPS; substep_i++){
-                rl::environments::l2f::ctbr_action_to_motor_commands(device, parameters, substep_state, action, actuation, rng, substep_dt);
-                utils::integrators::rk4<DEVICE, T, typename SPEC::PARAMETERS, STATE, MULTIROTOR::ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, T, typename SPEC::PARAMETERS, STATE, rl::environments::l2f::actuation::Rotors>>(device, parameters, substep_state, actuation, substep_dt, next_state);
+                rl::environments::l2f::ctbr_action_to_motor_commands(device, parameters, substep_state, action, actuation_input, rng, substep_dt);
+                utils::integrators::rk4<DEVICE, T, typename SPEC::PARAMETERS, STATE, MULTIROTOR::ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, T, typename SPEC::PARAMETERS, STATE, rl::environments::l2f::actuation::Rotors>>(device, parameters, substep_state, actuation_input, substep_dt, next_state);
                 for(TI axis_i = 0; axis_i < 3; axis_i++){
                     next_state.previous_angular_velocity[axis_i] = substep_state.angular_velocity[axis_i];
                 }
@@ -266,12 +266,12 @@ namespace rl_tools
         }
         else if constexpr(utils::typing::is_same_v<typename MULTIROTOR::ACTUATION_MODEL, rl::environments::l2f::actuation::IdealRates>){
             auto commanded = state;
-            rl::environments::l2f::ideal_rates_actuation(device, env, parameters, commanded, action, actuation, rng);
-            rl::environments::l2f::integrate(device, env, parameters, commanded, actuation, next_state);
+            rl::environments::l2f::ideal_rates_actuation_input(device, env, parameters, commanded, action, actuation_input, rng);
+            rl::environments::l2f::integrate(device, env, parameters, commanded, actuation_input, next_state);
         }
         else{
-            rl::environments::l2f::direct_motor_action_to_motor_commands(device, parameters, state, action, actuation, rng);
-            rl::environments::l2f::integrate(device, env, parameters, state, actuation, next_state);
+            rl::environments::l2f::direct_motor_action_to_motor_commands(device, parameters, state, action, actuation_input, rng);
+            rl::environments::l2f::integrate(device, env, parameters, state, actuation_input, next_state);
         }
         post_integration(device, env, parameters, state, action, next_state, rng);
         return parameters.integration.dt;

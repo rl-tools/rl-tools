@@ -108,7 +108,7 @@ namespace rl_tools::rl::environments::l2f{
             T normalized_rpm; // std of additive gaussian noise onto the normalized action (-1, 1)
         };
         template <typename T>
-        struct CTBRController{
+        struct RateController{
             T thrust_min;
             T thrust_max;
             T rate_limit[3];
@@ -219,11 +219,11 @@ namespace rl_tools::rl::environments::l2f{
     };
 
     template <typename SPECC>
-    struct ParametersCTBRController: SPECC::NEXT_COMPONENT{
+    struct ParametersRateController: SPECC::NEXT_COMPONENT{
         using NEXT_COMPONENT = typename SPECC::NEXT_COMPONENT;
         static constexpr typename SPECC::TI N = NEXT_COMPONENT::N;
-        using CTBRController = parameters::CTBRController<typename SPECC::T>;
-        CTBRController ctbr_controller;
+        using RateController = parameters::RateController<typename SPECC::T>;
+        RateController rate_controller;
     };
     template <typename SPECC>
     struct ParametersIdealRates: SPECC::NEXT_COMPONENT{
@@ -297,8 +297,8 @@ namespace rl_tools::rl::environments::l2f{
             using TYPE = Rotors;
         };
         template <typename STATIC_PARAMETERS>
-        struct Model<STATIC_PARAMETERS, utils::typing::void_t<typename STATIC_PARAMETERS::ACTUATION>>{
-            using TYPE = typename STATIC_PARAMETERS::ACTUATION;
+        struct Model<STATIC_PARAMETERS, utils::typing::void_t<typename STATIC_PARAMETERS::ACTUATION_MODEL>>{
+            using TYPE = typename STATIC_PARAMETERS::ACTUATION_MODEL;
         };
     }
     namespace parameters{
@@ -326,7 +326,7 @@ namespace rl_tools::rl::environments::l2f{
     template <typename T_BASE>
     struct WithIdealRates: T_BASE{
         using BASE = T_BASE;
-        using ACTUATION = actuation::IdealRates;
+        using ACTUATION_MODEL = actuation::IdealRates;
         static constexpr auto ACTION_INTERFACE = parameters::ActionInterface::CTBR;
         using PARAMETERS = ParametersIdealRates<ParametersSpecification<typename BASE::PARAMETERS::T, typename BASE::PARAMETERS::TI, typename BASE::PARAMETERS>>;
         static constexpr PARAMETERS PARAMETER_VALUES = {BASE::PARAMETER_VALUES, parameters::ideal_rates(BASE::PARAMETER_VALUES.dynamics)};
@@ -951,7 +951,7 @@ namespace rl_tools::rl::environments::l2f{
     };
 
     template <typename T_SPEC>
-    struct StateCTBRController: T_SPEC::NEXT_COMPONENT{
+    struct StateRateController: T_SPEC::NEXT_COMPONENT{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;

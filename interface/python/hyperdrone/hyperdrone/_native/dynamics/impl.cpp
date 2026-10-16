@@ -394,7 +394,7 @@ namespace hyperdrone_dynamics_impl {
         }
 
         template<typename DEVICE>
-        const T* native_actions(DEVICE& device, const PARAMETERS* parameters, const STATE* states, const T* actions){
+        const T* dynamics_actions(DEVICE& device, const PARAMETERS* parameters, const STATE* states, const T* actions){
             using rlt::control;
             auto parameter_view = tensor_view(parameters, rlt::tensor::Shape<TI, NUM_DRONES>{});
             auto state_view = tensor_view(states, rlt::tensor::Shape<TI, NUM_DRONES>{});
@@ -554,9 +554,9 @@ namespace hyperdrone_dynamics_impl {
             else {
                 cudaMemcpyAsync(device_actions, actions, NUM_DRONES * ACTION_DIM * sizeof(float), cudaMemcpyHostToDevice, cuda_stream);
             }
-            const T* actuation = native_actions(device_cuda, device_parameters, device_states, device_actions);
+            const T* device_dynamics_actions = dynamics_actions(device_cuda, device_parameters, device_states, device_actions);
             kernel_step<<<GRID_DIM, BLOCK_DIM, 0, cuda_stream>>>(device_cuda, device_envs, device_parameters,
-                                                                 device_states, device_next_states, actuation,
+                                                                 device_states, device_next_states, device_dynamics_actions,
                                                                  device_rng,
                                                                  buffer_position, buffer_orientation,
                                                                  buffer_linear_velocity, buffer_angular_velocity, buffer_rpm);
@@ -568,7 +568,7 @@ namespace hyperdrone_dynamics_impl {
                 throw std::runtime_error("hyperdrone: the cpu dynamics variant accepts host actions only");
             }
             (void)producer_stream;
-            actions = native_actions(device_cpu, parameters.data(), states.data(), actions);
+            actions = dynamics_actions(device_cpu, parameters.data(), states.data(), actions);
             #ifdef _OPENMP
             #pragma omp parallel for
             #endif

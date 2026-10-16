@@ -109,9 +109,9 @@ export class L2F{
     }
     create_state(index, parameters) {
         const state = new this.l2f_interface[this.state_type](this.seed + index)
-        if(this.state_type === "VisualState" && !parameters.ctbr_controller) {
+        if(this.state_type === "VisualState" && !parameters.rate_controller) {
             const defaults = JSON.parse(state.get_parameters())
-            parameters.ctbr_controller = defaults.ctbr_controller
+            parameters.rate_controller = defaults.rate_controller
             parameters.imu = defaults.imu
             parameters.integration = defaults.integration
             parameters.mdp.init = defaults.mdp.init

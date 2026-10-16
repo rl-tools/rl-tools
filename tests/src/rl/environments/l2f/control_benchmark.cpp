@@ -25,15 +25,15 @@ struct StaticParameters: FACTORY::STATIC_PARAMETERS {
     static constexpr auto ACTION_INTERFACE = MODE;
     static constexpr TI N_SUBSTEPS = MODE == Interface::CTBR ? 10 : 1;
     using STATE_BASE = l2f::StateBase<l2f::StateSpecification<T, TI>>;
-    using STATE_PD = l2f::StateCTBRController<l2f::StateSpecification<T, TI, STATE_BASE>>;
+    using STATE_PD = l2f::StateRateController<l2f::StateSpecification<T, TI, STATE_BASE>>;
     using INNER_STATE = std::conditional_t<MODE == Interface::CTBR, STATE_PD, STATE_BASE>;
     using STATE_TYPE = l2f::StateRotors<l2f::StateRotorsSpecification<T, TI, false, l2f::StateRandomForce<l2f::StateSpecification<T, TI, INNER_STATE>>>>;
     using PARAMETERS_BASE = l2f::ParametersDisturbances<l2f::ParametersSpecification<T, TI, l2f::ParametersBase<FACTORY::PARAMETERS_SPEC>>>;
-    using PARAMETERS_PD = l2f::ParametersCTBRController<l2f::ParametersSpecification<T, TI, PARAMETERS_BASE>>;
+    using PARAMETERS_PD = l2f::ParametersRateController<l2f::ParametersSpecification<T, TI, PARAMETERS_BASE>>;
     using PARAMETERS = std::conditional_t<MODE == Interface::CTBR, PARAMETERS_PD, PARAMETERS_BASE>;
     static constexpr PARAMETERS PARAMETER_VALUES = [](){
         if constexpr(MODE == Interface::CTBR){
-            constexpr typename PARAMETERS_PD::CTBRController pd = {
+            constexpr typename PARAMETERS_PD::RateController pd = {
                 T(0), T(1), {T(4), T(4), T(2)}, {T(216), T(216), T(96)},
                 {T(5.76), T(5.76), T(1.6)}, {T(0.003), T(0.003), T(0.0012)}
             };
@@ -111,9 +111,9 @@ void measure(const std::string& label, TI count) {
         }
         else if constexpr(ENVIRONMENT::RATE_CONTROLLER){
             set(commands[tick], 0, 0, parameters.dynamics.hovering_throttle_relative * T(2) - T(1) + T(0.002) * std::sin(phase));
-            set(commands[tick], 0, 1, T(0.2) * std::sin(phase) / parameters.ctbr_controller.rate_limit[0]);
-            set(commands[tick], 0, 2, T(0.2) * std::cos(phase) / parameters.ctbr_controller.rate_limit[1]);
-            set(commands[tick], 0, 3, T(0.1) / parameters.ctbr_controller.rate_limit[2]);
+            set(commands[tick], 0, 1, T(0.2) * std::sin(phase) / parameters.rate_controller.rate_limit[0]);
+            set(commands[tick], 0, 2, T(0.2) * std::cos(phase) / parameters.rate_controller.rate_limit[1]);
+            set(commands[tick], 0, 3, T(0.1) / parameters.rate_controller.rate_limit[2]);
         }
         else{
             for(TI motor = 0; motor < 4; motor++) {

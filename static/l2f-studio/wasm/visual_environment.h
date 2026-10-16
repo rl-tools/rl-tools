@@ -6,12 +6,12 @@ namespace visual_policy {
     using PARAMETERS_BASE = ParametersBase<builder::PARAMETERS_SPEC>;
     using PARAMETERS_FORCE = ParametersDisturbances<ParametersSpecification<T, TI, PARAMETERS_BASE>>;
     using PARAMETERS_IMU = ParametersIMU<ParametersSpecification<T, TI, PARAMETERS_FORCE>>;
-    using PARAMETERS_CTBR = ParametersCTBRController<ParametersSpecification<T, TI, PARAMETERS_IMU>>;
-    using PARAMETERS_RANDOMIZATION = ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, builder::DOMAIN_RANDOMIZATION_OPTIONS, PARAMETERS_CTBR>>;
+    using PARAMETERS_RATE_CONTROLLER = ParametersRateController<ParametersSpecification<T, TI, PARAMETERS_IMU>>;
+    using PARAMETERS_RANDOMIZATION = ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, builder::DOMAIN_RANDOMIZATION_OPTIONS, PARAMETERS_RATE_CONTROLLER>>;
     using PARAMETERS_TRAJECTORY = ParametersTrajectory<ParametersTrajectorySpecification<T, TI, builder::TRAJECTORY_LENGTH, builder::TRAJECTORY_DT, PARAMETERS_RANDOMIZATION>>;
     using PARAMETERS = ParametersObservationDelay<ParametersObservationDelaySpecification<T, TI, PARAMETERS_TRAJECTORY>>;
     static constexpr PARAMETERS::IMU imu = {{{{0, 0}, {0, 0, 0}}}, {{{0, 0}, {0.02f, 0, 0}}}};
-    static constexpr PARAMETERS::CTBRController controller = {
+    static constexpr PARAMETERS::RateController rate_controller = {
         0, 1, {4, 4, 2}, {216, 216, 96}, {5.76f, 5.76f, 1.6f}, {0.003f, 0.003f, 0.0012f}
     };
     static constexpr PARAMETERS nominal_parameters = []{
@@ -19,7 +19,7 @@ namespace visual_policy {
         p.integration = builder::integration;
         p.mdp = builder::mdp;
         p.imu = imu;
-        p.ctbr_controller = controller;
+        p.rate_controller = rate_controller;
         p.trajectory_parameters = builder::trajectory_parameters;
         p.dynamics = parameters::dynamics::registry<parameters::dynamics::REGISTRY::crazyflie_openmv, builder::PARAMETERS_SPEC>;
         const T hover = 2 * p.dynamics.hovering_throttle_relative - 1;
@@ -34,8 +34,8 @@ namespace visual_policy {
         static constexpr T KI = 0.01f;
     };
     using MAHONY = StateMahony<MAHONY_SPEC>;
-    using CONTROLLER = StateCTBRController<StateSpecification<T, TI, MAHONY>>;
-    using ACCELERATION_HISTORY = StateLinearAccelerationHistory<StateLinearAccelerationHistorySpecification<T, TI, 8, CONTROLLER>>;
+    using RATE_CONTROLLER = StateRateController<StateSpecification<T, TI, MAHONY>>;
+    using ACCELERATION_HISTORY = StateLinearAccelerationHistory<StateLinearAccelerationHistorySpecification<T, TI, 8, RATE_CONTROLLER>>;
     using ROTORS = StateRotorsHistory<StateRotorsHistorySpecification<T, TI, 8, false, ACCELERATION_HISTORY>>;
     using STATE = StateRandomForce<StateSpecification<T, TI, ROTORS>>;
     using ACTION_OBSERVATION = observation::ActionHistory<observation::ActionHistorySpecification<T, TI, 8>>;

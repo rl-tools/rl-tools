@@ -331,7 +331,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         static constexpr TI N_OBSERVATION_CAMERAS_PER_AGENT = OBSERVATION::COUNT;
         static constexpr TI N_OBSERVATION_VIEWS = N_CAMERA_AGENTS * N_OBSERVATION_CAMERAS_PER_AGENT;
         static constexpr TI ACTION_DIM = N_AGENTS * CONTROLLER::COMMAND_DIM;
-        static constexpr TI ACTUATION_DIM = N_AGENTS * DYNAMICS_ENV::ACTION_DIM;
+        static constexpr TI DYNAMICS_ACTION_DIM = N_AGENTS * DYNAMICS_ENV::ACTION_DIM;
         static constexpr TI EPISODE_STEP_LIMIT = DYNAMICS_ENV::EPISODE_STEP_LIMIT;
         static constexpr TI IMAGE_CHANNELS = 3;
 

@@ -21,9 +21,9 @@ namespace hyperdrone {
         template<typename BASE>
         using Apply = rl_tools::utils::typing::conditional_t<ACTUATION == 0, BASE, l2f::WithIdealRates<BASE>>;
     };
-    template<typename ACTUATION>
+    template<typename ACTUATION_MODEL>
     constexpr const char* actuation_name(){
-        return rl_tools::utils::typing::is_same_v<ACTUATION, l2f::actuation::IdealRates> ? "ideal" : "rotors";
+        return rl_tools::utils::typing::is_same_v<ACTUATION_MODEL, l2f::actuation::IdealRates> ? "ideal" : "rotors";
     }
 
     template<typename CONTROLLER>

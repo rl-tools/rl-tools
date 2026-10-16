@@ -72,8 +72,8 @@ function attitudeError(sample){
 }
 
 function ctbrRateLimit(episode){
-    if(episode.parameters && episode.parameters.ctbr_controller && episode.parameters.ctbr_controller.rate_limit){
-        return episode.parameters.ctbr_controller.rate_limit
+    if(episode.parameters && episode.parameters.rate_controller && episode.parameters.rate_controller.rate_limit){
+        return episode.parameters.rate_controller.rate_limit
     }
     return [4, 4, 4]
 }

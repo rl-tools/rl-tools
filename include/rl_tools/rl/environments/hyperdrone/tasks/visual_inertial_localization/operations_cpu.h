@@ -287,12 +287,12 @@ namespace rl_tools {
         using TI = typename TASK_SPEC::TI;
         using T = typename TASK_SPEC::T;
         for (TI instance = 0; instance < NEXT_WORLD::INSTANCES; instance++) {
-            Matrix<matrix::Specification<T, TI, 1, NEXT_WORLD::ACTION_DIM, false>> actuation;
+            Matrix<matrix::Specification<T, TI, 1, NEXT_WORLD::ACTION_DIM, false>> last_action;
             const auto& next = get_ref(device, next_states, instance);
             for (TI component = 0; component < NEXT_WORLD::ACTION_DIM; component++) {
-                set(actuation, 0, component, next.last_action[component]);
+                set(last_action, 0, component, next.last_action[component]);
             }
-            set(device, rewards, reward(device, static_cast<NEXT_WORLD&>(world), get_ref(device, parameters, instance), get_ref(device, states, instance), actuation, next, rng), instance);
+            set(device, rewards, reward(device, static_cast<NEXT_WORLD&>(world), get_ref(device, parameters, instance), get_ref(device, states, instance), last_action, next, rng), instance);
         }
     }
 

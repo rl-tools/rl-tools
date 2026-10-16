@@ -221,7 +221,7 @@ TEST(HYPERDRONE_CONTROLLERS, SceneCommandsAndDeferredTransitionRewards) {
 namespace contract_test {
     template <typename SPEC>
     struct Buffer: hd::controllers::direct::Buffer<SPEC> {
-        Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, tensor::Shape<typename SPEC::TI, SPEC::INSTANCES, 4>, SPEC::DYNAMIC_ALLOCATION>> actuation;
+        Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, tensor::Shape<typename SPEC::TI, SPEC::INSTANCES, 4>, SPEC::DYNAMIC_ALLOCATION>> dynamics_actions;
     };
     template <typename SPEC>
     struct Controller: hd::controllers::Direct<SPEC, hd::controllers::direct::Config<>::ACTION_INTERFACE> {
@@ -239,20 +239,20 @@ namespace contract_test {
 namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, contract_test::Buffer<SPEC>& buffer) {
-        malloc(device, buffer.actuation);
+        malloc(device, buffer.dynamics_actions);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, contract_test::Buffer<SPEC>& buffer) {
-        free(device, buffer.actuation);
+        free(device, buffer.dynamics_actions);
     }
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATES, typename COMMANDS, typename RNG>
     auto control(DEVICE& device, const contract_test::Controller<SPEC>&, typename contract_test::Controller<SPEC>::State&, contract_test::Buffer<SPEC>& buffer, const Tensor<PARAMETERS>&, const Tensor<STATES>&, const Tensor<COMMANDS>& commands, RNG&) {
         for (typename SPEC::TI row = 0; row < SPEC::INSTANCES; row++) {
             for (typename SPEC::TI motor = 0; motor < 4; motor++) {
-                set(device, buffer.actuation, get(device, commands, row, 0) + (motor < 2 ? 1 : -1) * get(device, commands, row, 1), row, motor);
+                set(device, buffer.dynamics_actions, get(device, commands, row, 0) + (motor < 2 ? 1 : -1) * get(device, commands, row, 1), row, motor);
             }
         }
-        return view_range(device, buffer.actuation, tensor::ViewSpec<0, SPEC::INSTANCES>{});
+        return view_range(device, buffer.dynamics_actions, tensor::ViewSpec<0, SPEC::INSTANCES>{});
     }
     template <typename DEVICE, typename ACTION, typename STATE, typename INDEX>
     auto transition_action(DEVICE&, contract_test::Config, const Matrix<ACTION>&, const STATE& next, INDEX, INDEX component) {
@@ -262,7 +262,7 @@ namespace rl_tools {
 TEST(HYPERDRONE_CONTROLLERS, CommandDimensionIsIndependentOfActuation) {
     using WORLD = hd::World<contract_test::Spec>;
     static_assert(WORLD::ACTION_DIM == 2);
-    static_assert(WORLD::ACTUATION_DIM == 4);
+    static_assert(WORLD::DYNAMICS_ACTION_DIM == 4);
     DEVICE device;
     RNG rng;
     malloc(device, rng);
@@ -289,12 +289,12 @@ TEST(HYPERDRONE_CONTROLLERS, CommandDimensionIsIndependentOfActuation) {
     }
     step(device, world, parameters, states, commands, next_states, rng);
     for (TI row = 0; row < 2; row++) {
-        Matrix<matrix::Specification<T, TI, 1, 4, false>> actuation;
+        Matrix<matrix::Specification<T, TI, 1, 4, false>> dynamics_action;
         for (TI motor = 0; motor < 4; motor++) {
-            set(actuation, 0, motor, motor < 2 ? T(0.1) : T(-0.1));
+            set(dynamics_action, 0, motor, motor < 2 ? T(0.1) : T(-0.1));
         }
         WORLD::State expected;
-        step(device, world.dynamics, get_ref(device, parameters, row).agents[0].dynamics, get_ref(device, states, row), actuation, expected, rng);
+        step(device, world.dynamics, get_ref(device, parameters, row).agents[0].dynamics, get_ref(device, states, row), dynamics_action, expected, rng);
         const auto& actual = get_ref(device, next_states, row);
         for (TI axis = 0; axis < 3; axis++) {
             EXPECT_EQ(actual.position[axis], expected.position[axis]);

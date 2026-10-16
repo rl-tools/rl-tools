@@ -26,14 +26,14 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr bool ROTOR_TIME_CONSTANT = false;
         };
         using PARAMETERS_TYPE = ParametersAttitudeSetpoint<ParametersAttitudeSetpointSpecification<T, TI,
-            ParametersCTBRController<ParametersSpecification<T, TI,
+            ParametersRateController<ParametersSpecification<T, TI,
             ParametersTrajectory<ParametersTrajectorySpecification<T, TI, BASE::ENVIRONMENT_FACTORY_BASE::TRAJECTORY_LENGTH, BASE::ENVIRONMENT_FACTORY_BASE::TRAJECTORY_DT,
             ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS,
             ParametersDisturbances<ParametersSpecification<T, TI,
             ParametersIMU<ParametersSpecification<T, TI,
             ParametersBase<PARAMETERS_SPEC>>>>>>>>>>>>>;
 
-        static constexpr typename PARAMETERS_TYPE::CTBRController ctbr_controller = {
+        static constexpr typename PARAMETERS_TYPE::RateController rate_controller = {
             (T)0,
             (T)1,
             {(T)10, (T)10, (T)10},
@@ -104,7 +104,7 @@ namespace rl_tools::rl::zoo::l2f{
                     BASE::trajectory,
                     BASE::trajectory_parameters
                 },
-                ctbr_controller
+                rate_controller
             },
             BASE::attitude_setpoint_sampling
         };
@@ -122,7 +122,7 @@ namespace rl_tools::rl::zoo::l2f{
             using STATE_BASE_LAA = StateLinearAcceleration<StateSpecification<T, TI, STATE_BASE_LA>>;
             using STATE_BASE_GB = StateIMU<T, TI, STATE_BASE_LAA>;
             using STATE_BASE_MAHONY = StateMahony<StateMahonySpecification<T, TI, STATE_BASE_GB>>;
-            using STATE_BASE = StateCTBRController<StateSpecification<T, TI, STATE_BASE_MAHONY>>;
+            using STATE_BASE = StateRateController<StateSpecification<T, TI, STATE_BASE_MAHONY>>;
             using STATE_WITH_RANDOM_FORCE = StateRandomForce<StateSpecification<T, TI, STATE_BASE>>;
             using STATE_WITH_ROTORS = StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, STATE_WITH_RANDOM_FORCE>>;
             using STATE_WITH_TRAJECTORY = StateTrajectory<StateSpecification<T, TI, STATE_WITH_ROTORS>>;

@@ -48,7 +48,7 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
                         action_diff = collective - (T)1 / parameters.ideal_rates.thrust_to_weight;
                     }
                     else{
-                        collective = parameters.ctbr_controller.thrust_min + collective * (parameters.ctbr_controller.thrust_max - parameters.ctbr_controller.thrust_min);
+                        collective = parameters.rate_controller.thrust_min + collective * (parameters.rate_controller.thrust_max - parameters.rate_controller.thrust_min);
                         action_diff = collective - parameters.dynamics.hovering_throttle_relative;
                     }
                 }

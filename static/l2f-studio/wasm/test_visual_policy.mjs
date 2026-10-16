@@ -61,7 +61,7 @@ for(let i = 0; i < 10; i++) {
 }
 assert.equal(state.get_state(), before)
 const parameters = JSON.parse(state.get_parameters())
-assert.deepEqual(parameters.ctbr_controller.rate_limit, [4, 4, 2])
+assert.deepEqual(parameters.rate_controller.rate_limit, [4, 4, 2])
 assert.equal(parameters.integration.dt, 0.01)
 const dynamics = parameters.dynamics
 const [c, b, a] = dynamics.rotor_thrust_coefficients[0]

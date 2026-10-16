@@ -678,7 +678,7 @@ namespace rl_tools {
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
         static_assert(rl::environments::hyperdrone::check_world_instance_tensors<WORLD, PARAMETER_SPEC, STATE_SPEC>());
         static_assert(get<1>(typename ACTION_SPEC::SHAPE{}) == WORLD::ACTION_DIM);
-        auto actuation = control(device, world.controller, world.controller_state, world.controller_buffer, parameters, states, actions, rng);
+        auto dynamics_actions = control(device, world.controller, world.controller_state, world.controller_buffer, parameters, states, actions, rng);
         if(world.render_pending){
             if constexpr (WORLD::HAS_IMAGE_OBSERVATION && SPEC::HISTORY_LENGTH > 1){
                 render(device, world, parameters, states, world.render_reset);
@@ -706,9 +706,9 @@ namespace rl_tools {
                     }
                 }
             }
-            Matrix<matrix::Specification<typename ACTION_SPEC::T, TI, 1, WORLD::ACTUATION_DIM, false>> action_matrix;
-            for (TI action_i = 0; action_i < WORLD::ACTUATION_DIM; action_i++) {
-                set(action_matrix, 0, action_i, get(device, actuation, instance_i, action_i));
+            Matrix<matrix::Specification<typename ACTION_SPEC::T, TI, 1, WORLD::DYNAMICS_ACTION_DIM, false>> action_matrix;
+            for (TI action_i = 0; action_i < WORLD::DYNAMICS_ACTION_DIM; action_i++) {
+                set(action_matrix, 0, action_i, get(device, dynamics_actions, instance_i, action_i));
             }
             rl::environments::hyperdrone::_step<DEVICE, SPEC>(device, world.dynamics, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), action_matrix, get_ref(device, next_states, instance_i), rng);
         }
