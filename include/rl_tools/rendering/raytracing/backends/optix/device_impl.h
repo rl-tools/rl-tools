@@ -29,9 +29,15 @@ namespace rl_tools
     return tile_row * optixLaunchParams.grid_cols + tile_col;
   }
 
+  inline __device__ owl::vec3f normalize_shading(const owl::vec3f& v) {
+    return v * rsqrtf(dot(v, v));
+  }
+
   inline __device__ float linear_to_srgb(float x) {
-    if (x <= 0.0031308f) return 12.92f * x;
-    return 1.055f * powf(x, 1.f / 2.4f) - 0.055f;
+    if (x <= 0.0031308f) {
+      return 12.92f * x;
+    }
+    return 1.055f * __powf(x, 1.f / 2.4f) - 0.055f;
   }
 
   inline __device__ uint32_t make_srgb_rgba_from_linear(owl::vec3f color) {
@@ -430,7 +436,7 @@ namespace rl_tools
         const owl::vec3f vertex_a = transform_point_to_world(self.vertex[index.x]);
         const owl::vec3f vertex_b = transform_point_to_world(self.vertex[index.y]);
         const owl::vec3f vertex_c = transform_point_to_world(self.vertex[index.z]);
-        normal_geometric = normalize(cross(vertex_b - vertex_a, vertex_c - vertex_a));
+        normal_geometric = normalize_shading(cross(vertex_b - vertex_a, vertex_c - vertex_a));
         ray_dir = optixGetWorldRayDirection();
       }
 
@@ -513,11 +519,11 @@ namespace rl_tools
 
     const owl::vec3f edge1 = vertex_b - vertex_a;
     const owl::vec3f edge2 = vertex_c - vertex_a;
-    const owl::vec3f normal_geometric = normalize(cross(edge1, edge2));
+    const owl::vec3f normal_geometric = normalize_shading(cross(edge1, edge2));
 
     owl::vec3f N;
     if (self.normal) {
-      N = normalize(transform_normal_to_world(w0 * self.normal[index.x] + bary.x * self.normal[index.y] + bary.y * self.normal[index.z]));
+      N = normalize_shading(transform_normal_to_world(w0 * self.normal[index.x] + bary.x * self.normal[index.y] + bary.y * self.normal[index.z]));
     } else {
       N = normal_geometric;
     }
@@ -564,12 +570,12 @@ namespace rl_tools
         float det = duv1.x * duv2.y - duv2.x * duv1.y;
         if (fabsf(det) > 1e-8f) {
           float inv_det = 1.f / det;
-          owl::vec3f T = normalize(inv_det * (duv2.y * edge1 - duv1.y * edge2));
-          T = normalize(T - dot(T, N) * N);
+          owl::vec3f T = normalize_shading(inv_det * (duv2.y * edge1 - duv1.y * edge2));
+          T = normalize_shading(T - dot(T, N) * N);
           owl::vec3f B = cross(N, T);
           owl::vec4f nm_sample = tex2D<float4>(self.normal_map, w0 * tc0.x + bary.x * tc1.x + bary.y * tc2.x, w0 * tc0.y + bary.x * tc1.y + bary.y * tc2.y);
           owl::vec3f n_tangent = owl::vec3f(nm_sample.x * 2.f - 1.f, -(nm_sample.y * 2.f - 1.f), nm_sample.z * 2.f - 1.f);
-          N = normalize(T * n_tangent.x + B * n_tangent.y + N * n_tangent.z);
+          N = normalize_shading(T * n_tangent.x + B * n_tangent.y + N * n_tangent.z);
         }
       }
 
@@ -613,7 +619,7 @@ namespace rl_tools
           if (light.type != 0 && trace_shadow_occluded_composed(self.world, camera, hit_point + N * 2e-3f, L, light_distance)) continue;
         }
 
-        owl::vec3f H = normalize(V + L);
+        owl::vec3f H = normalize_shading(V + L);
         float NdotH = fmaxf(dot(N, H), 0.f);
         float VdotH = fmaxf(dot(V, H), 0.f);
 

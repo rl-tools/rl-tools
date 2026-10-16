@@ -275,6 +275,8 @@ namespace rl_tools {
             // must match the NUM_RAY_TYPES the selected PTX was compiled with (SBT stride)
             owlContextSetRayTypeCount(context, SPEC::HAS_NORMALS ? 3 : 2);
             owlContextSetNumPayloadValues(context, SPEC::HAS_NORMALS ? 5 : 4);
+            owlContextSetMaxRegisterCount(context, 64);
+            owlContextSetPrimitiveTypeFlags(context, OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE);
             // OWL retains specialization value pointers until owlBuildPrograms.
             static const unsigned int output_mask = SPEC::PLAN::MASK;
             static const int all_cameras = rendering::raytracing::outputs::Layout<SPEC>::ALL_CAMERAS ? 1 : 0;

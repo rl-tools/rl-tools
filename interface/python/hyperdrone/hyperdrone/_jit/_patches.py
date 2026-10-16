@@ -49,8 +49,7 @@ def matches_pin(tree, pin):
 
 # cmake -P scripts under <source_root>/cmake/patches, applied to the named FetchContent
 # source dir; each script is idempotent and documents its upstream-removal condition.
-# (Empty since the OWL PinnedHostMem fix landed upstream with the 978a6664 repin.)
-PATCH_SCRIPTS = {}
+PATCH_SCRIPTS = {"OWL": ("owl_compile_options.cmake", "OWL_SOURCE_DIR")}
 
 
 def apply_patch_scripts(seeded):

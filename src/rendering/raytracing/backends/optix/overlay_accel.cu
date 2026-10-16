@@ -203,7 +203,7 @@ namespace rl_tools::rendering::raytracing::backends::optix{
             if(x <= 0.0031308f){
                 return 12.92f * x;
             }
-            return 1.055f * powf(x, 1.0f / 2.4f) - 0.055f;
+            return 1.055f * __powf(x, 1.0f / 2.4f) - 0.055f;
         }
         __device__ inline float resolve_clamp01(float x){
             return fminf(fmaxf(x, 0.0f), 1.0f);
