@@ -112,6 +112,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::yaw{
     static constexpr TI CHECKPOINT_CADENCE = 1000;
 #endif
     static constexpr TI N_TOTAL_SCENES = N_TRAIN_SCENES + N_VALIDATION_SCENES;
+    using SCENE_DATASET = rlt::rendering::datasets::procthor::Train200;
     static constexpr TI N_ACTIVE_SCENES = 2;
     static constexpr TI N_ENVIRONMENTS_PER_SCENE = 64;
     static constexpr TI N_ENVIRONMENTS = N_ACTIVE_SCENES * N_ENVIRONMENTS_PER_SCENE;
@@ -183,6 +184,9 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::yaw{
     };
     using TASK_WORLD = rlt::rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
     using MULTI_ENVIRONMENT = rlt::rl::environments::hyperdrone::MultiEnvironment<TASK_WORLD, N_ACTIVE_SCENES>;
+#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+    using SPY = rlt::rl::environments::hyperdrone::Spy<rlt::rl::environments::hyperdrone::spy::Config<MULTI_ENVIRONMENT>>;
+#endif
     using ENVIRONMENT = TASK_WORLD;
     static constexpr TI OBSERVATION_DIM = BASE_WORLD::OBSERVATION_DIM;
     static constexpr TI IMG_H = CAM_HEIGHT;

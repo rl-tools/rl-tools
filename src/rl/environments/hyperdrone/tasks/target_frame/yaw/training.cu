@@ -20,6 +20,9 @@
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cuda.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/yaw/operations_cuda.h>
+#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+#include <rl_tools/rl/environments/hyperdrone/spy/operations_cpu.h>
+#endif
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
 #include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
 #include <rl_tools/nn/loss_functions/mse/operations_generic.h>
@@ -74,29 +77,17 @@ namespace rl_tools{
         return loss;
     }
 
-    inline yaw_training::Scenes yaw_scenes(const std::filesystem::path& path){
+    inline yaw_training::Scenes yaw_scenes(yaw_training::DEVICE& host){
         using namespace yaw_training;
+        static_assert(N_TOTAL_SCENES <= SCENE_DATASET::NUM_SCENES);
+        SCENE_DATASET::Corpus corpus;
+        enumerate(host, SCENE_DATASET{}, corpus);
         Scenes scenes;
-        if(std::filesystem::is_directory(path)){
-            for(const auto& entry: std::filesystem::directory_iterator(path)){
-                if(entry.is_regular_file() && entry.path().extension() == ".glb"){
-                    scenes.references.push_back(std::filesystem::absolute(entry.path()).string());
-                }
-            }
-            std::sort(scenes.references.begin(), scenes.references.end(), rendering::datasets::natural_less);
-            if(scenes.references.size() < N_TOTAL_SCENES){
-                throw std::runtime_error("Need at least " + std::to_string(N_TOTAL_SCENES) + " local GLB scenes");
-            }
-            scenes.references.resize(N_TOTAL_SCENES);
-        } else if(SMOKE && path.extension() == ".glb" && std::filesystem::is_regular_file(path)){
-            scenes.references.assign(N_TOTAL_SCENES, std::filesystem::absolute(path).string());
-        } else {
-            throw std::runtime_error("Expected a scene directory (the smoke target also accepts one local .glb)");
-        }
+        scenes.references.assign(corpus.references.begin(), corpus.references.begin() + N_TOTAL_SCENES);
         return scenes;
     }
 
-    inline void yaw_manifest(yaw_training::DEVICE& host, const yaw_training::Scenes& scenes, const yaw_training::MULTI_ENVIRONMENT& environment, const yaw_training::TASK_WORLD& validation_world, const utils::extrack::Paths& paths, yaw_training::TI seed){
+    inline void yaw_manifest(const yaw_training::Scenes& scenes, const yaw_training::MULTI_ENVIRONMENT& environment, const yaw_training::TASK_WORLD& validation_world, const utils::extrack::Paths& paths, yaw_training::TI seed){
         using namespace yaw_training;
         nlohmann::json manifest = {
             {"target", RL_TOOLS_HYPERDRONE_TARGET_NAME}, {"seed", seed}, {"profile", SMOKE ? "smoke" : "production"},
@@ -110,13 +101,10 @@ namespace rl_tools{
             {"checkpoint", {{"cadence", CHECKPOINT_CADENCE}, {"examples", {REDUCED_BATCH_SIZE, N_EXAMPLES}}, {"example_row_offset", STEPS_TOTAL - N_EXAMPLES}, {"optimizer_state", false}}},
             {"accepted_differences", {"Float RGB instead of RGB8 before brightness; exact-count free-space stopping instead of completing 64-candidate blocks; native validation batch 64 instead of padded 512", "Current metallic ambient shading, black instead of checkerboard background, GLB loading and random-number draw order", "Early resets reuse the epoch target bank setup while resampling dynamics", "Same-step autoreset and a final untrained next-observation row", "Current HDF5 model format; no legacy OpenMV serialization or exact optimizer resume"}}
         };
+        manifest["dataset"] = SCENE_DATASET::NAME;
         manifest["scenes"] = nlohmann::json::array();
         for(TI scene = 0; scene < N_TOTAL_SCENES; scene++){
-            std::string hash;
-            if(!rendering::datasets::content_hash(host, scenes.references[scene], hash)){
-                throw std::runtime_error("Could not hash scene: " + scenes.references[scene]);
-            }
-            manifest["scenes"].push_back({{"path", scenes.references[scene]}, {"sha1", hash}, {"split", scene < N_TRAIN_SCENES ? "train" : "validation"}});
+            manifest["scenes"].push_back({{"id", SCENE_DATASET::SCENES[scene].id}, {"reference", scenes.references[scene]}, {"split", scene < N_TRAIN_SCENES ? "train" : "validation"}});
             const auto& annotations = scene < N_TRAIN_SCENES ? environment.environments[0].slots[scene].annotations : validation_world.slots[scene - N_TRAIN_SCENES].annotations;
             auto& positions = manifest["scenes"].back()["free_positions"];
             positions = nlohmann::json::array();
@@ -128,7 +116,7 @@ namespace rl_tools{
         bool held_out = true;
         for(TI train = 0; train < N_TRAIN_SCENES; train++){
             for(TI validation = N_TRAIN_SCENES; validation < N_TOTAL_SCENES; validation++){
-                held_out = held_out && manifest["scenes"][train]["sha1"] != manifest["scenes"][validation]["sha1"];
+                held_out = held_out && scenes.references[train] != scenes.references[validation];
             }
         }
         manifest["validation_is_held_out"] = held_out;
@@ -138,7 +126,7 @@ namespace rl_tools{
         output << manifest.dump(2) << '\n';
     }
 
-    inline int train_yaw(const yaw_training::Scenes& scenes, yaw_training::TI seed){
+    inline int train_yaw(yaw_training::TI seed, bool open_spy){
         using namespace yaw_training;
         DEVICE_COMPUTE compute;
         auto& host = compute.rendering;
@@ -199,6 +187,7 @@ namespace rl_tools{
         auto& validation_world = *validation_world_storage;
         malloc(compute, environment);
         malloc(compute, validation_world);
+        const Scenes scenes = yaw_scenes(host);
         Scenes::Corpus corpus;
         enumerate(host, scenes, corpus);
         for(TI member = 0; member < N_ACTIVE_SCENES; member++){
@@ -209,13 +198,20 @@ namespace rl_tools{
         }
         validation_world.parameters.agents[0].cameras[0].fov = CAMERA_FOV;
         rl_tools::init(compute, validation_world, environment.shared, scenes, corpus, N_TRAIN_SCENES, N_VALIDATION_SCENES, N_ACTIVE_SCENES);
-        yaw_manifest(host, scenes, environment, validation_world, paths, seed);
+        yaw_manifest(scenes, environment, validation_world, paths, seed);
         Tensor<typename BASE_WORLD::DRONE_PARAMETERS_SPEC> nominal_host;
         malloc(host, nominal_host);
         copy(compute, host, environment.environments[0].drone_parameters, nominal_host);
         ValidationState validation;
         malloc(host, compute, validation);
         init(host, compute, validation, seed);
+#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+        SPY spy;
+        if(open_spy){
+            malloc(compute, spy);
+            init(compute, spy, environment);
+        }
+#endif
 
         DATASET dataset;
         Tensor<tensor::Specification<T_ACTIVATION, TI, tensor::Shape<TI, STEPS_TOTAL, TARGET_DIM>>> targets;
@@ -267,6 +263,9 @@ namespace rl_tools{
                 auto target_row = view_range(compute, targets, time * N_ENVIRONMENTS, tensor::ViewSpec<0, N_ENVIRONMENTS>{});
                 yaw_targets(compute, runner.states, target_row);
                 epilogue(compute, dataset, runner, runner_buffer, environment, compute_rng, time);
+#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+                update(compute, spy, environment);
+#endif
                 global_step += N_ENVIRONMENTS;
             }
             for(TI member = 0; member < N_ACTIVE_SCENES; member++){
@@ -336,6 +335,9 @@ namespace rl_tools{
                     auto gradient = reshape_row_major(compute, gradient_tensor, tensor::Shape<TI, 1, BATCH_SIZE, TARGET_DIM>{});
                     backward(compute, student, inputs, gradient, student_buffer);
                     step(compute, optimizer, student);
+#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+                    update(compute, spy, environment);
+#endif
                 }
             }
             yaw_synchronize(compute);
@@ -399,6 +401,9 @@ namespace rl_tools{
             std::cout << "Epoch " << epoch << " step " << global_step << " MSE " << loss_sum << " orientation " << orientation_bound << " degrees, early resets " << early_resets << std::endl;
         }
 
+#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+        free(compute, spy);
+#endif
         free(host, compute, validation);
         rl_tools::free(compute, validation_world);
         free(compute, environment);
@@ -430,15 +435,26 @@ namespace rl_tools{
 }
 
 int main(int argc, char** argv){
-    if(argc < 2 || argc > 3){
-        std::cerr << "Usage: " << argv[0] << " <scene_directory> [seed] (smoke also accepts one .glb)" << std::endl;
+    std::vector<std::string> arguments(argv + 1, argv + argc);
+    const auto spy_flag = std::find(arguments.begin(), arguments.end(), "--spy");
+    const bool open_spy = spy_flag != arguments.end();
+    if(open_spy){
+        arguments.erase(spy_flag);
+    }
+    if(arguments.size() > 1){
+        std::cerr << "Usage: " << argv[0] << " [seed] [--spy]" << std::endl;
         return 1;
     }
     try{
+#ifndef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+        if(open_spy){
+            throw std::runtime_error("--spy requires the HyperDrone spy (GLFW and desktop OpenGL), see the CMake configure summary");
+        }
+#endif
         using TI = rl_tools::yaw_training::TI;
         TI seed = 0;
-        if(argc == 3){
-            const std::string argument = argv[2];
+        if(arguments.size() == 1){
+            const std::string& argument = arguments[0];
             std::size_t parsed = 0;
             const auto value = std::stoull(argument, &parsed);
             seed = static_cast<TI>(value);
@@ -446,7 +462,7 @@ int main(int argc, char** argv){
                 throw std::runtime_error("Seed must be a nonnegative integer");
             }
         }
-        return rl_tools::train_yaw(rl_tools::yaw_scenes(argv[1]), seed);
+        return rl_tools::train_yaw(seed, open_spy);
     } catch(const std::exception& error){
         std::cerr << "Yaw training failed: " << error.what() << std::endl;
         return 1;
