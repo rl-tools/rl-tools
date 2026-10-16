@@ -944,7 +944,7 @@ namespace HYPERDRONE_MODULE_NAME {
         allocate_spy(impl->device, impl->spy, impl->env);
         impl->spy_open = true;
 #else
-        throw std::runtime_error("hyperdrone: the spy was not compiled; provide GLFW, desktop OpenGL and Dear ImGui sources, then reconfigure the HyperDrone JIT build (see the HyperDrone README)");
+        throw std::runtime_error("hyperdrone: the spy was not compiled; provide GLFW, desktop OpenGL and git (to fetch Dear ImGui), then reconfigure the HyperDrone JIT build (see the HyperDrone README)");
 #endif
     }
     bool Environment::spy_update(){

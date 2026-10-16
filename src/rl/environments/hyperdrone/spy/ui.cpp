@@ -207,7 +207,7 @@ namespace rl_tools::rl::environments::hyperdrone::spy::ui {
             const float tile_width = atlas_size.x / window->columns;
             const float tile_height = atlas_size.y / window->rows;
             const ImVec2 tile_origin(atlas_origin.x + (window->selected % window->columns) * tile_width, atlas_origin.y + (window->selected / window->columns) * tile_height);
-            ImGui::GetWindowDrawList()->AddRect(tile_origin, ImVec2(tile_origin.x + tile_width, tile_origin.y + tile_height), IM_COL32(255, 194, 62, 255), 0, 0, 2);
+            ImGui::GetWindowDrawList()->AddRect(tile_origin, ImVec2(tile_origin.x + tile_width, tile_origin.y + tile_height), IM_COL32(255, 194, 62, 255), 0.0f, 2.0f);
             ImGui::EndChild();
             ImGui::SameLine();
             ImGui::BeginChild("Spectator", ImVec2(0, 0));

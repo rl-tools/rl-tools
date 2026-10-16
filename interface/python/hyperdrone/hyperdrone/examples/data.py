@@ -15,7 +15,6 @@ RIGGED_MODELS = {
     "savagebee_pusher": {"description": "rigged/savagebee_pusher_optimized_scaled.glb", "hash": "02e91faf581ba36d9befbf3dcb03da8340fbbd46", "sha256": "23c8644e572e3c4f3769f59a2dd81c3e164837c178054d5b951b97b086f8b674"},
     "x500": {"description": "rigged/x500_optimized_scaled.glb", "hash": "c0fda2143b7a2f0422148aa8f6c4e24db3f8a6e6", "sha256": "116a362405a7f790b33585d2fd663d84ee15ed53161209c3ac862af7266bab31"},
 }
-X500_MODEL = RIGGED_MODELS["x500"]
 
 
 def _override_path(override_variable):
@@ -49,8 +48,3 @@ def rigged_model_path(name):
         raise KeyError(f"hyperdrone: unknown rigged model {name!r} (one of {sorted(RIGGED_MODELS)})")
     override = _override_path(f"HYPERDRONE_{name.upper()}_PATH")
     return override if override is not None else conta.resolve(RIGGED_MODELS[name])
-
-
-def x500_model_path():
-    """Return the local x500 GLB (rigged_model_path("x500"))."""
-    return rigged_model_path("x500")

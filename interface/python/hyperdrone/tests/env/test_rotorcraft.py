@@ -81,9 +81,10 @@ def test_rotorcraft_matches_rotors():
 
 
 def test_rotorcraft_x500():
-    from hyperdrone.examples.data import x500_model_path
+    import conta
+    from hyperdrone.examples.data import RIGGED_MODELS
     try:
-        path = x500_model_path()
+        path = conta.resolve(RIGGED_MODELS["x500"])
     except Exception as error:  # noqa: BLE001 - no checkout data and no network
         pytest.skip(f"x500 asset unavailable: {error}")
     drone = render.load_assembly(path, fidelity="low")
