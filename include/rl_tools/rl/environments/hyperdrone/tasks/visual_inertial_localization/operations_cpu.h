@@ -227,12 +227,6 @@ namespace rl_tools {
         request_render(device, world, reset_mask);
     }
 
-    template <typename DEVICE, typename TASK_SPEC>
-    bool capture_pending(DEVICE& device, const rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>& world) {
-        using WORLD = rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>;
-        return world.render_pending && (world.task_step % WORLD::FRAME_STRIDE == 0 || get(device, world.render_reset, 0));
-    }
-
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
     void render(DEVICE& device, rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input) {
         if(!world.render_pending){
@@ -254,7 +248,7 @@ namespace rl_tools {
         if (all_reset) {
             world.task_step = 0;
         }
-        if (capture_pending(device, world)) {
+        if (world.task_step % WORLD::FRAME_STRIDE == 0) {
             render(device, static_cast<NEXT_WORLD&>(world), parameters, states, reset_mask);
         }
         world.render_pending = false;
@@ -274,6 +268,10 @@ namespace rl_tools {
         rl::environments::hyperdrone::tasks::visual_inertial_localization::_control<DEVICE, TASK_SPEC>(device, world, parameters, states, rng);
         step(device, static_cast<NEXT_WORLD&>(world), parameters, states, world.autopilot.actions, next_states, rng);
         world.task_step++;
+        // no frame is due between strides: output reads, probes and Spy keep the last capture
+        if (world.task_step % WORLD::FRAME_STRIDE != 0) {
+            world.render_pending = false;
+        }
         const bool hold = WORLD::INITIALIZATION_HOLD_STEPS > 0 && world.task_step <= WORLD::INITIALIZATION_HOLD_STEPS;
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             if (hold) {

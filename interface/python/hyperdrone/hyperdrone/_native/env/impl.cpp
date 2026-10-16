@@ -40,7 +40,6 @@ namespace HYPERDRONE_MODULE_NAME {
     using rl_tools::get_renderer;
     using rl_tools::copy;
     using rl_tools::request_render;
-    using rl_tools::capture_pending;
     using rl_tools::data;
     using rl_tools::render_sync;
     using rl_tools::probe_sync;
@@ -139,13 +138,13 @@ namespace HYPERDRONE_MODULE_NAME {
             }
         }
         void require_current(TI member, bool probes, const char* verb) const {
-            if(capture_pending(device, env.environments[member]) || !(probes ? probed[member] : captured[member])){
+            if(env.environments[member].render_pending || !(probes ? probed[member] : captured[member])){
                 throw std::runtime_error(std::string(probes ? "hyperdrone: render and probe before " : "hyperdrone: render or observe before ") + verb + " this output");
             }
         }
         void invalidate_pending_probes(){
             for(TI member = 0; member < NUM_ENVIRONMENTS; member++){
-                if(capture_pending(device, env.environments[member])){
+                if(env.environments[member].render_pending){
                     probed[member] = false;
                 }
             }
@@ -717,7 +716,7 @@ namespace HYPERDRONE_MODULE_NAME {
         impl->require_sampled("probe");
         const CurrentDevice current(impl->device_id);
         for(TI member = 0; member < NUM_ENVIRONMENTS; member++){
-            if(capture_pending(impl->device, impl->env.environments[member]) || !impl->captured[member]){
+            if(impl->env.environments[member].render_pending || !impl->captured[member]){
                 throw std::runtime_error("hyperdrone: render the camera poses before probing");
             }
         }

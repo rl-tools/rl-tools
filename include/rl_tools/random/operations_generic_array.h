@@ -56,7 +56,7 @@ namespace rl_tools{
         using TI = typename SPEC::TI;
         for(TI i = 0; i < SPEC::NUM_RNGS; i++){
             devices::generic::random::PortableState element;
-            element.state = 0b10101010101010101010101010101010 + seed + static_cast<unsigned int>(i);
+            init(device, element, seed + static_cast<unsigned int>(i));
             set(rng.states, 0, i, element);
         }
     }

@@ -73,11 +73,6 @@ namespace rl_tools {
         }
     }
 
-    template <typename DEVICE, typename SPEC>
-    bool capture_pending(DEVICE&, const rl::environments::hyperdrone::World<SPEC>& world){
-        return world.render_pending;
-    }
-
     template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
     void prepare_render_inputs(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input);
     template <typename DEVICE, typename SPEC, typename RESET_SPEC>

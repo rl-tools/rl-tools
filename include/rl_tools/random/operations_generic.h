@@ -38,14 +38,6 @@ namespace rl_tools{
             }
         }
 
-//    template <typename MATH_DEV, typename TI, typename RNG>
-//    auto split(const devices::random::Generic<MATH_DEV>& dev, TI split_id, RNG& rng){
-//        // this operation should not alter the state of rng
-//        RNG rng_copy = rng;
-//        auto next_value = generic::next(dev, rng_copy);
-//        return default_engine(dev, next_value + split_id);
-//    }
-
         template<typename MATH_DEV, typename T, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT T uniform_int_distribution(const devices::random::Generic<MATH_DEV>& dev, T low, T high, RNG& rng){
             // static_assert(utils::typing::is_same_v<typename RNG::STATE_TYPE, typename MATH_DEV::index_t>);

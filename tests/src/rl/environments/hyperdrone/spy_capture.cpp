@@ -1,6 +1,5 @@
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/presets.h>
-#include <rl_tools/rl/environments/hyperdrone/tasks/visual_inertial_localization/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/spy/operations_cpu.h>
 #include <gtest/gtest.h>
 #include <array>
@@ -25,8 +24,12 @@ namespace {
         static constexpr size_t ATLAS_WIDTH = 7;
         static constexpr size_t ATLAS_HEIGHT = 5;
     };
+    constexpr bool HOST_RENDERER = utils::typing::is_same_v<Config::BACKEND, rendering::raytracing::backends::Generic>;
 
     TEST(HYPERDRONE_SPY, RawRGBAndSceneIdentityWithoutPolicyObservation) {
+        if(!HOST_RENDERER) {
+            GTEST_SKIP() << "the fake frames are host buffers; the generic backend covers the packing";
+        }
         devices::DefaultCPU device;
         Environment environment{};
         hd::spy::State<Config> state;
@@ -55,7 +58,7 @@ namespace {
         }
         const auto before = history;
         state.selected_camera = 4;
-        prepare_spy_capture(device, state, environment, 10);
+        prepare_spy_capture(state, environment, 10);
         pack_spy_atlas_cpu(device, state, environment);
         EXPECT_EQ(state.buffer.job.scene, &environment.shared.library.scenes[1]);
         EXPECT_EQ(state.buffer.job.member, 1u);
@@ -68,18 +71,18 @@ namespace {
         EXPECT_EQ(history, before);
         EXPECT_EQ(environment.environments[0].history_step, 2u);
         EXPECT_EQ(environment.environments[1].history_step, 2u);
-        prepare_spy_capture(device, state, environment, 20);
+        prepare_spy_capture(state, environment, 20);
         EXPECT_EQ(state.buffer.frames[1].captured_at, 10);
         environment.environments[1].scene_version++;
         environment.environments[1].render_pending = true;
-        prepare_spy_capture(device, state, environment, 30);
+        prepare_spy_capture(state, environment, 30);
         pack_spy_atlas_cpu(device, state, environment);
         EXPECT_FALSE(state.buffer.selected_valid);
         EXPECT_FALSE(state.buffer.frames[1].valid);
         EXPECT_EQ(atlas[4 * 7 + 6], 0xff202020u);
         environment.environments[1].render_pending = false;
         environment.environments[1].history_step++;
-        prepare_spy_capture(device, state, environment, 40);
+        prepare_spy_capture(state, environment, 40);
         pack_spy_atlas_cpu(device, state, environment);
         EXPECT_TRUE(state.buffer.selected_valid);
         EXPECT_EQ(state.buffer.job.scene_version, 3u);
@@ -100,6 +103,9 @@ namespace {
     };
 
     TEST(HYPERDRONE_SPY, SparseRGBRepresentationsUsePhysicalCameraTiles) {
+        if(!HOST_RENDERER) {
+            GTEST_SKIP() << "the fake frames are host buffers; the generic backend covers the packing";
+        }
         devices::DefaultCPU device;
         SparseEnvironment environment;
         hd::spy::State<SparseConfig> state;
@@ -119,37 +125,5 @@ namespace {
         EXPECT_EQ(atlas[0], 0xffff8040u);
         EXPECT_EQ(atlas[1], 0xff202020u);
         EXPECT_EQ(atlas[2], packed[0]);
-    }
-
-    struct InertialWorldConfig: hd::presets::X500FPVIMU<float, size_t> {
-        static constexpr size_t N_CAMERA_AGENTS = 1;
-        static constexpr size_t INSTANCES_PER_ENVIRONMENT = 1;
-        static constexpr size_t CAM_WIDTH = 2;
-        static constexpr size_t CAM_HEIGHT = 2;
-    };
-    using InertialWorld = hd::tasks::visual_inertial_localization::World<hd::tasks::visual_inertial_localization::Specification<hd::World<InertialWorldConfig>>>;
-    using InertialEnvironment = hd::MultiEnvironment<InertialWorld, 1>;
-
-    TEST(HYPERDRONE_SPY, IntermediateIMUTicksKeepCaptureVisible) {
-        devices::DefaultCPU device;
-        InertialEnvironment environment;
-        hd::spy::State<hd::spy::Config<InertialEnvironment>> state;
-        auto& world = environment.environments[0];
-        bool reset = false;
-        world.render_reset._data = &reset;
-        world.slots.emplace_back();
-        environment.shared.library.scenes.emplace_back();
-        world.history_step = 1;
-        world.task_step = 1;
-        world.render_pending = true;
-        prepare_spy_capture(device, state, environment, 10);
-        EXPECT_TRUE(state.buffer.selected_valid);
-        world.task_step = InertialWorld::FRAME_STRIDE;
-        prepare_spy_capture(device, state, environment, 20);
-        EXPECT_FALSE(state.buffer.selected_valid);
-        world.task_step++;
-        reset = true;
-        prepare_spy_capture(device, state, environment, 30);
-        EXPECT_FALSE(state.buffer.selected_valid);
     }
 }

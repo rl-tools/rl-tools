@@ -5,7 +5,6 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SPY_OPERATIONS_CPU_H
 
 #include "spy.h"
-#include "../operations_cpu.h"
 #include "operations_cpu_spectator.h"
 #include "capture_cpu.h"
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
@@ -23,14 +22,14 @@ namespace rl_tools {
         return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
     }
 
-    template <typename DEVICE, typename CONFIG>
-    void prepare_spy_capture(DEVICE& device, rl::environments::hyperdrone::spy::State<CONFIG>& state, typename CONFIG::ENVIRONMENT& environment, double now) {
+    template <typename CONFIG>
+    void prepare_spy_capture(rl::environments::hyperdrone::spy::State<CONFIG>& state, typename CONFIG::ENVIRONMENT& environment, double now) {
         using WORLD = typename CONFIG::WORLD;
         auto& buffer = state.buffer;
         for(size_t member = 0; member < CONFIG::ENVIRONMENT::NUMBER_OF_ENVIRONMENTS; member++) {
             auto& world = environment.environments[member];
             auto& frame = buffer.frames[member];
-            const bool valid = !capture_pending(device, world) && world.history_step > 0;
+            const bool valid = !world.render_pending && world.history_step > 0;
             if(!frame.valid || frame.scene_version != world.scene_version || frame.sequence != world.history_step) {
                 frame.captured_at = now;
             }
@@ -212,7 +211,7 @@ namespace rl_tools {
         if(now >= state.next_capture) {
             state.next_capture = now + CONFIG::REFRESH_INTERVAL;
             if(!buffer.pending) {
-                prepare_spy_capture(device, state, environment, now);
+                prepare_spy_capture(state, environment, now);
                 capture_spy(device, state, environment, typename CONFIG::BACKEND{});
                 buffer.pending = true;
             }

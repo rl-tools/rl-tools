@@ -184,6 +184,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, FRAME_STR
             EXPECT_FALSE(frame_changed) << "step " << step_i << ": the frame must be held between boundaries";
         }
         rlt::step(device, world, tensors.parameters, tensors.states, tensors.actions, tensors.next_states, rng);
+        EXPECT_EQ(world.render_pending, (step_i + 1) % FRAME_STRIDE == 0) << "step " << step_i << ": only a due frame leaves a render pending";
         rlt::copy(device, device, tensors.next_states, tensors.states);
         rlt::set_all(device, tensors.reset_mask, false);
     }

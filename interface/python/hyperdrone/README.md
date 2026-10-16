@@ -228,7 +228,7 @@ With `EnvConfig(preset="x500_fpv", num_agents=7, num_camera_agents=7)`, each ins
 
 For declared `Probes()` outputs, call `env.render()` before the first `env.probe()`. Probing uses the last rendered camera and geometry poses; it does not refresh those poses or advance the task's capture cadence. Read the results through `env.outputs[Probes()].distance` and `.hit`.
 
-Every `env.reset()`, including an all-false mask, invalidates image and probe reads because task reset work may overwrite raw buffers, and so does any `step()` that makes a frame due. Call `render()` or `observe()` before reading images again, then `probe()` before reading probe results. Intermediate IMU ticks and acquisition calls that produce no frame preserve valid image and probe results; a capture performed internally by `step()` invalidates earlier probe results.
+Every `env.reset()`, including an all-false mask, invalidates image and probe reads because task reset work may overwrite raw buffers, and so does any `step()` that makes a frame due. Call `render()` or `observe()` before reading images again, then `probe()` before reading probe results. A `step()` that makes no frame due, such as an intermediate IMU tick, preserves valid image and probe results; a capture performed internally by `step()` invalidates earlier probe results.
 
 All environment semantics — reset, reward, termination, scene scheduling, observation
 composition — live on the C++ side (`rl_tools::rl::environments::hyperdrone::MultiEnvironment<World>`);
@@ -254,8 +254,6 @@ wrapper — verb overloads registering and moving entities, compiled reward, ter
 `hyperdrone/examples/Orbiter.ipynb` walks through one, and `tests/env/test_orbiter.py`
 compiles and flies its header. The environment's raytracing backend follows
 `HYPERDRONE_RENDER_BACKEND` like the renderer.
-
-Custom task wrappers with their own capture cadence overload the device-first `capture_pending(device, world)` operation alongside `render()` so output access and Spy follow that cadence.
 
 Custom C++ World specifications declare one output list per mount in `CAMERA_OUTPUTS`; the mount count is derived from that list. For example, inside a specification:
 
