@@ -36,6 +36,11 @@ namespace rl_tools{
             sample_initial_parameters(device, env, static_cast<typename PARAMETER_SPEC::NEXT_COMPONENT&>(parameters), rng);
             parameters.ctbr_controller = env.parameters.ctbr_controller;
         }
+        template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_parameters(DEVICE& device, Multirotor<SPEC>& env, ParametersIdealRates<PARAMETER_SPEC>& parameters, RNG& rng){
+            sample_initial_parameters(device, env, static_cast<typename PARAMETER_SPEC::NEXT_COMPONENT&>(parameters), rng);
+            parameters.ideal_rates = env.parameters.ideal_rates;
+        }
         template <typename T, typename DEVICE, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT T _sample_domain_randomization_factor(DEVICE& device, T range, RNG& rng) {
             T factor = random::normal_distribution::sample(device.random, -range, range, rng);

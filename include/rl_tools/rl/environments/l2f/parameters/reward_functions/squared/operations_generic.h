@@ -41,16 +41,16 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
             T normalized_action = math::clamp(device.math, get(action, 0, action_i), (T)-1, (T)1);
             T action_diff;
-            if constexpr(SPEC::STATIC_PARAMETERS::ACTION_INTERFACE == parameters::ActionInterface::IDEAL_CTBR){
-                T applied = clamp_ideal_ctbr_action(device, env, parameters, action_i, get(action, 0, action_i));
-                T gravity_norm = math::sqrt(device.math, parameters.dynamics.gravity[0] * parameters.dynamics.gravity[0] + parameters.dynamics.gravity[1] * parameters.dynamics.gravity[1] + parameters.dynamics.gravity[2] * parameters.dynamics.gravity[2]);
-                action_diff = applied - (action_i == 0 ? parameters.dynamics.mass * gravity_norm : (T)0);
-            }
-            else if constexpr(SPEC::STATIC_PARAMETERS::ACTION_INTERFACE == rl_tools::rl::environments::l2f::parameters::ActionInterface::CTBR){
+            if constexpr(SPEC::STATIC_PARAMETERS::ACTION_INTERFACE == parameters::ActionInterface::CTBR){
                 if(action_i == 0){
                     T collective = (normalized_action + (T)1) / (T)2;
-                    collective = parameters.ctbr_controller.thrust_min + collective * (parameters.ctbr_controller.thrust_max - parameters.ctbr_controller.thrust_min);
-                    action_diff = collective - parameters.dynamics.hovering_throttle_relative;
+                    if constexpr(rl_tools::utils::typing::is_same_v<typename Multirotor<SPEC>::ACTUATION, actuation::IdealRates>){
+                        action_diff = collective - (T)1 / parameters.ideal_rates.thrust_to_weight;
+                    }
+                    else{
+                        collective = parameters.ctbr_controller.thrust_min + collective * (parameters.ctbr_controller.thrust_max - parameters.ctbr_controller.thrust_min);
+                        action_diff = collective - parameters.dynamics.hovering_throttle_relative;
+                    }
                 }
                 else{
                     action_diff = normalized_action;
@@ -78,9 +78,6 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         components.weighted_d_action_cost = 0;
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
             T normalized_action = math::clamp(device.math, get(action, 0, action_i), (T)-1, (T)1);
-            if constexpr(SPEC::STATIC_PARAMETERS::ACTION_INTERFACE == parameters::ActionInterface::IDEAL_CTBR){
-                normalized_action = clamp_ideal_ctbr_action(device, env, parameters, action_i, get(action, 0, action_i));
-            }
             T d_action_value = normalized_action - state.last_action[action_i];
             T d_action_cost = d_action_value * d_action_value;
             T weighted_d_action_cost = reward_parameters.d_action[action_i] * d_action_cost;

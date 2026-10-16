@@ -1,6 +1,5 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rl/environments/hyperdrone/controllers/raptor/operations_cpu.h>
-#include <rl_tools/rl/environments/hyperdrone/controllers/ctbr/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/moving_gate/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/visual_inertial_localization/operations_cpu.h>

@@ -23,7 +23,7 @@ namespace rl_tools::rl::environments::hyperdrone::controllers{
         static constexpr TI COMMAND_DIM = 4;
         static constexpr bool SUPPORTS_SCALAR = true;
         static constexpr auto ACTION_INTERFACE = T_ACTION_INTERFACE;
-        static constexpr const char* NAME = T_ACTION_INTERFACE == l2f::parameters::ActionInterface::DIRECT_MOTOR ? "motor" : "ctbr_pd";
+        static constexpr const char* NAME = T_ACTION_INTERFACE == l2f::parameters::ActionInterface::DIRECT_MOTOR ? "motor" : "ctbr";
         using State = direct::State<SPEC>;
         using Buffer = direct::Buffer<SPEC>;
     };

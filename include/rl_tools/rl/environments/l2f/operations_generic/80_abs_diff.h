@@ -26,6 +26,8 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC_A, typename SPEC_B>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::T abs_diff(DEVICE& device, const rl::environments::l2f::ParametersCTBRController<SPEC_A>& a, const rl::environments::l2f::ParametersCTBRController<SPEC_B>& b);
     template<typename DEVICE, typename SPEC_A, typename SPEC_B>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::T abs_diff(DEVICE& device, const rl::environments::l2f::ParametersIdealRates<SPEC_A>& a, const rl::environments::l2f::ParametersIdealRates<SPEC_B>& b);
+    template<typename DEVICE, typename SPEC_A, typename SPEC_B>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::T abs_diff(DEVICE& device, const rl::environments::l2f::ParametersDomainRandomization<SPEC_A>& a, const rl::environments::l2f::ParametersDomainRandomization<SPEC_B>& b);
     template<typename DEVICE, typename SPEC_A, typename SPEC_B>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::T abs_diff(DEVICE& device, const rl::environments::l2f::ParametersTrajectory<SPEC_A>& a, const rl::environments::l2f::ParametersTrajectory<SPEC_B>& b);
@@ -88,6 +90,14 @@ namespace rl_tools{
             acc += math::abs(device.math, a.kp[i] - b.kp[i]);
             acc += math::abs(device.math, a.kd[i] - b.kd[i]);
             acc += math::abs(device.math, a.torque_limit[i] - b.torque_limit[i]);
+        }
+        return acc;
+    }
+    template<typename DEVICE, typename T_A, typename T_B>
+    RL_TOOLS_FUNCTION_PLACEMENT T_A abs_diff(DEVICE& device, const rl::environments::l2f::parameters::IdealRates<T_A>& a, const rl::environments::l2f::parameters::IdealRates<T_B>& b) {
+        T_A acc = math::abs(device.math, a.thrust_to_weight - b.thrust_to_weight);
+        for(typename DEVICE::index_t i = 0; i < 3; i++){
+            acc += math::abs(device.math, a.rate_limit[i] - b.rate_limit[i]);
         }
         return acc;
     }
@@ -207,6 +217,14 @@ namespace rl_tools{
         T acc = 0;
         acc += abs_diff(device, static_cast<const typename SPEC_A::NEXT_COMPONENT&>(a), static_cast<const typename SPEC_B::NEXT_COMPONENT&>(b));
         acc += abs_diff(device, a.ctbr_controller, b.ctbr_controller);
+        return acc;
+    }
+    template<typename DEVICE, typename SPEC_A, typename SPEC_B>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::T abs_diff(DEVICE& device, const rl::environments::l2f::ParametersIdealRates<SPEC_A>& a, const rl::environments::l2f::ParametersIdealRates<SPEC_B>& b){
+        using T = typename SPEC_A::T;
+        T acc = 0;
+        acc += abs_diff(device, static_cast<const typename SPEC_A::NEXT_COMPONENT&>(a), static_cast<const typename SPEC_B::NEXT_COMPONENT&>(b));
+        acc += abs_diff(device, a.ideal_rates, b.ideal_rates);
         return acc;
     }
     template<typename DEVICE, typename T_A, typename T_B>

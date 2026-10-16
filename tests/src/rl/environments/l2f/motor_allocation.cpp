@@ -31,7 +31,7 @@ namespace {
         for(TI motor = 0; motor < 4; motor++){
             commands[motor] = dynamics.action_limit.min;
         }
-        multirotor_dynamics(device, parameters, state, commands, baseline);
+        multirotor_dynamics(device, parameters, state, commands, baseline, l2f::actuation::Rotors{});
         for(TI motor = 0; motor < 4; motor++){
             SCOPED_TRACE(static_cast<int>(MODEL));
             SCOPED_TRACE(motor);
@@ -45,7 +45,7 @@ namespace {
             };
             commands[motor] = maximum;
             STATE derivative{};
-            multirotor_dynamics(device, parameters, state, commands, derivative);
+            multirotor_dynamics(device, parameters, state, commands, derivative, l2f::actuation::Rotors{});
             commands[motor] = minimum;
             for(TI axis = 0; axis < 3; axis++){
                 const T linear = axis == 2 ? thrust / dynamics.mass : 0;

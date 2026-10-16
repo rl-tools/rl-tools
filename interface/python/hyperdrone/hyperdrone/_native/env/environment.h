@@ -33,7 +33,7 @@
 #include <string>
 #include <vector>
 
-#if !defined(HYPERDRONE_ENV_NUM_ENVIRONMENTS) || !defined(HYPERDRONE_ENV_INSTANCES) || !defined(HYPERDRONE_ENV_CAM_WIDTH) || !defined(HYPERDRONE_ENV_CAM_HEIGHT) || !defined(HYPERDRONE_ENV_SHADING) || !defined(HYPERDRONE_ENV_MB_SAMPLES) || !defined(HYPERDRONE_ENV_PRESET) || !defined(HYPERDRONE_ENV_TASK) || !defined(HYPERDRONE_ENV_N_AGENTS) || !defined(HYPERDRONE_ENV_N_CAMERA_AGENTS) || !defined(HYPERDRONE_ENV_N_CAMERAS_PER_AGENT) || !defined(HYPERDRONE_ENV_DEVICE_CUDA) || !defined(HYPERDRONE_ENV_CONTROL)
+#if !defined(HYPERDRONE_ENV_NUM_ENVIRONMENTS) || !defined(HYPERDRONE_ENV_INSTANCES) || !defined(HYPERDRONE_ENV_CAM_WIDTH) || !defined(HYPERDRONE_ENV_CAM_HEIGHT) || !defined(HYPERDRONE_ENV_SHADING) || !defined(HYPERDRONE_ENV_MB_SAMPLES) || !defined(HYPERDRONE_ENV_PRESET) || !defined(HYPERDRONE_ENV_TASK) || !defined(HYPERDRONE_ENV_N_AGENTS) || !defined(HYPERDRONE_ENV_N_CAMERA_AGENTS) || !defined(HYPERDRONE_ENV_N_CAMERAS_PER_AGENT) || !defined(HYPERDRONE_ENV_DEVICE_CUDA) || !defined(HYPERDRONE_ENV_CONTROL) || !defined(HYPERDRONE_ENV_ACTUATION)
 #error "every HYPERDRONE_ENV_* configuration define must be set (hyperdrone.env.EnvConfig.defines())"
 #endif
 #if HYPERDRONE_ENV_DEVICE_CUDA && !defined(HYPERDRONE_ENV_CUDA)
@@ -111,6 +111,7 @@ namespace HYPERDRONE_MODULE_NAME {
         using TYPE = rlt::rl::environments::hyperdrone::CameraOutputs<CAMERAS...>;
     };
     struct WORLD_SPEC: PRESET_SPEC {
+        using DYNAMICS_STATIC_PARAMETERS = typename hyperdrone::ActuationConfig<HYPERDRONE_ENV_ACTUATION>::template Apply<typename PRESET_SPEC::DYNAMICS_STATIC_PARAMETERS>;
         using CONTROLLER = typename hyperdrone::ControlConfig<HYPERDRONE_ENV_CONTROL>::TYPE;
         using OUTPUT_PROFILE = typename rro::Concat<
             rro::If<(HYPERDRONE_ENV_OUTPUT_RGB != 0), rro::RGB<rro::format::Float32>>,

@@ -16,6 +16,7 @@
 
 
 // Since L2F is quite flexible in the way states and observations are composed, the operations might need to call each other in arbitrary order (depending on the definition). Hence we implement a dispatch scheme, were a dispatch function is forward declared such that it can be called from all specialized functions (_xxx). This dispatch function serves as the public interface xxx as well.
+#include "operations_generic/00_actuation.h"
 #include "operations_generic/05_state_is_nan.h"
 #include "operations_generic/10_sample_initial_parameters.h"
 #include "operations_generic/20_initial_state.h"
@@ -24,7 +25,6 @@
 #include "operations_generic/40_observe.h"
 #include "operations_generic/50_state_algebra.h"
 #include "operations_generic/60_dynamics.h"
-#include "operations_generic/60_dynamics_ideal_ctbr.h"
 #include "operations_generic/70_post_integration.h"
 #include "operations_generic/80_abs_diff.h"
 
@@ -69,47 +69,6 @@ namespace rl_tools
         //        parameters = SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
     }
     namespace rl::environments::l2f{
-        template<typename DEVICE, typename PARAMETERS, typename T>
-        RL_TOOLS_FUNCTION_PLACEMENT T rotor_rpm_from_command(DEVICE&, const PARAMETERS& parameters, T command){
-            return command * parameters.dynamics.max_rpm / parameters.dynamics.action_limit.max;
-        }
-        template<typename DEVICE, typename PARAMETERS, typename T>
-        RL_TOOLS_FUNCTION_PLACEMENT T rotor_angular_velocity_from_command(DEVICE& device, const PARAMETERS& parameters, T command){
-            return rotor_rpm_from_command(device, parameters, command) * ((T)2 * math::PI<T> / (T)60);
-        }
-        template<typename DEVICE, typename PARAMETERS, typename T, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT T rotor_thrust_from_command(DEVICE&, const PARAMETERS& parameters, TI rotor_i, T command){
-            return parameters.dynamics.rotor_thrust_coefficients[rotor_i][0] + parameters.dynamics.rotor_thrust_coefficients[rotor_i][1] * command + parameters.dynamics.rotor_thrust_coefficients[rotor_i][2] * command * command;
-        }
-        template<typename DEVICE, typename PARAMETERS, typename T, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT T rotor_command_from_thrust(DEVICE& device, const PARAMETERS& parameters, TI rotor_i, T thrust){
-            T min_command = parameters.dynamics.action_limit.min;
-            T max_command = parameters.dynamics.action_limit.max;
-            T min_thrust = rotor_thrust_from_command(device, parameters, rotor_i, min_command);
-            T max_thrust = rotor_thrust_from_command(device, parameters, rotor_i, max_command);
-            rl_tools::utils::assert_exit(device, min_thrust <= max_thrust, "min_thrust > max_thrust");
-            thrust = math::clamp(device.math, thrust, min_thrust, max_thrust);
-            T c0 = parameters.dynamics.rotor_thrust_coefficients[rotor_i][0];
-            T c1 = parameters.dynamics.rotor_thrust_coefficients[rotor_i][1];
-            T c2 = parameters.dynamics.rotor_thrust_coefficients[rotor_i][2];
-            T d_min = c1 + (T)2 * c2 * min_command;
-            T d_max = c1 + (T)2 * c2 * max_command;
-            rl_tools::utils::assert_exit(device, d_min >= (T)0 && d_max >= (T)0, "rotor thrust curve is not monotone increasing over action range");
-            T command = min_command;
-            T eps = (T)1e-12;
-            if(math::abs(device.math, c2) > eps){
-                T discriminant = c1 * c1 - (T)4 * c2 * (c0 - thrust);
-                T sqrt_discriminant = math::sqrt(device.math, math::max(device.math, discriminant, (T)0));
-                T root_a = (-c1 + sqrt_discriminant) / ((T)2 * c2);
-                T root_b = (-c1 - sqrt_discriminant) / ((T)2 * c2);
-                bool root_a_valid = root_a >= min_command && root_a <= max_command;
-                command = root_a_valid ? root_a : root_b;
-            }
-            else if(math::abs(device.math, c1) > eps){
-                command = (thrust - c0) / c1;
-            }
-            return math::clamp(device.math, command, min_command, max_command);
-        }
         template<typename DEVICE, typename T>
         RL_TOOLS_FUNCTION_PLACEMENT bool solve_4x4(DEVICE& device, T A[4][4], T b[4], T x[4]){
             T aug[4][5];
@@ -229,18 +188,39 @@ namespace rl_tools
                 motor_commands[rotor_i] = solved ? rotor_command_from_thrust(device, parameters, rotor_i, rotor_thrusts[rotor_i]) : collective_command;
             }
         }
-        template<typename DEVICE, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT void ctbr_action_to_motor_commands(DEVICE& device, const PARAMETERS& parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, typename PARAMETERS::T motor_commands[4], RNG& rng){
-            ctbr_action_to_motor_commands(device, parameters, state, action, motor_commands, rng, parameters.integration.dt);
-        }
+        // normalized [thrust, rates] into collective acceleration and body rates; the rates are written into the state because the ideal model tracks them instantly
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT void action_to_motor_commands(DEVICE& device, const Multirotor<SPEC>&, const PARAMETERS& parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, typename SPEC::T motor_commands[4], RNG& rng){
-            static_assert(SPEC::STATIC_PARAMETERS::ACTION_INTERFACE != parameters::ActionInterface::IDEAL_CTBR);
-            if constexpr(SPEC::STATIC_PARAMETERS::ACTION_INTERFACE == rl::environments::l2f::parameters::ActionInterface::CTBR){
-                ctbr_action_to_motor_commands(device, parameters, state, action, motor_commands, rng);
+        RL_TOOLS_FUNCTION_PLACEMENT void ideal_rates_actuation(DEVICE& device, const Multirotor<SPEC>&, const PARAMETERS& parameters, STATE& state, const Matrix<ACTION_SPEC>& action, typename SPEC::T actuation[4], RNG& rng){
+            using T = typename SPEC::T;
+            using TI = typename DEVICE::index_t;
+            T normalized[4];
+            for(TI action_i = 0; action_i < 4; action_i++){
+                normalized[action_i] = math::clamp(device.math, get(action, 0, action_i), -(T)1, (T)1);
+                normalized[action_i] += random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, parameters.mdp.action_noise.normalized_rpm, rng);
+                normalized[action_i] = math::clamp(device.math, normalized[action_i], -(T)1, (T)1);
+            }
+            actuation[0] = ideal_rates_collective_acceleration(device, parameters, normalized[0]);
+            for(TI axis_i = 0; axis_i < 3; axis_i++){
+                actuation[axis_i + 1] = normalized[axis_i + 1] * parameters.ideal_rates.rate_limit[axis_i];
+                state.angular_velocity[axis_i] = actuation[axis_i + 1];
+            }
+        }
+        template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE>
+        RL_TOOLS_FUNCTION_PLACEMENT void integrate(DEVICE& device, const Multirotor<SPEC>&, const PARAMETERS& parameters, const STATE& state, const typename SPEC::T actuation[4], STATE& next_state){
+            using MULTIROTOR = Multirotor<SPEC>;
+            using T = typename SPEC::T;
+            using TI = typename DEVICE::index_t;
+            constexpr TI N_SUBSTEPS = SPEC::STATIC_PARAMETERS::N_SUBSTEPS;
+            if constexpr(N_SUBSTEPS == 1){
+                utils::integrators::rk4<DEVICE, T, typename SPEC::PARAMETERS, STATE, MULTIROTOR::ACTION_DIM, multirotor_dynamics_dispatch<DEVICE, T, typename SPEC::PARAMETERS, STATE, typename MULTIROTOR::ACTUATION>>(device, parameters, state, actuation, parameters.integration.dt, next_state);
             }
             else{
-                direct_motor_action_to_motor_commands(device, parameters, state, action, motor_commands, rng);
+                T substep_dt = parameters.integration.dt / N_SUBSTEPS;
+                auto substep_state = state;
+                for(TI substep_i = 0; substep_i < N_SUBSTEPS; substep_i++){
+                    utils::integrators::rk4<DEVICE, T, typename SPEC::PARAMETERS, STATE, MULTIROTOR::ACTION_DIM, multirotor_dynamics_dispatch<DEVICE, T, typename SPEC::PARAMETERS, STATE, typename MULTIROTOR::ACTUATION>>(device, parameters, substep_state, actuation, substep_dt, next_state);
+                    substep_state = next_state;
+                }
             }
         }
     }
@@ -263,77 +243,37 @@ namespace rl_tools
         static_assert(OBS_SPEC::ROWS == 1);
         rl::environments::l2f::_observe(device, env, parameters, state, observation_type, observation, rng);
     }
-    // todo: make state const again
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T step(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, STATE& next_state, RNG& rng) {
+        using MULTIROTOR = rl::environments::Multirotor<SPEC>;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
-        constexpr auto STATE_DIM = STATE::DIM;
-        constexpr auto ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
         static_assert(ACTION_SPEC::ROWS == 1);
-        static_assert(ACTION_SPEC::COLS == ACTION_DIM);
-        if constexpr(SPEC::STATIC_PARAMETERS::ACTION_INTERFACE == rl::environments::l2f::parameters::ActionInterface::IDEAL_CTBR){
-            using STATIC = typename SPEC::STATIC_PARAMETERS;
-            static_assert(STATIC::N_SUBSTEPS > 0);
-            static_assert(STATIC::IDEAL_CTBR.thrust_max >= 0);
-            static_assert(STATIC::IDEAL_CTBR.rate_limit[0] > 0 && STATIC::IDEAL_CTBR.rate_limit[0] <= STATIC::STATE_LIMIT_ANGULAR_VELOCITY_X);
-            static_assert(STATIC::IDEAL_CTBR.rate_limit[1] > 0 && STATIC::IDEAL_CTBR.rate_limit[1] <= STATIC::STATE_LIMIT_ANGULAR_VELOCITY_Y);
-            static_assert(STATIC::IDEAL_CTBR.rate_limit[2] > 0 && STATIC::IDEAL_CTBR.rate_limit[2] <= STATIC::STATE_LIMIT_ANGULAR_VELOCITY_Z);
-            Matrix<matrix::Specification<T, TI, 1, ACTION_DIM, false>> applied;
-            for(TI index = 0; index < ACTION_DIM; index++){
-                set(applied, 0, index, clamp_ideal_ctbr_action(device, env, parameters, index, get(action, 0, index)));
-            }
+        static_assert(ACTION_SPEC::COLS == MULTIROTOR::ACTION_DIM);
+        T actuation[MULTIROTOR::ACTION_DIM];
+        if constexpr(MULTIROTOR::RATE_CONTROLLER){
+            constexpr TI N_SUBSTEPS = SPEC::STATIC_PARAMETERS::N_SUBSTEPS;
+            T substep_dt = parameters.integration.dt / N_SUBSTEPS;
             auto substep_state = state;
-            for(TI axis = 0; axis < 3; axis++){
-                substep_state.angular_velocity[axis] = get(applied, 0, axis + 1);
-            }
-            T dt = parameters.integration.dt / STATIC::N_SUBSTEPS;
-            for(TI substep = 0; substep < STATIC::N_SUBSTEPS; substep++){
-                utils::integrators::rk4<DEVICE, T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, ideal_ctbr_dynamics<DEVICE, T, typename SPEC::PARAMETERS, STATE>>(device, parameters, substep_state, applied._data, dt, next_state);
+            for(TI substep_i = 0; substep_i < N_SUBSTEPS; substep_i++){
+                rl::environments::l2f::ctbr_action_to_motor_commands(device, parameters, substep_state, action, actuation, rng, substep_dt);
+                utils::integrators::rk4<DEVICE, T, typename SPEC::PARAMETERS, STATE, MULTIROTOR::ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, T, typename SPEC::PARAMETERS, STATE, rl::environments::l2f::actuation::Rotors>>(device, parameters, substep_state, actuation, substep_dt, next_state);
+                for(TI axis_i = 0; axis_i < 3; axis_i++){
+                    next_state.previous_angular_velocity[axis_i] = substep_state.angular_velocity[axis_i];
+                }
                 substep_state = next_state;
             }
-            post_integration(device, env, parameters, state, applied, next_state, rng);
-            return parameters.integration.dt;
         }
-        else if constexpr(SPEC::STATIC_PARAMETERS::N_SUBSTEPS == 1){
-            T action_scaled[ACTION_DIM];
-            rl::environments::l2f::action_to_motor_commands(device, env, parameters, state, action, action_scaled, rng);
-            utils::integrators::rk4  <DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, parameters, state, action_scaled, parameters.integration.dt, next_state);
-    //        utils::integrators::euler<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, parameters, state, action_scaled, parameters.integration.dt, next_state);
+        else if constexpr(utils::typing::is_same_v<typename MULTIROTOR::ACTUATION, rl::environments::l2f::actuation::IdealRates>){
+            auto commanded = state;
+            rl::environments::l2f::ideal_rates_actuation(device, env, parameters, commanded, action, actuation, rng);
+            rl::environments::l2f::integrate(device, env, parameters, commanded, actuation, next_state);
         }
         else{
-            T substep_dt = parameters.integration.dt / SPEC::STATIC_PARAMETERS::N_SUBSTEPS;
-            if constexpr(SPEC::STATIC_PARAMETERS::ACTION_INTERFACE == rl::environments::l2f::parameters::ActionInterface::CTBR){
-                auto substep_state = state;
-                auto substep_next_state = state;
-                for (TI substep_i=0; substep_i < SPEC::STATIC_PARAMETERS::N_SUBSTEPS; substep_i++){
-                    T action_scaled[ACTION_DIM];
-                    rl::environments::l2f::ctbr_action_to_motor_commands(device, parameters, substep_state, action, action_scaled, rng, substep_dt);
-                    utils::integrators::rk4  <DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, parameters, substep_state, action_scaled, substep_dt, substep_next_state);
-            //        utils::integrators::euler<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, parameters, substep_state, action_scaled, substep_dt, substep_next_state);
-                    for(TI axis_i = 0; axis_i < 3; axis_i++){
-                        substep_next_state.previous_angular_velocity[axis_i] = substep_state.angular_velocity[axis_i];
-                    }
-                    substep_state = substep_next_state;
-                }
-                next_state = substep_next_state;
-            }
-            else{
-                T action_scaled[ACTION_DIM];
-                rl::environments::l2f::action_to_motor_commands(device, env, parameters, state, action, action_scaled, rng);
-                auto substep_state = state;
-                auto substep_next_state = state;
-                for (TI substep_i=0; substep_i < SPEC::STATIC_PARAMETERS::N_SUBSTEPS; substep_i++){
-                    utils::integrators::rk4  <DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, parameters, substep_state, action_scaled, substep_dt, substep_next_state);
-            //        utils::integrators::euler<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, parameters, substep_state, action_scaled, substep_dt, substep_next_state);
-                    substep_state = substep_next_state;
-                }
-                next_state = substep_next_state;
-            }
+            rl::environments::l2f::direct_motor_action_to_motor_commands(device, parameters, state, action, actuation, rng);
+            rl::environments::l2f::integrate(device, env, parameters, state, actuation, next_state);
         }
-
         post_integration(device, env, parameters, state, action, next_state, rng);
-
         return parameters.integration.dt;
     }
     namespace rl::environments::l2f{

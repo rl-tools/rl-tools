@@ -27,8 +27,8 @@
 #include <limits>
 #include <type_traits>
 
-#if !defined(HYPERDRONE_DYNAMICS_NUM_DRONES) || !defined(HYPERDRONE_DYNAMICS_CONTROL)
-#error "HYPERDRONE_DYNAMICS_NUM_DRONES and HYPERDRONE_DYNAMICS_CONTROL must be defined"
+#if !defined(HYPERDRONE_DYNAMICS_NUM_DRONES) || !defined(HYPERDRONE_DYNAMICS_CONTROL) || !defined(HYPERDRONE_DYNAMICS_ACTUATION)
+#error "HYPERDRONE_DYNAMICS_NUM_DRONES, HYPERDRONE_DYNAMICS_CONTROL and HYPERDRONE_DYNAMICS_ACTUATION must be defined"
 #endif
 
 namespace rlt = rl_tools;
@@ -82,7 +82,7 @@ namespace hyperdrone_dynamics_impl {
         static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
     };
 
-    using STATIC_PARAMETERS = CONTROLLER_CONFIG::DynamicsParameters<DYNAMICS_PARAMETERS>;
+    using STATIC_PARAMETERS = CONTROLLER_CONFIG::DynamicsParameters<typename hyperdrone::ActuationConfig<HYPERDRONE_DYNAMICS_ACTUATION>::template Apply<DYNAMICS_PARAMETERS>>;
     using ENVIRONMENT_SPEC = Specification<T, TI, STATIC_PARAMETERS>;
     using ENVIRONMENT = rlt::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
     using STATE = typename ENVIRONMENT::State;
@@ -695,8 +695,8 @@ namespace hyperdrone_dynamics_impl {
                     const auto& requested = entries.at(entry++).at("dynamics");
                     auto current = nlohmann::json::parse(json(device_cpu, envs[drone], parameters[drone]));
                     for(const auto& item : current.items()){
-                        if(item.key() != "dynamics" && requested.at(item.key()) != item.value()){
-                            throw std::invalid_argument("hyperdrone: only dynamics.dynamics varies per instance; set shared values through parameters=");
+                        if(item.key() != "dynamics" && item.key() != "ideal_rates" && requested.at(item.key()) != item.value()){
+                            throw std::invalid_argument("hyperdrone: only dynamics.dynamics and dynamics.ideal_rates vary per instance; set shared values through parameters=");
                         }
                     }
                     from_json(device_cpu, envs[drone], requested, updated[drone]);
@@ -719,7 +719,7 @@ namespace hyperdrone_dynamics_impl {
 
     static char config_string_buffer[64];
     const char* build_config_string(){
-        std::snprintf(config_string_buffer, sizeof(config_string_buffer), "n=%d control=%d", (int)NUM_DRONES, HYPERDRONE_DYNAMICS_CONTROL);
+        std::snprintf(config_string_buffer, sizeof(config_string_buffer), "n=%d control=%d actuation=%d", (int)NUM_DRONES, HYPERDRONE_DYNAMICS_CONTROL, HYPERDRONE_DYNAMICS_ACTUATION);
         return config_string_buffer;
     }
 }

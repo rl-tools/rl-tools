@@ -466,28 +466,36 @@ def test_position_commands_use_scene_frame_for_every_agent(scene_directory, num_
 
 def test_ctbr_commands_reach_every_agent_current_step(scene_directory):
     config = EnvConfig(instances_per_environment=2, num_agents=2, preset="x500_fpv_imu",
-                       width=16, height=16, fidelity="low", control="ctbr", device="cpu")
+                       width=16, height=16, fidelity="low", control="ctbr", actuation="ideal", device="cpu")
     with closing(MultiEnvironment(scene_directory, config=config, drone_asset=drone_asset_path(), seed=31)) as env:
         env.reset()
-        assert env.control == "ctbr"
+        assert env.control == "ctbr" and env.actuation == "ideal"
         assert env.action_dim == 8
-        np.testing.assert_array_equal(env.action_low, np.tile([0, -20, -20, -20], 2))
-        np.testing.assert_array_equal(env.action_high, np.tile([np.inf, 20, 20, 20], 2))
+        np.testing.assert_array_equal(env.action_low, -np.ones(8))
+        np.testing.assert_array_equal(env.action_high, np.ones(8))
         commands = np.empty((2, 2, 4), dtype=np.float32)
+        rate_limit = np.empty((2, 2, 3), dtype=np.float32)
         for instance, parameters in enumerate(env.instance_parameters()):
             for agent, values in enumerate(parameters["agents"]):
-                drone = values["dynamics"]["dynamics"]
-                commands[instance, agent, 0] = -drone["mass"] * drone["gravity"][2]
-        commands[:, :, 1:] = [[0.4, -0.5, 0.6], [-0.7, 0.2, -0.3]]
+                ideal = values["dynamics"]["ideal_rates"]
+                commands[instance, agent, 0] = 2 / ideal["thrust_to_weight"] - 1
+                rate_limit[instance, agent] = ideal["rate_limit"]
+        commands[:, :, 1:] = [[0.02, -0.025, 0.03], [-0.035, 0.01, -0.015]]
         for _ in range(2):
             env.step(commands.reshape(2, -1))
             observation = env.observe_privileged()
             for agent in range(2):
                 offset, width = env.observation_layout_privileged.blocks[f"agent{agent}/angular_velocity"]
-                np.testing.assert_array_equal(observation[:, offset:offset + width], commands[:, agent, 1:])
+                np.testing.assert_allclose(observation[:, offset:offset + width], commands[:, agent, 1:] * rate_limit[:, agent], rtol=1e-5, atol=1e-6)
             if env.observation_dim_imu:
                 assert np.isfinite(env.observe_imu()).all()
             commands[:, :, 1:] *= -1
+        before = env.instance_parameters()
+        env.set_instance_parameters({"agents": [{"dynamics": {"ideal_rates": {"thrust_to_weight": 3.0}}}, {}]}, mask=[True, False])
+        after = env.instance_parameters()
+        assert after[0]["agents"][0]["dynamics"]["ideal_rates"]["thrust_to_weight"] == 3.0
+        assert after[0]["agents"][1] == before[0]["agents"][1]
+        assert after[1] == before[1]
 
 
 def test_position_parameter_mutation_resets_only_selected_instances(scene_directory):
