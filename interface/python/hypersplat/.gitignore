@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# venv
+.venv/
+venv/
+
+# tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# rendered outputs from examples
+*.gif
+*.mp4
+runs/
+
+# scene assets (large; user-supplied)
+*.ply
+
+# editor / OS
+.vscode/
+.idea/
+.DS_Store
+data
+checkpoint*

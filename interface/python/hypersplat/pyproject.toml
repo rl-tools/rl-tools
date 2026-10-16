@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hypersplat"
+version = "0.0.1"
+description = "Quadrotor simulator combining RotorPY dynamics with gsplat camera rendering."
+readme = "README.md"
+authors = [{name = "Jonas Eschmann", email = "jonas.eschmann@gmail.com"}]
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "scipy",
+    "gymnasium>=1.0",
+    "rotorpy>=2.1",
+    "torch",
+    "gsplat",
+    "plyfile",
+    "h5py",
+    "imageio",
+    "imageio-ffmpeg",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+tflite = [
+    "tensorflow",
+]
+
+[tool.setuptools.packages.find]
+include = ["hypersplat*"]
+exclude = ["tests*", "examples*"]
