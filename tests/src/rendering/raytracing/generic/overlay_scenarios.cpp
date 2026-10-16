@@ -618,7 +618,6 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, MIXED_DYNAMIC_SHARING_SCOPES){
     expect_repeat_after_noop_update(device, owner.renderer, second);
 }
 
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX) && defined(RL_TOOLS_RENDERING_RAYTRACING_OVERLAY_TEST_ACTIVE_BACKEND)
 TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, ATTACHMENT_TIES_AND_PARTIAL_ACCEL_GROUP){
     using namespace rl_tools;
     using rendering::raytracing::OverlayIndex;
@@ -663,4 +662,3 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, ATTACHMENT_TIES_AND_PARTIAL_ACCEL_GROUP){
     EXPECT_EQ(first.rgb, reattached.rgb);
     EXPECT_EQ(first.segmentation, reattached.segmentation);
 }
-#endif

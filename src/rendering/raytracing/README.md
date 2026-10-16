@@ -69,7 +69,7 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
 - **Dynamic motion blur** (`ENABLE_DYNAMIC_MOTION_BLUR`, requires motion blur + overlays):
   `render_launch` internally runs `MOTION_BLUR_SAMPLES` sequential passes, rebuilding the
   overlay acceleration structures from the per-sample `transforms_motion()` slabs between
-  passes (camera lerped at the same `(i+0.5)/N` shutter times), accumulating linear radiance
+  passes (OptiX rebuilds only for the first sample, which consumes device-written slot structures, and refits the transforms for the later samples and the shutter-close restore; camera lerped at the same `(i+0.5)/N` shutter times), accumulating linear radiance
   per pixel (each thread owns its pixel — no atomics), then restores the shutter-close overlay
   state (depth, segmentation and probes stay single-sample at shutter close, ids unchanged) and
   resolves with the standard transfer curve + quantization. `set_transform_pair` expands a
@@ -79,7 +79,7 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   takes per-part samples and the shutter-close poses directly. The single-pose verbs replicate
   across samples, so a dynamic spec driven only by them renders pixel-identically to camera-only
   blur. All passes are enqueue-only: one fenced submit on Vulkan, one command buffer on Metal,
-  stream-ordered
+  stream-ordered on OptiX.
 - **Articulation is a producer** (`rendering/rig/`): a `rig::Model` is a fixed-capacity,
   plain-value rigid-link tree (links declared parent before child; fixed, revolute, prismatic
   and spherical joints; one `origin` per link and one `offset` per part) that `evaluate`s to
@@ -95,15 +95,13 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   into `transforms_motion()`, the shutter-close poses into `transforms()` and the camera pair in
   place, all on the render stream; the steady-state step is kernel → update → render with no
   host data path — the host's per-frame role is enqueues only (kernel launches,
-  `optixAccelBuild` enqueues, and OWL's constant 48-byte launch-param upload per launch). Host
+  `optixAccelBuild` enqueues — one per group of up to eight overlays, which share an acceleration structure and are separated by per-overlay visibility masks — and OWL's constant 48-byte launch-param upload per launch). Host
   verbs and producers may share a renderer: a verb writes the host mirror and marks its rows
   pending, `update` publishes exactly the pending rows (compacted into one scatter on OptiX),
   and a producer owns every row the host has not marked. On generic/Vulkan/Metal the publish is
   a memcpy into the host-resident tensors (residency is a backend property; Vulkan's and Metal's
   per-frame instance-descriptor composition is CPU-side by architecture). End-to-end example:
   `src/rendering/raytracing/example/drone_device.cu`.
-
-OptiX packs up to eight logical overlays into each acceleration structure, using visibility masks to preserve per-camera attachments and global instance IDs. Dynamic motion blur rebuilds the first shutter sample to consume device-written object changes, then refits transforms for subsequent samples and shutter close.
 
 ## Declaring outputs
 

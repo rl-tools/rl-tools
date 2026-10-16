@@ -16,6 +16,9 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rendering::raytracing::backends::optix{
     // One visibility bit per logical overlay preserves attachment order while sharing an IAS.
     constexpr unsigned int OVERLAYS_PER_ACCEL = 8;
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr unsigned int overlay_visibility_mask(unsigned int overlay){
+        return 1u << (overlay % OVERLAYS_PER_ACCEL);
+    }
     struct OverlaySlotStructure{
         unsigned int active;
         unsigned int object;
@@ -38,7 +41,7 @@ namespace rl_tools::rendering::raytracing::backends::optix{
     OverlaySlotStructure* overlay_accel_structure(OverlayAccelState* state);
     // per-object BLAS traversables + SBT offsets + classes; upload once, after owlBuildSBT
     void overlay_accel_upload_objects(OverlayAccelState* state, const OverlayObjectEntry* objects, unsigned int num_objects);
-    // per-overlay TLAS handles of one instant; stable across rebuilds (fixed output buffers), valid after create
+    // per-overlay TLAS handles of one instant, shared within a group; stable across rebuilds (fixed output buffers), valid after create
     const unsigned long long* overlay_accel_traversables(const OverlayAccelState* state, unsigned int instant);
     // enqueues the instance fill kernel and one optixAccelBuild per overlay group of the given instant
     // on stream; no host sync. transforms: [num_overlays * max_instances * 12] device

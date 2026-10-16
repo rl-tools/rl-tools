@@ -34,7 +34,6 @@
 
 namespace rlt = rl_tools;
 namespace rro = rlt::rendering::raytracing::outputs;
-using rlt::attach;
 using rlt::output;
 
 #ifdef RL_TOOLS_RENDERING_RAYTRACING_SCENE_TEST_ACTIVE_BACKEND
@@ -2209,7 +2208,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SECONDARY_RAYS){
     rlt::generate_probe_directions(device, renderer);
     rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0}); // camera 0 sees the overlay cube, camera 1 does not
-    attach(device, renderer, (TI)1, OverlayIndex{1});
+    rlt::attach(device, renderer, (TI)1, OverlayIndex{1});
 
     float transform[12];
     const float position[3] = {2, 0, 2}; // between the light and the floor, off-axis so the floor stays visible
@@ -2259,7 +2258,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_PROBES){
     rlt::generate_probe_directions(device, renderer);
     rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0}); // only camera 0 senses the overlay
-    attach(device, renderer, (TI)1, OverlayIndex{1});
+    rlt::attach(device, renderer, (TI)1, OverlayIndex{1});
 
     float transform[12];
     const float position[3] = {-3, 0, 0}; // forward probe (looking -x, away from the anchor) hits the near face at x=-2

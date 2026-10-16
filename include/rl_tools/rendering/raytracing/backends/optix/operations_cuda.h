@@ -1067,7 +1067,7 @@ namespace rl_tools {
                 overlay_state->rows.assign((size_t)(SPEC::ENABLE_DYNAMIC_MOTION_BLUR ? SPEC::MOTION_BLUR_SAMPLES : 1) * SLOTS * 12, 0.0f);
                 cudaMalloc(&overlay_state->row_indices_device, overlay_state->row_indices.size() * sizeof(unsigned int));
                 cudaMalloc(&overlay_state->rows_device, overlay_state->rows.size() * sizeof(float));
-                // published once: raw builds into fixed per-overlay buffers keep the handles stable,
+                // published once: raw builds into fixed per-group buffers keep the handles stable,
                 // so no per-rebuild re-publication is needed
                 overlay_state->traversables_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(unsigned long long), SPEC::NUM_OVERLAYS, optix::overlay_accel_traversables(overlay_state->accel, 0));
                 if constexpr (SPEC::HAS_FLOW) {
@@ -1259,7 +1259,7 @@ namespace rl_tools {
     }
 
     // fully stream-ordered on the render stream: the pending host rows publish by scatter, then
-    // the device-side instance fill and per-overlay raw optixAccelBuild — no host synchronization
+    // the device-side instance fill and per-group raw optixAccelBuild — no host synchronization
     template <typename DEVICE, typename SPEC>
     void update_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");

@@ -192,7 +192,7 @@ namespace rl_tools
                  tmin,
                  fminf(best_t, tmax),
                  0.0f,
-                 OptixVisibilityMask(1u << (overlay % rendering::raytracing::backends::optix::OVERLAYS_PER_ACCEL)),
+                 OptixVisibilityMask(rendering::raytracing::backends::optix::overlay_visibility_mask(overlay)),
                  OPTIX_RAY_FLAG_DISABLE_ANYHIT,
                  0, NUM_RAY_TYPES, 1, // no-op miss: an overlay miss keeps the current color
                  p0, p1, q2, q3);
@@ -201,7 +201,7 @@ namespace rl_tools
     return color;
   }
 
-  inline __device__ bool trace_shadow_occluded(OptixTraversableHandle world, const owl::vec3f &pos, const owl::vec3f &direction, float max_dist, unsigned int visibility = 255u)
+  inline __device__ bool trace_shadow_occluded(OptixTraversableHandle world, const owl::vec3f &pos, const owl::vec3f &direction, float max_dist, unsigned int visibility)
   {
     unsigned int u0 = __float_as_uint(max_dist);
     unsigned int u1 = 0;
@@ -221,12 +221,12 @@ namespace rl_tools
 
   inline __device__ bool trace_shadow_occluded_composed(OptixTraversableHandle world, int camera, const owl::vec3f &pos, const owl::vec3f &direction, float max_dist)
   {
-    if (trace_shadow_occluded(world, pos, direction, max_dist)) return true;
+    if (trace_shadow_occluded(world, pos, direction, max_dist, 255u)) return true;
     const int overlay_count = optixLaunchParams.overlay_count;
     for (int k = 0; k < overlay_count; k++) {
       const uint32_t overlay = optixLaunchParams.attachments[camera * overlay_count + k];
       if (overlay == 0xFFFFFFFFu) continue;
-      if (trace_shadow_occluded((OptixTraversableHandle)optixLaunchParams.overlays[overlay], pos, direction, max_dist, 1u << (overlay % rendering::raytracing::backends::optix::OVERLAYS_PER_ACCEL))) {
+      if (trace_shadow_occluded((OptixTraversableHandle)optixLaunchParams.overlays[overlay], pos, direction, max_dist, rendering::raytracing::backends::optix::overlay_visibility_mask(overlay))) {
         return true;
       }
     }
@@ -785,7 +785,7 @@ namespace rl_tools
           1e-3f,
           __uint_as_float(u0),
           0.0f,
-          OptixVisibilityMask(1u << (overlay % rendering::raytracing::backends::optix::OVERLAYS_PER_ACCEL)),
+          OptixVisibilityMask(rendering::raytracing::backends::optix::overlay_visibility_mask(overlay)),
           OPTIX_RAY_FLAG_DISABLE_ANYHIT,
           1, NUM_RAY_TYPES, 1,
           u0, u1, u2);
@@ -844,12 +844,12 @@ namespace rl_tools
   // the collision ray type with terminate-on-first-hit, like the punctual-light shadows
   inline __device__ bool trace_flow_visibility_occluded(OptixTraversableHandle world, const unsigned long long *overlays, int camera, const owl::vec3f &pos, const owl::vec3f &direction, float max_dist)
   {
-    if (trace_shadow_occluded(world, pos, direction, max_dist)) return true;
+    if (trace_shadow_occluded(world, pos, direction, max_dist, 255u)) return true;
     const int overlay_count = optixLaunchParams.overlay_count;
     for (int k = 0; k < overlay_count; k++) {
       const uint32_t overlay = optixLaunchParams.attachments[camera * overlay_count + k];
       if (overlay == 0xFFFFFFFFu) continue;
-      if (trace_shadow_occluded((OptixTraversableHandle)overlays[overlay], pos, direction, max_dist, 1u << (overlay % rendering::raytracing::backends::optix::OVERLAYS_PER_ACCEL))) {
+      if (trace_shadow_occluded((OptixTraversableHandle)overlays[overlay], pos, direction, max_dist, rendering::raytracing::backends::optix::overlay_visibility_mask(overlay))) {
         return true;
       }
     }
@@ -950,7 +950,7 @@ namespace rl_tools
           0.f,
           __uint_as_float(u0),
           0.0f,
-          OptixVisibilityMask(1u << (overlay % rendering::raytracing::backends::optix::OVERLAYS_PER_ACCEL)),
+          OptixVisibilityMask(rendering::raytracing::backends::optix::overlay_visibility_mask(overlay)),
           OPTIX_RAY_FLAG_DISABLE_ANYHIT,
           1, NUM_RAY_TYPES, 1,
           u0, u1, u2);
@@ -980,7 +980,7 @@ namespace rl_tools
       for(int slot = 0; slot < overlay_count; slot++){
         const uint32_t overlay = optixLaunchParams.attachments[ctx.cam_idx * overlay_count + slot];
         if(overlay != 0xffffffffu){
-          optixTrace((OptixTraversableHandle)optixLaunchParams.overlays[overlay], (const float3&)cam.pos, (const float3&)direction, 0.f, __uint_as_float(distance), 0.f, OptixVisibilityMask(1u << (overlay % rendering::raytracing::backends::optix::OVERLAYS_PER_ACCEL)), OPTIX_RAY_FLAG_DISABLE_ANYHIT, 2, NUM_RAY_TYPES, 1, distance, instance, nx, ny, nz);
+          optixTrace((OptixTraversableHandle)optixLaunchParams.overlays[overlay], (const float3&)cam.pos, (const float3&)direction, 0.f, __uint_as_float(distance), 0.f, OptixVisibilityMask(rendering::raytracing::backends::optix::overlay_visibility_mask(overlay)), OPTIX_RAY_FLAG_DISABLE_ANYHIT, 2, NUM_RAY_TYPES, 1, distance, instance, nx, ny, nz);
         }
       }
     }
@@ -993,7 +993,7 @@ namespace rl_tools
       for(int slot = 0; slot < overlay_count; slot++){
         const uint32_t overlay = optixLaunchParams.attachments[ctx.cam_idx * overlay_count + slot];
         if(overlay != 0xffffffffu){
-          optixTrace((OptixTraversableHandle)optixLaunchParams.overlays[overlay], (const float3&)cam.pos, (const float3&)direction, 0.f, __uint_as_float(distance), 0.f, OptixVisibilityMask(1u << (overlay % rendering::raytracing::backends::optix::OVERLAYS_PER_ACCEL)), OPTIX_RAY_FLAG_DISABLE_ANYHIT, 1, NUM_RAY_TYPES, 1, distance, hit, instance);
+          optixTrace((OptixTraversableHandle)optixLaunchParams.overlays[overlay], (const float3&)cam.pos, (const float3&)direction, 0.f, __uint_as_float(distance), 0.f, OptixVisibilityMask(rendering::raytracing::backends::optix::overlay_visibility_mask(overlay)), OPTIX_RAY_FLAG_DISABLE_ANYHIT, 1, NUM_RAY_TYPES, 1, distance, hit, instance);
         }
       }
     }

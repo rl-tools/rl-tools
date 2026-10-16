@@ -44,7 +44,7 @@ namespace rl_tools::rendering::raytracing::backends::optix{
             const OverlaySlotStructure row = structure[index];
             OptixInstance instance{};
             instance.instanceId = instance_id_base + index; // global id layout (contract: segmentation_object, operations_cpu_common.h); the previous instant's range follows the current one
-            instance.visibilityMask = 1u << ((index / max_instances) % OVERLAYS_PER_ACCEL);
+            instance.visibilityMask = overlay_visibility_mask(index / max_instances);
             instance.flags = OPTIX_INSTANCE_FLAG_NONE;
             if(row.active != 0){
                 for(int element = 0; element < 12; element++){
