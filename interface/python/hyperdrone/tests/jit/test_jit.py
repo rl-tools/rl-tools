@@ -55,6 +55,28 @@ def test_distinct_configs_get_distinct_artifacts():
     assert load_toy(second).hyperdrone_toy_value() == 2
 
 
+def test_generated_headers_are_compiled_and_tracked():
+    @dataclass(frozen=True)
+    class GeneratedConfig(ToyConfig):
+        def defines(self):
+            return {"HYPERDRONE_TOY_VALUE": "hyperdrone_toy_config::VALUE"}
+
+        def generated_headers(self):
+            return {"camera_config.h": f"namespace hyperdrone_toy_config {{ constexpr int VALUE = {self.value}; }}\n"}
+
+        def canonical(self):
+            return super().canonical() + self.generated_headers()["camera_config.h"]
+
+    config = GeneratedConfig(value=91)
+    artifact = jit.ensure(toy_component(), config)
+    assert load_toy(artifact).hyperdrone_toy_value() == 91
+    header = jit.build_dir(toy_component()) / "configs" / config.key() / "camera_config.h"
+    assert header.read_text() == config.generated_headers()["camera_config.h"]
+    modification_time = header.stat().st_mtime_ns
+    jit.ensure(toy_component(), config)
+    assert header.stat().st_mtime_ns == modification_time
+
+
 def test_cache_hit_does_not_rebuild():
     config = ToyConfig(value=7)
     artifact = jit.ensure(toy_component(), config)

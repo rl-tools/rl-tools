@@ -22,8 +22,11 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <memory>
+#include <functional>
+#include "../common/output.h"
 
-#if !defined(HYPERDRONE_ENV_NUM_ENVIRONMENTS) || !defined(HYPERDRONE_ENV_INSTANCES) || !defined(HYPERDRONE_ENV_CAM_WIDTH) || !defined(HYPERDRONE_ENV_CAM_HEIGHT) || !defined(HYPERDRONE_ENV_SHADING) || !defined(HYPERDRONE_ENV_MB_SAMPLES) || !defined(HYPERDRONE_ENV_PRESET) || !defined(HYPERDRONE_ENV_TASK) || !defined(HYPERDRONE_ENV_N_AGENTS) || !defined(HYPERDRONE_ENV_N_CAMERA_AGENTS) || !defined(HYPERDRONE_ENV_N_CAMERAS_PER_AGENT) || !defined(HYPERDRONE_ENV_DEVICE_CUDA)
+#if !defined(HYPERDRONE_ENV_NUM_ENVIRONMENTS) || !defined(HYPERDRONE_ENV_INSTANCES) || !defined(HYPERDRONE_ENV_CAM_WIDTH) || !defined(HYPERDRONE_ENV_CAM_HEIGHT) || !defined(HYPERDRONE_ENV_SHADING) || !defined(HYPERDRONE_ENV_MB_SAMPLES) || !defined(HYPERDRONE_ENV_PRESET) || !defined(HYPERDRONE_ENV_TASK) || !defined(HYPERDRONE_ENV_N_AGENTS) || !defined(HYPERDRONE_ENV_N_CAMERA_AGENTS) || !defined(HYPERDRONE_CAMERA_CONFIG_HEADER) || !defined(HYPERDRONE_ENV_DEVICE_CUDA)
 #error "every HYPERDRONE_ENV_* configuration define must be set (hyperdrone.env.EnvConfig.defines())"
 #endif
 #if HYPERDRONE_ENV_DEVICE_CUDA && !defined(HYPERDRONE_ENV_CUDA)
@@ -38,6 +41,8 @@
 #ifdef HYPERDRONE_ENV_SPEC_HEADER
 #include HYPERDRONE_ENV_STRINGIFY(HYPERDRONE_ENV_SPEC_HEADER)
 #endif
+
+#include HYPERDRONE_CAMERA_CONFIG_HEADER
 
 namespace rlt = rl_tools;
 namespace rro = rlt::rendering::raytracing::outputs;
@@ -103,24 +108,9 @@ namespace HYPERDRONE_MODULE_NAME {
 #else
 #error "unknown HYPERDRONE_ENV_PRESET"
 #endif
-    template <TI COUNT, typename OUTPUT, typename... CAMERAS>
-    struct RepeatedCameraOutputs: RepeatedCameraOutputs<COUNT - 1, OUTPUT, OUTPUT, CAMERAS...> {};
-    template <typename OUTPUT, typename... CAMERAS>
-    struct RepeatedCameraOutputs<0, OUTPUT, CAMERAS...> {
-        using TYPE = rlt::rl::environments::hyperdrone::CameraOutputs<CAMERAS...>;
-    };
     struct WORLD_SPEC: PRESET_SPEC {
-        using OUTPUT_PROFILE = typename rro::Concat<
-            rro::If<(HYPERDRONE_ENV_OUTPUT_RGB != 0), rro::RGB<rro::format::Float32>>,
-            rro::If<(HYPERDRONE_ENV_OUTPUT_DEPTH != 0), rro::Depth<>>,
-            rro::If<(HYPERDRONE_ENV_OUTPUT_INSTANCE_SEGMENTATION != 0), rro::Segmentation<rro::format::UInt32, rro::labels::Instance>>,
-            rro::If<(HYPERDRONE_ENV_OUTPUT_SEMANTIC_SEGMENTATION != 0), rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>>,
-            rro::If<(HYPERDRONE_ENV_OUTPUT_NORMALS != 0), rro::Normals<>>,
-            rro::If<(HYPERDRONE_ENV_OUTPUT_FLOW != 0), rro::Flow<>>,
-            rro::If<(HYPERDRONE_ENV_OUTPUT_FLOW != 0), rro::FlowStatus<>>,
-            rro::List<rro::Probes>
-        >::type;
-        using CAMERA_OUTPUTS = typename RepeatedCameraOutputs<HYPERDRONE_ENV_N_CAMERAS_PER_AGENT, OUTPUT_PROFILE>::TYPE;
+        using CAMERA_OUTPUTS = hyperdrone_camera_config::CAMERA_OUTPUTS;
+        using OBSERVATION = hyperdrone_camera_config::OBSERVATION;
         static constexpr TI INSTANCES_PER_ENVIRONMENT = HYPERDRONE_ENV_INSTANCES;
         static constexpr TI N_AGENTS = HYPERDRONE_ENV_N_AGENTS;
         static constexpr TI N_CAMERA_AGENTS = HYPERDRONE_ENV_N_CAMERA_AGENTS;
@@ -159,13 +149,6 @@ namespace HYPERDRONE_MODULE_NAME {
     using OUTPUTS = typename WORLD::RENDERER_SPEC::OUTPUTS;
     using INSTANCE_SEGMENTATION = rro::Segmentation<rro::format::UInt32, rro::labels::Instance>;
     using SEMANTIC_SEGMENTATION = rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>;
-    static_assert(WORLD::HAS_IMAGE_OBSERVATION, "Python environment observations require RGB<Float32> on every mount in CAMERA_OUTPUTS");
-    template <typename... DESCRIPTORS>
-    constexpr bool covers_every_camera(rro::List<DESCRIPTORS...>) {
-        return (rlt::rl::environments::hyperdrone::world::covers_every_camera<typename WORLD::RENDERER_SPEC, DESCRIPTORS>() && ...);
-    }
-    static_assert(covers_every_camera(rro::List<rro::Depth<>, INSTANCE_SEGMENTATION, SEMANTIC_SEGMENTATION, rro::Normals<>, rro::Flow<>, rro::FlowStatus<>>{}), "Python accessors return every camera: configure their outputs on every mount in CAMERA_OUTPUTS");
-
     constexpr TI NUM_ENVIRONMENTS = HYPERDRONE_ENV_NUM_ENVIRONMENTS;
     using ENV = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, NUM_ENVIRONMENTS>;
     constexpr TI TOTAL = NUM_ENVIRONMENTS * WORLD::INSTANCES;
@@ -193,9 +176,18 @@ namespace HYPERDRONE_MODULE_NAME {
     // enqueued on stream(). A `resident` array lives in the World's memory and is read or written
     // in place on that stream; any other array is a host array, staged through the environment
     // with a synchronization. A null reset mask selects every instance.
+    struct OutputBlock {
+        void* pointer = nullptr;
+        hyperdrone::OutputLayout layout;
+        int device_type = 1;
+        int device_id = 0;
+        std::shared_ptr<void> owner;
+        std::function<void(uintptr_t)> order_consumer;
+    };
+
     struct Environment {
         struct Impl;
-        Impl* impl;
+        std::shared_ptr<Impl> impl;
         Environment();
         ~Environment();
         Environment(const Environment&) = delete;
@@ -219,12 +211,11 @@ namespace HYPERDRONE_MODULE_NAME {
         void reset(const bool* mask, bool resident, const std::string& spawn_points = "");
         void step(const float* actions, bool resident);
         void observe(float* out, bool resident);
-        void depth(float* out, bool resident);
-        void instance_segmentation(uint32_t* out, bool resident);
-        void semantic_segmentation(uint32_t* out, bool resident);
-        void normals(float* out, bool resident);
-        void flow(float* out, bool resident);
-        void flow_status(uint32_t* out, bool resident);
+        void render();
+        void probe();
+        const std::vector<hyperdrone::OutputMetadata>& output_metadata() const;
+        void output_read(size_t index, void* destination, int device_type, const std::string& field, uintptr_t stream);
+        OutputBlock output_block(size_t index, size_t block, const std::string& field);
 
         void observe_privileged(float* out, bool resident);
         void observe_imu(float* out, bool resident);
@@ -251,6 +242,9 @@ namespace HYPERDRONE_MODULE_NAME {
     };
 
     inline ObservationLayout observation_layout(){
+        if constexpr (!WORLD::HAS_IMAGE_OBSERVATION){
+            return {{0}, "flat", {}};
+        }
         constexpr TI HEIGHT = WORLD::Observation::HEIGHT;
         constexpr TI WIDTH = WORLD::Observation::WIDTH;
         constexpr TI CHANNELS = WORLD::Observation::CHANNELS;

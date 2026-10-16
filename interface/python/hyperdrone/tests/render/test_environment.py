@@ -1,3 +1,4 @@
+from hyperdrone.camera import CameraSpec, RGB, Depth, Segmentation, Normals, Flow, FlowStatus, Probes
 import numpy as np
 import pytest
 
@@ -17,14 +18,14 @@ def environment_assets(tmp_path):
 
 
 def frames(scene, fidelity):
-    renderer = render.Renderer(width=8, height=8, num_probes=0, output="rgb", fidelity=fidelity)
+    renderer = render.Renderer(width=8, height=8, num_probes=0, cameras=(CameraSpec("camera", outputs=(RGB(format="rgba8"),)),), fidelity=fidelity)
     renderer.init(scene)
     output = []
     for look_at in [(1, 0.4, 0.3), (-1, 0, 0)]:
         camera = renderer.camera(position=(0, 0, 0), look_at=look_at, fov=45)
         renderer.set_cameras(camera[None])
         renderer.render()
-        output.append(renderer.frame().copy())
+        output.append(renderer.outputs[RGB(format="rgba8")].read().copy())
     return np.stack(output)
 
 

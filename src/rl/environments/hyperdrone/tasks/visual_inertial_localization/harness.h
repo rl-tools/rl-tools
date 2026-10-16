@@ -48,7 +48,7 @@ namespace hyperdrone_vio {
 
     template <typename WORLD>
     struct Tensors {
-        static_assert(WORLD::N_VIEWS == 1, "the visual-inertial localization benchmark harness is monocular");
+        static_assert(WORLD::N_OBSERVATION_VIEWS == 1, "the visual-inertial localization benchmark harness requires one observation camera");
         static constexpr TI INSTANCES = WORLD::INSTANCES;
         rlt::Tensor<rlt::tensor::Specification<typename WORLD::Parameters, TI, rlt::tensor::Shape<TI, INSTANCES>>> parameters;
         rlt::Tensor<rlt::tensor::Specification<typename WORLD::State, TI, rlt::tensor::Shape<TI, INSTANCES>>> states, next_states;
@@ -140,8 +140,9 @@ namespace hyperdrone_vio {
         for(TI dim_i = 0; dim_i < 3; dim_i++){
             info.gravity[dim_i] = reference_parameters.agents[0].dynamics.dynamics.gravity[dim_i];
         }
-        info.intrinsics = task::pinhole_intrinsics(device, (TI)WORLD::SPEC::CAM_WIDTH, (TI)WORLD::SPEC::CAM_HEIGHT, reference_parameters.agents[0].cameras[0].fov);
-        task::camera_to_body_transform(device, reference_parameters.agents[0].cameras[0].mount, info.camera_rotation_body, info.camera_translation_body);
+        const auto& observation_camera = reference_parameters.agents[0].cameras[WORLD::OBSERVATION::mount(0)];
+        info.intrinsics = task::pinhole_intrinsics(device, (TI)WORLD::SPEC::CAM_WIDTH, (TI)WORLD::SPEC::CAM_HEIGHT, observation_camera.fov);
+        task::camera_to_body_transform(device, observation_camera.mount, info.camera_rotation_body, info.camera_translation_body);
         info.imu_rate = (T)1 / info.dt;
         info.frame_rate = info.imu_rate / (T)WORLD::FRAME_STRIDE;
         {

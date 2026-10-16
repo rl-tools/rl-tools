@@ -1,3 +1,4 @@
+from hyperdrone.camera import CameraSpec, RGB, Depth, Segmentation, Normals, Flow, FlowStatus, Probes
 import json
 import struct
 
@@ -122,8 +123,8 @@ def assembly():
 
 
 def setup_renderer(motion=False):
-    renderer = render.Renderer(width=32, height=32, num_cameras=1, num_probes=0,
-                               output=("rgb", "depth", "instance_segmentation"), fidelity="low", num_overlays=2,
+    renderer = render.Renderer(width=32, height=32, batch_size=1, num_probes=0,
+                               cameras=(CameraSpec("camera", outputs=(RGB(format="rgba8"), Depth(), Segmentation(),)),), fidelity="low", num_overlays=2,
                                max_overlay_instances=4, max_overlays_per_camera=2,
                                motion_blur_samples=4 if motion else 1, dynamic_motion_blur=motion)
     asset = assembly()
@@ -142,14 +143,14 @@ def test_from_assembly_reproduces_set_transform():
     renderer.set_transform(placement, pose(3, -0.4))
     renderer.update()
     renderer.render()
-    expected = renderer.frame()
+    expected = renderer.outputs[RGB(format="rgba8")].read()
     rig = render.Rig.from_assembly(asset)
     assert rig.num_parts == 2 and rig.num_coordinates == 0
     renderer.set_transform(placement, pose(30))
     renderer.set_transforms(placement, rig.evaluate(pose(3, -0.4)))
     renderer.update()
     renderer.render()
-    np.testing.assert_array_equal(renderer.frame(), expected)
+    np.testing.assert_array_equal(renderer.outputs[RGB(format="rgba8")].read(), expected)
 
 
 def test_per_part_and_whole_tensor_submission():
@@ -161,7 +162,7 @@ def test_per_part_and_whole_tensor_submission():
     renderer.set_transforms(second, [pose(30), pose(4, 0.6)])
     renderer.update()
     renderer.render()
-    ids = set(np.unique(renderer.instance_segmentation()[0]))
+    ids = set(np.unique(renderer.outputs[Segmentation()].read()[0]))
     assert 1 in ids and 6 in ids and 2 not in ids and 5 not in ids
     poses = np.full((2, 4, 3, 4), np.nan, dtype=np.float32)
     poses[0, 0], poses[0, 1] = pose(30), pose(3, -0.6)
@@ -169,7 +170,7 @@ def test_per_part_and_whole_tensor_submission():
     renderer.set_all_transforms(poses)
     renderer.update()
     renderer.render()
-    ids = set(np.unique(renderer.instance_segmentation()[0]))
+    ids = set(np.unique(renderer.outputs[Segmentation()].read()[0]))
     assert 2 in ids and 5 in ids and 1 not in ids and 6 not in ids
     with pytest.raises(ValueError):
         renderer.set_transforms(first, [pose(3)])
@@ -191,28 +192,28 @@ def test_motion_submission_matches_static_average():
         renderer.set_transforms(placement, rig.evaluate(coordinates=[offset]))
         renderer.update()
         renderer.render()
-        srgb = renderer.frame()[..., :3].astype(np.float32) / 255
+        srgb = renderer.outputs[RGB(format="rgba8")].read()[..., :3].astype(np.float32) / 255
         static_frames.append(np.where(srgb <= 0.04045, srgb / 12.92, ((srgb + 0.055) / 1.055)**2.4))
     samples = np.stack([rig.evaluate(coordinates=[offset]) for offset in offsets])
     close = rig.evaluate(pose(2), coordinates=[0])
     renderer.set_motion_transforms(placement, samples, close)
     renderer.update()
     renderer.render()
-    np.testing.assert_allclose(renderer.frame()[..., :3], linear_to_rgb8(np.mean(static_frames, axis=0)), atol=1.1)
-    captured_depth = renderer.depth()
+    np.testing.assert_allclose(renderer.outputs[RGB(format="rgba8")].read()[..., :3], linear_to_rgb8(np.mean(static_frames, axis=0)), atol=1.1)
+    captured_depth = renderer.outputs[Depth()].read()
     renderer.set_transforms(placement, close)
     renderer.update()
     renderer.render()
-    np.testing.assert_array_equal(renderer.depth(), captured_depth)
-    assert renderer.instance_segmentation()[0, 16, 16] == 1  # the close pose is what segmentation sees
+    np.testing.assert_array_equal(renderer.outputs[Depth()].read(), captured_depth)
+    assert renderer.outputs[Segmentation()].read()[0, 16, 16] == 1  # the close pose is what segmentation sees
     renderer.set_transforms(placement, rig.evaluate(coordinates=[0]))
     renderer.update()
     renderer.render()
-    sharp = renderer.frame()
+    sharp = renderer.outputs[RGB(format="rgba8")].read()
     renderer.set_motion_transforms(placement, np.repeat(rig.evaluate(coordinates=[0])[None], 4, axis=0), rig.evaluate(coordinates=[0]))
     renderer.update()
     renderer.render()
-    np.testing.assert_array_equal(renderer.frame(), sharp)
+    np.testing.assert_array_equal(renderer.outputs[RGB(format="rgba8")].read(), sharp)
     with pytest.raises(ValueError):
         renderer.set_motion_transforms(placement, samples[:2], close)
 
@@ -225,11 +226,11 @@ def test_rig_sample_feeds_motion_blur():
     renderer.set_motion_transforms(placement, samples, close)
     renderer.update()
     renderer.render()
-    blurred = renderer.frame().astype(np.float32)
+    blurred = renderer.outputs[RGB(format="rgba8")].read().astype(np.float32)
     renderer.set_transforms(placement, close)
     renderer.update()
     renderer.render()
-    assert np.abs(blurred - renderer.frame().astype(np.float32)).max() > 10
+    assert np.abs(blurred - renderer.outputs[RGB(format="rgba8")].read().astype(np.float32)).max() > 10
 
 
 def test_selected_nested_nodes(tmp_path):
@@ -277,7 +278,7 @@ def test_cuda_inputs():
     renderer.set_transforms(second, [pose(4, 0.8), pose(30)])
     renderer.update()
     renderer.render()
-    expected = renderer.frame()
+    expected = renderer.outputs[RGB(format="rgba8")].read()
     poses = cuda.upload(np.stack([pose(3, -0.8), pose(30)])).view()
     renderer.set_transforms(first, poses, stream=renderer.render_stream)
     del poses
@@ -288,27 +289,27 @@ def test_cuda_inputs():
     assert renderer._pending_inputs
     renderer.render_sync()
     assert not renderer._pending_inputs
-    np.testing.assert_array_equal(renderer.frame(), expected)
+    np.testing.assert_array_equal(renderer.outputs[RGB(format="rgba8")].read(), expected)
     samples = np.stack([np.stack([pose(3, y), pose(30)]) for y in [-0.8, -0.3, 0.3, 0.8]])
     close = np.stack([pose(5), pose(30)])
     renderer.set_motion_transforms(first, samples, close)
     renderer.update()
     renderer.render()
-    expected = renderer.frame()
+    expected = renderer.outputs[RGB(format="rgba8")].read()
     renderer.set_motion_transforms(first, cuda.upload(samples).view(), cuda.upload(close).view())
     renderer.update()
     renderer.render()
-    np.testing.assert_array_equal(renderer.frame(), expected)
+    np.testing.assert_array_equal(renderer.outputs[RGB(format="rgba8")].read(), expected)
     whole = np.full((2, 4, 3, 4), np.nan, dtype=np.float32)
     whole[0, 0], whole[0, 1], whole[0, 2], whole[0, 3] = pose(3, -0.8), pose(30), pose(4, 0.8), pose(30)
     renderer.set_all_transforms(whole)
     renderer.update()
     renderer.render()
-    expected = renderer.frame()
+    expected = renderer.outputs[RGB(format="rgba8")].read()
     renderer.set_all_transforms(cuda.upload(whole).view())
     renderer.update()
     renderer.render()
-    np.testing.assert_array_equal(renderer.frame(), expected)
+    np.testing.assert_array_equal(renderer.outputs[RGB(format="rgba8")].read(), expected)
 
 
 def test_renderer_rig_verbs_match_manual_submission():
@@ -319,23 +320,23 @@ def test_renderer_rig_verbs_match_manual_submission():
     renderer.set_motion_transforms(placement, samples, close)
     renderer.update()
     renderer.render()
-    expected = renderer.frame()
+    expected = renderer.outputs[RGB(format="rgba8")].read()
     renderer.set_transforms(placement, rig.evaluate(pose(30)))
     renderer.update()
     renderer.set_transform_pair(placement, pose(), pose(0, 0.1), rig=rig, coordinates_open=[-0.7], coordinates_close=[0.7])
     renderer.update()
     renderer.render()
-    np.testing.assert_array_equal(renderer.frame(), expected)
+    np.testing.assert_array_equal(renderer.outputs[RGB(format="rgba8")].read(), expected)
     renderer.set_transforms(placement, rig.evaluate(pose(2), [0.3]))
     renderer.update()
     renderer.render()
-    expected = renderer.frame()
+    expected = renderer.outputs[RGB(format="rgba8")].read()
     renderer.set_transform(placement, pose(30))
     renderer.update()
     renderer.set_transform(placement, pose(2), rig=rig, coordinates=[0.3])
     renderer.update()
     renderer.render()
-    np.testing.assert_array_equal(renderer.frame(), expected)
+    np.testing.assert_array_equal(renderer.outputs[RGB(format="rgba8")].read(), expected)
     with pytest.raises(ValueError, match="rig="):
         renderer.set_transform(placement, pose(2), coordinates=[0.3])
     with pytest.raises(ValueError, match="rig="):

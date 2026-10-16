@@ -12,6 +12,7 @@ namespace test_multicamera {
 
     template <typename BASE, typename BASE::TI AGENTS, typename BASE::TI CAMERA_AGENTS>
     struct Specification: BASE {
+        using OBSERVATION = rl::environments::hyperdrone::ImageObservation<0, 1>;
         static constexpr typename BASE::TI N_AGENTS = AGENTS;
         static constexpr typename BASE::TI N_CAMERA_AGENTS = CAMERA_AGENTS;
         static constexpr typename BASE::TI HISTORY_LENGTH = 2;

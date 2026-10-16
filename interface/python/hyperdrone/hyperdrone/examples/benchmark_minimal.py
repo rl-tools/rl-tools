@@ -10,6 +10,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 from hyperdrone import render
+from hyperdrone.camera import CameraSpec, Depth, RGB
 from hyperdrone.examples.data import procthor_scene_path
 
 NUM_CAMERAS = 4096
@@ -19,8 +20,8 @@ EYE = np.array([-3.92, -5.67, 1.0])
 WARMUP_SECONDS, SECONDS, SYNC_INTERVAL = 2.0, 10.0, 10
 
 scene = render.load_scene(procthor_scene_path(), fidelity="medium")
-renderer = render.Renderer(width=WIDTH, height=HEIGHT, num_cameras=NUM_CAMERAS, num_probes=0,
-                           output="rgb", fidelity="medium")
+renderer = render.Renderer(width=WIDTH, height=HEIGHT, batch_size=NUM_CAMERAS, num_probes=0,
+                           cameras=(CameraSpec("front", (RGB("rgba8"),)),), fidelity="medium")
 renderer.init(scene)
 
 

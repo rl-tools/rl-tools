@@ -1,6 +1,7 @@
 import numpy as np
 
 from ._renderer import Renderer
+from ..camera import CameraSpec, Probes
 
 
 class ClearanceSampler:
@@ -19,8 +20,7 @@ class ClearanceSampler:
         self._batch = int(batch)
         self._margin = float(margin)
         self._renderer = Renderer(
-            width=1, height=1, num_cameras=self._batch, num_probes=int(probes),
-            output="depth", fidelity="low",
+            width=1, height=1, cameras=(CameraSpec("probe", outputs=(Probes(),)),), batch_size=self._batch, num_probes=int(probes), fidelity="low",
         )
         self._renderer.init(scene)
         self._renderer.generate_probe_directions()
@@ -46,7 +46,7 @@ class ClearanceSampler:
             cameras[:, 9:12] = (0.0, 0.0, -1.0)
             self._renderer.set_cameras(cameras)
             self._renderer.probe()
-            distances, hits = self._renderer.collisions()
+            distances = self._renderer.outputs[Probes()].distance.read()
             minimum = distances.min(axis=1)
             results[start:start + len(chunk)] = minimum[:len(chunk)]
         return results

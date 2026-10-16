@@ -18,7 +18,10 @@ namespace rl_tools::rl::environments::hyperdrone {
         struct Config {
             using ENVIRONMENT = T_ENVIRONMENT;
             using WORLD = typename ENVIRONMENT::ENVIRONMENT;
-            static_assert(WORLD::HAS_IMAGE_OBSERVATION, "Spy image history requires RGB<Float32> in OUTPUTS");
+            using RGB_FLOAT = rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>;
+            using RGB_PACKED = rendering::raytracing::outputs::RGB<>;
+            using FLOAT_ROWS = world::OutputRows<typename WORLD::RENDERER_SPEC, RGB_FLOAT, WORLD::N_CAMERAS_PER_AGENT>;
+            using PACKED_ROWS = world::OutputRows<typename WORLD::RENDERER_SPEC, RGB_PACKED, WORLD::N_CAMERAS_PER_AGENT>;
             using T = typename WORLD::T;
             using TI = typename WORLD::TI;
             using BACKEND = typename WORLD::RENDERER::BACKEND;
@@ -65,6 +68,8 @@ namespace rl_tools::rl::environments::hyperdrone {
         template <typename CONFIG>
         struct Buffer {
             uint32_t* atlas = nullptr;
+            std::vector<float> rgb_float;
+            std::vector<uint32_t> rgb_packed;
             Geometry<CONFIG> geometry{};
             CaptureStorage<typename CONFIG::BACKEND> capture;
             std::array<Frame, CONFIG::ENVIRONMENT::NUMBER_OF_ENVIRONMENTS> frames{};

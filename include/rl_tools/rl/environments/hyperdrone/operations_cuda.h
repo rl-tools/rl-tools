@@ -167,21 +167,22 @@ namespace rl_tools{
         __global__ void scatter_kernel(DEVICE device, const float* __restrict__ observation, float* __restrict__ history_row, Tensor<PARAMETER_SPEC> parameters, typename SPEC::TI* episode_start, const Tensor<RESET_SPEC> reset_mask, typename SPEC::TI history_step){
             using TI = typename DEVICE::index_t;
             using WORLD = World<SPEC>;
-            constexpr TI NUM_CAMERAS = WORLD::INSTANCES * WORLD::N_VIEWS;
+            constexpr TI NUM_CAMERAS = WORLD::INSTANCES * WORLD::N_OBSERVATION_VIEWS;
             constexpr TI CAM_PIXELS = SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT;
             TI thread_i = threadIdx.x + blockIdx.x * blockDim.x;
             if(thread_i < NUM_CAMERAS * CAM_PIXELS){
                 TI camera_i = thread_i / CAM_PIXELS;
-                TI instance_i = camera_i / WORLD::N_VIEWS;
+                TI instance_i = camera_i / WORLD::N_OBSERVATION_VIEWS;
+                const TI rgb_row = WORLD::observation_rgb_row(camera_i);
                 TI pixel_i = thread_i % CAM_PIXELS;
                 if constexpr(!rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_FLOW){
-                    if(pixel_i == 0 && camera_i % WORLD::N_VIEWS == 0){
+                    if(pixel_i == 0 && camera_i % WORLD::N_OBSERVATION_VIEWS == 0){
                         reset_episode_start(device, reset_mask, episode_start, history_step, static_cast<typename SPEC::TI>(instance_i));
                     }
                 }
                 const float scale = (float)get_ref(device, parameters, instance_i).brightness_scale;
                 for(TI channel_i = 0; channel_i < 3; channel_i++){
-                    float value = observation[(camera_i * CAM_PIXELS + pixel_i) * 3 + channel_i] * scale;
+                    float value = observation[(rgb_row * CAM_PIXELS + pixel_i) * 3 + channel_i] * scale;
                     value = value < 0.0f ? 0.0f : (value > 1.0f ? 1.0f : value);
                     history_row[camera_i * WORLD::FRAME_DIM + pixel_i * WORLD::IMAGE_CHANNELS + channel_i] = value;
                 }
@@ -409,10 +410,10 @@ namespace rl_tools{
         render_launch(device, renderer);
         if constexpr (WORLD::HAS_IMAGE_OBSERVATION){
             const TI history_slot = (world.history_step - 1) % SPEC::HISTORY_LENGTH;
-            float* history_row = data(world.history) + history_slot * INSTANCES * WORLD::N_VIEWS * WORLD::FRAME_DIM;
+            float* history_row = data(world.history) + history_slot * INSTANCES * WORLD::N_OBSERVATION_VIEWS * WORLD::FRAME_DIM;
             {
                 constexpr TI BLOCKSIZE = 256;
-                constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES * WORLD::N_VIEWS * CAM_PIXELS, BLOCKSIZE);
+                constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES * WORLD::N_OBSERVATION_VIEWS * CAM_PIXELS, BLOCKSIZE);
                 rl::environments::hyperdrone::cuda::scatter_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, data(output(device, renderer, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>{})), history_row, parameters, data(world.episode_start), world.render_reset, world.history_step);
             }
         }
@@ -432,7 +433,7 @@ namespace rl_tools{
         }
         utils::assert_exit(device, world.history_step > 0, "hyperdrone::World::observe: no frame available");
         const TI history_slot = (world.history_step - 1) % SPEC::HISTORY_LENGTH;
-        const float* history_row = data(world.history) + history_slot * WORLD::INSTANCES * WORLD::N_VIEWS * WORLD::FRAME_DIM;
+        const float* history_row = data(world.history) + history_slot * WORLD::INSTANCES * WORLD::N_OBSERVATION_VIEWS * WORLD::FRAME_DIM;
         devices::cuda::TAG<DEVICE, true> tag_device{};
         constexpr TI BLOCKSIZE = 256;
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(WORLD::INSTANCES * WORLD::OBSERVATION_DIM, BLOCKSIZE);

@@ -6,6 +6,7 @@ import imageio.v2 as imageio
 import numpy as np
 
 from hyperdrone import render
+from hyperdrone.camera import CameraSpec, Depth, RGB
 
 
 def rectangle(half_y, half_z, color):
@@ -27,7 +28,7 @@ def main():
     handle = pool.add_assembly(asset)
     scene = render.Scene()
     scene.add_object(rectangle(10, 10, (0.1, 0.1, 0.1)), render.make_transform(position=(8, 0, 0)))
-    renderer = render.Renderer(width=128, height=128, fidelity="low", output="rgb",
+    renderer = render.Renderer(width=128, height=128, fidelity="low", cameras=(CameraSpec("front", (RGB("rgba8"),)),),
                                num_probes=0, num_overlays=1, max_overlay_instances=2,
                                max_overlays_per_camera=1, motion_blur_samples=8,
                                dynamic_motion_blur=True)
@@ -47,7 +48,7 @@ def main():
         renderer.set_motion_transforms(placement, samples, close)
         renderer.update()
         renderer.render()
-        frames.append(renderer.frame()[0, ..., :3])
+        frames.append(renderer.outputs[RGB("rgba8")].read()[0, ..., :3])
     imageio.mimsave("articulation.gif", frames, duration=1000 / 30, loop=0)
 
 

@@ -6,8 +6,9 @@ import numpy as np
 from .._dlpack import DLPackBuffer as _DLPackBuffer
 from .._dlpack import is_cuda as _is_cuda
 from ._component import load_core, load_renderer
-from ._rig import _output
 from ._config import RendererConfig
+from ..camera import CameraSpec, RGB
+from .._output_buffers import OutputCollection
 
 
 _RENDERER_SERIALS = count()
@@ -68,56 +69,18 @@ def _as_rows(value, shape):
 
 
 class Renderer:
-    """RLtools raytracer with a JIT-compiled library cached per configuration.
+    """Compile a named camera rig; repeat it with batch_size and acquire declared outputs explicitly."""
 
-    All constructor parameters are compile-time settings, fixed for this instance.
-
-    Args:
-        width, height: Per-camera resolution in pixels; both must be >= 1.
-        num_cameras: Fixed camera batch size (>= 1); camera uploads must match it.
-        num_probes: Collision rays per camera, run separately through probe().
-            0 compiles the probe pass out; probe methods then raise.
-        output: A channel name or tuple of "rgb", "depth", "instance_segmentation",
-            "semantic_segmentation", "normals", and "flow". The two segmentations label each
-            pixel with its instance ID or its object's segmentation_class and may be combined.
-            Depth is camera-forward metric distance. render() produces every selected output.
-        fidelity: RGB shading preset: "low" (flat, untextured colour), "medium"
-            (textures, normal-based shading, metallic reflections, checker background),
-            "high" (textured, physically based scene lighting), or "veryhigh"
-            ("high" plus point/spot-light shadows). Names are case-insensitive,
-            as are output names.
-        motion_blur_samples: 1 disables blur; 2, 4, 8, 16, or 32 samples
-            interpolate the shutter endpoints supplied by set_motion_blur_cameras().
-        anti_aliasing_grid: 1 disables anti-aliasing; 2, 3, or 4 uses a
-            grid of 4, 9, or 16 samples per pixel, respectively, per shutter sample.
-        num_overlays: Number of overlay groups; a group can be shared by cameras.
-        max_overlay_instances: Instance slots per overlay. Multipart assets consume
-            one slot per part.
-        max_overlays_per_camera: Maximum overlay groups attached to one camera.
-        dynamic_motion_blur: Blur overlay motion as well as camera motion, using
-            shutter-open/close transforms supplied by set_transform_pair() or per-part
-            samples supplied by set_motion_transforms(). Requires overlays and
-            motion_blur_samples >= 2.
-
-    The three overlay capacities must be all zero (disabled) or all positive.
-    Blur and anti-aliasing affect RGB; depth, segmentation, normals and flow
-    use pixel centres at shutter close. Flow compares against the previous capture,
-    independently of the motion-blur shutter interval.
-    """
-
-    def __init__(self, width, height, *, num_cameras=1, num_probes=1, output="rgb", fidelity="high",
-                 motion_blur_samples=1, anti_aliasing_grid=1,
-                 num_overlays=0, max_overlay_instances=0, max_overlays_per_camera=0,
-                 dynamic_motion_blur=False):
+    def __init__(self, width, height, *, cameras=(CameraSpec("camera", outputs=(RGB(format="rgba8"),)),), batch_size=1, num_probes=1, fidelity="high", motion_blur_samples=1, anti_aliasing_grid=1, num_overlays=0, max_overlay_instances=0, max_overlays_per_camera=0, dynamic_motion_blur=False):
         if isinstance(fidelity, str):
             fidelity = fidelity.lower()
         self.config = RendererConfig(
             width=width,
             height=height,
-            num_cameras=num_cameras,
+            cameras=cameras,
+            batch_size=batch_size,
             num_probes=num_probes,
             fidelity=fidelity,
-            output=output,
             motion_blur_samples=motion_blur_samples,
             anti_aliasing_grid=anti_aliasing_grid,
             num_overlays=num_overlays,
@@ -126,6 +89,7 @@ class Renderer:
             dynamic_motion_blur=bool(dynamic_motion_blur),
         )
         self._renderer = load_renderer(self.config).Renderer()
+        self.outputs = OutputCollection(self._renderer, cameras=self.config.cameras)
         self._scene = None
         self._asset_pool = None
         self._pending_inputs = []
@@ -133,6 +97,10 @@ class Renderer:
         self._live = {}
         self._generation = count()
         self._serial = next(_RENDERER_SERIALS)
+
+    def __del__(self):
+        if getattr(self, "_pending_inputs", ()) or getattr(self, "_pending_cameras", ()):
+            self._renderer.synchronize()
 
     @property
     def width(self):
@@ -223,7 +191,7 @@ class Renderer:
 
     def _require_probes(self):
         if not self.config.has_probes:
-            raise RuntimeError("hyperdrone: this renderer was compiled without collision probes (num_probes=0)")
+            raise RuntimeError("hyperdrone: this renderer was compiled without a Probes output")
 
     def generate_probe_directions(self):
         self._require_probes()
@@ -273,93 +241,6 @@ class Renderer:
         """Publish pending overlay changes (attach/detach/spawn/despawn and the transform
         verbs) and rebuild the overlay acceleration structures."""
         self._renderer.update()
-
-    def frame_raw(self, *, out=None):
-        """Packed RGBA8 uint32 snapshot with shape (num_cameras, height, width)."""
-        return self._image_output("frame", np.uint32, 1, out)
-
-    def frame(self, *, out=None):
-        """sRGB RGBA8 snapshot with shape (num_cameras, height, width, 4); alpha is 255, reserved."""
-        shape = (self.num_cameras, self.height, self.width, 4)
-        out = _output(out, shape, np.uint8)
-        packed = out.view(np.uint32).reshape(shape[:3])
-        self.frame_raw(out=packed)
-        return out
-
-    def depth(self, *, out=None):
-        """Camera-forward metric depth at pixel centre and shutter close; misses are +inf."""
-        return self._image_output("depth", np.float32, 1, out)
-
-    def instance_segmentation(self, *, out=None):
-        """uint32 instance IDs at shutter close; misses are 0xFFFFFFFF."""
-        return self._image_output("instance_segmentation", np.uint32, 1, out)
-
-    def semantic_segmentation(self, *, out=None):
-        """uint32 semantic classes at shutter close; misses are 0xFFFFFFFF."""
-        return self._image_output("semantic_segmentation", np.uint32, 1, out)
-
-    def normals(self, *, out=None):
-        """World-FLU geometric normals facing against the ray, float32 (N, H, W, 3); misses are zero."""
-        return self._image_output("normals", np.float32, 3, out)
-
-    def flow(self, *, out=None):
-        """Current-to-previous pixel displacement (dx, dy), float32 (N, H, W, 2); see flow_status()."""
-        return self._image_output("flow", np.float32, 2, out)
-
-    def flow_status(self, *, out=None):
-        """FlowStatus codes as uint32 (N, H, W)."""
-        return self._image_output("flow_status", np.uint32, 1, out)
-
-    def _image_output(self, name, dtype, channels, out):
-        shape = (self.num_cameras, self.height, self.width)
-        if channels > 1:
-            shape += (channels,)
-        out = _output(out, shape, dtype)
-        getattr(self._renderer, "read_" + name + "_buffer")(out)
-        return out
-
-    def frame_dlpack(self):
-        """Live RGBA8 buffer as a zero-copy uint8 DLPack producer with shape
-        (num_cameras, height, width, 4). CUDA device memory on OptiX, CPU-visible memory
-        elsewhere. Valid after render()/render_sync(); overwritten by the next render."""
-        return _DLPackBuffer(self, self._renderer.frame_dlpack, self._renderer.buffer_device_type(), self._renderer.buffer_device_id())
-
-    def frame_raw_dlpack(self):
-        """The same live framebuffer in its native packed representation: a zero-copy
-        uint32 DLPack producer with shape (num_cameras, height, width)."""
-        return _DLPackBuffer(self, self._renderer.frame_raw_dlpack, self._renderer.buffer_device_type(), self._renderer.buffer_device_id())
-
-    def depth_dlpack(self):
-        """DLPack producer over the live depth buffer; see frame_dlpack for semantics."""
-        return _DLPackBuffer(self, self._renderer.depth_dlpack, self._renderer.buffer_device_type(), self._renderer.buffer_device_id())
-
-    def instance_segmentation_dlpack(self):
-        """DLPack producer over the live instance segmentation buffer; see frame_dlpack."""
-        return _DLPackBuffer(self, self._renderer.instance_segmentation_dlpack, self._renderer.buffer_device_type(), self._renderer.buffer_device_id())
-
-    def semantic_segmentation_dlpack(self):
-        """DLPack producer over the live semantic segmentation buffer; see frame_dlpack."""
-        return _DLPackBuffer(self, self._renderer.semantic_segmentation_dlpack, self._renderer.buffer_device_type(), self._renderer.buffer_device_id())
-
-    def normals_dlpack(self):
-        """DLPack producer over the live normals buffer; see frame_dlpack."""
-        return _DLPackBuffer(self, self._renderer.normals_dlpack, self._renderer.buffer_device_type(), self._renderer.buffer_device_id())
-
-    def flow_dlpack(self):
-        """DLPack producer over the live flow buffer; see frame_dlpack."""
-        return _DLPackBuffer(self, self._renderer.flow_dlpack, self._renderer.buffer_device_type(), self._renderer.buffer_device_id())
-
-    def flow_status_dlpack(self):
-        """DLPack producer over the live flow status buffer; see frame_dlpack."""
-        return _DLPackBuffer(self, self._renderer.flow_status_dlpack, self._renderer.buffer_device_type(), self._renderer.buffer_device_id())
-
-    def collisions(self):
-        """Probe results as (distances, hits), each shaped (num_cameras, num_probes)."""
-        self._require_probes()
-        distances = np.empty((self.num_cameras, self.num_probes), dtype=np.float32)
-        hits = np.empty((self.num_cameras, self.num_probes), dtype=np.int32)
-        self._renderer.read_collision_results(distances, hits)
-        return distances, hits.astype(bool)
 
     def can_attach(self, camera, overlay):
         return self._renderer.can_attach(camera, overlay)

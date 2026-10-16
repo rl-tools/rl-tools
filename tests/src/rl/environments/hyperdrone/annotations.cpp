@@ -224,19 +224,19 @@ TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, PARAMETER_KEYING) {
 }
 
 namespace test_probe_batch_independence {
-    template <TI T_NUM_CAMERAS>
+    template <TI T_NUM_CAMERAS, bool SPARSE = false>
     struct PROBE_CONFIG: rlt::rendering::raytracing::config::Default<T, TI> {
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
         static constexpr TI NUM_CAMERAS = T_NUM_CAMERAS;
         static constexpr TI NUM_PROBES = 8;
         using SHADING = rlt::rendering::raytracing::Low;
-        using OUTPUTS = rro::List<rro::Probes>;
+        using OUTPUTS = rro::List<rlt::utils::typing::conditional_t<SPARSE, rro::Cameras<rro::cameras::Every<3, 1>, rro::Probes>, rro::Probes>>;
     };
 
-    template <TI NUM_CAMERAS, typename SPEC>
+    template <TI NUM_CAMERAS, bool SPARSE = false, typename SPEC>
     void annotate_standalone(DEVICE& device, rlt::rendering::datasets::annotations::FreeSpace<SPEC>& annotations){
-        using RENDERER = rlt::rendering::raytracing::Renderer<rlt::rendering::raytracing::Specification<PROBE_CONFIG<NUM_CAMERAS>>>;
+        using RENDERER = rlt::rendering::raytracing::Renderer<rlt::rendering::raytracing::Specification<PROBE_CONFIG<NUM_CAMERAS, SPARSE>>>;
         RENDERER renderer;
         rlt::rendering::Bundle<T> bundle;
         ASSERT_TRUE((rlt::load<rlt::rendering::raytracing::Low, true>(device, bundle, SCENE_PATH)));
@@ -254,11 +254,13 @@ TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, PROBE_BATCH_INDEPENDENCE) {
     DEVICE device;
     rlt::init(device);
     // the scan is candidate-exact: the probe vehicle's batch width must not affect the table
-    ANNOTATIONS single, narrow, wide;
+    ANNOTATIONS single, narrow, wide, sparse;
     annotate_standalone<1>(device, single);
     annotate_standalone<2>(device, narrow);
     annotate_standalone<7>(device, wide);
+    annotate_standalone<7, true>(device, sparse);
     EXPECT_GT(narrow.num_positions, (TI)0);
     EXPECT_TRUE(annotations_equal(single, narrow));
     EXPECT_TRUE(annotations_equal(narrow, wide));
+    EXPECT_TRUE(annotations_equal(narrow, sparse));
 }

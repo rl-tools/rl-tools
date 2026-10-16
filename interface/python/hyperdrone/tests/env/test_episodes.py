@@ -6,6 +6,7 @@ from hyperdrone import gym
 
 
 class BatchEnvironment:
+    has_image_observation = True
     total_instances = 2
     observation_dim = 2
     action_dim = 1

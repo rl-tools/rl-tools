@@ -8,11 +8,12 @@ import numpy as np
 import pytest
 
 from hyperdrone import render
+from hyperdrone.camera import CameraSpec, RGB, Segmentation
 from hyperdrone.env import EnvConfig, MultiEnvironment
 
 
 CONFIG = EnvConfig(instances_per_environment=2, width=16, height=16, fidelity="low",
-                   output=("rgb", "semantic_segmentation"), device="cpu")
+                   cameras=(CameraSpec("front", outputs=(RGB(), Segmentation(labels="semantic"))),), device="cpu")
 CLASSES = {0: "Unknown", 7: "Room"}
 
 
@@ -74,10 +75,12 @@ def test_shared_taxonomy_and_rotation(tmp_path, device):
             with pytest.raises(AttributeError):
                 env.segmentation_classes = {}
             env.reset()
-            np.testing.assert_array_equal(env.semantic_segmentation(), 7)
+            env.render()
+            np.testing.assert_array_equal(env.outputs[Segmentation(labels="semantic")].read(), 7)
             env.rotate_scene()
             env.reset()
-            np.testing.assert_array_equal(env.semantic_segmentation(), 7)
+            env.render()
+            np.testing.assert_array_equal(env.outputs[Segmentation(labels="semantic")].read(), 7)
             assert env.segmentation_taxonomy == "test"
             assert env.segmentation_classes == CLASSES
         finally:
@@ -116,6 +119,7 @@ def test_directory_order(tmp_path, dataset):
     try:
         for path in (earlier, later):
             env.reset()
+            env.render()
             assert env.spawn_points()[0]["scene"] == hashlib.sha1(path.read_bytes()).hexdigest()
             assert env.segmentation_classes == CLASSES
             env.rotate_scene()
@@ -130,12 +134,13 @@ def test_unnamed_and_nonsemantic(tmp_path):
         assert env.segmentation_taxonomy == ""
         assert env.segmentation_classes == {}
         env.reset()
-        np.testing.assert_array_equal(env.semantic_segmentation(), 0)
+        env.render()
+        np.testing.assert_array_equal(env.outputs[Segmentation(labels="semantic")].read(), 0)
     finally:
         env.close()
     scenes = [room_glb(tmp_path / "one.glb"), room_glb(tmp_path / "two.glb", taxonomy="other")]
-    for output in ("rgb", ("rgb", "instance_segmentation")):
-        env = MultiEnvironment(scenes, config=replace(CONFIG, output=output, dataset="procthor"))
+    for outputs in ((RGB(),), (RGB(), Segmentation())):
+        env = MultiEnvironment(scenes, config=replace(CONFIG, cameras=(CameraSpec("front", outputs=outputs),), dataset="procthor"))
         try:
             assert env.segmentation_taxonomy == ""
             assert env.segmentation_classes == {}
@@ -162,6 +167,7 @@ def test_custom_world_metadata(tmp_path):
         agent = render.AGENT_SEGMENTATION_CLASS
         assert env.segmentation_classes == {**CLASSES, agent: "Agent"}
         env.reset()
-        assert set(np.unique(env.semantic_segmentation())).issubset({0, 7, agent, 0xFFFFFFFF})
+        env.render()
+        assert set(np.unique(env.outputs[Segmentation(labels="semantic")].read())).issubset({0, 7, agent, 0xFFFFFFFF})
     finally:
         env.close()

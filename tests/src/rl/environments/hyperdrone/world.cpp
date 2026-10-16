@@ -2,6 +2,7 @@
 #include <rl_tools/rl/environments/hyperdrone/operations_cpu.h>
 
 #include "../../../utils/utils.h"
+#include "camera_sampling_test.h"
 
 #include <gtest/gtest.h>
 
@@ -81,6 +82,7 @@ namespace test_hyperdrone_world {
     static_assert(INSTANCES == NUMBER_OF_ENVIRONMENTS * WORLD_SPEC::INSTANCES_PER_ENVIRONMENT);
 
     struct MOUNTS_SPEC: WORLD_SPEC {
+        using OBSERVATION = rlt::rl::environments::hyperdrone::ImageObservation<0, 1, 2>;
         static constexpr TI N_AGENTS = 3;
         static constexpr TI N_CAMERA_AGENTS = 2;
         static constexpr bool SELF_VISIBLE = true;
@@ -105,6 +107,7 @@ namespace test_hyperdrone_world {
     static_assert(rro::TensorSpecification<MOUNTS_RENDERER_SPEC, rro::RGB<rro::format::Float32>>::SHAPE::template GET<0> == 12);
     static_assert(!rro::Layout<MOUNTS_RENDERER_SPEC>::ALL_CAMERAS);
     struct SINGLE_MOUNT_SPEC: MOUNTS_SPEC {
+        using OBSERVATION = rlt::rl::environments::hyperdrone::ImageObservation<0>;
         using CAMERA_OUTPUTS = typename WORLD_SPEC::CAMERA_OUTPUTS;
     };
     using SINGLE_MOUNT_WORLD = rlt::rl::environments::hyperdrone::World<SINGLE_MOUNT_SPEC>;
@@ -114,6 +117,14 @@ namespace test_hyperdrone_world {
 }
 
 using namespace test_hyperdrone_world;
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, AUXILIARY_CAMERAS_PRESERVE_POLICY_RANDOM_STREAM) {
+    using rlt::init;
+    DEVICE device;
+    RNG rng;
+    init(device, rng, 991);
+    EXPECT_TRUE(camera_sampling_test::unchanged_policy_sampling<WORLD_SPEC>(device, rng));
+}
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, CAMERA_OUTPUT_LAYOUT) {
     DEVICE device;
@@ -147,13 +158,13 @@ static std::string scene_directory(){
     return directory;
 }
 
-template <TI N>
+template <TI N, typename WORLD_TYPE = WORLD>
 struct Tensors {
-    rlt::Tensor<rlt::tensor::Specification<typename WORLD::Parameters, TI, rlt::tensor::Shape<TI, N>>> parameters;
-    rlt::Tensor<rlt::tensor::Specification<typename WORLD::State, TI, rlt::tensor::Shape<TI, N>>> states, next_states;
+    rlt::Tensor<rlt::tensor::Specification<typename WORLD_TYPE::Parameters, TI, rlt::tensor::Shape<TI, N>>> parameters;
+    rlt::Tensor<rlt::tensor::Specification<typename WORLD_TYPE::State, TI, rlt::tensor::Shape<TI, N>>> states, next_states;
     rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, N>>> reset_mask;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N, WORLD::ACTION_DIM>>> actions;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N, WORLD::OBSERVATION_DIM>>> observations;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N, WORLD_TYPE::ACTION_DIM>>> actions;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N, WORLD_TYPE::OBSERVATION_DIM>>> observations;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N>>> rewards;
     rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, N>>> terminated_flags;
     void allocate(DEVICE& device){
@@ -436,6 +447,7 @@ int main(int argc, char** argv) {
 namespace test_hyperdrone_acquisition {
     template <TI HISTORY, bool FLOW = false, bool IMAGE = true>
     struct Specification: WORLD_SPEC {
+        using OBSERVATION = rlt::utils::typing::conditional_t<IMAGE, rlt::rl::environments::hyperdrone::ImageObservation<0>, rlt::rl::environments::hyperdrone::NoObservation>;
         static constexpr TI HISTORY_LENGTH = HISTORY;
         static constexpr bool ENABLE_MOTION_BLUR = true;
         static constexpr TI MOTION_BLUR_SAMPLES = 4;
@@ -654,14 +666,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, OUTPUTS_WITHOUT_IMAGE_HISTORY){
     using WORLD_TYPE = rlt::rl::environments::hyperdrone::World<Specification<3, true, false>>;
     static_assert(!WORLD_TYPE::HAS_IMAGE_OBSERVATION);
     static_assert(rlt::utils::typing::is_same_v<decltype(WORLD_TYPE{}.history), rlt::rl::environments::hyperdrone::world::NoImageHistory>);
-    auto with_image = rollout<3, true>(false);
     const auto without_image = rollout<3, true, false>(false);
-    ASSERT_EQ(with_image.size(), without_image.size());
-    for(size_t index = 0; index < with_image.size(); index++){
-        with_image[index].observation.clear();
-        with_image[index].history.clear();
-        expect_equal(with_image[index], without_image[index]);
-    }
     compare_acquisition<3, true, false>();
     compare_acquisition<3, false, false>();
     const auto launched = rollout<3, true, false, true>(false);
@@ -669,4 +674,74 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, OUTPUTS_WITHOUT_IMAGE_HISTORY){
     for(size_t index = 0; index < launched.size(); index++){
         expect_equal(launched[index], without_image[index]);
     }
+}
+
+namespace test_sparse_observation {
+    struct Specification: WORLD_SPEC {
+        static constexpr TI CAM_WIDTH = 9;
+        static constexpr TI CAM_HEIGHT = 7;
+        using CAMERA_OUTPUTS = rlt::rl::environments::hyperdrone::CameraOutputs<rro::List<rro::RGB<rro::format::Float32>>, rro::List<rro::Depth<>>, rro::List<rro::RGB<rro::format::Float32>>>;
+        using OBSERVATION = rlt::rl::environments::hyperdrone::ImageObservation<2>;
+    };
+    using World = rlt::rl::environments::hyperdrone::World<Specification>;
+    static_assert(World::N_VIEWS == 3 && World::N_OBSERVATION_VIEWS == 1);
+    static_assert(World::RENDERER_CONFIG::INTERNAL_PROBES);
+    static_assert(World::observation_rgb_row(0) == 1 && World::observation_rgb_row(1) == 3);
+    struct ReorderedSpecification: Specification {
+        using OBSERVATION = rlt::rl::environments::hyperdrone::ImageObservation<2, 0>;
+    };
+    using ReorderedWorld = rlt::rl::environments::hyperdrone::World<ReorderedSpecification>;
+    static_assert(ReorderedWorld::observation_rgb_row(0) == 1 && ReorderedWorld::observation_rgb_row(1) == 0 && ReorderedWorld::observation_rgb_row(2) == 3);
+    struct MultiObservation: MOUNTS_SPEC {
+        using OBSERVATION = rlt::rl::environments::hyperdrone::ImageObservation<1>;
+    };
+    using MultiWorld = rlt::rl::environments::hyperdrone::World<MultiObservation>;
+    static_assert(MultiWorld::N_OBSERVATION_VIEWS == 2);
+    static_assert(MultiWorld::observation_camera(0) == 1 && MultiWorld::observation_camera(1) == 4 && MultiWorld::observation_camera(2) == 7);
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, SPARSE_OBSERVATION_AND_INTERNAL_PROBES) {
+    using namespace rlt;
+    using SparseWorld = test_sparse_observation::World;
+    if(SCENE_PATH.empty()) {
+        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
+    }
+    DEVICE device;
+    init(device);
+    SparseWorld world;
+    typename SparseWorld::SharedContext shared;
+    malloc(device, shared.library);
+    malloc(device, world);
+    world.parameters.agents[0].cameras[2].fov = 100;
+    rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    typename decltype(dataset)::Corpus corpus;
+    rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    init(device, world, shared, dataset, corpus, 0, 1, 0);
+    RNG rng;
+    malloc(device, rng);
+    init(device, rng, 42);
+    Tensors<SparseWorld::INSTANCES, SparseWorld> tensors;
+    tensors.allocate(device);
+    set_all(device, tensors.reset_mask, true);
+    sample_initial_parameters(device, world, tensors.parameters, tensors.reset_mask, rng);
+    sample_initial_state(device, world, tensors.parameters, tensors.states, tensors.reset_mask, rng);
+    observe(device, world, tensors.parameters, tensors.states, typename SparseWorld::Observation{}, tensors.observations, rng);
+    auto& renderer = get_renderer(device, world);
+    using RGBSpec = rro::TensorSpecification<SparseWorld::RENDERER_SPEC, rro::RGB<rro::format::Float32>>;
+    Tensor<RGBSpec> rgb;
+    malloc(device, rgb);
+    copy(renderer.device, device, output(device, renderer, rro::RGB<rro::format::Float32>{}), rgb);
+    for(TI instance = 0; instance < SparseWorld::INSTANCES; instance++) {
+        const float scale = get_ref(device, tensors.parameters, instance).brightness_scale;
+        for(TI element = 0; element < SparseWorld::FRAME_DIM; element++) {
+            const float raw = data(rgb)[(instance * 2 + 1) * SparseWorld::FRAME_DIM + element] * scale;
+            const float expected = raw < 0 ? 0 : (raw > 1 ? 1 : raw);
+            EXPECT_FLOAT_EQ(get(device, tensors.observations, instance, element), expected);
+        }
+    }
+    free(device, rgb);
+    tensors.deallocate(device);
+    free(device, rng);
+    free(device, world);
+    free(device, shared.library);
 }

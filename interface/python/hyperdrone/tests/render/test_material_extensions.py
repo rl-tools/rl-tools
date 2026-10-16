@@ -1,3 +1,4 @@
+from hyperdrone.camera import CameraSpec, RGB, Depth, Segmentation, Normals, Flow, FlowStatus, Probes
 import json
 import struct
 import zlib
@@ -75,13 +76,13 @@ def center_pixel(path, fidelity, loader="scene", light_color=None):
         getattr(scene, f"add_{loader}")(asset)
     if light_color is not None:
         scene.add_light(render.SceneLight.directional(direction=(-1, 0, 0), color=light_color))
-    renderer = render.Renderer(width=8, height=8, num_cameras=1, num_probes=0,
-                               output="rgb", fidelity=fidelity)
+    renderer = render.Renderer(width=8, height=8, batch_size=1, num_probes=0,
+                               cameras=(CameraSpec("camera", outputs=(RGB(format="rgba8"),)),), fidelity=fidelity)
     renderer.init(scene)
     camera = renderer.camera(position=(0, 0, 0), look_at=(1, 0.4, 0.3), fov=45)
     renderer.set_cameras(camera[None])
     renderer.render()
-    return renderer.frame()[0, 4, 4, :3].astype(float)
+    return renderer.outputs[RGB(format="rgba8")].read()[0, 4, 4, :3].astype(float)
 
 
 def srgb(linear):

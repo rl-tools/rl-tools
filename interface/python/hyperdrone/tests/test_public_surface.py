@@ -9,6 +9,7 @@ import pytest
 
 SURFACE = {
     "hyperdrone": ["set_verbosity", "verbosity"],
+    "hyperdrone.camera": ["CameraSpec", "RGB", "Depth", "Segmentation", "Normals", "Flow", "FlowStatus", "Probes", "ImageObservation", "OutputDescriptor"],
     "hyperdrone.render": [
         "AGENT_SEGMENTATION_CLASS",
         "AssetPool",
@@ -40,6 +41,7 @@ SURFACE = {
     ],
     "hyperdrone.env": [
         "EnvConfig",
+        "ImageObservation",
         "MultiEnvironment",
         "ObservationLayout",
         "Rotorcraft",
@@ -88,7 +90,7 @@ SIGNATURES = {
     "hyperdrone.render.Renderer.set_motion_transforms": ("placement", "samples", "close"),
     "hyperdrone.render.Renderer.set_all_transforms": ("poses",),
     "hyperdrone.render.Renderer.set_all_motion_transforms": ("samples", "close"),
-    **{f"hyperdrone.render.Renderer.{name}": () for name in ("frame", "frame_raw", "depth", "instance_segmentation", "semantic_segmentation", "normals", "flow", "flow_status")},
+    **{f"hyperdrone.render.Renderer.{name}": () for name in ("render", "probe")},
     "hyperdrone.dynamics.Sim": ("num_drones",),
     "hyperdrone.dynamics.Sim.reset": ("mask",),
     "hyperdrone.dynamics.Sim.step": ("actions",),
@@ -100,7 +102,7 @@ SIGNATURES = {
     "hyperdrone.env.MultiEnvironment.reset": ("mask",),
     "hyperdrone.env.MultiEnvironment.step": ("actions",),
     "hyperdrone.env.MultiEnvironment.set_instance_parameters": ("overrides", "mask"),
-    **{f"hyperdrone.env.MultiEnvironment.{name}": () for name in ("observe", "observe_privileged", "observe_imu", "rewards", "terminated", "depth", "instance_segmentation", "semantic_segmentation", "normals", "flow", "flow_status", "spy")},
+    **{f"hyperdrone.env.MultiEnvironment.{name}": () for name in ("observe", "observe_privileged", "observe_imu", "rewards", "terminated", "render", "probe", "spy")},
     "hyperdrone.env.Rotorcraft": ("assembly",),
 }
 

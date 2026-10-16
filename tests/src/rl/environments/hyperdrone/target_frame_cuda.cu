@@ -65,6 +65,9 @@ namespace test_target_frame_cuda {
         static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
     };
     struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS> {
+        using RGB = rlt::rendering::raytracing::outputs::RGB<rlt::rendering::raytracing::outputs::format::Float32>;
+        using CAMERA_OUTPUTS = rlt::rl::environments::hyperdrone::CameraOutputs<rlt::rendering::raytracing::outputs::List<rlt::rendering::raytracing::outputs::RGB<>>, rlt::rendering::raytracing::outputs::List<RGB, rlt::rendering::raytracing::outputs::Flow<>, rlt::rendering::raytracing::outputs::FlowStatus<>>, rlt::rendering::raytracing::outputs::List<RGB, rlt::rendering::raytracing::outputs::Depth<>>>;
+        using OBSERVATION = rlt::rl::environments::hyperdrone::ImageObservation<1>;
         static constexpr TI N_CAMERA_AGENTS = 1;
         static constexpr TI INSTANCES_PER_ENVIRONMENT = 4;
         static constexpr TI CAM_WIDTH = 32;

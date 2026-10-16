@@ -210,10 +210,12 @@ namespace rl_tools::rendering::datasets::annotations {
         // rely on persistent cameras must rewrite them after annotation
         template <typename T, typename DEVICE, typename METADATA_T, typename PROBE, typename PARAMETERS_T, typename PARAMETERS_TI>
         void scan(DEVICE& device, std::vector<FreeSpacePosition<T>>& table, const rendering::SceneMetadata<METADATA_T>& metadata, PROBE& probe_target, const FreeSpaceParameters<PARAMETERS_T, PARAMETERS_TI>& parameters) {
-            constexpr std::uint64_t NUM_CAMERAS = static_cast<std::uint64_t>(PROBE::SPEC::NUM_CAMERAS);
             constexpr std::uint64_t NUM_PROBES = static_cast<std::uint64_t>(PROBE::SPEC::NUM_PROBES);
             using PROBE_TENSOR_SPEC = rendering::raytracing::outputs::TensorSpecification<typename PROBE::SPEC, rendering::raytracing::outputs::Probes>;
-            static_assert(PROBE_TENSOR_SPEC::SHAPE::template GET<0> == PROBE::SPEC::NUM_CAMERAS, "annotations::free_space probes from every camera: configure Probes without a camera selection");
+            using PROBE_ENTRY = typename rendering::raytracing::outputs::EntryOf<typename PROBE::SPEC::OUTPUTS, rendering::raytracing::outputs::Probes>::TYPE;
+            using PROBE_SELECTION = typename rendering::raytracing::outputs::Entry<PROBE_ENTRY>::SELECTION;
+            constexpr std::uint64_t NUM_CAMERAS = PROBE_TENSOR_SPEC::SHAPE::template GET<0>;
+            static_assert(NUM_CAMERAS > 0 && NUM_PROBES > 0, "free-space annotations require at least one probe camera and ray");
             constexpr T PROBE_CAMERA_FOV = 90;
             constexpr T PROBE_CAMERA_ASPECT = 1;
             constexpr T PROBE_CAMERA_LOOK_AHEAD = 1;
@@ -241,6 +243,9 @@ namespace rl_tools::rendering::datasets::annotations {
             std::array<FreeSpacePosition<T>, NUM_CAMERAS> batch_positions{};
             Tensor<typename decltype(probe_target.cameras)::SPEC> camera_staging;
             malloc(device, camera_staging);
+            for(typename PROBE::SPEC::TI camera_i = 0; camera_i < PROBE::SPEC::NUM_CAMERAS; camera_i++) {
+                set(device, camera_staging, rendering::raytracing::Camera<typename PROBE::SPEC::T>{}, camera_i);
+            }
             Tensor<PROBE_TENSOR_SPEC> probe_staging;
             malloc(device, probe_staging);
             std::uint64_t tested = 0, no_hits = 0, failed_hit_ratio = 0, failed_avg_dist = 0, failed_min_dist = 0;
@@ -249,7 +254,11 @@ namespace rl_tools::rendering::datasets::annotations {
 
             while (tested < max_candidates && table.size() < min_required) {
                 const std::uint64_t batch_first = tested + 1;
-                for (std::uint64_t camera_i = 0; camera_i < NUM_CAMERAS; camera_i++) {
+                std::uint64_t camera_i = 0;
+                for (typename PROBE::SPEC::TI physical_camera = 0; physical_camera < PROBE::SPEC::NUM_CAMERAS; physical_camera++) {
+                    if(!PROBE_SELECTION::selected(physical_camera)) {
+                        continue;
+                    }
                     const std::uint64_t candidate_i = batch_first + camera_i;
                     const T hx = radical_inverse<T>(candidate_i, static_cast<std::uint64_t>(2));
                     const T hy = radical_inverse<T>(candidate_i, static_cast<std::uint64_t>(3));
@@ -272,7 +281,8 @@ namespace rl_tools::rendering::datasets::annotations {
                         pos.position[2]
                     };
                     const T cam_up[3] = {0, 0, 1};
-                    set(device, camera_staging, make_camera_data(cam_position, cam_look_at, cam_up, PROBE_CAMERA_FOV, PROBE_CAMERA_ASPECT), camera_i);
+                    set(device, camera_staging, make_camera_data(cam_position, cam_look_at, cam_up, PROBE_CAMERA_FOV, PROBE_CAMERA_ASPECT), physical_camera);
+                    camera_i++;
                 }
 
                 copy(device, probe_target.device, camera_staging, cameras(device, probe_target));

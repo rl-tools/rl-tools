@@ -34,6 +34,20 @@ namespace rl_tools::rl::environments::hyperdrone {
         static_assert((world::camera_output_descriptors(PROFILES{}) && ...), "each camera output list must contain bare output descriptors");
     };
 
+    struct NoObservation {
+        static constexpr unsigned int COUNT = 0;
+    };
+
+    template <unsigned int... MOUNTS>
+    struct ImageObservation {
+        static constexpr unsigned int COUNT = sizeof...(MOUNTS);
+        static_assert(COUNT > 0, "ImageObservation requires at least one mount");
+        RL_TOOLS_FUNCTION_PLACEMENT static constexpr unsigned int mount(unsigned int index) {
+            constexpr unsigned int mounts[] = {MOUNTS...};
+            return mounts[index];
+        }
+    };
+
     template <typename T_T, typename T_TI, typename T_DYNAMICS_STATIC_PARAMETERS>
     struct Specification {
         using T = T_T;
@@ -54,6 +68,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         using CAMERA_OUTPUTS = CameraOutputs<rendering::raytracing::outputs::List<
             rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>,
             rendering::raytracing::outputs::Probes>>;
+        using OBSERVATION = ImageObservation<0>;
         static constexpr TI HISTORY_LENGTH = 1;
         static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = 0;
         static constexpr T CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE = 0;
@@ -134,15 +149,6 @@ namespace rl_tools::rl::environments::hyperdrone {
         template <typename... PROFILES>
         struct RendererOutputs<CameraOutputs<PROFILES...>>: camera_outputs::Selected<typename camera_outputs::Merge<rendering::raytracing::outputs::List<>, PROFILES...>::TYPE, PROFILES...> {
         };
-        template <typename RENDERER_SPEC, typename OUTPUT>
-        constexpr bool covers_every_camera() {
-            if constexpr (rendering::raytracing::outputs::contains<typename RENDERER_SPEC::OUTPUTS, OUTPUT>::value) {
-                return rendering::raytracing::outputs::TensorSpecification<RENDERER_SPEC, OUTPUT>::SHAPE::template GET<0> == RENDERER_SPEC::NUM_CAMERAS;
-            }
-            else {
-                return true;
-            }
-        }
         template <typename T_SPEC>
         struct RendererConfig: rendering::raytracing::config::Default<typename T_SPEC::T, typename T_SPEC::TI> {
             using SPEC = T_SPEC;
@@ -153,7 +159,9 @@ namespace rl_tools::rl::environments::hyperdrone {
             static constexpr TI NUM_CAMERAS = SPEC::INSTANCES_PER_ENVIRONMENT * SPEC::N_CAMERA_AGENTS * SPEC::CAMERA_OUTPUTS::COUNT;
             static constexpr TI NUM_PROBES = SPEC::NUM_PROBES;
             using SHADING = typename SPEC::SHADING;
-            using OUTPUTS = typename RendererOutputs<typename SPEC::CAMERA_OUTPUTS>::TYPE;
+            using DECLARED_OUTPUTS = typename RendererOutputs<typename SPEC::CAMERA_OUTPUTS>::TYPE;
+            static constexpr bool INTERNAL_PROBES = !rendering::raytracing::outputs::contains<DECLARED_OUTPUTS, rendering::raytracing::outputs::Probes>::value;
+            using OUTPUTS = typename rendering::raytracing::outputs::Concat<DECLARED_OUTPUTS, rendering::raytracing::outputs::If<INTERNAL_PROBES, rendering::raytracing::outputs::Cameras<rendering::raytracing::outputs::cameras::Every<SPEC::N_CAMERA_AGENTS * SPEC::CAMERA_OUTPUTS::COUNT, 0>, rendering::raytracing::outputs::Probes>>>::type;
             static constexpr bool ENABLE_MOTION_BLUR = SPEC::ENABLE_MOTION_BLUR;
             static constexpr TI MOTION_BLUR_SAMPLES = SPEC::MOTION_BLUR_SAMPLES;
             static constexpr bool ENABLE_ANTI_ALIASING = SPEC::ENABLE_ANTI_ALIASING;
@@ -163,6 +171,52 @@ namespace rl_tools::rl::environments::hyperdrone {
             static constexpr TI MAX_OVERLAYS_PER_CAMERA = SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE > 0 ? 1 : 0;
             static constexpr bool ENABLE_DYNAMIC_MOTION_BLUR = SPEC::ENABLE_MOTION_BLUR && SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE > 0;
         };
+
+        template <typename RENDERER_SPEC, typename OUTPUT, unsigned int PERIOD, bool PRESENT = rendering::raytracing::outputs::contains<typename RENDERER_SPEC::OUTPUTS, OUTPUT>::value>
+        struct OutputRows {
+            static constexpr unsigned int COUNT = 0;
+            RL_TOOLS_FUNCTION_PLACEMENT static constexpr bool selected(unsigned int) {
+                return false;
+            }
+            RL_TOOLS_FUNCTION_PLACEMENT static constexpr unsigned int row(unsigned int) {
+                return 0;
+            }
+        };
+
+        template <typename RENDERER_SPEC, typename OUTPUT, unsigned int PERIOD>
+        struct OutputRows<RENDERER_SPEC, OUTPUT, PERIOD, true> {
+            using ENTRY = typename rendering::raytracing::outputs::EntryOf<typename RENDERER_SPEC::OUTPUTS, OUTPUT>::TYPE;
+            using SELECTION = typename rendering::raytracing::outputs::Entry<ENTRY>::SELECTION;
+            static constexpr unsigned int COUNT = rendering::raytracing::outputs::cameras::count<SELECTION>(PERIOD);
+            RL_TOOLS_FUNCTION_PLACEMENT static constexpr bool selected(unsigned int camera) {
+                return SELECTION::selected(camera);
+            }
+            RL_TOOLS_FUNCTION_PLACEMENT static constexpr unsigned int row(unsigned int camera) {
+                unsigned int result = camera / PERIOD * COUNT;
+                for(unsigned int mount = 0; mount < camera % PERIOD; mount++) {
+                    result += selected(mount) ? 1 : 0;
+                }
+                return result;
+            }
+        };
+
+        template <typename OBSERVATION, typename RGB_ROWS, unsigned int MOUNTS>
+        constexpr bool valid_observation() {
+            if constexpr (OBSERVATION::COUNT > 0) {
+                for(unsigned int index = 0; index < OBSERVATION::COUNT; index++) {
+                    const auto mount = OBSERVATION::mount(index);
+                    if(mount >= MOUNTS || !RGB_ROWS::selected(mount)) {
+                        return false;
+                    }
+                    for(unsigned int previous = 0; previous < index; previous++) {
+                        if(mount == OBSERVATION::mount(previous)) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
     }
 
     template <typename T_SPEC>
@@ -260,13 +314,17 @@ namespace rl_tools::rl::environments::hyperdrone {
         static constexpr TI N_CAMERA_AGENTS = SPEC::N_CAMERA_AGENTS;
         static constexpr TI N_CAMERAS_PER_AGENT = SPEC::CAMERA_OUTPUTS::COUNT;
         static constexpr TI N_VIEWS = N_CAMERA_AGENTS * N_CAMERAS_PER_AGENT;
+        using OBSERVATION = typename SPEC::OBSERVATION;
+        static constexpr bool HAS_IMAGE_OBSERVATION = OBSERVATION::COUNT > 0;
+        static constexpr TI N_OBSERVATION_CAMERAS_PER_AGENT = OBSERVATION::COUNT;
+        static constexpr TI N_OBSERVATION_VIEWS = N_CAMERA_AGENTS * N_OBSERVATION_CAMERAS_PER_AGENT;
         static constexpr TI ACTION_DIM = N_AGENTS * DYNAMICS_ENV::ACTION_DIM;
         static constexpr TI EPISODE_STEP_LIMIT = DYNAMICS_ENV::EPISODE_STEP_LIMIT;
         static constexpr TI IMAGE_CHANNELS = 3;
 
         // agent-major camera frames stack along the image height so the flat row layout matches the
         // camera-major frame history exactly
-        using Observation = rl::environments::observation::Image<TI, N_VIEWS * SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, IMAGE_CHANNELS>;
+        using Observation = rl::environments::observation::Image<TI, N_OBSERVATION_VIEWS * SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, IMAGE_CHANNELS>;
         struct ObservationPrivilegedMultiAgent {
             static constexpr TI PER_AGENT_DIM = DYNAMICS_ENV::ObservationPrivileged::DIM;
             static constexpr TI DIM = N_AGENTS * PER_AGENT_DIM;
@@ -278,8 +336,14 @@ namespace rl_tools::rl::environments::hyperdrone {
 
         using RENDERER_CONFIG = world::RendererConfig<SPEC>;
         using RENDERER_SPEC = rendering::raytracing::Specification<RENDERER_CONFIG>;
-        static constexpr bool HAS_IMAGE_OBSERVATION = rendering::raytracing::outputs::contains<typename RENDERER_SPEC::OUTPUTS, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>::value;
-        static_assert(world::covers_every_camera<RENDERER_SPEC, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>(), "the image observation requires RGB<Float32> on every camera");
+        using RGB_ROWS = world::OutputRows<RENDERER_SPEC, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>, N_CAMERAS_PER_AGENT>;
+        static_assert(world::valid_observation<OBSERVATION, RGB_ROWS, N_CAMERAS_PER_AGENT>(), "image observation mounts must be unique, in range, and provide RGB<Float32>");
+        RL_TOOLS_FUNCTION_PLACEMENT static constexpr TI observation_camera(TI index) {
+            return index / N_OBSERVATION_CAMERAS_PER_AGENT * N_CAMERAS_PER_AGENT + OBSERVATION::mount(index % N_OBSERVATION_CAMERAS_PER_AGENT);
+        }
+        RL_TOOLS_FUNCTION_PLACEMENT static constexpr TI observation_rgb_row(TI index) {
+            return RGB_ROWS::row(observation_camera(index));
+        }
         using RENDERER = rendering::raytracing::Renderer<RENDERER_SPEC>;
         using ANNOTATIONS_SPEC = rendering::datasets::annotations::FreeSpaceSpecification<T, TI>;
         using ANNOTATIONS = rendering::datasets::annotations::FreeSpace<ANNOTATIONS_SPEC>;
@@ -322,7 +386,7 @@ namespace rl_tools::rl::environments::hyperdrone {
 
         // per-frame runtime state, resident on the environment's compute device
         static constexpr TI FRAME_DIM = SPEC::CAM_HEIGHT * SPEC::CAM_WIDTH * IMAGE_CHANNELS;
-        using HISTORY_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::HISTORY_LENGTH, INSTANCES * N_VIEWS, FRAME_DIM>>;
+        using HISTORY_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::HISTORY_LENGTH, INSTANCES * N_OBSERVATION_VIEWS, FRAME_DIM>>;
         using PREV_CAMERAS_SPEC = tensor::Specification<rendering::raytracing::Camera<T>, TI, tensor::Shape<TI, INSTANCES * N_VIEWS>>;
         using EPISODE_START_SPEC = tensor::Specification<TI, TI, tensor::Shape<TI, INSTANCES>>;
         using RENDER_RESET_SPEC = tensor::Specification<bool, TI, tensor::Shape<TI, INSTANCES>>;

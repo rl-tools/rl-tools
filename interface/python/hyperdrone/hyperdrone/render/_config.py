@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 
 from .. import _jit as jit
-from .._outputs import VALID_MOTION_BLUR_SAMPLES, normalize_outputs, output_defines
+from .._outputs import VALID_MOTION_BLUR_SAMPLES
+from ..camera import CameraSpec, RGB, Probes, backend_requirement, camera_config_header, validate_cameras
 
 FIDELITY = ("low", "medium", "high", "veryhigh")
-
 VALID_ANTI_ALIASING_GRIDS = (1, 2, 3, 4)
 
 
@@ -12,20 +12,20 @@ VALID_ANTI_ALIASING_GRIDS = (1, 2, 3, 4)
 class RendererConfig:
     width: int
     height: int
-    num_cameras: int
-    num_probes: int
-    fidelity: str
-    output: tuple
-    motion_blur_samples: int
-    anti_aliasing_grid: int
-    num_overlays: int
-    max_overlay_instances: int
-    max_overlays_per_camera: int
+    cameras: tuple[CameraSpec, ...] = (CameraSpec("camera", outputs=(RGB(format="rgba8"),)),)
+    batch_size: int = 1
+    num_probes: int = 1
+    fidelity: str = "high"
+    motion_blur_samples: int = 1
+    anti_aliasing_grid: int = 1
+    num_overlays: int = 0
+    max_overlay_instances: int = 0
+    max_overlays_per_camera: int = 0
     dynamic_motion_blur: bool = False
 
     def __post_init__(self):
-        object.__setattr__(self, "output", normalize_outputs(self.output))
-        for name in ("width", "height", "num_cameras", "motion_blur_samples", "anti_aliasing_grid"):
+        object.__setattr__(self, "cameras", validate_cameras(self.cameras))
+        for name in ("width", "height", "batch_size", "motion_blur_samples", "anti_aliasing_grid"):
             value = getattr(self, name)
             if type(value) is not int or value < 1:
                 raise ValueError(f"{name} must be a positive integer")
@@ -33,6 +33,8 @@ class RendererConfig:
             value = getattr(self, name)
             if type(value) is not int or value < 0:
                 raise ValueError(f"{name} must be a nonnegative integer")
+        if self.has_probes and self.num_probes == 0:
+            raise ValueError("Probes outputs require num_probes > 0")
         if self.fidelity not in FIDELITY:
             raise ValueError(f"fidelity must be one of {sorted(FIDELITY)}")
         if self.motion_blur_samples not in VALID_MOTION_BLUR_SAMPLES:
@@ -46,11 +48,18 @@ class RendererConfig:
             raise ValueError("dynamic_motion_blur requires motion_blur_samples >= 2 and overlays")
 
     @property
+    def num_cameras(self):
+        return len(self.cameras) * self.batch_size
+
+    @property
     def has_probes(self):
-        return self.num_probes > 0
+        return any(Probes() in camera.outputs for camera in self.cameras)
+
+    def generated_headers(self):
+        return {"camera_config.h": camera_config_header(self.cameras)}
 
     def canonical(self):
-        return ";".join(f"{name}={value}" for name, value in sorted(self.defines().items()))
+        return ";".join(f"{name}={value}" for name, value in sorted(self.defines().items())) + "\n" + camera_config_header(self.cameras)
 
     def key(self):
         return jit.canonical_key(self.canonical())
@@ -60,9 +69,9 @@ class RendererConfig:
             "HYPERDRONE_RENDER_WIDTH": self.width,
             "HYPERDRONE_RENDER_HEIGHT": self.height,
             "HYPERDRONE_RENDER_NUM_CAMERAS": self.num_cameras,
-            "HYPERDRONE_RENDER_NUM_PROBES": self.num_probes,
+            "HYPERDRONE_RENDER_NUM_PROBES": self.num_probes if self.has_probes else 0,
             "HYPERDRONE_RENDER_SHADING": FIDELITY.index(self.fidelity),
-            **output_defines(self.output, "HYPERDRONE_RENDER"),
+            "HYPERDRONE_CAMERA_BACKEND_REQUIREMENT": backend_requirement(self.cameras),
             "HYPERDRONE_RENDER_MB_SAMPLES": self.motion_blur_samples,
             "HYPERDRONE_RENDER_AA_GRID": self.anti_aliasing_grid,
             "HYPERDRONE_RENDER_NUM_OVERLAYS": self.num_overlays,

@@ -1,5 +1,6 @@
 #include "environment.h"
 #include "bindings.h"
+#include "../common/output_bindings.h"
 #include <nanobind/stl/optional.h>
 #include <nanobind/stl/map.h>
 #include <nanobind/stl/string.h>
@@ -62,20 +63,6 @@ namespace HYPERDRONE_MODULE_NAME {
         }, nb::arg("out").noconvert());
     }
 
-    template <typename VALUE, void (Environment::*VERB)(VALUE*, bool), TI CHANNELS>
-    void bind_image_output(nb::class_<Environment>& environment_class, const char* name){
-        environment_class.def(name, [](Environment& self, nb::ndarray<VALUE, nb::c_contig> out){
-            constexpr TI HEIGHT = WORLD::SPEC::CAM_HEIGHT;
-            constexpr TI WIDTH = WORLD::SPEC::CAM_WIDTH;
-            const bool in_place = resident(self, out, TOTAL * WORLD::N_VIEWS * HEIGHT * WIDTH * CHANNELS);
-            if(out.ndim() != (CHANNELS == 1 ? 4 : 5) || out.shape(0) != TOTAL || out.shape(1) != WORLD::N_VIEWS || out.shape(2) != HEIGHT || out.shape(3) != WIDTH || (CHANNELS > 1 && out.shape(4) != CHANNELS)){
-                throw std::invalid_argument("hyperdrone: image output must have shape (total_instances, num_views, height, width[, channels])");
-            }
-            nb::gil_scoped_release release;
-            (self.*VERB)(out.data(), in_place);
-        }, nb::arg("out").noconvert());
-    }
-
     template <typename WORLD_TYPE>
     void bind_imu(nb::module_& m, nb::class_<Environment>& environment_class){
         if constexpr (ObservationIMUDim<WORLD_TYPE>::VALUE > 0){
@@ -90,6 +77,7 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     m.def("_set_verbosity", &hyperdrone::set_verbosity);
 
     m.doc() = "JIT-specialized RLtools hyperdrone environment";
+    hyperdrone::bind_output_blocks(m);
     m.attr("observation_layout") = layout_dict(observation_layout());
     m.attr("observation_layout_privileged") = layout_dict(observation_layout_privileged());
     m.attr("CUDA_WORLD") = CUDA_WORLD;
@@ -105,6 +93,8 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     dimensions["num_views"] = WORLD::N_VIEWS;
     dimensions["width"] = WORLD::SPEC::CAM_WIDTH;
     dimensions["height"] = WORLD::SPEC::CAM_HEIGHT;
+    dimensions["has_image_observation"] = WORLD::HAS_IMAGE_OBSERVATION;
+    dimensions["num_observation_views"] = WORLD::N_OBSERVATION_VIEWS;
     dimensions["image_channels"] = WORLD::IMAGE_CHANNELS;
     dimensions["observation_dim"] = WORLD::OBSERVATION_DIM;
     dimensions["observation_dim_privileged"] = WORLD::OBSERVATION_DIM_PRIVILEGED;
@@ -115,27 +105,6 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     dimensions["max_drone_types"] = WORLD::SPEC::MAX_DRONES;
     dimensions["self_visible"] = WORLD::SPEC::SELF_VISIBLE;
     m.attr("dimensions") = dimensions;
-    nb::list outputs;
-    if(WORLD::HAS_IMAGE_OBSERVATION){
-        outputs.append("rgb");
-    }
-    if(rro::contains<OUTPUTS, rro::Depth<>>::value){
-        outputs.append("depth");
-    }
-    if(rro::contains<OUTPUTS, INSTANCE_SEGMENTATION>::value){
-        outputs.append("instance_segmentation");
-    }
-    if(rro::contains<OUTPUTS, SEMANTIC_SEGMENTATION>::value){
-        outputs.append("semantic_segmentation");
-    }
-    if(rro::contains<OUTPUTS, rro::Normals<>>::value){
-        outputs.append("normals");
-    }
-    if(rro::contains<OUTPUTS, rro::Flow<>>::value){
-        outputs.append("flow");
-    }
-    m.attr("outputs") = nb::tuple(outputs);
-
     auto environment_class = nb::class_<Environment>(m, "Environment");
     environment_class
         .def(nb::init<>())
@@ -180,15 +149,31 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
         .def("spy_open", &Environment::spy_open, nb::call_guard<nb::gil_scoped_release>())
         .def("spy_update", &Environment::spy_update, nb::call_guard<nb::gil_scoped_release>())
         .def("spy_close", &Environment::spy_close, nb::call_guard<nb::gil_scoped_release>())
-        .def("synchronize", &Environment::synchronize, nb::call_guard<nb::gil_scoped_release>());
+        .def("synchronize", &Environment::synchronize, nb::call_guard<nb::gil_scoped_release>())
+        .def("render", &Environment::render, nb::call_guard<nb::gil_scoped_release>())
+        .def("probe", &Environment::probe, nb::call_guard<nb::gil_scoped_release>())
+        .def("output_metadata", [](Environment& self){ return hyperdrone::output_metadata_dicts(self.output_metadata()); })
+        .def("output_read", [](Environment& self, size_t index, nb::ndarray<nb::c_contig> out, const std::string& field, uintptr_t stream){
+            const auto& metadata = self.output_metadata().at(index);
+            hyperdrone::validate_output_array(hyperdrone::output_layout(metadata, field), out);
+            if(out.device_type() == 2 && (metadata.device_type != 2 || out.device_id() != metadata.device_id)){
+                throw std::invalid_argument("hyperdrone: CUDA output destination must use the renderer's device");
+            }
+            nb::gil_scoped_release release;
+            self.output_read(index, out.data(), out.device_type(), field, stream);
+        }, nb::arg("index"), nb::arg("out").noconvert(), nb::arg("field") = "", nb::arg("stream") = 0)
+        .def("output_block", [](Environment& self, size_t index, size_t member, const std::string& field){
+            OutputBlock block;
+            {
+                nb::gil_scoped_release release;
+                block = self.output_block(index, member, field);
+            }
+            auto* owner = new std::shared_ptr<void>(std::move(block.owner));
+            nb::capsule capsule(owner, [](void* pointer) noexcept { delete static_cast<std::shared_ptr<void>*>(pointer); });
+            return hyperdrone::NativeOutputBlock{std::move(capsule), block.pointer, std::move(block.layout), block.device_type, block.device_id, std::move(block.order_consumer)};
+        }, nb::arg("index"), nb::arg("block") = 0, nb::arg("field") = "");
     bind_output<&Environment::observe, WORLD::OBSERVATION_DIM>(environment_class, "observe");
     bind_output<&Environment::observe_privileged, WORLD::OBSERVATION_DIM_PRIVILEGED>(environment_class, "observe_privileged");
     bind_output<&Environment::rewards, 1>(environment_class, "rewards");
-    bind_image_output<float, &Environment::depth, 1>(environment_class, "depth");
-    bind_image_output<uint32_t, &Environment::instance_segmentation, 1>(environment_class, "instance_segmentation");
-    bind_image_output<uint32_t, &Environment::semantic_segmentation, 1>(environment_class, "semantic_segmentation");
-    bind_image_output<float, &Environment::normals, 3>(environment_class, "normals");
-    bind_image_output<float, &Environment::flow, 2>(environment_class, "flow");
-    bind_image_output<uint32_t, &Environment::flow_status, 1>(environment_class, "flow_status");
     bind_imu<WORLD>(m, environment_class);
 }

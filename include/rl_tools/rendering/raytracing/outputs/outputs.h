@@ -121,14 +121,14 @@ namespace rl_tools::rendering::raytracing::outputs {
     namespace cameras {
         struct All {
             template <typename TI>
-            static constexpr bool selected(TI) { return true; }
+            RL_TOOLS_FUNCTION_PLACEMENT static constexpr bool selected(TI) { return true; }
         };
         // every PERIOD-th camera at the given offsets, e.g. one mount of every camera rig
         template <auto PERIOD, auto... OFFSETS>
         struct Every {
             static_assert(PERIOD > 0 && sizeof...(OFFSETS) > 0 && ((OFFSETS < PERIOD) && ...), "Every<PERIOD, OFFSETS...> needs offsets below PERIOD");
             template <typename TI>
-            static constexpr bool selected(TI camera) { return ((camera % (TI)PERIOD == (TI)OFFSETS) || ...); }
+            RL_TOOLS_FUNCTION_PLACEMENT static constexpr bool selected(TI camera) { return ((camera % (TI)PERIOD == (TI)OFFSETS) || ...); }
         };
         template <typename SELECTION, typename TI>
         constexpr TI count(TI num_cameras) {

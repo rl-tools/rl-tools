@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from hyperdrone import dynamics, render
+from hyperdrone.camera import CameraSpec, RGB, Depth
 
 
 def make_room(half=4.0, height=3.0, pillar=None):
@@ -99,7 +100,7 @@ def test_manual_composition_end_to_end():
     num_drones = 4
     scene = make_room()
     sim = dynamics.Sim(num_drones=num_drones, device="cpu")
-    renderer = render.Renderer(width=32, height=32, num_cameras=num_drones, output=("rgb", "depth"), fidelity="low")
+    renderer = render.Renderer(width=32, height=32, batch_size=num_drones, cameras=(CameraSpec("camera", outputs=(RGB(format="rgba8"), Depth())),), fidelity="low")
     spawn, step = compose(scene, sim, renderer)
     sampler = render.ClearanceSampler(scene, clearance=CLEARANCE, batch=64, probes=32)
     positions = sampler.sample(num_drones, seed=0)
@@ -107,14 +108,14 @@ def test_manual_composition_end_to_end():
 
     actions = np.zeros((num_drones, sim.action_dim), dtype=np.float32)
     out = step(actions)
-    depth = out.depth()
+    depth = out.outputs[Depth()].read()
     assert depth.shape == (num_drones, 32, 32)
     # every camera sits inside a closed room with >= clearance to any surface: all depths
     # positive and beyond a sanity floor, but finite (the room is closed)
     assert (depth > 0.05).all()
     assert (depth < 20.0).all()
 
-    frame = out.frame()
+    frame = out.outputs[RGB(format="rgba8")].read()
     assert frame.shape == (num_drones, 32, 32, 4)
     assert frame[..., :3].max() > 0
 
@@ -123,12 +124,12 @@ def test_manual_composition_camera_tracks_drone():
     num_drones = 2
     scene = make_room()
     sim = dynamics.Sim(num_drones=num_drones, device="cpu")
-    renderer = render.Renderer(width=16, height=16, num_cameras=num_drones, output="depth", fidelity="low")
+    renderer = render.Renderer(width=16, height=16, batch_size=num_drones, cameras=(CameraSpec("camera", outputs=(Depth(),)),), fidelity="low")
     spawn, step = compose(scene, sim, renderer)
     spawn(np.array([[0.0, 0.0, 1.5], [1.0, 0.0, 1.5]], dtype=np.float32))
     actions = np.zeros((num_drones, sim.action_dim), dtype=np.float32)
-    first = step(actions).depth().copy()
+    first = step(actions).outputs[Depth()].read().copy()
     # drones drift under mid-throttle gravity mismatch; the camera must move with them
     for _ in range(30):
         out = step(actions)
-    assert not np.array_equal(first, out.depth())
+    assert not np.array_equal(first, out.outputs[Depth()].read())

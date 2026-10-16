@@ -3,7 +3,7 @@
 `rendering_raytracing_sim_benchmark_medium` with no arguments:
 
   4096 cameras @ 64x64, medium fidelity, RGB output, collision probes compiled out
-  (num_probes=0), AA/MB off, fov 80 degrees,
+  (no Probes output), AA/MB off, fov 80 degrees,
   all cameras at the fixed FLU eye position [-3.92, -5.67, 1.0] inside the ProcTHOR
   house, per-camera orientations sampled once from a seeded distribution
   (uniform_so3 default), 2s untimed warmup, then a timed async render_launch loop with a
@@ -27,6 +27,7 @@ from scipy.spatial.transform import Rotation
 
 import hyperdrone
 from hyperdrone import render
+from hyperdrone.camera import CameraSpec, Depth, RGB
 from hyperdrone.examples.data import procthor_scene_path
 
 
@@ -129,8 +130,8 @@ else:
     scene = build_procedural_scene(np.random.default_rng(0))
     eye = None
 
-renderer = render.Renderer(width=WIDTH, height=HEIGHT, num_cameras=NUM_CAMERAS, num_probes=0,
-                           output=arguments.output, fidelity=arguments.fidelity)
+renderer = render.Renderer(width=WIDTH, height=HEIGHT, batch_size=NUM_CAMERAS, num_probes=0,
+                           cameras=(CameraSpec("front", (RGB("rgba8") if arguments.output == "rgb" else Depth(),)),), fidelity=arguments.fidelity)
 renderer.init(scene)
 if eye is None:
     eye = np.asarray(renderer.scene_bounds["center"], dtype=np.float64)
@@ -171,11 +172,11 @@ if arguments.camera_input != "static":
         renderer.set_cameras(np.ascontiguousarray(all_sets[0]))
         renderer.render()
         renderer.render_sync()
-        host_frame = renderer.frame_raw() if arguments.output == "rgb" else renderer.depth()
+        host_frame = renderer.outputs[RGB("rgba8")].packed.read() if arguments.output == "rgb" else renderer.outputs[Depth()].read()
         set_cameras_for_iteration(0)
         renderer.render()
         renderer.render_sync()
-        check_frame = renderer.frame_raw() if arguments.output == "rgb" else renderer.depth()
+        check_frame = renderer.outputs[RGB("rgba8")].packed.read() if arguments.output == "rgb" else renderer.outputs[Depth()].read()
         assert np.array_equal(host_frame, check_frame), "device camera path diverged from host path"
 
 # untimed warmup: full synchronous renders, matching the C++ protocol

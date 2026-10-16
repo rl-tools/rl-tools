@@ -20,6 +20,7 @@ namespace rl_tools::rl::environments::hyperdrone::web {
     using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
     template <typename T_SHADING, TI T_MOTION_BLUR_SAMPLES, TI T_ANTI_ALIASING_GRID_SIZE, TI T_RESOLUTION_SCALE, TI T_N_AGENTS>
     struct Config: presets::X500FPV<T, TI> {
+        using OBSERVATION = NoObservation;
         using SHADING = T_SHADING;
         static_assert(utils::typing::is_same_v<SHADING, rendering::raytracing::Low>
             || utils::typing::is_same_v<SHADING, rendering::raytracing::Medium>

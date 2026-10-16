@@ -4,6 +4,7 @@
 #include <rl_tools/rl/environments/hyperdrone/operations_cuda.h>
 
 #include "../../../utils/utils.h"
+#include "camera_sampling_test.h"
 
 #include <gtest/gtest.h>
 
@@ -68,6 +69,9 @@ namespace test_hyperdrone_world_cuda {
     };
 
     struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS> {
+        using RGB = rlt::rendering::raytracing::outputs::List<rlt::rendering::raytracing::outputs::RGB<rlt::rendering::raytracing::outputs::format::Float32>>;
+        using CAMERA_OUTPUTS = rlt::rl::environments::hyperdrone::CameraOutputs<RGB, rlt::rendering::raytracing::outputs::List<rlt::rendering::raytracing::outputs::Depth<>>, RGB>;
+        using OBSERVATION = rlt::rl::environments::hyperdrone::ImageObservation<2>;
         static constexpr TI N_CAMERA_AGENTS = 1;
         static constexpr TI INSTANCES_PER_ENVIRONMENT = 4;
         static constexpr TI CAM_WIDTH = 32;
@@ -115,6 +119,37 @@ struct Tensors {
 static bool cuda_available(){
     int device_count = 0;
     return cudaGetDeviceCount(&device_count) == cudaSuccess && device_count > 0;
+}
+
+template <typename DEVICE_TYPE, typename RNG_TYPE>
+__global__ void auxiliary_sampling_kernel(DEVICE_TYPE device, RNG_TYPE rng, bool* result) {
+    using rlt::get;
+    auto& state = get(rng.states, 0, 0);
+    *result = camera_sampling_test::unchanged_policy_sampling<WORLD_SPEC>(device, state);
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD_CUDA, AUXILIARY_CAMERAS_PRESERVE_POLICY_RANDOM_STREAM) {
+    using rlt::init;
+    using rlt::malloc;
+    using rlt::free;
+    if (!cuda_available()) {
+        GTEST_SKIP() << "CUDA device unavailable";
+    }
+    DEVICE_GPU device;
+    init(device);
+    RNG_GPU rng;
+    malloc(device, rng);
+    init(device, rng, 991);
+    bool* result;
+    ASSERT_EQ(cudaMalloc(&result, sizeof(bool)), cudaSuccess);
+    rlt::devices::cuda::TAG<DEVICE_GPU, true> tag_device{};
+    auxiliary_sampling_kernel<<<1, 1, 0, device.stream>>>(tag_device, rng, result);
+    bool host_result = false;
+    ASSERT_EQ(cudaMemcpy(&host_result, result, sizeof(bool), cudaMemcpyDeviceToHost), cudaSuccess);
+    EXPECT_TRUE(host_result);
+    ASSERT_EQ(cudaFree(result), cudaSuccess);
+    free(device, rng);
+    free(device);
 }
 
 constexpr TI ROLLOUT_STEPS = 5;
@@ -175,6 +210,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD_CUDA, SEEDED_ROLLOUT_DETERMINISM)
     rlt::init(device);
     rlt::init(device_gpu);
     WORLD world;
+    world.parameters.agents[0].cameras[2].fov = 110;
     typename WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);
     rlt::malloc(device_gpu, world);
@@ -219,6 +255,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD_CUDA, CPU_CUDA_RENDER_CONSISTENCY
     rlt::init(device);
     rlt::init(device_gpu);
     WORLD world_cpu, world_gpu;
+    world_cpu.parameters.agents[0].cameras[2].fov = 110;
+    world_gpu.parameters.agents[0].cameras[2].fov = 110;
     typename WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);
     rlt::malloc(device, world_cpu);

@@ -59,21 +59,37 @@ def _write_config_file(directory, config):
     config_dir = directory / "configs"
     config_dir.mkdir(exist_ok=True)
     config_file = config_dir / f"{config.key()}.txt"
-    if config_file.exists():
-        return False
-    lines = "".join(f"{name}={value}\n" for name, value in sorted(config.defines().items()))
-    # per-process staging name: concurrent writers of the same config must not race on one
-    # staging path; the final rename is atomic and idempotent (identical content)
-    staging = config_dir / f"{config.key()}.{os.getpid()}.tmp"
-    staging.write_text(lines)
-    staging.rename(config_file)
-    return True
+    defines = dict(config.defines())
+    generated_headers = getattr(config, "generated_headers", lambda: {})()
+    changed = False
+    for name, contents in sorted(generated_headers.items()):
+        from pathlib import PurePosixPath
+        path = PurePosixPath(name)
+        if path.is_absolute() or ".." in path.parts or str(path) != name:
+            raise ValueError(f"invalid generated header path {name!r}")
+        header = config_dir / config.key() / name
+        header.parent.mkdir(parents=True, exist_ok=True)
+        if not header.exists() or header.read_text() != contents:
+            staging = header.with_name(f"{header.name}.{os.getpid()}.tmp")
+            staging.write_text(contents)
+            staging.replace(header)
+            changed = True
+    if "camera_config.h" in generated_headers:
+        defines["HYPERDRONE_CAMERA_CONFIG_HEADER"] = f'"{config.key()}/camera_config.h"'
+    lines = "".join(f"{name}={value}\n" for name, value in sorted(defines.items()))
+    if not config_file.exists() or config_file.read_text() != lines:
+        staging = config_dir / f"{config.key()}.{os.getpid()}.tmp"
+        staging.write_text(lines)
+        staging.replace(config_file)
+        changed = True
+    return changed
 
 
 def ensure(component, config):
     """Build (if necessary) and return the path of the JIT artifact for this config."""
     directory = _build.ensure_configured(component)
-    fresh = _write_config_file(directory, config)
+    with _build.lock(component):
+        fresh = _write_config_file(directory, config)
     artifact = directory / "jit" / f"{component.name}_{config.key()}.so"
     if fresh or not artifact.exists():
         # the target only exists after the configs/ glob is re-run

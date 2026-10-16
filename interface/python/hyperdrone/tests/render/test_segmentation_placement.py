@@ -1,3 +1,4 @@
+from hyperdrone.camera import CameraSpec, RGB, Depth, Segmentation, Normals, Flow, FlowStatus, Probes
 import numpy as np
 import pytest
 
@@ -15,7 +16,7 @@ def test_placement_class_labels_every_part_without_changing_the_asset():
     obj.add_mesh(make_quad(0, half_size=0.5))
     pool = render.AssetPool()
     asset = pool.add_object(obj)
-    renderer = render.Renderer(32, 32, output=("instance_segmentation", "semantic_segmentation"),
+    renderer = render.Renderer(32, 32, cameras=(CameraSpec("camera", outputs=(Segmentation(), Segmentation(labels="semantic"), Probes(),)),),
                                fidelity="low", num_overlays=1, max_overlay_instances=2,
                                max_overlays_per_camera=1)
     renderer.init(scene, asset_pool=pool)
@@ -26,8 +27,8 @@ def test_placement_class_labels_every_part_without_changing_the_asset():
     right = renderer.spawn(0, asset, render.make_transform(position=(3, -0.7, 0)))
     renderer.update()
     renderer.render()
-    instances = renderer.instance_segmentation()
-    labels = renderer.semantic_segmentation()
+    instances = renderer.outputs[Segmentation()].read()
+    labels = renderer.outputs[Segmentation(labels="semantic")].read()
     left_mask = instances == scene.num_instances + left.first_slot
     right_mask = instances == scene.num_instances + right.first_slot
     assert left_mask.any() and right_mask.any()

@@ -9,6 +9,7 @@ namespace {
     using namespace rl_tools;
     namespace hd = rl::environments::hyperdrone;
     struct WorldConfig: hd::presets::X500FPV<float, size_t> {
+        using OBSERVATION = hd::NoObservation;
         static constexpr size_t N_CAMERA_AGENTS = 1;
         static constexpr size_t INSTANCES_PER_ENVIRONMENT = 3;
         static constexpr size_t CAM_WIDTH = 2;
@@ -24,7 +25,7 @@ namespace {
         static constexpr size_t ATLAS_HEIGHT = 5;
     };
 
-    TEST(HYPERDRONE_SPY, CanonicalHistoryAndSceneIdentity) {
+    TEST(HYPERDRONE_SPY, RawRGBAndSceneIdentityWithoutPolicyObservation) {
         devices::DefaultCPU device;
         Environment environment{};
         hd::spy::State<Config> state;
@@ -39,7 +40,7 @@ namespace {
             auto& world = environment.environments[member];
             world.slots.emplace_back();
             world.slots[0].scene_id = member;
-            world.history._data = history[member].data();
+            output(device, world.slots[0].renderer, Config::RGB_FLOAT{})._data = history[member].data() + 36;
             world.history_step = 2;
             world.scene_version = member + 1;
             for(size_t camera = 0; camera < 3; camera++) {
@@ -54,7 +55,7 @@ namespace {
         const auto before = history;
         state.selected_camera = 4;
         prepare_spy_capture(state, environment, 10);
-        pack_spy_atlas_cpu(state, environment);
+        pack_spy_atlas_cpu(device, state, environment);
         EXPECT_EQ(state.buffer.job.scene, &environment.shared.library.scenes[1]);
         EXPECT_EQ(state.buffer.job.member, 1u);
         EXPECT_EQ(state.buffer.job.instance, 1u);
@@ -71,18 +72,51 @@ namespace {
         environment.environments[1].scene_version++;
         environment.environments[1].render_pending = true;
         prepare_spy_capture(state, environment, 30);
-        pack_spy_atlas_cpu(state, environment);
+        pack_spy_atlas_cpu(device, state, environment);
         EXPECT_FALSE(state.buffer.selected_valid);
         EXPECT_FALSE(state.buffer.frames[1].valid);
         EXPECT_EQ(atlas[4 * 7 + 6], 0xff202020u);
         environment.environments[1].render_pending = false;
         environment.environments[1].history_step++;
         prepare_spy_capture(state, environment, 40);
-        pack_spy_atlas_cpu(state, environment);
+        pack_spy_atlas_cpu(device, state, environment);
         EXPECT_TRUE(state.buffer.selected_valid);
         EXPECT_EQ(state.buffer.job.scene_version, 3u);
         EXPECT_EQ(state.buffer.frames[1].captured_at, 40);
-        EXPECT_EQ(atlas[4 * 7 + 6], 0xff000000u);
+        EXPECT_EQ(atlas[4 * 7 + 6], 0xffffffffu);
         EXPECT_EQ(history, before);
+    }
+
+    struct SparseWorldConfig: WorldConfig {
+        static constexpr size_t INSTANCES_PER_ENVIRONMENT = 1;
+        using CAMERA_OUTPUTS = hd::CameraOutputs<rendering::raytracing::outputs::List<Config::RGB_FLOAT>, rendering::raytracing::outputs::List<rendering::raytracing::outputs::Depth<>>, rendering::raytracing::outputs::List<Config::RGB_PACKED>>;
+    };
+    using SparseWorld = hd::World<SparseWorldConfig>;
+    using SparseEnvironment = hd::MultiEnvironment<SparseWorld, 1>;
+    struct SparseConfig: hd::spy::Config<SparseEnvironment> {
+        static constexpr size_t ATLAS_WIDTH = 3;
+        static constexpr size_t ATLAS_HEIGHT = 1;
+    };
+
+    TEST(HYPERDRONE_SPY, SparseRGBRepresentationsUsePhysicalCameraTiles) {
+        devices::DefaultCPU device;
+        SparseEnvironment environment;
+        hd::spy::State<SparseConfig> state;
+        uint32_t atlas[3]{};
+        float rgb[12] = {0.25f, 0.5f, 1};
+        uint32_t packed[4] = {0xff332211};
+        auto& world = environment.environments[0];
+        world.slots.emplace_back();
+        auto& renderer = world.slots[0].renderer;
+        output(device, renderer, Config::RGB_FLOAT{})._data = rgb;
+        output(device, renderer, Config::RGB_PACKED{})._data = packed;
+        state.buffer.atlas = atlas;
+        state.buffer.frames[0].valid = true;
+        state.columns = 3;
+        state.rows = 1;
+        pack_spy_atlas_cpu(device, state, environment);
+        EXPECT_EQ(atlas[0], 0xffff8040u);
+        EXPECT_EQ(atlas[1], 0xff202020u);
+        EXPECT_EQ(atlas[2], packed[0]);
     }
 }

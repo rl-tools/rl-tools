@@ -10,7 +10,8 @@ import pytest
 
 import conta
 import hyperdrone
-from hyperdrone.env import EnvConfig, MultiEnvironment
+from hyperdrone.env import EnvConfig, MultiEnvironment, ImageObservation
+from hyperdrone.camera import CameraSpec, RGB, Flow, FlowStatus
 from hyperdrone._jit import source_root
 
 
@@ -264,7 +265,7 @@ def test_nominal_parameters(scene_directory):
     J = np.diag([0.02, 0.03, 0.04])
     pitch = 0.3
     camera = {"fov": 90, "mount": {"pose": {"position": [0.1, 0, 0.05], "orientation": [np.cos(pitch / 2), 0, np.sin(pitch / 2), 0]}}}
-    parameters, frames, states = nominal_rollout(scene_directory, {"dynamics": {"dynamics": {"model": "x500", "mass": 2.0, "J": J}, "integration": {"dt": 0.02}}, "cameras": [camera]})
+    parameters, frames, states = nominal_rollout(scene_directory, {"dynamics": {"dynamics": {"model": "x500", "mass": 2.0, "J": J}, "integration": {"dt": 0.02}}, "cameras": {"front": camera}})
     dynamics = parameters["dynamics"]["dynamics"]
     assert dynamics["mass"] == pytest.approx(2.0)
     np.testing.assert_allclose(dynamics["J"], J)
@@ -272,8 +273,8 @@ def test_nominal_parameters(scene_directory):
     overridden = ("mass", "J", "J_inv")
     assert {key: value for key, value in dynamics.items() if key not in overridden} == {key: value for key, value in x500_parameters["dynamics"]["dynamics"].items() if key not in overridden}
     assert parameters["dynamics"]["integration"]["dt"] == pytest.approx(0.02)
-    assert parameters["cameras"][0]["fov"] == 90
-    np.testing.assert_allclose(parameters["cameras"][0]["mount"]["pose"]["orientation"], camera["mount"]["pose"]["orientation"], rtol=1e-6)
+    assert parameters["cameras"]["front"]["fov"] == 90
+    np.testing.assert_allclose(parameters["cameras"]["front"]["mount"]["pose"]["orientation"], camera["mount"]["pose"]["orientation"], rtol=1e-6)
     assert not np.array_equal(frames, default_frames)
     assert not np.array_equal(states, default_states)
 
@@ -284,7 +285,7 @@ def test_nominal_parameter_validation(scene_directory):
     with pytest.raises(ValueError, match="unknown parameter"):
         MultiEnvironment(scene_directory, config=CONFIG, parameters={"dynamics": {"dynamics": {"weight": 1.0}}})
     with pytest.raises(ValueError, match="must have shape"):
-        MultiEnvironment(scene_directory, config=CONFIG, parameters={"cameras": [{"mount": {"pose": {"orientation": [1, 0, 0]}}}]})
+        MultiEnvironment(scene_directory, config=CONFIG, parameters={"cameras": {"front": {"mount": {"pose": {"orientation": [1, 0, 0]}}}}})
 
 
 def test_instance_parameters(scene_directory):
@@ -311,11 +312,11 @@ def test_instance_parameters(scene_directory):
         current = env.instance_parameters()
         assert current == [flying_nominal] * env.total_instances
         mass = nominal["dynamics"]["dynamics"]["mass"]
-        env.set_instance_parameters({"dynamics": {"dynamics": {"mass": 3 * mass}}, "cameras": [{"fov": 30}]}, mask=np.array([1, 0], dtype=np.uint8))
+        env.set_instance_parameters({"dynamics": {"dynamics": {"mass": 3 * mass}}, "cameras": {"front": {"fov": 30}}}, mask=np.array([1, 0], dtype=np.uint8))
         updated = env.instance_parameters()
         assert updated[1] == flying_nominal
         assert updated[0]["dynamics"]["dynamics"]["mass"] == pytest.approx(3 * mass)
-        assert updated[0]["cameras"][0]["fov"] == 30
+        assert updated[0]["cameras"]["front"]["fov"] == 30
 
         frames, states = [], []
         for e in (env, reference):
@@ -332,9 +333,9 @@ def test_instance_parameters(scene_directory):
 
         env.reset(all_instances)
         assert env.instance_parameters() == [flying_nominal] * env.total_instances
-        env.set_instance_parameters([{"cameras": [{"fov": 50}]}, {"dynamics": {"dynamics": {"model": "x500"}}}])
+        env.set_instance_parameters([{"cameras": {"front": {"fov": 50}}}, {"dynamics": {"dynamics": {"model": "x500"}}}])
         updated = env.instance_parameters()
-        assert updated[0]["cameras"][0]["fov"] == 50
+        assert updated[0]["cameras"]["front"]["fov"] == 50
         assert updated[1]["dynamics"]["dynamics"]["mass"] != mass
         with pytest.raises(ValueError, match="shared by all instances"):
             env.set_instance_parameters({"dynamics": {"integration": {"dt": 0.1}}})
@@ -382,13 +383,15 @@ def test_config_validation_errors():
             EnvConfig(motion_blur_samples=samples)
     with pytest.raises(ValueError, match="unknown preset"):
         EnvConfig(preset="nonexistent")
-    for cameras in (0, -1, 1.5, True):
-        with pytest.raises(ValueError, match="num_cameras_per_agent"):
-            EnvConfig(num_cameras_per_agent=cameras)
-    with pytest.raises(ValueError, match="one camera"):
-        EnvConfig(task="target_frame", num_cameras_per_agent=2)
+    for cameras in ((), ("front",), (CameraSpec("front", (RGB(),)), CameraSpec("front", (RGB(),)))):
+        with pytest.raises(ValueError):
+            EnvConfig(cameras=cameras)
+    profiles = (CameraSpec("front", (RGB(),)), CameraSpec("chase", (RGB(),)))
+    with pytest.raises(ValueError, match="one observation camera"):
+        EnvConfig(task="target_frame", cameras=profiles, observation=ImageObservation(("front", "chase")))
+    EnvConfig(task="target_frame", cameras=profiles, observation=ImageObservation(("front",)))
     with pytest.raises(ValueError, match="spec_header supersedes"):
-        EnvConfig(num_cameras_per_agent=2, spec_header=__file__)
+        EnvConfig(cameras=profiles, spec_header=__file__)
     with pytest.raises(ValueError, match="unknown task"):
         EnvConfig(task="nonexistent")
     with pytest.raises(ValueError, match="SELF_VISIBLE"):
@@ -443,10 +446,10 @@ CONFIG_MULTI_AGENT = EnvConfig(instances_per_environment=2, num_agents=7, num_ca
 
 @pytest.mark.parametrize("camera_agents", [1, 2])
 def test_multi_camera_model_parameters_and_replay(scene_directory, camera_agents):
-    config = replace(CONFIG_MULTI_AGENT, num_environments=2, num_agents=2, num_camera_agents=camera_agents, num_cameras_per_agent=2)
+    config = replace(CONFIG_MULTI_AGENT, num_environments=2, num_agents=2, num_camera_agents=camera_agents, cameras=(CameraSpec("front", (RGB(),)), CameraSpec("chase", (RGB(),))), observation=ImageObservation(("front", "chase")))
     drones = [{"asset": rigged_asset_path(name), "parameters": {
         "dynamics": {"dynamics": {"model": name}},
-        "cameras": [{"fov": fov}, {"fov": fov + 10, "mount": {"pose": {"position": [-1, 0, 0.5]}}}],
+        "cameras": {"front": {"fov": fov}, "chase": {"fov": fov + 10, "mount": {"pose": {"position": [-1, 0, 0.5]}}}},
     }} for name, fov in (("x500", 60), ("crazyflie", 80))]
     initial = {"dynamics": {"mdp": {"init": {"max_linear_velocity": 0, "max_angular_velocity": 0, "min_rpm": 0, "max_rpm": 0}}}}
     env = MultiEnvironment([scene_directory / "ProcTHOR-Train-1.glb"] * 2, config=config, drones=drones, parameters=initial, seed=7)
@@ -467,21 +470,21 @@ def test_multi_camera_model_parameters_and_replay(scene_directory, camera_agents
         views = frames.reshape(4, camera_agents, 2, 16, 16, 3)
         assert all(not np.array_equal(agent[0], agent[1]) for instance in views for agent in instance)
         mask = np.array([False, False, False, True])
-        env.set_instance_parameters({"agents": [{}, {"drone": 0, "cameras": [{}, {"fov": 40}]}]}, mask)
+        env.set_instance_parameters({"agents": [{}, {"drone": 0, "cameras": {"front": {}, "chase": {"fov": 40}}}]}, mask)
         updated = env.instance_parameters()
         assert updated[:3] == baseline[:3]
         assert updated[3]["agents"][0] == baseline[3]["agents"][0]
-        assert updated[3]["agents"][1]["cameras"][0] == env.drones[0]["parameters"]["cameras"][0]
-        assert updated[3]["agents"][1]["cameras"][1]["fov"] == 40
-        valid = {"agents": [{"cameras": [{"fov": 25}, {}]}, {}]}
-        for cameras in ([{}], [{}, {}, {}], [{}, None], [{}, {"mount": {"pose": {"position": [0, 0]}}}]):
+        assert updated[3]["agents"][1]["cameras"]["front"] == env.drones[0]["parameters"]["cameras"]["front"]
+        assert updated[3]["agents"][1]["cameras"]["chase"]["fov"] == 40
+        valid = {"agents": [{"cameras": {"front": {"fov": 25}, "chase": {}}}, {}]}
+        for cameras in ([{}], {"missing": {}}, {"chase": None}, {"chase": {"mount": {"pose": {"position": [0, 0]}}}}):
             overrides = [valid, {"agents": [{}, {}]}, {"agents": [{}, {}]}, {"agents": [{}, {"cameras": cameras}]}]
             with pytest.raises(ValueError):
                 env.set_instance_parameters(overrides)
             assert env.instance_parameters() == updated
         with pytest.raises(ValueError, match="unknown parameter"):
             env.set_instance_parameters({"agents": [{"camera": {}}, {}]})
-        native = copy.deepcopy(updated)
+        native = env._indexed_cameras(copy.deepcopy(updated))
         native[0]["agents"][0]["cameras"][0]["fov"] = 25
         native[-1]["agents"][-1]["cameras"].pop()
         with pytest.raises(ValueError, match="per camera"):
@@ -503,7 +506,7 @@ def test_multi_camera_model_parameters_and_replay(scene_directory, camera_agents
 
 
 def mixed_drones():
-    return [{"asset": rigged_asset_path(name), "parameters": {"dynamics": {"dynamics": {"model": name}}, "cameras": [{"fov": fov}]}}
+    return [{"asset": rigged_asset_path(name), "parameters": {"dynamics": {"dynamics": {"model": name}}, "cameras": {"front": {"fov": fov}}}}
             for name, fov in (("x500", 90), ("crazyflie", 70))]
 
 
@@ -523,21 +526,21 @@ def test_multi_agent_parameters(scene_directory):
         selected = env.instance_parameters()
         assert selected[1] == sampled[1]
         assert selected[0]["agents"] == [{**table[drone]["parameters"], "drone": drone} for drone in choices]
-        overrides = [{"agents": [{"cameras": [{"fov": 45}]}] + [{}] * (env.num_agents - 1)},
+        overrides = [{"agents": [{"cameras": {"front": {"fov": 45}}}] + [{}] * (env.num_agents - 1)},
                      {"agents": [{}] * env.num_agents}]
         env.set_instance_parameters(overrides)
         changed = env.instance_parameters()
-        assert changed[0]["agents"][0]["cameras"][0]["fov"] == 45
+        assert changed[0]["agents"][0]["cameras"]["front"]["fov"] == 45
         assert changed[0]["agents"][1:] == selected[0]["agents"][1:]
         assert changed[1] == selected[1]
-        valid = {"agents": [{"cameras": [{"fov": 30}]}] + [{}] * (env.num_agents - 1)}
+        valid = {"agents": [{"cameras": {"front": {"fov": 30}}}] + [{}] * (env.num_agents - 1)}
         for invalid in ({"drone": 0}, {"agents": [{}]}, {"agents": [{}] * (env.num_agents - 1) + [None]},
                         {"agents": [{}] * (env.num_agents - 1) + [{"drone": len(table)}]},
                         {"agents": [{}] * (env.num_agents - 1) + [{"dynamics": {"integration": {"dt": 0.1}}}]}):
             with pytest.raises(ValueError):
                 env.set_instance_parameters([valid, invalid])
             assert env.instance_parameters() == changed
-        native_updates = copy.deepcopy(changed)
+        native_updates = env._indexed_cameras(copy.deepcopy(changed))
         native_updates[0]["agents"][0]["cameras"][0]["fov"] = 30
         native_updates[1]["agents"][-1]["dynamics"]["integration"]["dt"] *= 2
         with pytest.raises(ValueError, match="same integration timestep"):
@@ -658,7 +661,7 @@ def test_explicit_spawns_ignore_seed_and_preserve_mask(scene_directory, task):
 def test_drones_table(scene_directory):
     drones = [
         {"asset": rigged_asset_path("x500")},
-        {"asset": rigged_asset_path("crazyflie"), "parameters": {"dynamics": {"dynamics": {"model": "crazyflie"}}, "cameras": [{"fov": 70}]}},
+        {"asset": rigged_asset_path("crazyflie"), "parameters": {"dynamics": {"dynamics": {"model": "crazyflie"}}, "cameras": {"front": {"fov": 70}}}},
         {"asset": rigged_asset_path("x500"), "parameters": {"dynamics": {"dynamics": {"model": "x500_sim"}}}},
     ]
     env = MultiEnvironment(scene_directory, config=CONFIG_DRONES, seed=5, drones=drones)
@@ -667,7 +670,7 @@ def test_drones_table(scene_directory):
         table = env.drones
         assert len(table) == 3
         assert table[0]["parameters"] == env.parameters
-        assert table[1]["parameters"]["cameras"][0]["fov"] == 70
+        assert table[1]["parameters"]["cameras"]["front"]["fov"] == 70
         assert table[1]["parameters"]["dynamics"]["dynamics"]["mass"] != table[0]["parameters"]["dynamics"]["dynamics"]["mass"]
         assert table[2]["parameters"]["dynamics"]["dynamics"]["rotor_positions"] != table[0]["parameters"]["dynamics"]["dynamics"]["rotor_positions"]
         seen = set()
@@ -677,15 +680,15 @@ def test_drones_table(scene_directory):
                 seen.add(instance["drone"])
                 nominal = table[instance["drone"]]["parameters"]
                 assert instance["dynamics"]["dynamics"]["mass"] == pytest.approx(nominal["dynamics"]["dynamics"]["mass"])
-                assert instance["cameras"][0]["fov"] == pytest.approx(nominal["cameras"][0]["fov"])
+                assert instance["cameras"]["front"]["fov"] == pytest.approx(nominal["cameras"]["front"]["fov"])
         assert seen == {0, 1, 2}
         smoke_rollout(env)
         switched = np.array([1, 0, 0, 0], dtype=bool)
-        env.set_instance_parameters({"drone": 1, "cameras": [{"fov": 40}]}, mask=switched)
+        env.set_instance_parameters({"drone": 1, "cameras": {"front": {"fov": 40}}}, mask=switched)
         instance = env.instance_parameters()[0]
         assert instance["drone"] == 1
         assert instance["dynamics"] == table[1]["parameters"]["dynamics"]
-        assert instance["cameras"][0]["fov"] == 40
+        assert instance["cameras"]["front"]["fov"] == 40
         smoke_rollout(env)
         with pytest.raises(ValueError, match="index the drones table"):
             env.set_instance_parameters({"drone": 3}, mask=switched)
@@ -706,20 +709,20 @@ def test_drones_table(scene_directory):
 def test_drones_resolved_nominals(scene_directory):
     asset = rigged_asset_path("x500")
     drones = [
-        {"asset": asset, "parameters": {"dynamics": {"dynamics": {"mass": 0.1}}, "cameras": [{"fov": 60}]}},
+        {"asset": asset, "parameters": {"dynamics": {"dynamics": {"mass": 0.1}}, "cameras": {"front": {"fov": 60}}}},
         {"asset": asset},
     ]
-    env = MultiEnvironment(scene_directory, config=CONFIG_DRONES, seed=5, parameters={"cameras": [{"fov": 90}]}, drones=drones)
+    env = MultiEnvironment(scene_directory, config=CONFIG_DRONES, seed=5, parameters={"cameras": {"front": {"fov": 90}}}, drones=drones)
     try:
         table = env.drones
         assert table[0]["parameters"] == env.parameters
-        assert [entry["parameters"]["cameras"][0]["fov"] for entry in table] == [60, 90]
+        assert [entry["parameters"]["cameras"]["front"]["fov"] for entry in table] == [60, 90]
         env.reset()
         for instance in env.instance_parameters():
             assert instance == {**table[instance["drone"]]["parameters"], "drone": instance["drone"]}
-        table[0]["parameters"]["cameras"][0]["fov"] = 20
-        assert env.drones[0]["parameters"]["cameras"][0]["fov"] == 60
-        assert env.parameters["cameras"][0]["fov"] == 60
+        table[0]["parameters"]["cameras"]["front"]["fov"] = 20
+        assert env.drones[0]["parameters"]["cameras"]["front"]["fov"] == 60
+        assert env.parameters["cameras"]["front"]["fov"] == 60
     finally:
         env.close()
 
@@ -779,14 +782,15 @@ def test_x500_target_frame(scene_directory):
         assert layout.blocks == {"image_stack": (0, 3), "target_image": (3, 3)}
         smoke_rollout(env)
         with pytest.raises(ValueError, match="target setup"):
-            env.set_instance_parameters({"cameras": [{"fov": 60}]})
+            env.set_instance_parameters({"cameras": {"front": {"fov": 60}}})
     finally:
         env.close()
 
 
 @pytest.mark.parametrize("cameras", [1, 2])
 def test_moving_gate(scene_directory, cameras):
-    config = EnvConfig(instances_per_environment=2, width=16, height=16, task="moving_gate", num_cameras_per_agent=cameras)
+    profiles = tuple(CameraSpec(f"camera{index}", (RGB(),)) for index in range(cameras))
+    config = EnvConfig(instances_per_environment=2, width=16, height=16, task="moving_gate", cameras=profiles, observation=ImageObservation(tuple(camera.name for camera in profiles)))
     with pytest.raises(ValueError, match="needs assets"):
         MultiEnvironment(scene_directory, config=config, seed=4)
     env = MultiEnvironment(scene_directory, config=config, seed=4, assets={"gate": drone_asset_path()})
@@ -870,7 +874,7 @@ def test_spec_header_drone_table(scene_directory):
     header = Path(__file__).parent / "user_spec_header.h"
     config = EnvConfig(spec_header=str(header))
     asset = drone_asset_path()
-    drones = [{"asset": asset, "parameters": {"cameras": [{"fov": fov}]}} for fov in (50, 70, 90)]
+    drones = [{"asset": asset, "parameters": {"cameras": {"camera0": {"fov": fov}}}} for fov in (50, 70, 90)]
     env = MultiEnvironment(scene_directory, config=config, seed=5, drones=drones)
     try:
         assert env.self_visible
@@ -881,7 +885,7 @@ def test_spec_header_drone_table(scene_directory):
             env.reset()
             for instance in env.instance_parameters():
                 seen.add(instance["drone"])
-                assert instance["cameras"][0]["fov"] == (50, 70, 90)[instance["drone"]]
+                assert instance["cameras"]["camera0"]["fov"] == (50, 70, 90)[instance["drone"]]
         assert seen == {0, 1, 2}
         smoke_rollout(env)
     finally:
@@ -1054,7 +1058,7 @@ namespace hyperdrone_env_user {
 
 def test_flow_reference_does_not_depend_on_image_reads(scene_directory):
     from hyperdrone import render
-    config = replace(CONFIG, width=16, height=16, output=("rgb", "flow"))
+    config = replace(CONFIG, width=16, height=16, cameras=(CameraSpec("front", (RGB(), Flow(), FlowStatus())),))
     records = []
     for read_every_step in (False, True):
         with closing(MultiEnvironment(scene_directory, config=config, seed=541)) as env:
@@ -1067,7 +1071,7 @@ def test_flow_reference_does_not_depend_on_image_reads(scene_directory):
                 env.step(actions)
                 if read_every_step:
                     env.observe()
-            image, flow, status = env.observe(), env.flow(), env.flow_status()
+            image, flow, status = env.observe(), env.outputs[Flow()].read(), env.outputs[FlowStatus()].read()
             assert np.any(status == render.FlowStatus.VALID)
             records.append((image, flow, status))
     for actual, expected in zip(records[0], records[1]):
@@ -1079,14 +1083,14 @@ def test_flow_reference_survives_same_step_reacquisition(scene_directory, device
     from hyperdrone import render
     if device == "cuda" and render._backend() != "optix":
         pytest.skip("CUDA Worlds require OptiX")
-    config = replace(CONFIG, width=16, height=16, output=("rgb", "flow"), device=device)
+    config = replace(CONFIG, width=16, height=16, cameras=(CameraSpec("front", (RGB(), Flow(), FlowStatus())),), device=device)
     with closing(MultiEnvironment(scene_directory, config=config, seed=541)) as env:
         env.reset()
         env.observe()
         actions = np.full((env.total_instances, env.action_dim), 0.1, dtype=np.float32)
         for _ in range(4):
             env.step(actions)
-        before = (env.observe(), env.flow(), env.flow_status())
+        before = (env.observe(), env.outputs[Flow()].read(), env.outputs[FlowStatus()].read())
         assert np.max(np.abs(before[1][1])) > 0.01
         for operation in (
             lambda: env.reset([False, False]),
@@ -1094,17 +1098,17 @@ def test_flow_reference_survives_same_step_reacquisition(scene_directory, device
             lambda: env.set_instance_parameters({}, [True, False]),
         ):
             operation()
-            for actual, expected in zip((env.observe(), env.flow(), env.flow_status()), before):
+            for actual, expected in zip((env.observe(), env.outputs[Flow()].read(), env.outputs[FlowStatus()].read()), before):
                 np.testing.assert_array_equal(actual, expected)
         for operation in (
-            lambda: env.set_instance_parameters({"cameras": [{"fov": 75.0}]}, [True, False]),
+            lambda: env.set_instance_parameters({"cameras": {"front": {"fov": 75.0}}}, [True, False]),
             lambda: env.reset([True, False]),
         ):
             operation()
-            after = (env.observe(), env.flow(), env.flow_status())
+            after = (env.observe(), env.outputs[Flow()].read(), env.outputs[FlowStatus()].read())
             for actual, expected in zip(after, before):
                 np.testing.assert_array_equal(actual[1], expected[1])
-            for actual, expected in zip((env.observe(), env.flow(), env.flow_status()), after):
+            for actual, expected in zip((env.observe(), env.outputs[Flow()].read(), env.outputs[FlowStatus()].read()), after):
                 np.testing.assert_array_equal(actual, expected)
 
 

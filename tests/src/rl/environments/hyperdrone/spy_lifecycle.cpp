@@ -76,7 +76,8 @@ namespace {
         static constexpr size_t MAX_ENTITY_SLOTS_PER_INSTANCE = 16;
         using CAMERA_PROFILE = rendering::raytracing::outputs::List<rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>;
         using CAMERA_OUTPUTS = hd::CameraOutputs<CAMERA_PROFILE, CAMERA_PROFILE>;
-        static constexpr size_t NUM_PROBES = 0;
+        using OBSERVATION = hd::ImageObservation<0, 1>;
+        static constexpr size_t NUM_PROBES = 1;
         static constexpr bool SELF_VISIBLE = true;
         static constexpr bool ENABLE_MOTION_BLUR = false;
     };

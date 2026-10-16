@@ -90,26 +90,27 @@ of diagnostic verbosity.
 ```python
 import numpy as np
 from hyperdrone import render
+from hyperdrone.camera import CameraSpec, RGB, Depth
 from hyperdrone.examples.data import procthor_scene_path
 
 scene = render.load_scene(procthor_scene_path(), fidelity="high")
 
-renderer = render.Renderer(width=320, height=240, num_cameras=4, output=("rgb", "depth"), fidelity="high")
+renderer = render.Renderer(width=320, height=240, batch_size=4, cameras=(CameraSpec("front", (RGB("rgba8"), Depth())),), fidelity="high")
 renderer.init(scene)
 
 camera = renderer.camera(position=(0, 0, 1.5), look_at=(1, 0, 1.5), fov=80)
 renderer.set_cameras(np.repeat(camera[None], 4, axis=0))
 renderer.render()
 
-rgb   = renderer.frame()    # (4, 240, 320, 4) uint8
-depth = renderer.depth()    # (4, 240, 320) float32
+rgb = renderer.outputs[RGB("rgba8")].read()  # (4, 240, 320, 4) uint8
+depth = renderer.outputs[Depth()].read()      # (4, 240, 320) float32
 ```
 
 The renderer operates in the L2F FLU frame: +X forward, +Y left, +Z up; GLB assets are
 swizzled at load time. Procedural scenes (`render.Scene()` + `render.Object` /
 `render.Mesh` / `render.SceneLight`), segmentation output, overlays (per-camera dynamic
 content via `AssetPool` + `spawn`/`attach`), motion blur, and anti-aliasing follow the
-same API as before under `hyperdrone.render.*`.
+scene and placement APIs under `hyperdrone.render.*`.
 
 Converted ProcTHOR scenes carry ambient `(0.6, 0.6, 0.6)` and a black background in
 `scenes[].extras.rl_tools.environment` (`mode: "solid"`, `ambient` and `background`
@@ -118,18 +119,20 @@ objects or assemblies leaves the parent environment alone. Ambient affects `high
 and `veryhigh`, approximating indirect illumination without light bounces. Override
 imported settings with `scene.set_environment(...)` before `renderer.init(scene)`.
 
-`render()` produces all image outputs selected at construction; `render_launch()` and `render_sync()` split submission from waiting. Collision probes run separately through `probe()` or `probe_launch()` / `probe_sync()`, after `generate_probe_directions()`, and are read with `collisions()`. `num_probes` sets their count per camera (default 1); zero compiles the probe pass out and makes probe operations raise. Probe 0 follows the camera's principal axis; the remaining directions are a fixed Fibonacci set in the camera's FLU frame (x forward, y image left, z image up), so the pattern turns with the camera.
+`render()` acquires the declared image outputs; `render_launch()` and `render_sync()` split submission from waiting. Reads never create a capture or advance temporal state. Declare `Probes()` on the cameras that need collision probes, set `num_probes` per selected camera, call `generate_probe_directions()`, and execute `probe()` separately. `renderer.outputs[Probes()].distance.read()` returns float32 distances; `.hit.read()` returns native int32 hit flags. Probe 0 follows the camera's principal axis; remaining directions form a fixed Fibonacci set in camera FLU coordinates.
 
-### Zero-copy I/O (DLPack)
+### Output buffers and DLPack
 
 ```python
-renderer.frame()                  # snapshot copy (safe to keep)
-renderer.frame(out=rgba_array)    # fill an existing writable, aligned, C-contiguous uint8 array
-rgba = torch.from_dlpack(renderer.frame_dlpack())
-# live uint8 (num_cameras, height, width, 4), zero-copy GPU tensor on OptiX
-packed = torch.from_dlpack(renderer.frame_raw_dlpack())
-# same memory as packed uint32 (num_cameras, height, width)
+output = renderer.outputs[RGB("rgba8")]
+snapshot = output.read()
+output.read(out=rgba_array)
+rgba = torch.from_dlpack(output.blocks[0])
+packed = torch.from_dlpack(output.packed.blocks[0])
+output.layout  # shape, dtype, axes, selected camera identities, device, block count
 ```
+
+Snapshots own their data. `read(out=...)` requires the compiled shape and dtype and copies directly into supported CPU/CUDA buffers; CUDA callers supply `stream=torch.cuda.current_stream().cuda_stream` when using a nondefault stream. Live blocks retain their native allocation and support DLPack consumer-stream ordering; subsequent captures and environment resets may overwrite their contents. RGBA8 uses `uint8[..., 4]`, and `.packed` views the same words as `uint32[...]`. A standalone renderer has one block; MultiEnvironment exposes one block per World and copies into contiguous caller-owned buffers for aggregate reads. Existing blocks retain their original scene-slot allocation after scene rotation, while new block requests resolve current storage.
 
 Inputs accept any DLPack producer. CUDA-resident camera input (OptiX):
 `set_cameras` dispatches on `__dlpack_device__`, so a CUDA tensor — a torch GPU tensor,
@@ -159,7 +162,7 @@ renderer.set_cameras(cameras, stream=sim.stream)
 
 `Sim` defaults to `device="cpu"`; choose `"cuda"` or `"auto"` explicitly. Seed at construction, then `reset(mask=None, *, sample_states=False)` advances the sampling sequence only for selected drones. Observation noise uses a separate stream from stepping. The shared parameter schema matches the environment's `"dynamics"` tree; integration `dt` is fixed at construction and available as read-only `sim.dt`. Per-drone overrides affect `dynamics.dynamics`; a reset restores that drone's nominal parameters. `motor_command` is the rotor command in the model's action-limit units; `sim.rotor_rpm()` converts it to rotor speed in RPM through the model's `max_rpm`, the speed at `action_limit.max` (linear through zero), which every registry entry declares and `set_instance_parameters` can override. A process can load one dynamics variant.
 
-Host accessors return independent snapshots; names ending in `_dlpack()` expose live storage. Drive each object on its construction CUDA device, and finish consuming a borrowed buffer before the producer overwrites it. `Sim` orders DLPack exports onto the consumer's stream. Camera bases have shape `(N, 12)` and concatenate `position`, `dir_00`, `dir_du`, and `dir_dv` world-FLU vectors; the pixel-centre ray is `normalize(dir_00 + (x+0.5)/width * dir_du + (y+0.5)/height * dir_dv)`; `aspect` is required when constructing them.
+`Sim` host accessors return independent snapshots; its methods ending in `_dlpack()` expose live storage. Drive each object on its construction CUDA device, and finish consuming a borrowed buffer before the producer overwrites it. `Sim` orders DLPack exports onto the consumer's stream. Camera bases have shape `(N, 12)` and concatenate `position`, `dir_00`, `dir_du`, and `dir_dv` world-FLU vectors; the pixel-centre ray is `normalize(dir_00 + (x+0.5)/width * dir_du + (y+0.5)/height * dir_dv)`; `aspect` is required when constructing them.
 
 ## RL environment
 
@@ -213,13 +216,19 @@ and the call synchronizes. `EnvConfig(device="cpu")` keeps the World on the host
 visual-inertial localization task (no CUDA verbs yet) and `spec_header` Worlds (whose verbs
 may be host loops) default to it.
 
-`EnvConfig` is the compile-time part (the JIT key); the runtime part is `MultiEnvironment(..., parameters={"dynamics": {"dynamics": {"model": "x500", "mass": 2.1}}, "cameras": [{"fov": 90}]})`, a partial dict merged over the nominal parameters as the base of every drone (the specification's randomization ranges apply on top at reset). `env.parameters` returns drone zero's resolved nominal parameters, including its entry-specific overrides: `"dynamics"` is the l2f parameter set, where a `"model"` key loads an l2f registry entry (`hyperdrone.dynamics.MODELS`) before the rest is merged, and each entry in `"cameras"` holds `mount.pose` (`position` and `orientation`, a (w, x, y, z) quaternion mapping the camera's FLU axes into the body frame) and the horizontal `fov` in degrees. `env.instance_parameters()` returns what each instance is using in the current episode (after randomization), and `env.set_instance_parameters(overrides, mask)` changes it until that instance's next reset (one dict for all selected instances or one per instance); only the drone itself varies (`dynamics.dynamics`, `dynamics.imu`, `cameras`, and `"drone"`, which starts from another table entry's nominal and swaps the rendered body).
+`EnvConfig` is the compile-time part (the JIT key); the runtime part is `MultiEnvironment(..., parameters={"dynamics": {"dynamics": {"model": "x500", "mass": 2.1}}, "cameras": {"front": {"fov": 90}}})`, a partial dict merged over the nominal parameters as the base of every drone (the specification's randomization ranges apply on top at reset). `env.parameters` returns drone zero's resolved nominal parameters, including its entry-specific overrides: `"dynamics"` is the l2f parameter set, where a `"model"` key loads an l2f registry entry (`hyperdrone.dynamics.MODELS`) before the rest is merged, and each entry in `"cameras"` holds `mount.pose` (`position` and `orientation`, a (w, x, y, z) quaternion mapping the camera's FLU axes into the body frame) and the horizontal `fov` in degrees. `env.instance_parameters()` returns what each instance is using in the current episode (after randomization), and `env.set_instance_parameters(overrides, mask)` changes it until that instance's next reset (one dict for all selected instances or one per instance); only the drone itself varies (`dynamics.dynamics`, `dynamics.imu`, `cameras`, and `"drone"`, which starts from another table entry's nominal and swaps the rendered body).
 
 Several drones fly in one environment through the drone table, `MultiEnvironment(..., drones=[{"asset": x500, "parameters": {...}}, {"asset": crazyflie, "parameters": {"dynamics": {"dynamics": {"model": "crazyflie"}}}}, ...])`: every agent samples one entry uniformly at each group reset, independently of the scene its environment shows, so every scene meets every drone. An entry pairs the body/prop_* GLB rendered into the instance's cameras with a partial parameter dict merged over the shared constructor base (the per-drone keys `dynamics.dynamics`, `dynamics.imu`, `cameras`); the same GLB may back several dynamics entries, distinct GLBs load once and all of them need the same part count (an agent's body swaps in place at reset, on the GPU for a CUDA World). The table holds up to `env.max_drone_types` entries (8, a `spec_header` World sets its own), `env.drones` returns the resolved native table, and each agent's `"drone"` value in `env.instance_parameters()` indexes it. `env.self_visible` and `env.max_drone_types` report the compiled world's capabilities, including custom `spec_header` worlds. `drone_asset=X` is the one-entry table. The six rigged assemblies in `hyperdrone.examples.data.RIGGED_MODELS` use matching l2f registry entries; each prop spins with the dynamics rotor at its position whatever rotor order the entry uses.
 
 With `EnvConfig(preset="x500_fpv", num_agents=7, num_camera_agents=7)`, each instance is a group of seven mutually visible drones; groups share scene geometry but remain isolated episodes. `instance_parameters()` returns `{"agents": [...]}` per group, and `set_instance_parameters({"agents": [{"drone": i} for i in choices]}, mask)` assigns models independently (`{}` leaves an agent unchanged). Single-agent entries keep the flat schema. Scene placement, exposure, shutter fraction, reset, reward and termination remain group-wide; all agents share the integration timestep.
 
-`num_camera_agents` defaults to 1 and selects agents `[0, num_camera_agents)` to produce images; all `num_agents` drones still receive actions and appear in state, privileged observations and rendered geometry. `EnvConfig(num_agents=7, num_camera_agents=1, preset="x500_fpv", num_cameras_per_agent=2)` gives agent 0 two synchronized cameras. Set mounts and horizontal FOVs with `parameters={"cameras": [fpv, chase]}`; each agent retains a list of exactly `num_cameras_per_agent` entries, and `{}` preserves a camera’s existing values in a partial override. `EnvConfig` applies its `output` selection to every mount; all cameras share resolution and capture timing. `env.num_views` is `env.num_camera_agents * env.num_cameras_per_agent`, ordered by agent then camera. Base-world `frames()` tiles these views vertically; `env.frames().reshape(env.total_instances, env.num_camera_agents, env.num_cameras_per_agent, H, W, 3)` exposes the axes without copying.
+`num_camera_agents` defaults to 1 and selects agents `[0, num_camera_agents)` to carry the declared rig. Every physical camera shares resolution and capture timing; all agents still receive actions and appear in state, privileged observations, and rendered geometry. `cameras=(CameraSpec("front", ...), CameraSpec("chase", ...))` declares two mounts per camera-equipped agent. Runtime `parameters={"cameras": {"front": fpv, "chase": chase}}` sets named mount/FOV overrides; omitted names retain their values. Custom C++ specifications expose names `camera0`, `camera1`, and so on.
+
+`observation=ImageObservation(cameras=("front",))` selects policy inputs independently of physical cameras. Every selected mount must explicitly declare float32 RGB; auxiliary cameras do not change policy dimensions or history allocation. `observation=None` omits image history and policy observations while retaining rendering, dynamics, privileged state, and applicable IMU access. `observe()` and Gym construction reject a missing policy observation. Frame retention and history-stack composition remain defined by the native task. `frames()` reshapes the processed policy observation, including task composition; `env.outputs[RGB()].read()` returns raw renderer pixels.
+
+For declared `Probes()` outputs, call `env.render()` before the first `env.probe()`. Probing uses the last rendered camera and geometry poses; it does not refresh those poses or advance the task's capture cadence. Read the results through `env.outputs[Probes()].distance` and `.hit`.
+
+Every `env.reset()`, including an all-false mask, invalidates image and probe reads because task reset work may overwrite raw buffers. Call `render()` or `observe()` before reading images again, then `probe()` before reading probe results.
 
 All environment semantics — reset, reward, termination, scene scheduling, observation
 composition — live on the C++ side (`rl_tools::rl::environments::hyperdrone::MultiEnvironment<World>`);
@@ -238,7 +247,7 @@ rotor_torque_directions=...)` is the same rig as a `render.Rig` for manual compo
 coordinate i is the phase of rotor i spinning against its reaction torque, so `sim.rotor_rpm()` supplies the speeds whose integral over the step advances the coordinates; without rotors the props follow part order and the
 Quad-X convention, front-right CCW — and `"x500_fpv_imu"`, the same platform stepping at
 IMU rate), `task=` names the wrapper (`"target_frame"`, `"moving_gate"`,
-`"visual_inertial_localization"`), `num_agents=` enables multi-agent, `num_camera_agents=` selects the prefix with cameras, `num_cameras_per_agent=` sets their camera count, and `EnvConfig(spec_header=...)` pins
+`"visual_inertial_localization"`), `num_agents=` enables multi-agent, `num_camera_agents=` selects the prefix with cameras, `cameras=` declares their ordered rig, and `EnvConfig(spec_header=...)` pins
 an arbitrary C++ specification (a header defining `hyperdrone_env_user::WORLD`, hashed
 into the JIT key); its final C++ specification must define `N_CAMERA_AGENTS` explicitly. A spec header can go beyond constants to a full user-authored task
 wrapper — verb overloads registering and moving entities, compiled reward, termination:
@@ -253,20 +262,17 @@ using OUTPUT_PROFILE = rl_tools::rendering::raytracing::outputs::List<
     rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>,
     rl_tools::rendering::raytracing::outputs::Depth<>,
     rl_tools::rendering::raytracing::outputs::Probes>;
-using CAMERA_OUTPUTS = rl_tools::rl::environments::hyperdrone::CameraOutputs<OUTPUT_PROFILE, OUTPUT_PROFILE>;
+using DIAGNOSTIC_PROFILE = rl_tools::rendering::raytracing::outputs::List<
+    rl_tools::rendering::raytracing::outputs::Depth<>>;
+using CAMERA_OUTPUTS = rl_tools::rl::environments::hyperdrone::CameraOutputs<OUTPUT_PROFILE, DIAGNOSTIC_PROFILE>;
+using OBSERVATION = rl_tools::rl::environments::hyperdrone::ImageObservation<0>;
 ```
 
-This two-mount layout is shared by every camera-equipped agent and instance. Python observations require `RGB<Float32>` on every mount, and each enabled Python image accessor requires its output on every mount.
+This two-mount rig is shared by every camera-equipped agent and instance. Only the observation-selected mount requires float32 RGB; the second mount produces depth alone. Native metadata exposes each output's compact rows through the same Python handles as generated configurations. Use `NoObservation` instead of `ImageObservation<...>` for a World without policy images.
 
 Entity wrappers share their own pose writes in `prepare_entity_poses`: `render` calls it before forwarding acquisition, and `step` calls it before forwarding when a frame is pending and history or flow requires its poses. The base World separates input production (`prepare_render_inputs`), temporal reset (`reset_render_state`, using prepared poses for flow) and advancement (`advance_flow`), and acquisition (`render`, which publishes transforms, updates acceleration, and scatters images into history). Pose helpers neither render nor call `update`; CUDA may fuse temporal bookkeeping into existing kernels without changing these semantics.
 
-The target-frame task requires one agent with one camera and pre-renders its episode setups: a bank of one setup per instance
-(drone, scene placement, camera, brightness and the target perturbations) is rendered in one pass
-every `TARGET_BANK_REFRESH_STEPS` simulation steps (a compile-time task constant, default 32) and after
-a scene change, and resets adopt the bank's setups in turn and copy their frames, so a reset
-adds no render pass of its own; resets beyond the instance count within one refresh reuse
-setups. Each episode's drone and camera come from its setup, so `set_instance_parameters`
-rejects drone and camera overrides for this task; a replayed spawn re-renders its target frame.
+The target-frame task requires one agent and one selected observation camera; auxiliary physical cameras remain available. It pre-renders a bank of episode setups (drone, scene placement, cameras, brightness and target perturbations), one per instance, in one pass. A reset refreshes this bank when its age reaches `TARGET_BANK_REFRESH_STEPS` simulation steps (a compile-time task constant, default 32) or the scene changes. Otherwise, resets adopt setups in turn and copy the selected camera's target frame without rendering; resets beyond the instance count within one refresh reuse setups. Each episode's drone and cameras come from its setup, so `set_instance_parameters` rejects drone and camera overrides for this task; a replayed spawn re-renders its target frame.
 
 `EnvConfig(motion_blur_samples=8)` enables camera and propeller motion blur for presets and tasks; valid counts are 1 (default, disabled), 2, 4, 8, 16, and 32. Custom spec headers control `ENABLE_MOTION_BLUR` and `MOTION_BLUR_SAMPLES` directly.
 
@@ -279,7 +285,7 @@ renderer's collision probes and is deterministic given a seed.
 
 ### Native spy
 
-`env.spy()` opens a live camera mosaic and an independent spectator camera. Call `update()` on the main thread after your usual `observe()` or `render()` and before changing the environment; the spy reads existing observations without producing new ones. GUI events are processed only by `update()`, so call it regularly even when training is paused. Closing its window leaves the environment running; `update()` then returns `False`.
+`env.spy()` opens a live camera mosaic and an independent spectator camera. Call `update()` on the main thread after your usual `observe()` or `render()` and before changing the environment; the mosaic reads existing raw RGB outputs without acquiring another environment capture. It requires a camera with RGB output, independently of policy observation selection or image history. GUI events are processed only by `update()`, so call it regularly even when training is paused. Closing its window leaves the environment running; `update()` then returns `False`.
 
 ```python
 env.reset()
@@ -380,6 +386,8 @@ With the spy dependencies installed, run `HYPERDRONE_TEST_SPY=1 xvfb-run -a .ven
 other); `scripts/test_sdist.sh` is the self-containment rot guard (build sdist → clean
 venv → vendored-tree render).
 
+`scripts/benchmark_camera_outputs.py` compares fixed full and compact rigs on a procedural scene, checks identical shared outputs and renamed-config cache reuse, and reports output bytes, render/read timings, and Python allocation peaks. It logs to metra when `METRA_URL` is set; allocation peaks exclude native buffers, and reads use CPU destinations.
+
 `render.datasets.Train200()` exposes the header-pinned 200-scene ProcTHOR training subset (scene IDs 0–199). Catalog access loads the native core without resolving assets; use `dataset["ProcTHOR-Train-1"].reference` with `render.load_scene`, or `dataset.references[:4]` with `MultiEnvironment`. The RLtools commit identifies the catalog's membership, order, and hashes. This collection's Train-1 artifact differs from the scene pinned by `examples.data.procthor_scene_path()` and the rendering goldens.
 
 ```python
@@ -389,39 +397,53 @@ dataset = render.datasets.Train200()
 scene = render.load_scene(dataset["ProcTHOR-Train-1"].reference)
 ```
 
-Select any combination with `output=("rgb", "depth", "instance_segmentation", "semantic_segmentation", "normals", "flow")`.
-Outputs other than RGB are:
+Camera profiles declare immutable output descriptors from `hyperdrone.camera`:
 
-| Accessor | dtype | Per-camera shape | Contract |
+| Descriptor | Default dtype | Per-camera shape | Contract |
 |---|---|---|---|
-| `depth()` | float32 | `(H, W)` | Camera-forward depth from the pixel-centre shutter-close ray; miss `+inf` |
-| `instance_segmentation()` | uint32 | `(H, W)` | Instance IDs; miss `0xFFFFFFFF` |
-| `semantic_segmentation()` | uint32 | `(H, W)` | Semantic classes (`segmentation_class`); miss `0xFFFFFFFF` |
-| `normals()` | float32 | `(H, W, 3)` | World-FLU geometric unit normal facing against the ray; miss zero |
-| `flow()` | float32 | `(H, W, 2)` | Current-to-previous `(dx, dy)` displacement in pixels, positive along image columns/rows |
-| `flow_status()` | uint32 | `(H, W)` | `render.FlowStatus`: VALID, MISS, BEHIND, OUT_OF_FRAME, OCCLUDED |
+| `RGB()` | float32 | `(H, W, 3)` | Raw sRGB; `format="rgba8"` exposes four uint8 channels |
+| `Depth()` | float32 | `(H, W)` | Camera-forward depth at shutter close; miss `+inf` |
+| `Segmentation(labels="instance")` | uint32 | `(H, W)` | Instance IDs; miss `0xFFFFFFFF` |
+| `Segmentation(labels="semantic")` | uint32 | `(H, W)` | Semantic classes; miss `0xFFFFFFFF` |
+| `Normals()` | float32 | `(H, W, 3)` | World-FLU geometric unit normal facing against the ray; miss zero |
+| `Flow(direction="backward")` | float32 | `(H, W, 2)` | Current-to-previous `(dx, dy)` displacement in pixels |
+| `FlowStatus(direction="backward")` | uint32 | `(H, W)` | VALID, MISS, BEHIND, OUT_OF_FRAME, OCCLUDED |
 
-`Renderer` prepends `num_cameras`; host accessors return snapshots or fill an exact-shape/dtype `out=` array, and `*_dlpack()` exposes the live backend buffer. Read after `render()` or `render_sync()`. Depth, segmentation, normals and flow use pixel centres at shutter close, independently of RGB anti-aliasing and motion blur. MISS and BEHIND flow vectors are zero; OUT_OF_FRAME and OCCLUDED
-retain geometric displacement, so use `flow_status() == render.FlowStatus.VALID` as the mask.
+All image descriptors also support `format="rgba8"`. Depth and flow `scale=` applies only to RGBA8; raw descriptors normalize it to the native defaults. Flow and its status are independently selected, and both `direction="forward"` and `"backward"` can coexist. One native quantity/representation slot must use identical parameters across the rig, including cameras with disjoint selections. MISS and BEHIND flow vectors are zero; OUT_OF_FRAME and OCCLUDED retain geometric displacement. `render.FlowStatus` contains status values; `camera.FlowStatus` selects the status output.
 
 ```python
-renderer = render.Renderer(width=128, height=128, output=("rgb", "depth", "normals", "flow"))
-renderer.init(scene)
-renderer.set_cameras(previous_cameras)
-renderer.render()                       # first capture seeds previous=current
-renderer.advance_flow()                 # snapshot camera AND object poses
-renderer.set_cameras(current_cameras)   # update object transforms here too, then update()
-renderer.render()
-flow, status = renderer.flow(), renderer.flow_status()
+from hyperdrone.camera import CameraSpec, RGB, Depth, Flow, FlowStatus
+from hyperdrone.env import EnvConfig, ImageObservation, MultiEnvironment
+
+profiles = (
+    CameraSpec("front", (RGB(), Depth(), Flow(), FlowStatus())),
+    CameraSpec("chase", (RGB("rgba8"),)),
+    CameraSpec("down", (Depth(),)),
+)
+config = EnvConfig(cameras=profiles, observation=ImageObservation(cameras=("front",)))
+env = MultiEnvironment(scenes, config=config)
+env.reset()
+env.render()
+depth = env.outputs[Depth()].read()
+print(depth.shape, env.outputs[Depth()].layout.cameras)
+env.close()
 ```
 
-`EnvConfig(output=("rgb", "depth", "instance_segmentation", "normals", "flow"))` enables the same
-auxiliary channels in `MultiEnvironment`, with RGB policy observations. Its accessors accept
-`out=` (NumPy, or CUDA arrays on a CUDA World) and return
-`(total_instances, num_views, H, W[, channels])`. They render pending frames as `observe()` does;
-repeated reads reuse the capture. Flow retains each due capture even when it is unread, follows task frame cadence, and resets per instance or on scene changes. The first/reset capture
-has zero motion. `env.outputs` describes the compiled configuration. Normals use the renderer’s scene
-FLU frame; instance IDs are local to each environment’s active renderer. Custom `spec_header` Worlds declare their renderer `OUTPUTS` list, including float RGB for policy observations and `Probes` for scene annotations; leave the corresponding Python options at their defaults.
+Buffers contain only selected cameras, ordered by physical camera index. Renderer image shapes are `(selected_cameras, H, W[, channels])`; environment shapes are `(total_instances, selected_views, H, W[, channels])`. Layout camera identities pair each mount name with its repetition index for standalone rendering or agent index for environments. Native metadata supplies dimensions and dtypes, including custom C++ specifications. Names and runtime poses/FOVs do not change compiled specializations; camera topology, observation selections, and output semantics do.
+
+Depth, segmentation, normals, and flow use pixel centres at shutter close, independently of RGB anti-aliasing and motion blur. `env.render()` honors task frame cadence. Repeated reads share a capture, and flow follows due captures and resets per instance or scene change; the first/reset capture has zero motion. Standalone flow advances explicitly:
+
+```python
+renderer = render.Renderer(width=128, height=128, cameras=(CameraSpec("front", (Flow(), FlowStatus())),))
+renderer.init(scene)
+renderer.set_cameras(previous_cameras)
+renderer.render()
+renderer.advance_flow()
+renderer.set_cameras(current_cameras)
+renderer.render()
+flow = renderer.outputs[Flow()].read()
+status = renderer.outputs[FlowStatus()].read()
+```
 
 `EnvConfig(dataset="glb")` (the default) uses the taxonomy authored in the GLBs;
 `dataset="procthor"` requires each scene to declare `ai2thor-hab` when semantic output is enabled.
@@ -434,12 +456,13 @@ Self-visible worlds label every drone placement with the reserved class
 taxonomies may not use IDs from `0xFFFFFF00` upwards.
 
 ```python
-config = EnvConfig(dataset="procthor", output=("rgb", "semantic_segmentation"))
+config = EnvConfig(dataset="procthor", cameras=(CameraSpec("front", (RGB(), Segmentation(labels="semantic"))),))
 env = MultiEnvironment(scenes, config=config)
 classes = env.segmentation_classes  # dict[int, str], an independent copy
 taxonomy = env.segmentation_taxonomy  # "ai2thor-hab"
 env.reset()
-labels = env.semantic_segmentation()
+env.render()
+labels = env.outputs[Segmentation(labels="semantic")].read()
 agent_pixels = labels == render.AGENT_SEGMENTATION_CLASS
 env.close()
 ```
@@ -452,10 +475,11 @@ For labelled ProcTHOR rendering, preserve GLB root instances; instance and seman
 
 ```python
 scene = render.load_scene(procthor_scene_path(), rgb=False, preserve_instances=True)
-renderer = render.Renderer(width=512, height=512, output=("instance_segmentation", "semantic_segmentation"))
+renderer = render.Renderer(width=512, height=512, cameras=(CameraSpec("front", (Segmentation(), Segmentation(labels="semantic"))),))
 renderer.init(scene)
 # Set cameras and render as usual.
-instances, labels = renderer.instance_segmentation(), renderer.semantic_segmentation()  # uint32
+instances = renderer.outputs[Segmentation()].read()
+labels = renderer.outputs[Segmentation(labels="semantic")].read()
 classes = scene.segmentation_classes  # {class_id: name}, taxonomy: scene.segmentation_taxonomy
 ```
 
@@ -509,6 +533,6 @@ The release contract covers documented names, single-agent shapes and documented
 
 Reproducibility is per seed, configuration, reset masks and call sequence on one host build (`-O3 -march=native -ffast-math`). RNG streams may change in minor releases. Environment IMU noise and shutter sampling still share the physics RNG. The `Train200` catalog is immutable; cite its RLtools commit for paper datasets and identify the examples and golden scenes separately as fixtures.
 
-Presets name platforms and default to a neutral MDP: zero reward and disabled termination. Configure the task through `parameters["dynamics"]["mdp"]`; `moving_gate` adds +10 for a pass and terminates on gate crashes. Preset and task names are stable. Privileged observations are ground truth, with row-major body-to-world rotation matrices. Views are ordered `(instance, agent, camera)` and stacked along image height; all cameras share resolution.
+Presets name platforms and default to a neutral MDP: zero reward and disabled termination. Configure the task through `parameters["dynamics"]["mdp"]`; `moving_gate` adds +10 for a pass and terminates on gate crashes. Preset and task names are stable. Privileged observations are ground truth, with row-major body-to-world rotation matrices. Raw views follow physical `(instance, agent, camera)` order; selected policy views are stacked along image height, and all cameras share resolution.
 
-All RGB fidelity tiers store sRGB; alpha is always 255 and reserved. Medium uses a checker background. Probe misses return `+inf` with boolean hit flags; `ClearanceSampler` accepts candidates whose sampled rays have no hit closer than the clearance radius; it does not compute the environment's free-space annotation table.
+All RGB fidelity tiers store sRGB; RGBA8 alpha is always 255 and reserved. Medium uses a checker background. Probe misses return `+inf` with int32 hit flags; `ClearanceSampler` accepts candidates whose sampled rays have no hit closer than the clearance radius; it does not compute the environment's free-space annotation table.

@@ -29,6 +29,9 @@ class VectorEnv(gymnasium.vector.VectorEnv):
 
     def __init__(self, scenes, config=None, seed=0, **environment_arguments):
         self._env = MultiEnvironment(scenes, config=config, seed=seed, **environment_arguments)
+        if not self._env.has_image_observation:
+            self._env.close()
+            raise ValueError("hyperdrone: Gym requires a configured policy observation")
         self.num_envs = self._env.total_instances
         self.single_observation_space = gymnasium.spaces.Box(
             0.0, 1.0, shape=(self._env.observation_dim,), dtype=np.float32

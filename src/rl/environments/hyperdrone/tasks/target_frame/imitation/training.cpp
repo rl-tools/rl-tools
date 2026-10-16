@@ -327,7 +327,7 @@ void fetch_world_frames(DEVICE& device, DEVICE_COMPUTE& device_compute, TASK_WOR
     const TI history_slot = (world.history_step - 1) % FRAME_STACK_HISTORY_LENGTH;
     {
         auto history_row = rlt::view(device_compute, world.history, history_slot);
-        rlt::Tensor<rlt::tensor::Specification<float, TI, rlt::tensor::Shape<TI, M * BASE_WORLD::N_VIEWS, BASE_WORLD::FRAME_DIM>>> frame_alias;
+        rlt::Tensor<rlt::tensor::Specification<float, TI, rlt::tensor::Shape<TI, M * BASE_WORLD::N_OBSERVATION_VIEWS, BASE_WORLD::FRAME_DIM>>> frame_alias;
         frame_alias._data = frames;
         rlt::copy(device_compute, device, history_row, frame_alias);
     }

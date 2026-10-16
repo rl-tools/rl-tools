@@ -87,12 +87,13 @@ namespace test_target_frame {
 
 using namespace test_target_frame;
 
-struct Tensors {
-    rlt::Tensor<rlt::tensor::Specification<typename WORLD::Parameters, TI, rlt::tensor::Shape<TI, INSTANCES>>> parameters;
-    rlt::Tensor<rlt::tensor::Specification<typename WORLD::State, TI, rlt::tensor::Shape<TI, INSTANCES>>> states, next_states;
+template <typename WORLD_TYPE>
+struct TensorsFor {
+    rlt::Tensor<rlt::tensor::Specification<typename WORLD_TYPE::Parameters, TI, rlt::tensor::Shape<TI, INSTANCES>>> parameters;
+    rlt::Tensor<rlt::tensor::Specification<typename WORLD_TYPE::State, TI, rlt::tensor::Shape<TI, INSTANCES>>> states, next_states;
     rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, INSTANCES>>> reset_mask;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, INSTANCES, WORLD::ACTION_DIM>>> actions;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, INSTANCES, WORLD::OBSERVATION_DIM>>> observations;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, INSTANCES, WORLD_TYPE::ACTION_DIM>>> actions;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, INSTANCES, WORLD_TYPE::OBSERVATION_DIM>>> observations;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, INSTANCES>>> rewards;
     rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, INSTANCES>>> terminated_flags;
     void allocate(DEVICE& device){
@@ -116,6 +117,73 @@ struct Tensors {
         rlt::free(device, terminated_flags);
     }
 };
+
+using Tensors = TensorsFor<WORLD>;
+
+namespace test_target_auxiliary {
+    namespace out = rlt::rendering::raytracing::outputs;
+    struct Specification: WORLD_SPEC {
+        using CAMERA_OUTPUTS = rlt::rl::environments::hyperdrone::CameraOutputs<out::List<out::RGB<>>, out::List<out::RGB<out::format::Float32>, out::Flow<>, out::FlowStatus<>>, out::List<out::RGB<out::format::Float32>, out::Depth<>>>;
+        using OBSERVATION = rlt::rl::environments::hyperdrone::ImageObservation<1>;
+    };
+    using Base = rlt::rl::environments::hyperdrone::World<Specification>;
+    struct Task: TASK_SPEC {
+        using NEXT_WORLD = Base;
+    };
+    using World = rlt::rl::environments::hyperdrone::tasks::target_frame::World<Task>;
+    static_assert(World::N_VIEWS == 3 && World::N_OBSERVATION_VIEWS == 1 && World::TARGET_CAMERA == 1);
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME, SELECTED_TARGET_CAMERA_WITH_AUXILIARY_VIEWS) {
+    using namespace rlt;
+    using SparseWorld = test_target_auxiliary::World;
+    namespace out = rendering::raytracing::outputs;
+    if(SCENE_PATH.empty()) {
+        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
+    }
+    DEVICE device;
+    init(device);
+    SparseWorld world;
+    typename SparseWorld::SharedContext shared;
+    malloc(device, shared.library);
+    malloc(device, world);
+    world.parameters.agents[0].cameras[0].mount.pose.position[0] = -1;
+    world.parameters.agents[0].cameras[1].fov = 95;
+    world.parameters.agents[0].cameras[2].fov = 110;
+    rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    typename decltype(dataset)::Corpus corpus;
+    rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
+    RNG rng;
+    malloc(device, rng);
+    init(device, rng, 1337);
+    TensorsFor<SparseWorld> tensors;
+    tensors.allocate(device);
+    set_all(device, tensors.reset_mask, true);
+    sample_initial_parameters(device, world, tensors.parameters, tensors.reset_mask, rng);
+    sample_initial_state(device, world, tensors.parameters, tensors.states, tensors.reset_mask, rng);
+    observe(device, world, tensors.parameters, tensors.states, typename SparseWorld::Observation{}, tensors.observations, rng);
+    auto& renderer = get_renderer(device, world);
+    Tensor<out::TensorSpecification<typename SparseWorld::RENDERER_SPEC, out::RGB<out::format::Float32>>> rgb;
+    malloc(device, rgb);
+    copy(renderer.device, device, output(device, renderer, out::RGB<out::format::Float32>{}), rgb);
+    for(TI instance = 0; instance < INSTANCES; instance++) {
+        const float scale = get_ref(device, tensors.parameters, instance).brightness_scale;
+        for(TI pixel = 0; pixel < CAM_PIXELS; pixel++) {
+            for(TI channel = 0; channel < 3; channel++) {
+                const float raw = data(rgb)[(instance * 2 * CAM_PIXELS + pixel) * 3 + channel] * scale;
+                const float expected = raw < 0 ? 0 : (raw > 1 ? 1 : raw);
+                EXPECT_FLOAT_EQ(get(device, tensors.observations, instance, pixel * SparseWorld::OBSERVATION_CHANNELS + channel), expected);
+                EXPECT_FLOAT_EQ(get(device, tensors.observations, instance, pixel * SparseWorld::OBSERVATION_CHANNELS + TASK_SPEC::IMAGE_STACK_N * 3 + channel), get(device, world.target_frames, instance, pixel * 3 + channel));
+            }
+        }
+    }
+    free(device, rgb);
+    tensors.deallocate(device);
+    free(device, rng);
+    rlt::free(device, world);
+    free(device, shared.library);
+}
 
 static T stack_channel(DEVICE& device, Tensors& tensors, TI instance_i, TI pixel_i, TI frame_i, TI channel_i){
     return rlt::get(device, tensors.observations, instance_i, pixel_i * WORLD::OBSERVATION_CHANNELS + frame_i * IMAGE_CHANNELS + channel_i);

@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from hyperdrone import render
+from hyperdrone.camera import CameraSpec, Depth, RGB
 dataset = render.datasets.Train200()
 scene_reference = dataset["ProcTHOR-Train-1"].reference
 
@@ -13,7 +14,7 @@ POSITION = np.array([-0.97, -4.42, 1.5])
 YAWS_DEGREES = (150.0, 195.0, 240.0, 285.0)
 
 scene = render.load_scene(scene_reference, fidelity="high")
-renderer = render.Renderer(width=320, height=240, num_cameras=len(YAWS_DEGREES), output=("rgb", "depth"), fidelity="high")
+renderer = render.Renderer(width=320, height=240, batch_size=len(YAWS_DEGREES), cameras=(CameraSpec("front", (RGB("rgba8"), Depth())),), fidelity="high")
 renderer.init(scene)
 
 cameras = []
@@ -24,8 +25,8 @@ for yaw_degrees in YAWS_DEGREES:
 renderer.set_cameras(np.stack(cameras))
 renderer.render()
 
-frame = renderer.frame()
-depth = renderer.depth()
+frame = renderer.outputs[RGB("rgba8")].read()
+depth = renderer.outputs[Depth()].read()
 
 figure, axes = plt.subplots(2, len(YAWS_DEGREES), figsize=(4 * len(YAWS_DEGREES), 6))
 for camera, yaw_degrees in enumerate(YAWS_DEGREES):

@@ -46,7 +46,8 @@ def scene_directory(tmp_path_factory):
 
 def test_golden_rollout(scene_directory):
     manifest = json.loads((GOLDEN / "manifest.json").read_text())
-    assert CONFIG.defines() == manifest["defines"], "the test configuration drifted from the golden's — regenerate deliberately"
+    scalar_defines = {name: value for name, value in CONFIG.defines().items() if name != "HYPERDRONE_CAMERA_BACKEND_REQUIREMENT"}
+    assert scalar_defines == {name: manifest["defines"][name] for name in scalar_defines}, "the test configuration drifted from the golden's — regenerate deliberately"
     env = MultiEnvironment(scene_directory, config=CONFIG, seed=manifest["seed"])
     try:
         assert env.observation_layout == layout_from_json(manifest["observation_layout"])

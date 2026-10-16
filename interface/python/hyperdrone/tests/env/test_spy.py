@@ -6,6 +6,7 @@ import weakref
 
 import pytest
 
+from hyperdrone.camera import CameraSpec, RGB, ImageObservation
 from hyperdrone.env import MultiEnvironment
 
 
@@ -129,11 +130,12 @@ def test_main_thread_owns_all_window_operations(environment):
 def test_native_spy_preserves_rollout_and_environment_lifecycle(tmp_path, num_cameras_per_agent):
     import numpy as np
 
+    from hyperdrone.camera import CameraSpec, RGB, ImageObservation
     from hyperdrone.env import EnvConfig
     from test_taxonomy import room_glb
 
     scenes = [room_glb(tmp_path / "first.glb", taxonomy=None), room_glb(tmp_path / "second.glb", taxonomy=None, extent=6)]
-    config = EnvConfig(instances_per_environment=2, width=32, height=32, fidelity="low", num_cameras_per_agent=num_cameras_per_agent)
+    config = EnvConfig(instances_per_environment=2, width=32, height=32, fidelity="low", cameras=tuple(CameraSpec(name, outputs=(RGB(),)) for name in ("front", "rear")[:num_cameras_per_agent]), observation=ImageObservation(cameras=("front", "rear")[:num_cameras_per_agent]))
     control = MultiEnvironment(scenes, config=config, seed=1337)
     observed = MultiEnvironment(scenes, config=config, seed=1337)
     try:

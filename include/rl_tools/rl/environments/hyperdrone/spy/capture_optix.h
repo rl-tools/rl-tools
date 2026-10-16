@@ -149,7 +149,7 @@ namespace rl_tools {
 
     template <typename DEV_SPEC, typename CONFIG>
     void capture_spy(devices::CPU<DEV_SPEC>& device, rl::environments::hyperdrone::spy::State<CONFIG>& state, typename CONFIG::ENVIRONMENT& env, rendering::raytracing::backends::Optix) {
-        pack_spy_atlas_cpu(state, env);
+        pack_spy_atlas_cpu(device, state, env);
         constexpr size_t CAMERAS_PER_MEMBER = CONFIG::WORLD::INSTANCES * CONFIG::WORLD::N_VIEWS;
         const size_t member_i = state.buffer.selected_camera / CAMERAS_PER_MEMBER;
         auto& world = env.environments[member_i];

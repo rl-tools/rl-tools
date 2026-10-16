@@ -27,12 +27,13 @@ import sys
 sys.path.insert(0, sys.argv[1])
 import numpy as np
 from hyperdrone import dynamics, render
+from hyperdrone.camera import CameraSpec, RGB, Depth
 from test_env import make_room
 
 num_drones = 4
 scene = make_room()
 sim = dynamics.Sim(num_drones=num_drones, device="cuda")
-renderer = render.Renderer(width=32, height=32, num_cameras=num_drones, output="rgb", fidelity="low")
+renderer = render.Renderer(width=32, height=32, batch_size=num_drones, cameras=(CameraSpec("camera", outputs=(RGB(format="rgba8"),)),), fidelity="low")
 renderer.init(scene)
 assert renderer.backend == "optix" and sim.device == "cuda"
 
@@ -47,7 +48,7 @@ actions = np.full((num_drones, sim.action_dim), 0.1, dtype=np.float32)
 sim.step(actions)
 renderer.set_cameras(sim.camera_bases_dlpack(aspect=renderer.aspect), stream=sim.stream)
 renderer.render()
-device_frame = renderer.frame_raw().copy()
+device_frame = renderer.outputs[RGB(format="rgba8")].packed.read().copy()
 
 # replay the same step with the cameras routed through the host
 spawn(positions)
@@ -55,7 +56,7 @@ sim.step(actions)
 sim.synchronize()
 renderer.set_cameras(sim.camera_bases(aspect=renderer.aspect))
 renderer.render()
-host_frame = renderer.frame_raw()
+host_frame = renderer.outputs[RGB(format="rgba8")].packed.read()
 
 assert np.array_equal(device_frame, host_frame), "device hand-off diverged from host path"
 print("DEVICE HANDOFF OK")

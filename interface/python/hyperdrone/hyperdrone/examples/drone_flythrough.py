@@ -14,6 +14,7 @@ from pathlib import Path
 import numpy as np
 
 from hyperdrone import dynamics, render
+from hyperdrone.camera import CameraSpec, Depth, RGB
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-m", "--model", default=None, help="GLB scene (default: procedural room)")
@@ -66,7 +67,7 @@ else:
 
 sim = dynamics.Sim(num_drones=arguments.drones, parameters={"dynamics": {"dynamics": {"model": arguments.drone_model}}}, device=arguments.device)
 renderer = render.Renderer(width=arguments.width, height=arguments.height,
-                           num_cameras=arguments.drones, output="rgb", fidelity="medium")
+                           batch_size=arguments.drones, cameras=(CameraSpec("front", (RGB("rgba8"),)),), fidelity="medium")
 renderer.init(scene)
 
 # manual composition of the two peers: sim.step -> camera_bases -> set_cameras -> render,
@@ -143,7 +144,7 @@ if arguments.video:
     video_writer = imageio.get_writer(arguments.video, fps=1.0 / (sim.dt * video_stride))
 
     def record_frame():
-        views = renderer.frame()[:video_drones, :, :, :3]
+        views = renderer.outputs[RGB("rgba8")].read()[:video_drones, :, :, :3]
         video_writer.append_data(camera_grid(views))
 
 start = time.perf_counter()
@@ -165,5 +166,5 @@ if video_writer is not None:
 if arguments.save:
     import imageio
 
-    imageio.imwrite(arguments.save, camera_grid(renderer.frame()))
+    imageio.imwrite(arguments.save, camera_grid(renderer.outputs[RGB("rgba8")].read()))
     print(f"saved {arguments.save}")

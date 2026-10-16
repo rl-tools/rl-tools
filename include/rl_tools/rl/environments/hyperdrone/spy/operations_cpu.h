@@ -106,7 +106,7 @@ namespace rl_tools {
 
     template <typename DEVICE, typename CONFIG>
     void malloc(DEVICE& device, rl::environments::hyperdrone::Spy<CONFIG>& spy) {
-        static_assert(CONFIG::WORLD::RENDERER_SPEC::HAS_RGB, "HyperDrone spy requires RGB observations");
+        static_assert(CONFIG::WORLD::RENDERER_SPEC::HAS_RGB, "HyperDrone spy requires RGB output");
         static_assert(CONFIG::ATLAS_WIDTH > 0 && CONFIG::ATLAS_HEIGHT > 0);
         if(spy.state != nullptr) {
             throw std::logic_error("HyperDrone spy is already allocated");

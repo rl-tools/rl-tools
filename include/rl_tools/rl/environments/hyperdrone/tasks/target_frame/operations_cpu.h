@@ -22,7 +22,7 @@ namespace rl_tools {
             auto& view = static_cast<typename NEXT_WORLD::Parameters&>(setup);
             view = defaults;
             view.agents[0].drone = hyperdrone::_sample_drone<DEVICE, BASE_SPEC>(device, num_drones, rng);
-            hyperdrone::_sample_view_parameters<DEVICE, BASE_SPEC>(device, get_ref(device, drones, view.agents[0].drone).cameras[0], view.agents[0].cameras[0], rng);
+            hyperdrone::_sample_camera_parameters<DEVICE, BASE_SPEC>(device, get_ref(device, drones, view.agents[0].drone), view.agents[0], rng);
             hyperdrone::_sample_brightness<DEVICE, BASE_SPEC>(device, view, rng);
             hyperdrone::_sample_scene_placement<DEVICE, BASE_SPEC>(device, annotations, view, rng);
             if constexpr (TASK_SPEC::TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE > (T)0){
@@ -50,6 +50,17 @@ namespace rl_tools {
         RL_TOOLS_FUNCTION_PLACEMENT inline float _target_pixel(float value, float scale){
             value *= scale;
             return value < 0.0f ? 0.0f : (value > 1.0f ? 1.0f : value);
+        }
+        template <typename DEVICE, typename TASK_SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT auto _target_camera(DEVICE& device, const typename World<TASK_SPEC>::Parameters& setup, typename TASK_SPEC::TI mount, typename TASK_SPEC::T aspect) {
+            using T = typename TASK_SPEC::T;
+            constexpr auto TARGET_CAMERA = World<TASK_SPEC>::TARGET_CAMERA;
+            if(mount == TARGET_CAMERA) {
+                return make_target_camera<DEVICE, T>(device, setup.agents[0].cameras[TARGET_CAMERA], aspect, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, setup.target_roll, setup.target_pitch);
+            }
+            T orientation[4], position[3];
+            make_target_body_pose(device, setup.agents[0].cameras[TARGET_CAMERA], setup.target_roll, setup.target_pitch, orientation, position);
+            return make_camera<DEVICE, T>(device, setup.agents[0].cameras[mount], orientation, position, aspect, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin);
         }
         template <typename TASK_SPEC>
         bool _bank_due(const World<TASK_SPEC>& world){
@@ -112,7 +123,7 @@ namespace rl_tools {
                 for (TI setup_i = 0; setup_i < WORLD::INSTANCES; setup_i++) {
                     const auto& setup = get_ref(device, setups, setup_i);
                     T orientation[4], position[3];
-                    make_target_body_pose(device, setup.agents[0].cameras[0], setup.target_roll, setup.target_pitch, orientation, position);
+                    make_target_body_pose(device, setup.agents[0].cameras[WORLD::TARGET_CAMERA], setup.target_roll, setup.target_pitch, orientation, position);
                     float base[12];
                     rig::make_body_transform(device, orientation, position, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, base);
                     const auto& body = get_ref(device, world.drone_bodies, setup.agents[0].drone);
@@ -123,7 +134,9 @@ namespace rl_tools {
             }
             for (TI setup_i = 0; setup_i < WORLD::INSTANCES; setup_i++) {
                 const auto& setup = get_ref(device, setups, setup_i);
-                set(device, world.camera_staging_close, make_target_camera<DEVICE, T>(device, setup.agents[0].cameras[0], aspect, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, setup.target_roll, setup.target_pitch), setup_i);
+                for(TI mount = 0; mount < NEXT_WORLD::N_CAMERAS_PER_AGENT; mount++) {
+                    set(device, world.camera_staging_close, _target_camera<DEVICE, TASK_SPEC>(device, setup, mount, aspect), setup_i * NEXT_WORLD::N_VIEWS + mount);
+                }
             }
             copy(device, renderer.device, world.camera_staging_close, cameras(device, renderer));
             if constexpr (BASE_SPEC::ENABLE_MOTION_BLUR) {
@@ -138,7 +151,8 @@ namespace rl_tools {
                 }
             }
             render(device, renderer);
-            std::vector<float> observation_staging(WORLD::INSTANCES * CAM_PIXELS * 3);
+            using RGB_SPEC = rendering::raytracing::outputs::TensorSpecification<typename WORLD::RENDERER_SPEC, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>;
+            std::vector<float> observation_staging(RGB_SPEC::SIZE);
             {
                 Tensor<rendering::raytracing::outputs::TensorSpecification<typename WORLD::RENDERER_SPEC, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>> observation_alias;
                 observation_alias._data = observation_staging.data();
@@ -149,10 +163,11 @@ namespace rl_tools {
                     continue;
                 }
                 const auto& setup = get_ref(device, setups, setup_i);
+                const TI rgb_row = NEXT_WORLD::observation_rgb_row(setup_i);
                 const float scale = (float)(setup.brightness_scale * setup.brightness_mismatch);
                 for (TI pixel_i = 0; pixel_i < CAM_PIXELS; pixel_i++) {
                     for (TI channel_i = 0; channel_i < 3; channel_i++) {
-                        set(device, frames, _target_pixel(observation_staging[(setup_i * CAM_PIXELS + pixel_i) * 3 + channel_i], scale), setup_i, pixel_i * NEXT_WORLD::IMAGE_CHANNELS + channel_i);
+                        set(device, frames, _target_pixel(observation_staging[(rgb_row * CAM_PIXELS + pixel_i) * 3 + channel_i], scale), setup_i, pixel_i * NEXT_WORLD::IMAGE_CHANNELS + channel_i);
                     }
                 }
             }
@@ -258,43 +273,28 @@ namespace rl_tools {
         utils::assert_exit(device, world.history_step > 0, "hyperdrone::tasks::target_frame::observe: no frame available");
         const TI latest = world.history_step - 1;
 
-        std::vector<TI> episode_start_staging(INSTANCES);
-        {
-            Tensor<typename NEXT_WORLD::EPISODE_START_SPEC> episode_start_alias;
-            episode_start_alias._data = episode_start_staging.data();
-            copy(device, device, world.episode_start, episode_start_alias);
-        }
-        std::vector<float> target_staging(INSTANCES * NEXT_WORLD::FRAME_DIM);
-        {
-            Tensor<typename WORLD::FRAMES_SPEC> target_alias;
-            target_alias._data = target_staging.data();
-            copy(device, device, world.target_frames, target_alias);
-        }
-        std::vector<float> frame_staging(NEXT_WORLD::FRAME_DIM);
+        const auto* episode_start = data(world.episode_start);
+        const auto* targets = data(world.target_frames);
         for (TI instance_i = 0; instance_i < INSTANCES; instance_i++) {
             for (TI frame_i = 0; frame_i < STACK_N; frame_i++) {
                 const TI back = frame_i * STACK_STRIDE;
-                TI desired = latest >= back ? latest - back : episode_start_staging[instance_i];
-                if (desired < episode_start_staging[instance_i]) {
-                    desired = episode_start_staging[instance_i];
+                TI desired = latest >= back ? latest - back : episode_start[instance_i];
+                if (desired < episode_start[instance_i]) {
+                    desired = episode_start[instance_i];
                 }
                 const TI history_slot = desired % BASE_SPEC::HISTORY_LENGTH;
-                {
-                    auto history_row = view(device, world.history, history_slot);
-                    auto history_instance = view(device, history_row, instance_i);
-                    Tensor<tensor::Specification<float, TI, tensor::Shape<TI, NEXT_WORLD::FRAME_DIM>>> frame_alias;
-                    frame_alias._data = frame_staging.data();
-                    copy(device, device, history_instance, frame_alias);
-                }
+                auto history_row = view(device, world.history, history_slot);
+                auto history_instance = view(device, history_row, instance_i);
+                const auto* frame = data(history_instance);
                 for (TI pixel_i = 0; pixel_i < CAM_PIXELS; pixel_i++) {
                     for (TI channel_i = 0; channel_i < IMAGE_CHANNELS; channel_i++) {
-                        set(device, observations, (T)frame_staging[pixel_i * IMAGE_CHANNELS + channel_i], instance_i, pixel_i * TOTAL_CHANNELS + frame_i * IMAGE_CHANNELS + channel_i);
+                        set(device, observations, (T)frame[pixel_i * IMAGE_CHANNELS + channel_i], instance_i, pixel_i * TOTAL_CHANNELS + frame_i * IMAGE_CHANNELS + channel_i);
                     }
                 }
             }
             for (TI pixel_i = 0; pixel_i < CAM_PIXELS; pixel_i++) {
                 for (TI channel_i = 0; channel_i < IMAGE_CHANNELS; channel_i++) {
-                    set(device, observations, (T)target_staging[instance_i * NEXT_WORLD::FRAME_DIM + pixel_i * IMAGE_CHANNELS + channel_i], instance_i, pixel_i * TOTAL_CHANNELS + STACK_N * IMAGE_CHANNELS + channel_i);
+                    set(device, observations, (T)targets[instance_i * NEXT_WORLD::FRAME_DIM + pixel_i * IMAGE_CHANNELS + channel_i], instance_i, pixel_i * TOTAL_CHANNELS + STACK_N * IMAGE_CHANNELS + channel_i);
                 }
                 for (TI channel_i = (STACK_N + 1) * IMAGE_CHANNELS; channel_i < TOTAL_CHANNELS; channel_i++) {
                     set(device, observations, (T)0, instance_i, pixel_i * TOTAL_CHANNELS + channel_i);

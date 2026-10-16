@@ -386,6 +386,29 @@ namespace rl_tools {
             randomize_camera_mount(device, randomization, camera.mount, rng);
         }
         template <typename DEVICE, typename SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT void _sample_camera_parameters(DEVICE& device, const DroneParameters<SPEC>& drone, AgentParameters<SPEC>& agent, RNG& rng) {
+            using OBSERVATION = typename SPEC::OBSERVATION;
+            if constexpr (OBSERVATION::COUNT > 0) {
+                for (typename SPEC::TI observation_i = 0; observation_i < OBSERVATION::COUNT; observation_i++) {
+                    const auto mount = OBSERVATION::mount(observation_i);
+                    _sample_view_parameters<DEVICE, SPEC>(device, drone.cameras[mount], agent.cameras[mount], rng);
+                }
+            }
+            // Auxiliary cameras must not change the policy or dynamics random stream.
+            auto auxiliary_rng = rng;
+            for (typename SPEC::TI mount = 0; mount < SPEC::CAMERA_OUTPUTS::COUNT; mount++) {
+                bool observed = false;
+                if constexpr (OBSERVATION::COUNT > 0) {
+                    for (typename SPEC::TI observation_i = 0; observation_i < OBSERVATION::COUNT; observation_i++) {
+                        observed = observed || OBSERVATION::mount(observation_i) == mount;
+                    }
+                }
+                if (!observed) {
+                    _sample_view_parameters<DEVICE, SPEC>(device, drone.cameras[mount], agent.cameras[mount], auxiliary_rng);
+                }
+            }
+        }
+        template <typename DEVICE, typename SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT void _sample_brightness(DEVICE& device, Parameters<SPEC>& parameters, RNG& rng) {
             using T = typename SPEC::T;
             parameters.brightness_scale = (T)1 + (random::uniform_real_distribution(device.random, (T)0, (T)1, rng) * (T)2 - (T)1) * SPEC::BRIGHTNESS_RANDOMIZATION_RANGE;
@@ -404,9 +427,7 @@ namespace rl_tools {
                 agent.drone = _sample_drone<DEVICE, SPEC>(device, num_drones, rng);
                 const auto& drone = get_ref(device, drones, agent.drone);
                 _sample_dynamics_parameters<DEVICE, SPEC>(device, dynamics, drone, agent, rng);
-                for (typename SPEC::TI camera_i = 0; camera_i < SPEC::CAMERA_OUTPUTS::COUNT; camera_i++) {
-                    _sample_view_parameters<DEVICE, SPEC>(device, drone.cameras[camera_i], agent.cameras[camera_i], rng);
-                }
+                _sample_camera_parameters<DEVICE, SPEC>(device, drone, agent, rng);
             }
             _sample_brightness<DEVICE, SPEC>(device, parameters, rng);
             _sample_shutter_fraction<DEVICE, SPEC>(device, parameters, rng);
@@ -825,7 +846,7 @@ namespace rl_tools {
         reset_render_state(device, world, world.render_reset);
         using TI = typename SPEC::TI;
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
-        constexpr TI NUM_CAMERAS = WORLD::INSTANCES * WORLD::N_VIEWS;
+        constexpr TI NUM_CAMERAS = WORLD::INSTANCES * WORLD::N_OBSERVATION_VIEWS;
         auto& renderer = get_renderer(device, world);
         if constexpr (WORLD::RENDERER_CONFIG::NUM_OVERLAYS > 0){
             update(device, renderer);
@@ -834,30 +855,39 @@ namespace rl_tools {
 
         if constexpr (WORLD::HAS_IMAGE_OBSERVATION){
             const TI history_slot = (world.history_step - 1) % SPEC::HISTORY_LENGTH;
-            constexpr TI CAM_PIXELS = SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT;
-            std::vector<float> observation_staging(NUM_CAMERAS * CAM_PIXELS * 3);
-            std::vector<float> frame_staging(NUM_CAMERAS * WORLD::FRAME_DIM);
-            {
-                auto& rgb = output(device, renderer, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>{});
-                Tensor<typename utils::typing::remove_reference_t<decltype(rgb)>::SPEC> observation_alias;
-                observation_alias._data = observation_staging.data();
-                copy(renderer.device, device, rgb, observation_alias);
-            }
-            for (TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++) {
-                const auto& instance_parameters = get_ref(device, parameters, camera_i / WORLD::N_VIEWS);
-                const float scale = (float)instance_parameters.brightness_scale;
-                for (TI pixel_i = 0; pixel_i < CAM_PIXELS; pixel_i++) {
-                    for (TI channel_i = 0; channel_i < 3; channel_i++) {
-                        float value = observation_staging[(camera_i * CAM_PIXELS + pixel_i) * 3 + channel_i] * scale;
-                        value = value < 0.0f ? 0.0f : (value > 1.0f ? 1.0f : value);
-                        frame_staging[camera_i * WORLD::FRAME_DIM + pixel_i * WORLD::IMAGE_CHANNELS + channel_i] = value;
+            auto& rgb = output(device, renderer, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>{});
+            auto history_row = view(device, world.history, history_slot);
+            constexpr bool CONTIGUOUS = []() {
+                if (WORLD::RGB_ROWS::COUNT != WORLD::N_OBSERVATION_CAMERAS_PER_AGENT) {
+                    return false;
+                }
+                for (TI view_i = 0; view_i < WORLD::N_OBSERVATION_VIEWS; view_i++) {
+                    if (WORLD::observation_rgb_row(view_i) != view_i) {
+                        return false;
                     }
                 }
+                return true;
+            }();
+            if constexpr (CONTIGUOUS) {
+                auto images = reshape_row_major(device, history_row, tensor::Shape<TI, NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, WORLD::IMAGE_CHANNELS>{});
+                copy(renderer.device, device, rgb, images);
+            } else {
+                for (TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++) {
+                    auto source = view(renderer.device, rgb, WORLD::observation_rgb_row(camera_i));
+                    auto destination = view(device, history_row, camera_i);
+                    auto destination_image = reshape_row_major(device, destination, tensor::Shape<TI, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, WORLD::IMAGE_CHANNELS>{});
+                    copy(renderer.device, device, source, destination_image);
+                }
             }
-            auto history_row = view(device, world.history, history_slot);
-            Tensor<tensor::Specification<float, TI, tensor::Shape<TI, NUM_CAMERAS, WORLD::FRAME_DIM>>> frame_alias;
-            frame_alias._data = frame_staging.data();
-            copy(device, device, frame_alias, history_row);
+            for (TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++) {
+                const auto& instance_parameters = get_ref(device, parameters, camera_i / WORLD::N_OBSERVATION_VIEWS);
+                const float scale = (float)instance_parameters.brightness_scale;
+                auto* frame = data(history_row) + camera_i * WORLD::FRAME_DIM;
+                for (TI dim_i = 0; dim_i < WORLD::FRAME_DIM; dim_i++) {
+                    const float value = frame[dim_i] * scale;
+                    frame[dim_i] = value < 0.0f ? 0.0f : (value > 1.0f ? 1.0f : value);
+                }
+            }
         }
         world.render_pending = false;
     }
@@ -877,14 +907,11 @@ namespace rl_tools {
         }
         utils::assert_exit(device, world.history_step > 0, "hyperdrone::World::observe: no frame available");
         const TI history_slot = (world.history_step - 1) % SPEC::HISTORY_LENGTH;
-        std::vector<float> frame_staging(WORLD::INSTANCES * WORLD::N_VIEWS * WORLD::FRAME_DIM);
         auto history_row = view(device, world.history, history_slot);
-        Tensor<tensor::Specification<float, TI, tensor::Shape<TI, WORLD::INSTANCES * WORLD::N_VIEWS, WORLD::FRAME_DIM>>> frame_alias;
-        frame_alias._data = frame_staging.data();
-        copy(device, device, history_row, frame_alias);
+        const auto* frame = data(history_row);
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             for (TI dim_i = 0; dim_i < WORLD::OBSERVATION_DIM; dim_i++) {
-                set(device, observations, (T)frame_staging[instance_i * WORLD::OBSERVATION_DIM + dim_i], instance_i, dim_i);
+                set(device, observations, (T)frame[instance_i * WORLD::OBSERVATION_DIM + dim_i], instance_i, dim_i);
             }
         }
     }

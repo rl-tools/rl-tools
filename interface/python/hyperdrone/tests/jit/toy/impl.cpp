@@ -1,5 +1,9 @@
 #include <cstdio>
 
+#ifdef HYPERDRONE_CAMERA_CONFIG_HEADER
+#include HYPERDRONE_CAMERA_CONFIG_HEADER
+#endif
+
 #ifndef HYPERDRONE_TOY_VALUE
 #error "HYPERDRONE_TOY_VALUE must be defined"
 #endif

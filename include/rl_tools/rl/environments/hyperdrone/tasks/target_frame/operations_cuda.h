@@ -23,16 +23,19 @@ namespace rl_tools{
         }
         template <typename DEVICE, typename TASK_SPEC, typename SETUPS_SPEC>
         __global__ void bank_camera_kernel(DEVICE device, Tensor<SETUPS_SPEC> setups, rendering::raytracing::Camera<typename TASK_SPEC::T>* cameras, rendering::raytracing::Camera<typename TASK_SPEC::T>* cameras_open, typename TASK_SPEC::T aspect){
-            using T = typename TASK_SPEC::T;
             using TI = typename DEVICE::index_t;
+            using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
             constexpr TI INSTANCES = World<TASK_SPEC>::INSTANCES;
             TI setup_i = threadIdx.x + blockIdx.x * blockDim.x;
             if(setup_i < INSTANCES){
                 const auto& setup = get_ref(device, setups, setup_i);
-                auto camera = make_target_camera<DEVICE, T>(device, setup.agents[0].cameras[0], aspect, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, setup.target_roll, setup.target_pitch);
-                cameras[setup_i] = camera;
-                if(cameras_open != cameras){
-                    cameras_open[setup_i] = camera;
+                for(TI mount = 0; mount < NEXT_WORLD::N_CAMERAS_PER_AGENT; mount++) {
+                    auto camera = tasks::target_frame::_target_camera<DEVICE, TASK_SPEC>(device, setup, mount, aspect);
+                    const TI camera_i = setup_i * NEXT_WORLD::N_VIEWS + mount;
+                    cameras[camera_i] = camera;
+                    if(cameras_open != cameras){
+                        cameras_open[camera_i] = camera;
+                    }
                 }
             }
         }
@@ -46,7 +49,7 @@ namespace rl_tools{
             if(setup_i < INSTANCES){
                 const auto& setup = get_ref(device, setups, setup_i);
                 T orientation[4], position[3];
-                make_target_body_pose(device, setup.agents[0].cameras[0], setup.target_roll, setup.target_pitch, orientation, position);
+                make_target_body_pose(device, setup.agents[0].cameras[World<TASK_SPEC>::TARGET_CAMERA], setup.target_roll, setup.target_pitch, orientation, position);
                 float base[12];
                 rig::make_body_transform(device, orientation, position, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, base);
                 const float coordinates[NEXT_WORLD::DYNAMICS_ENV::ACTION_DIM] = {};
@@ -68,9 +71,10 @@ namespace rl_tools{
             if(thread_i < INSTANCES * CAM_PIXELS && (mask == nullptr || mask[setup_i])){
                 const TI pixel_i = thread_i % CAM_PIXELS;
                 const auto& setup = get_ref(device, setups, setup_i);
+                const TI rgb_row = NEXT_WORLD::observation_rgb_row(setup_i);
                 const float scale = (float)(setup.brightness_scale * setup.brightness_mismatch);
                 for(TI channel_i = 0; channel_i < 3; channel_i++){
-                    frames[setup_i * NEXT_WORLD::FRAME_DIM + pixel_i * NEXT_WORLD::IMAGE_CHANNELS + channel_i] = tasks::target_frame::_target_pixel(observation[(setup_i * CAM_PIXELS + pixel_i) * 3 + channel_i], scale);
+                    frames[setup_i * NEXT_WORLD::FRAME_DIM + pixel_i * NEXT_WORLD::IMAGE_CHANNELS + channel_i] = tasks::target_frame::_target_pixel(observation[(rgb_row * CAM_PIXELS + pixel_i) * 3 + channel_i], scale);
                 }
             }
         }
@@ -156,7 +160,7 @@ namespace rl_tools{
                         desired = start;
                     }
                     TI history_slot = desired % BASE_SPEC::HISTORY_LENGTH;
-                    value = history[(history_slot * INSTANCES * NEXT_WORLD::N_VIEWS + instance_i) * NEXT_WORLD::FRAME_DIM + pixel_i * IMAGE_CHANNELS + channel_i];
+                    value = history[(history_slot * INSTANCES * NEXT_WORLD::N_OBSERVATION_VIEWS + instance_i) * NEXT_WORLD::FRAME_DIM + pixel_i * IMAGE_CHANNELS + channel_i];
                 }
                 else if(channel < (STACK_N + 1) * IMAGE_CHANNELS){
                     TI channel_i = channel - STACK_N * IMAGE_CHANNELS;
@@ -219,7 +223,7 @@ namespace rl_tools{
             if constexpr (TASK_SPEC::NEXT_WORLD::RENDERER_SPEC::HAS_FLOW){
                 if(world.flow_scene_version != world.scene_version){
                     advance_flow_launch(device, renderer);
-                    if constexpr (TASK_SPEC::TASK_SPEC::NEXT_WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){
+                    if constexpr (TASK_SPEC::NEXT_WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){
                         update_launch(device, renderer);
                     }
                 }

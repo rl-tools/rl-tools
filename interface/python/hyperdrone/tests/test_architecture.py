@@ -37,7 +37,7 @@ def test_dynamics_never_imports_render_or_env():
 
 
 def test_infrastructure_imports_no_domain_packages():
-    for package in ("hyperdrone._jit", "hyperdrone._cuda"):
+    for package in ("hyperdrone._jit", "hyperdrone._cuda", "hyperdrone.camera", "hyperdrone._output_buffers"):
         modules = imported_modules(package)
         for domain in ("hyperdrone.render", "hyperdrone.dynamics", "hyperdrone.env"):
             assert not any(name.startswith(domain) for name in modules), (package, domain)
