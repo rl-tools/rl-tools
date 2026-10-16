@@ -128,7 +128,7 @@ namespace rl_tools{
         auto world_rng = rl::environments::hyperdrone::cuda::instance_rng(device, world, rng);
         rl::environments::hyperdrone::tasks::moving_gate::cuda::sample_initial_state_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, world.active_annotations, parameters, states, reset_mask, world_rng);
         check_status(device);
-        request_render(device, world, reset_mask);
+        complete_reset(device, world, reset_mask, rng);
     }
 
     template <typename DEV_SPEC, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC>

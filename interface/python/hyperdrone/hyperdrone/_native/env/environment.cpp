@@ -95,6 +95,15 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     m.attr("CUDA_WORLD") = CUDA_WORLD;
     m.attr("render_backend") = rlt::rendering::raytracing::backends::name<typename WORLD::RENDERER::BACKEND>();
     m.attr("synchronized_resets") = SynchronizedResets<WORLD>::VALUE;
+    m.attr("control") = WORLD::ACTION_DIM == 0 ? "autonomous" : WORLD::CONTROLLER::NAME;
+    using BOUNDS = hyperdrone::ActionBounds<typename WORLD::CONTROLLER>;
+    nb::list action_low, action_high;
+    for(TI index = 0; index < WORLD::ACTION_DIM; index++){
+        action_low.append(BOUNDS::lower[index % WORLD::CONTROLLER::COMMAND_DIM]);
+        action_high.append(BOUNDS::upper[index % WORLD::CONTROLLER::COMMAND_DIM]);
+    }
+    m.attr("action_low") = action_low;
+    m.attr("action_high") = action_high;
     nb::dict dimensions;
     dimensions["num_environments"] = NUM_ENVIRONMENTS;
     dimensions["instances_per_environment"] = WORLD::INSTANCES;

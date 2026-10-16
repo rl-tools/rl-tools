@@ -69,8 +69,11 @@ class EnvConfig:
     motion_blur_samples: int = 1
     output: tuple = ("rgb",)
     dataset: str = "glb"
+    control: str = "motor"
 
     def __post_init__(self):
+        if self.control not in ("motor", "ctbr", "position"):
+            raise ValueError("hyperdrone: control must be 'motor', 'ctbr' or 'position'")
         for name in ("num_environments", "instances_per_environment", "width", "height", "num_agents", "num_camera_agents", "num_cameras_per_agent"):
             if type(getattr(self, name)) is not int or getattr(self, name) < 1:
                 raise ValueError(f"hyperdrone: {name} must be a positive integer")
@@ -101,6 +104,8 @@ class EnvConfig:
                 "other needs geometry to see) — use preset='x500_fpv'"
             )
         if self.task == "visual_inertial_localization":
+            if self.control != "motor":
+                raise ValueError("hyperdrone: visual_inertial_localization selects its own controller")
             if self.preset != "x500_fpv_imu":
                 raise ValueError(
                     "hyperdrone: task 'visual_inertial_localization' needs an IMU in the "
@@ -143,6 +148,7 @@ class EnvConfig:
             "HYPERDRONE_ENV_MB_SAMPLES": self.motion_blur_samples,
             "HYPERDRONE_ENV_PRESET": PRESETS[self.preset],
             "HYPERDRONE_ENV_TASK": TASKS[self.task],
+            "HYPERDRONE_ENV_CONTROL": ("motor", "ctbr", "position").index(self.control),
             "HYPERDRONE_ENV_N_AGENTS": self.num_agents,
             "HYPERDRONE_ENV_N_CAMERA_AGENTS": self.num_camera_agents,
             "HYPERDRONE_ENV_N_CAMERAS_PER_AGENT": self.num_cameras_per_agent,
@@ -283,6 +289,9 @@ class MultiEnvironment:
                 raise ValueError(f"hyperdrone: unknown drone entry keys {unknown} (asset, parameters)")
         self._module = jit.module(component(), self.config)
         self._synchronized_resets = self._module.synchronized_resets
+        self.control = self._module.control
+        self.action_low = np.asarray(self._module.action_low, dtype=np.float32)
+        self.action_high = np.asarray(self._module.action_high, dtype=np.float32)
         self.outputs = self._module.outputs
         for name, value in self._module.dimensions.items():
             setattr(self, name, value)

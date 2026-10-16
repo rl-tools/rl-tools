@@ -7,7 +7,6 @@
 #include "dynamics/crazyflie_openmv.h"
 #include "dynamics/mrs.h"
 #include "dynamics/arpl.h"
-#include "dynamics/x500.h"
 #include "dynamics/x500_real.h"
 #include "dynamics/x500_sim.h"
 #include "dynamics/fs.h"
@@ -45,7 +44,7 @@ namespace rl_tools::rl::environments::l2f::parameters{
             }else if constexpr (MODEL == REGISTRY::mrs){
                 return dynamics::mrs<typename SPEC::T, typename SPEC::TI>;
             }else if constexpr (MODEL == REGISTRY::x500){
-                return dynamics::x500::remap<typename SPEC::T, typename SPEC::TI>;
+                return dynamics::x500::real<typename SPEC::T, typename SPEC::TI>;
             }else if constexpr (MODEL == REGISTRY::x500_real){
                 return dynamics::x500::real<typename SPEC::T, typename SPEC::TI>;
             }else if constexpr (MODEL == REGISTRY::x500_sim){

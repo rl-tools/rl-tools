@@ -7,12 +7,13 @@
 // after every mutation as SoA component buffers (device-resident on the CUDA variant) so
 // consumers get stable zero-copy views. Bump HYPERDRONE_DYNAMICS_IFACE_VERSION on any
 // change to this file.
-#define HYPERDRONE_DYNAMICS_IFACE_VERSION 6
+#define HYPERDRONE_DYNAMICS_IFACE_VERSION 7
 
 namespace hyperdrone::dynamics {
     struct Config {
         uint32_t num_drones;
         uint32_t action_dim;
+        uint32_t num_rotors;
         uint32_t observation_dim;
     };
 
@@ -22,7 +23,7 @@ namespace hyperdrone::dynamics {
         ORIENTATION = 1,      // 4, quaternion wxyz
         LINEAR_VELOCITY = 2,  // 3
         ANGULAR_VELOCITY = 3, // 3
-        RPM = 4               // action_dim
+        RPM = 4               // num_rotors
     };
     inline constexpr int state_component_dims[5] = {3, 4, 3, 3, 4};
 
@@ -30,6 +31,7 @@ namespace hyperdrone::dynamics {
     public:
         virtual ~Sim() = default;
         virtual Config config() const = 0;
+        virtual const float* action_bounds(bool upper) const = 0;
         virtual const char* device_name() const = 0;    // "cpu" | "cuda"
         virtual int buffer_device_type() const = 0;     // DLPack: 1 = kDLCPU, 2 = kDLCUDA
         virtual unsigned long long stream() const = 0;  // cudaStream_t handle (0 on cpu)
@@ -43,13 +45,13 @@ namespace hyperdrone::dynamics {
         virtual std::string instance_parameters_json() = 0;
         virtual void set_instance_parameters(const bool* mask, const std::string& parameters) = 0;
 
-        // actions (num_drones, action_dim) float32, normalized [-1, 1];
+        // actions (num_drones, action_dim) float32 in the configured command units;
         // actions_device_type: 1 = host pointer, 2 = CUDA device pointer
         virtual void step(const float* actions, int actions_device_type, unsigned long long producer_stream) = 0;
 
         virtual const float* state_buffer(int component) const = 0;
         virtual void set_state_component(int component, const float* values_host) = 0;
-        // rotor speeds (num_drones, action_dim) in RPM: the motor state through each drone's
+        // rotor speeds (num_drones, num_rotors) in RPM: the motor state through each drone's
         // current max_rpm calibration, written to a host buffer
         virtual void read_rotor_rpm(float* out_host) = 0;
 

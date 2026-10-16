@@ -88,18 +88,13 @@ int main(int argc, char** argv){
         return 1;
     }
     std::vector<std::tuple<std::string, ENVIRONMENT::Parameters::Dynamics>> registry;
-    auto permute_rotors_px4_to_cf = [&device, &env](const auto& dynamics){
-        auto copy = dynamics;
-        rlt::permute_rotors(device, env, copy, 0, 3, 1, 2);
-        return copy;
-    };
     registry.emplace_back("crazyflie", rlt::rl::environments::l2f::parameters::dynamics::crazyflie<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>);
-    registry.emplace_back("x500", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::x500::real<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
-    registry.emplace_back("mrs", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::mrs<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
-    registry.emplace_back("fs", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::fs::base<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
-    registry.emplace_back("arpl", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::arpl<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
-    registry.emplace_back("flightmare", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::flightmare<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
-    registry.emplace_back("soft", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::soft<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
+    registry.emplace_back("x500", rlt::rl::environments::l2f::parameters::dynamics::x500::real<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>);
+    registry.emplace_back("mrs", rlt::rl::environments::l2f::parameters::dynamics::mrs<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>);
+    registry.emplace_back("fs", rlt::rl::environments::l2f::parameters::dynamics::fs::base<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>);
+    registry.emplace_back("arpl", rlt::rl::environments::l2f::parameters::dynamics::arpl<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>);
+    registry.emplace_back("flightmare", rlt::rl::environments::l2f::parameters::dynamics::flightmare<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>);
+    registry.emplace_back("soft", rlt::rl::environments::l2f::parameters::dynamics::soft<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>);
 
     rlt::initial_parameters(device, env, params);
     overwrite(params);

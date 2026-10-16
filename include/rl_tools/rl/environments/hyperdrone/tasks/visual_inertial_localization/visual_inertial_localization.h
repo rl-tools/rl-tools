@@ -5,7 +5,7 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TASKS_VISUAL_INERTIAL_LOCALIZATION_VISUAL_INERTIAL_LOCALIZATION_H
 
 #include "../../world.h"
-#include "../../raptor/raptor.h"
+#include "../../controllers/raptor/raptor.h"
 
 #include <string>
 
@@ -71,13 +71,12 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localiz
         // acceleration jerk that static visual-inertial initializers wait for
         static constexpr TI INITIALIZATION_HOLD_STEPS = 0;
         // the autopilot checkpoint (RAPTOR/policy.tar in the conta store): a path or a conta:HASH reference
-        static constexpr const char* AUTOPILOT_POLICY = raptor::CHECKPOINT;
+        using CONTROLLER = controllers::raptor::Config;
+        static constexpr const char* AUTOPILOT_POLICY = controllers::raptor::CHECKPOINT;
     };
 
-    // benchmark protocol: fixed-length synchronized episodes only — the camera stride phase and
-    // the autopilot's recurrent state are global, so the reset mask must be all-or-none
-    // (asserted in render and sample_initial_state). The task is autonomous: the autopilot
-    // flies the route inside step, the caller's action tensor is empty
+    // Episodes reset together because camera cadence is shared; controller invalidation may be per row.
+    // The autonomous task generates motor commands internally and exposes no external actions.
     template <typename T_TASK_SPEC>
     struct World: T_TASK_SPEC::NEXT_WORLD {
         using TASK_SPEC = T_TASK_SPEC;
@@ -94,8 +93,10 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localiz
         static constexpr bool SYNCHRONIZED_RESETS = true;
         static constexpr TI INITIALIZATION_HOLD_STEPS = TASK_SPEC::INITIALIZATION_HOLD_STEPS;
         static constexpr TI ACTION_DIM = 0;
-        using AUTOPILOT = Raptor<raptor::Specification<numeric_types::Policy<T>, TI, NEXT_WORLD::INSTANCES>>;
-        static_assert(AUTOPILOT::ACTION_DIM == NEXT_WORLD::ACTION_DIM);
+        using CONTROLLER_CONFIG = typename TASK_SPEC::CONTROLLER;
+        using CONTROLLER = typename CONTROLLER_CONFIG::template Bind<numeric_types::Policy<T>, TI, NEXT_WORLD::INSTANCES>;
+        static_assert(CONTROLLER::ACTION_DIM == NEXT_WORLD::ACTION_DIM);
+        static_assert(NEXT_WORLD::CONTROLLER::SUPPORTS_SCALAR && NEXT_WORLD::CONTROLLER::ACTION_INTERFACE == l2f::parameters::ActionInterface::DIRECT_MOTOR, "the autonomous task requires a direct motor base World");
 
         // estimator inputs beyond the frames: [accelerometer(3) | gyroscope(3) | frame_age/FRAME_STRIDE | new_frame]
         struct ObservationIMU {
@@ -116,7 +117,9 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localiz
         };
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = ObservationPrivileged::DIM;
 
-        AUTOPILOT autopilot;
+        CONTROLLER controller;
+        typename CONTROLLER::State controller_state;
+        typename CONTROLLER::Buffer controller_buffer;
         std::string autopilot_policy_path = TASK_SPEC::AUTOPILOT_POLICY; // override before init
         TI task_step = 0;
     };

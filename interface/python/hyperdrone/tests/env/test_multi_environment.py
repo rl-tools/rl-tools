@@ -426,6 +426,100 @@ def test_observation_layout(scene_directory):
         env.close()
 
 
+@pytest.mark.parametrize("num_agents", [1, 2])
+def test_position_commands_use_scene_frame_for_every_agent(scene_directory, num_agents):
+    config = EnvConfig(instances_per_environment=2, width=16, height=16, fidelity="low",
+                       control="position", preset="crazyflie" if num_agents == 1 else "x500_fpv",
+                       num_agents=num_agents, device="cpu")
+    drones = None if num_agents == 1 else [{"asset": drone_asset_path(), "parameters": {}}]
+    parameters = {"dynamics": {"mdp": {"init": {
+        "max_linear_velocity": 0, "max_angular_velocity": 0, "min_rpm": 0, "max_rpm": 0,
+    }}}}
+    with closing(MultiEnvironment(scene_directory, config=config, seed=29, drones=drones, parameters=parameters)) as env:
+        env.reset()
+        points = env.spawn_points()
+        anchor = np.asarray(points[0]["scene_translation"], dtype=np.float32)
+        local = np.array([[0.1, 0.15, 0.2, 0.15], [-0.2, 0.1, 0.15, -0.2]], dtype=np.float32)[:num_agents]
+        commands = np.empty((2, num_agents, 4), dtype=np.float32)
+        for index, point in enumerate(points):
+            translation = anchor + np.array([0.2 * index, -0.1 * index, 0], dtype=np.float32)
+            point["scene_translation"] = translation.tolist()
+            point["scene_yaw"] = [1, 0] if index == 0 else [0, 1]
+            point["poses"] = [[0, 0, 0, 1, 0, 0, 0] for _ in range(num_agents)]
+            point["drone"] = [0] * num_agents
+            rotation = np.eye(3) if index == 0 else np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
+            commands[index, :, :3] = local[:, :3] @ rotation.T + translation
+            commands[index, :, 3] = local[:, 3] + index * np.pi / 2
+        env.reset(spawn_points=points)
+        assert env.control == "position"
+        assert env.action_dim == 4 * num_agents
+        assert np.isneginf(env.action_low).all() and np.isposinf(env.action_high).all()
+        initial = env.observe_privileged()
+        for _ in range(6):
+            env.step(commands.reshape(2, -1))
+            state = env.observe_privileged()
+            np.testing.assert_allclose(state[0], state[1], atol=2e-4, rtol=2e-5)
+        assert not np.array_equal(state, initial)
+        env.reset([True, False], spawn_points=[points[0]])
+        np.testing.assert_array_equal(env.observe_privileged()[1], state[1])
+
+
+def test_ctbr_commands_reach_every_agent_current_step(scene_directory):
+    config = EnvConfig(instances_per_environment=2, num_agents=2, preset="x500_fpv_imu",
+                       width=16, height=16, fidelity="low", control="ctbr", device="cpu")
+    with closing(MultiEnvironment(scene_directory, config=config, drone_asset=drone_asset_path(), seed=31)) as env:
+        env.reset()
+        assert env.control == "ctbr"
+        assert env.action_dim == 8
+        np.testing.assert_array_equal(env.action_low, np.tile([0, -20, -20, -20], 2))
+        np.testing.assert_array_equal(env.action_high, np.tile([np.inf, 20, 20, 20], 2))
+        commands = np.empty((2, 2, 4), dtype=np.float32)
+        for instance, parameters in enumerate(env.instance_parameters()):
+            for agent, values in enumerate(parameters["agents"]):
+                drone = values["dynamics"]["dynamics"]
+                commands[instance, agent, 0] = -drone["mass"] * drone["gravity"][2]
+        commands[:, :, 1:] = [[0.4, -0.5, 0.6], [-0.7, 0.2, -0.3]]
+        for _ in range(2):
+            env.step(commands.reshape(2, -1))
+            observation = env.observe_privileged()
+            for agent in range(2):
+                offset, width = env.observation_layout_privileged.blocks[f"agent{agent}/angular_velocity"]
+                np.testing.assert_array_equal(observation[:, offset:offset + width], commands[:, agent, 1:])
+            if env.observation_dim_imu:
+                assert np.isfinite(env.observe_imu()).all()
+            commands[:, :, 1:] *= -1
+
+
+def test_position_parameter_mutation_resets_only_selected_instances(scene_directory):
+    config = EnvConfig(instances_per_environment=2, width=16, height=16, fidelity="low",
+                       control="position", device="cpu")
+    parameters = {"dynamics": {"mdp": {"init": {
+        "max_linear_velocity": 0, "max_angular_velocity": 0, "min_rpm": 0, "max_rpm": 0,
+    }}}}
+    with closing(MultiEnvironment(scene_directory, config=config, seed=37, parameters=parameters)) as env:
+        env.reset()
+        points = env.spawn_points()
+        commands = np.empty((2, 4), dtype=np.float32)
+        for instance, point in enumerate(points):
+            point["poses"] = [[0, 0, 0, 1, 0, 0, 0]]
+            point["scene_yaw"] = [1, 0]
+            commands[instance, :3] = np.asarray(point["scene_translation"]) + [0.2, -0.1, 0.3]
+            commands[instance, 3] = 0.2
+        mass = env.parameters["dynamics"]["dynamics"]["mass"]
+        records = []
+        for mask in ([True, False], [True, True], [False, False]):
+            env.reset(spawn_points=points)
+            for _ in range(12):
+                env.step(commands)
+            env.set_instance_parameters({"dynamics": {"dynamics": {"mass": mass}}}, mask)
+            for _ in range(3):
+                env.step(commands)
+            records.append(env.observe_privileged())
+        np.testing.assert_array_equal(records[0][0], records[1][0])
+        np.testing.assert_array_equal(records[0][1], records[2][1])
+        assert not np.array_equal(records[0][0], records[2][0])
+
+
 def rigged_asset_path(name):
     source = Path(os.environ.get("HYPERDRONE_TEST_SCENE_DIR", source_root() / "tests" / "data")) / f"{name}.glb"
     if not source.exists():
@@ -864,6 +958,24 @@ def test_spec_header_escape_hatch(scene_directory):
         smoke_rollout(env)
     finally:
         env.close()
+
+
+def test_spec_header_custom_controller(scene_directory):
+    directory = Path(__file__).parent
+    with closing(MultiEnvironment(scene_directory, config=EnvConfig(spec_header=str(directory / "user_controller_spec_header.h")), seed=5, drone_asset=drone_asset_path())) as custom, \
+         closing(MultiEnvironment(scene_directory, config=EnvConfig(spec_header=str(directory / "user_spec_header.h")), seed=5, drone_asset=drone_asset_path())) as direct:
+        assert custom.control == "collective"
+        assert custom.action_dim == 1
+        np.testing.assert_array_equal(custom.action_low, [0])
+        np.testing.assert_array_equal(custom.action_high, [1])
+        for environment in (custom, direct):
+            environment.reset()
+        commands = np.array([[0.3], [0.8]], dtype=np.float32)
+        for _ in range(3):
+            custom.step(commands)
+            direct.step(np.repeat(2 * commands - 1, 4, axis=1))
+            np.testing.assert_array_equal(custom.observe_privileged(), direct.observe_privileged())
+            np.testing.assert_array_equal(custom.rewards(), direct.rewards())
 
 
 def test_spec_header_drone_table(scene_directory):

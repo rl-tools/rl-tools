@@ -1,7 +1,7 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rl/environments/hyperdrone/presets.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cpu.h>
-#include <rl_tools/rl/environments/hyperdrone/raptor/operations_cpu.h>
+#include <rl_tools/rl/environments/hyperdrone/controllers/raptor/operations_cpu.h>
 #include <rl_tools/rendering/datasets/procthor/catalog.h>
 
 #include <emscripten.h>
@@ -79,15 +79,17 @@ namespace rl_tools::rl::environments::hyperdrone::web {
     struct State {
         using WORLD = World<CONFIG>;
         using ENVIRONMENT = MultiEnvironment<WORLD, 1>;
-        using PILOT = Raptor<raptor::Specification<TYPE_POLICY, TI, CONFIG::N_AGENTS>>;
+        using PILOT = controllers::raptor::Config::Bind<TYPE_POLICY, TI, CONFIG::N_AGENTS>;
         ENVIRONMENT environment;
         PILOT pilot;
+        typename PILOT::State pilot_state;
+        typename PILOT::Buffer pilot_buffer;
         RNG rng;
         Tensor<tensor::Specification<typename WORLD::Parameters, TI, tensor::Shape<TI, 1>>> parameters;
         Tensor<tensor::Specification<typename WORLD::State, TI, tensor::Shape<TI, 1>>> states, next_states;
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1, WORLD::ACTION_DIM>>> actions;
         Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, 1>>> reset_mask;
-        raptor::Target<T> targets[CONFIG::N_AGENTS];
+        controllers::raptor::Target<T> targets[CONFIG::N_AGENTS];
         rendering::datasets::annotations::FreeSpacePosition<T> spawn;
         std::vector<rendering::datasets::annotations::FreeSpacePosition<T>> other_spawns;
         uint32_t seed = 1337;
@@ -95,8 +97,6 @@ namespace rl_tools::rl::environments::hyperdrone::web {
         T velocity_target = 0.7;
         T yaw_rate_limit = PILOT::SPEC::YAW_RATE_LIMIT;
         T yaw_error_limit = PILOT::SPEC::YAW_ERROR_LIMIT;
-        T previous_actions[CONFIG::N_AGENTS][4] = {};
-        TI motor_order[CONFIG::N_AGENTS][4] = {};
         bool moving = false;
         bool moving_vertical = false;
     };
@@ -116,6 +116,8 @@ namespace rl_tools {
     void malloc(web::DEVICE& device, web::State<CONFIG>& state) {
         malloc(device, state.environment);
         malloc(device, state.pilot);
+        malloc(device, state.pilot_state);
+        malloc(device, state.pilot_buffer);
         malloc(device, state.rng);
         malloc(device, state.parameters);
         malloc(device, state.states);
@@ -131,6 +133,8 @@ namespace rl_tools {
         free(device, state.states);
         free(device, state.parameters);
         free(device, state.rng);
+        free(device, state.pilot_buffer);
+        free(device, state.pilot_state);
         free(device, state.pilot);
         free(device, state.environment);
     }
@@ -184,9 +188,6 @@ namespace rl_tools {
     template <typename CONFIG>
     bool reset(web::DEVICE& device, web::State<CONFIG>& state) {
         using namespace web;
-        using PARAMETER_SPEC = typename CONFIG::DYNAMICS_STATIC_PARAMETERS::PARAMETERS_SPEC;
-        namespace models = rl::environments::l2f::parameters::dynamics;
-        const auto policy_dynamics = models::registry<models::REGISTRY::x500, PARAMETER_SPEC>;
         auto& world = state.environment.environments[0];
         auto& parameters = get_ref(device, state.parameters, (TI)0);
         auto& physical = get_ref(device, state.states, (TI)0);
@@ -243,21 +244,8 @@ namespace rl_tools {
                 agent_state.orientation[2] = 0;
                 agent_state.orientation[3] = math::sin(device.math, target.yaw / (T)2);
             }
-            const auto& dynamics = agent.dynamics.dynamics;
-            for(TI motor = 0; motor < 4; motor++) {
-                TI policy_motor = 0;
-                for(; policy_motor < 4; policy_motor++) {
-                    if((dynamics.rotor_positions[motor][0] > 0) == (policy_dynamics.rotor_positions[policy_motor][0] > 0)
-                        && (dynamics.rotor_positions[motor][1] > 0) == (policy_dynamics.rotor_positions[policy_motor][1] > 0)) {
-                        break;
-                    }
-                }
-                utils::assert_exit(device, policy_motor < 4, "HyperDrone: unsupported rotor layout");
-                state.motor_order[agent_i][motor] = policy_motor;
-                state.previous_actions[agent_i][motor] = 0;
-            }
         }
-        reset(device, state.pilot, state.rng);
+        reset(device, state.pilot, state.pilot_state, state.rng);
         state.moving = false;
         state.moving_vertical = false;
         set_all(device, state.reset_mask, true);
@@ -305,15 +293,12 @@ namespace rl_tools {
         state.moving_vertical = up != 0;
         for(TI agent_i = 0; agent_i < CONFIG::N_AGENTS; agent_i++) {
             const auto& agent_state = rl::environments::hyperdrone::_agent_state<CONFIG>(get_ref(device, state.states, (TI)0), agent_i);
-            observe(device, state.pilot, agent_state, state.targets[agent_i], state.previous_actions[agent_i], agent_i);
+            observe(device, state.pilot, state.pilot_state, state.pilot_buffer, agent_state, state.targets[agent_i], agent_i);
         }
-        evaluate_step(device, state.pilot, state.rng);
+        evaluate_step(device, state.pilot, state.pilot_state, state.pilot_buffer, state.rng);
         for(TI agent_i = 0; agent_i < CONFIG::N_AGENTS; agent_i++) {
             for(TI motor = 0; motor < 4; motor++) {
-                state.previous_actions[agent_i][motor] = get(device, state.pilot.actions, agent_i, motor);
-            }
-            for(TI motor = 0; motor < 4; motor++) {
-                set(device, state.actions, state.previous_actions[agent_i][state.motor_order[agent_i][motor]], (TI)0, agent_i * 4 + motor);
+                set(device, state.actions, get(device, state.pilot_state.previous_actions, agent_i, motor), (TI)0, agent_i * 4 + motor);
             }
         }
     }

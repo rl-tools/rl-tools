@@ -224,7 +224,7 @@ namespace rl_tools {
                 rl::environments::hyperdrone::_sample_dynamics_state<DEVICE, BASE_SPEC>(device, world.dynamics, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), rng);
             }
         }
-        request_render(device, world, reset_mask);
+        complete_reset(device, world, reset_mask, rng);
     }
 
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename OBSERVATION_SPEC, typename RNG>

@@ -18,17 +18,17 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
                 },
                 {
                     -0.176776695296636,
+                    -0.176776695296636,
+                    0
+                },
+                {
+                    -0.176776695296636,
                     +0.176776695296636,
                     0
                 },
                 {
                     +0.176776695296636,
                     +0.176776695296636,
-                    0
-                },
-                {
-                    -0.176776695296636,
-                    -0.176776695296636,
                     0
                 },
             },
@@ -42,8 +42,8 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
             // Rotor torque directions
             {
                 {0, 0, -1},
-                {0, 0, -1},
                 {0, 0, +1},
+                {0, 0, -1},
                 {0, 0, +1},
             },
             // thrust constants

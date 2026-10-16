@@ -25,7 +25,13 @@ namespace rl_tools::rl::environments::l2f{
     namespace parameters{
         enum class ActionInterface{
             DIRECT_MOTOR,
-            CTBR
+            CTBR,
+            IDEAL_CTBR
+        };
+        template <typename T>
+        struct IdealCTBR{
+            T thrust_max = 0; // N; zero uses the current vehicle's maximum collective thrust.
+            T rate_limit[3] = {20, 20, 20}; // body FLU, rad/s
         };
         template <typename T, typename TI, TI N>
         struct Dynamics{
@@ -33,6 +39,7 @@ namespace rl_tools::rl::environments::l2f{
                 T min;
                 T max;
             };
+            // Quadrotors use FLU order front-right, rear-right, rear-left, front-left (yaw reaction torque -,+,-,+); actions and rotor state use this order.
             T rotor_positions[N][3];
             T rotor_thrust_directions[N][3];
             T rotor_torque_directions[N][3];

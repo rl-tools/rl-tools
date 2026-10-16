@@ -161,6 +161,46 @@ renderer.set_cameras(cameras, stream=sim.stream)
 
 Host accessors return independent snapshots; names ending in `_dlpack()` expose live storage. Drive each object on its construction CUDA device, and finish consuming a borrowed buffer before the producer overwrites it. `Sim` orders DLPack exports onto the consumer's stream. Camera bases have shape `(N, 12)` and concatenate `position`, `dir_00`, `dir_du`, and `dir_dv` world-FLU vectors; the pixel-centre ray is `normalize(dir_00 + (x+0.5)/width * dir_du + (y+0.5)/height * dir_dv)`; `aspect` is required when constructing them.
 
+Choose `Sim(..., control="position")` or `EnvConfig(control="position")` at construction; `"motor"` remains the default. Commands keep the usual batch shape, with each agent's values concatenated in agent order:
+
+| `control` | Command per agent | Behavior |
+| --- | --- | --- |
+| `"motor"` | Four normalized motor commands in `[-1, 1]` | Motor response and rigid-body dynamics. |
+| `"ctbr"` | `[thrust, roll_rate, pitch_rate, yaw_rate]`, N and rad/s | Force along body `+Z` and prescribed body FLU rates throughout the current integration interval, without a PD controller. |
+| `"position"` | `[x, y, z, yaw]`, m and rad | RAPTOR produces motor commands once per step, targeting zero linear velocity. `Sim` uses its simulation frame; `MultiEnvironment` accepts scene coordinates and converts internally. |
+
+`action_low` and `action_high` expose native controller bounds, also used by Gymnasium. CTBR clamps rates to ±20 rad/s and thrust to each drone's current maximum rotor thrust; its shared upper thrust bound is infinite because instance parameters can vary. Position targets are absolute and unbounded. `sim.num_rotors` describes physical rotors independently of the command dimension.
+
+Masked resets clear recurrent controller memory for selected drones (every agent of a selected environment instance). Successful instance parameter updates clear those rows; assigning `sim.state[...]` clears all rows. Custom `spec_header` Worlds choose their own controller. The autonomous localization task retains its empty action space and synchronized episode resets.
+
+Registry quadrotors use Crazyflie/RAPTOR motor order: **front-right, rear-right, rear-left, front-left**, body FLU, yaw reaction-torque signs `−,+,−,+`. Commands, speeds, histories and per-rotor parameters share this order. Old policies or rotor-indexed data for formerly noncanonical presets require conversion when used with updated presets; explicit legacy motor-mode parameters remain supported, while RAPTOR validates canonical allocation.
+
+C++ configurations select the controller once; `World` binds its model, `State`, `Buffer` and native dynamics interface:
+
+```cpp
+#include <rl_tools/operations/cpu_mux.h>
+#include <rl_tools/rl/environments/hyperdrone/controllers/raptor/operations_cpu.h>
+#include <rl_tools/rl/environments/hyperdrone/operations_cpu.h>
+
+struct Spec: ExistingSpec {
+    using CONTROLLER = rl_tools::rl::environments::hyperdrone::controllers::raptor::Config;
+};
+```
+
+Include controller operations before World operations so static overload lookup sees them. The shared `control(device, controller, state, buffer, parameters, physical_states, commands, rng)` returns borrowed native actuation; it aliases commands for direct control and controller output for RAPTOR. Custom batched state-sampling overrides finish with `complete_reset(device, world, mask, rng)` to clear selected controller rows and request rendering.
+
+The contract is structural: `Config` supplies `Bind` and `DynamicsParameters`; the bound controller exposes `COMMAND_DIM`, `ACTION_INTERFACE`, `NAME`, `SUPPORTS_SCALAR`, `State` and `Buffer`. Device-first overloads in `rl_tools` provide allocation/free, initialization, reset, control and dynamics validation; constexpr `command_bounds` supplies API metadata. Persistent memory belongs in `State`, scratch in `Buffer`; `transition_action` selects the native reward input from the command or resulting physical state, so deferred rewards do not depend on mutable controller output.
+
+The C++ controller layer follows these consumers and constraints:
+
+| Consumers | Design constraint |
+| --- | --- |
+| CPU/CUDA Worlds, multi-agent batches and dynamics-only `Sim` | One static controller selection binds native actuation and command metadata; borrowed tensors avoid command copies and RAPTOR batches inference. |
+| TargetFrame, MovingGate and scene placement | Tasks retain sampling and rewards; shared reset completion clears controller memory, and World adapts scene targets before inference. |
+| Motor training, mixed PD CTBR and existing checkpoints | Direct controllers preserve native action semantics; ideal CTBR is distinct, and canonical motor indexing is shared. |
+| Web, localization and trajectory callers | Reusable controller parameters, recurrent state and scratch; localization retains its existing observation preparation. |
+| Python/Gym, custom specifications, rendering and IMU | Compiled bounds remain authoritative; physical rotor count and geometric mesh-hub matching remain independent of command shape. |
+
 ## RL environment
 
 ```python

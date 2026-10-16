@@ -46,8 +46,8 @@ class Sim:
     A seed initializes independent dynamics and observation streams once. Reset restores selected drones' nominal parameters and state; sample_states=True samples their initial states from a continuing host stream. Host accessors return owned arrays; *_dlpack accessors borrow publication buffers until the next producer update. Consumers must finish reading borrowed buffers before that update.
     """
 
-    def __init__(self, num_drones, *, parameters=None, seed=0, device="cpu"):
-        self._config = SimConfig(num_drones=num_drones)
+    def __init__(self, num_drones, *, parameters=None, seed=0, device="cpu", control="motor"):
+        self._config = SimConfig(num_drones=num_drones, control=control)
         if type(seed) is not int or not 0 <= seed <= 0xFFFFFFFF:
             raise ValueError("hyperdrone: seed must be an integer in [0, 2**32 - 1]")
         self.device = _resolve_device(device)
@@ -68,6 +68,22 @@ class Sim:
     @property
     def action_dim(self):
         return self._sim.action_dim
+
+    @property
+    def num_rotors(self):
+        return self._sim.num_rotors
+
+    @property
+    def control(self):
+        return self._config.control
+
+    @property
+    def action_low(self):
+        return np.asarray(self._sim.action_low, dtype=np.float32)
+
+    @property
+    def action_high(self):
+        return np.asarray(self._sim.action_high, dtype=np.float32)
 
     @property
     def observation_dim(self):
@@ -114,7 +130,7 @@ class Sim:
         self._pending_inputs.clear()
 
     def step(self, actions, *, stream=0):
-        """Advance one dt with normalized rotor commands of shape (num_drones, action_dim)."""
+        """Advance one dt with the configured control commands of shape (num_drones, action_dim)."""
         if is_cuda(actions):
             if self.device != "cuda":
                 raise RuntimeError("hyperdrone: device-resident actions require the cuda dynamics variant")
@@ -142,8 +158,8 @@ class Sim:
         return self._buffer(self._sim.observations_dlpack)
 
     def rotor_rpm(self):
-        """Rotor speeds (num_drones, action_dim) in RPM: state["motor_command"] through each drone's max_rpm calibration."""
-        out = np.empty((self.num_drones, self.action_dim), dtype=np.float32)
+        """Rotor speeds (num_drones, num_rotors) in RPM, using each drone's max_rpm calibration."""
+        out = np.empty((self.num_drones, self.num_rotors), dtype=np.float32)
         self._sim.read_rotor_rpm(out)
         self._pending_inputs.clear()
         return out

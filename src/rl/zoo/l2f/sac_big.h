@@ -11,7 +11,6 @@ namespace rl_tools::rl::zoo::l2f::sac{
         struct OPTIONS{
             static constexpr bool SEQUENTIAL_MODEL = false;
             static constexpr bool MOTOR_DELAY = true;
-            static constexpr bool RANDOMIZE_MOTOR_MAPPING = false;
             static constexpr bool RANDOMIZE_THRUST_CURVES = false;
             static constexpr bool OBSERVE_THRASH_MARKOV = false;
         };

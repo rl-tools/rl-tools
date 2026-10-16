@@ -34,7 +34,7 @@ class VectorEnv(gymnasium.vector.VectorEnv):
             0.0, 1.0, shape=(self._env.observation_dim,), dtype=np.float32
         )
         self.single_action_space = gymnasium.spaces.Box(
-            -1.0, 1.0, shape=(self._env.action_dim,), dtype=np.float32
+            self._env.action_low, self._env.action_high, dtype=np.float32
         )
         self.observation_space = gymnasium.vector.utils.batch_space(self.single_observation_space, self.num_envs)
         self.action_space = gymnasium.vector.utils.batch_space(self.single_action_space, self.num_envs)

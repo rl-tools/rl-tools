@@ -6,6 +6,7 @@
 
 #include "world.h"
 #include "rig/operations_cpu.h"
+#include "controllers/direct/operations_cpu.h"
 #include "pose.h"
 
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
@@ -81,6 +82,9 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world) {
+        malloc(device, world.controller);
+        malloc(device, world.controller_state);
+        malloc(device, world.controller_buffer);
         malloc(device, world.dynamics);
         malloc(device, world.drone_parameters);
         malloc(device, world.drone_bodies);
@@ -178,6 +182,7 @@ namespace rl_tools {
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
         auto& render_device = get_rendering_device(device);
         init(device, world.dynamics);
+        utils::assert_exit(device, init(device, world.controller), "hyperdrone::World: controller initialization failed");
         world.member_index = member_index;
         world.history_step = 0;
         world.flow_scene_version = 0;
@@ -192,6 +197,9 @@ namespace rl_tools {
                 shared.drones.push_back(drone);
             }
             init(device, shared);
+        }
+        for (const auto& drone : shared.drones) {
+            utils::assert_exit(device, validate(device, world.controller, drone.parameters.dynamics.dynamics), "hyperdrone::World: dynamics incompatible with controller");
         }
         world.num_drones = shared.num_drones;
         world.dynamics.parameters = shared.drones[0].parameters.dynamics;
@@ -322,6 +330,9 @@ namespace rl_tools {
         free(device, world.drone_parameters);
         free(device, world.drone_bodies);
         free(device, world.dynamics);
+        free(device, world.controller_buffer);
+        free(device, world.controller_state);
+        free(device, world.controller);
     }
 
     // Scene changes require the caller to reset all instances before observing again.
@@ -521,7 +532,7 @@ namespace rl_tools {
             for (TI agent_i = 0; agent_i < SPEC::N_AGENTS; agent_i++) {
                 Matrix<matrix::Specification<typename ACTION_SPEC::T, TI, 1, PER_AGENT_ACTION_DIM, false>> agent_action;
                 for (TI action_i = 0; action_i < PER_AGENT_ACTION_DIM; action_i++) {
-                    set(agent_action, 0, action_i, get(action, 0, agent_i * PER_AGENT_ACTION_DIM + action_i));
+                    set(agent_action, 0, action_i, transition_action(device, typename WORLD::CONTROLLER_CONFIG{}, action, _agent_state<SPEC>(next_state, agent_i), agent_i, action_i));
                 }
                 sum += reward(device, dynamics, parameters.agents[agent_i].dynamics, _agent_state<SPEC>(state, agent_i), agent_action, _agent_state<SPEC>(next_state, agent_i), rng);
             }
@@ -566,6 +577,20 @@ namespace rl_tools {
         }
     }
 
+    template <typename DEVICE, typename CONTROLLER, typename CONTROL_STATE, typename BUFFER, typename SPEC, typename PHYSICAL_STATE, typename COMMAND_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void observe(DEVICE& device, const CONTROLLER& controller, const CONTROL_STATE& controller_state, BUFFER& buffer, const rl::environments::hyperdrone::Parameters<SPEC>& parameters, const PHYSICAL_STATE& physical_state, const Tensor<COMMAND_SPEC>& commands, typename CONTROLLER::TI row, typename CONTROLLER::TI agent) {
+        using T = typename CONTROLLER::T;
+        const auto offset = agent * CONTROLLER::COMMAND_DIM;
+        const T dx = get(device, commands, offset) - parameters.scene_translation[0];
+        const T dy = get(device, commands, offset + 1) - parameters.scene_translation[1];
+        typename CONTROLLER::Target target;
+        target.position[0] = parameters.scene_yaw_cos * dx + parameters.scene_yaw_sin * dy;
+        target.position[1] = -parameters.scene_yaw_sin * dx + parameters.scene_yaw_cos * dy;
+        target.position[2] = get(device, commands, offset + 2) - parameters.scene_translation[2];
+        target.yaw = get(device, commands, offset + 3) - math::atan2(device.math, parameters.scene_yaw_sin, parameters.scene_yaw_cos);
+        observe(device, controller, controller_state, buffer, rl::environments::hyperdrone::_agent_state<SPEC>(physical_state, agent), target, row);
+    }
+
     template <typename DEVICE, typename SPEC, typename RNG>
     void sample_initial_parameters(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, typename rl::environments::hyperdrone::World<SPEC>::Parameters& parameters, RNG& rng) {
         rl::environments::hyperdrone::_sample_initial_parameters<DEVICE, SPEC>(device, world.dynamics, world.parameters, world.drone_parameters, world.num_drones, parameters, rng);
@@ -578,6 +603,7 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T step(DEVICE& device, const rl::environments::hyperdrone::World<SPEC>& world, typename rl::environments::hyperdrone::World<SPEC>::Parameters& parameters, const typename rl::environments::hyperdrone::World<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::hyperdrone::World<SPEC>::State& next_state, RNG& rng) {
+        static_assert(rl::environments::hyperdrone::World<SPEC>::CONTROLLER::SUPPORTS_SCALAR, "this controller requires the batched World step API");
         return rl::environments::hyperdrone::_step<DEVICE, SPEC>(device, world.dynamics, parameters, state, action, next_state, rng);
     }
 
@@ -606,6 +632,16 @@ namespace rl_tools {
             }
         }
     }
+    template <typename DEVICE, typename SPEC, typename RESET_SPEC, typename RNG>
+    void reset_controller(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, const Tensor<RESET_SPEC>& mask, RNG& rng) {
+        static_assert(get<0>(typename RESET_SPEC::SHAPE{}) == rl::environments::hyperdrone::World<SPEC>::INSTANCES);
+        reset(device, world.controller, world.controller_state, world.controller_buffer, mask, rng);
+    }
+    template <typename DEVICE, typename WORLD, typename RESET_SPEC, typename RNG>
+    void complete_reset(DEVICE& device, WORLD& world, const Tensor<RESET_SPEC>& mask, RNG& rng) {
+        reset_controller(device, world, mask, rng);
+        request_render(device, world, mask);
+    }
     template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC, typename RNG, typename utils::typing::enable_if<DEVICE::DEVICE_ID != devices::DeviceId::CUDA, bool>::type = true>
     void sample_initial_state(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
         using TI = typename SPEC::TI;
@@ -616,7 +652,7 @@ namespace rl_tools {
                 sample_initial_state(device, world, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), rng);
             }
         }
-        request_render(device, world, reset_mask);
+        complete_reset(device, world, reset_mask, rng);
     }
     template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename NEXT_STATE_SPEC, typename RNG, typename utils::typing::enable_if<DEVICE::DEVICE_ID != devices::DeviceId::CUDA, bool>::type = true>
     void step(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<ACTION_SPEC>& actions, Tensor<NEXT_STATE_SPEC>& next_states, RNG& rng) {
@@ -624,6 +660,7 @@ namespace rl_tools {
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
         static_assert(rl::environments::hyperdrone::check_world_instance_tensors<WORLD, PARAMETER_SPEC, STATE_SPEC>());
         static_assert(get<1>(typename ACTION_SPEC::SHAPE{}) == WORLD::ACTION_DIM);
+        auto actuation = control(device, world.controller, world.controller_state, world.controller_buffer, parameters, states, actions, rng);
         if(world.render_pending){
             if constexpr (WORLD::HAS_IMAGE_OBSERVATION && SPEC::HISTORY_LENGTH > 1){
                 render(device, world, parameters, states, world.render_reset);
@@ -651,11 +688,11 @@ namespace rl_tools {
                     }
                 }
             }
-            Matrix<matrix::Specification<typename ACTION_SPEC::T, TI, 1, WORLD::ACTION_DIM, false>> action_matrix;
-            for (TI action_i = 0; action_i < WORLD::ACTION_DIM; action_i++) {
-                set(action_matrix, 0, action_i, get(device, actions, instance_i, action_i));
+            Matrix<matrix::Specification<typename ACTION_SPEC::T, TI, 1, WORLD::ACTUATION_DIM, false>> action_matrix;
+            for (TI action_i = 0; action_i < WORLD::ACTUATION_DIM; action_i++) {
+                set(action_matrix, 0, action_i, get(device, actuation, instance_i, action_i));
             }
-            step(device, world, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), action_matrix, get_ref(device, next_states, instance_i), rng);
+            rl::environments::hyperdrone::_step<DEVICE, SPEC>(device, world.dynamics, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), action_matrix, get_ref(device, next_states, instance_i), rng);
         }
         world.history_step++;
         set_all(device, world.render_reset, false);
@@ -969,6 +1006,14 @@ namespace rl_tools {
         }
         free(render_device, env.shared.library);
         env.shared.segmentation_taxonomy.reset();
+    }
+    template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename RESET_SPEC, typename RNG>
+    void reset_controller(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env, const Tensor<RESET_SPEC>& mask, RNG& rng) {
+        using TI = typename MEMBER::TI;
+        for (TI member = 0; member < NUMBER_OF_ENVIRONMENTS; member++) {
+            auto block = view_range(device, mask, member * MEMBER::INSTANCES, tensor::ViewSpec<0, MEMBER::INSTANCES>{});
+            reset_controller(device, env.environments[member], block, rng);
+        }
     }
     template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename PARAMETER_SPEC, typename RESET_SPEC, typename RNG>
     void sample_initial_parameters(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {

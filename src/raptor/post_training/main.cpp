@@ -128,11 +128,6 @@ int main(int argc, char** argv){
     rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> d_output;
 
     ENVIRONMENT env_eval;
-    auto permute_rotors_px4_to_cf = [&device, &env_eval](const auto& dynamics){
-        auto copy = dynamics;
-        rlt::permute_rotors(device, env_eval, copy, 0, 3, 1, 2);
-        return copy;
-    };
 
     // std::map<std::string, ENVIRONMENT::Parameters::Dynamics> env_eval_parameters = {
     //     {"crazyflie", rlt::rl::environments::l2f::parameters::dynamics::registry<rlt::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie, typename ENVIRONMENT::SPEC>},

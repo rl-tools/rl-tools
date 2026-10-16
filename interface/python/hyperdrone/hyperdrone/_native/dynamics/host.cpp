@@ -35,7 +35,7 @@ struct JitSim {
         if(component < 0 || component > 4){
             throw std::invalid_argument("hyperdrone: unknown state component");
         }
-        return component == 4 ? instance.instance->config().action_dim
+        return component == 4 ? instance.instance->config().num_rotors
                               : (size_t)hdd::state_component_dims[component];
     }
 
@@ -73,6 +73,23 @@ NB_MODULE(hyperdrone_dynamics_core, m){
         .def(nb::init<const std::string&, const std::string&>(), nb::arg("library_path"), nb::arg("expected_config"))
         .def_prop_ro("num_drones", [](const JitSim& jit){ return jit->config().num_drones; })
         .def_prop_ro("action_dim", [](const JitSim& jit){ return jit->config().action_dim; })
+        .def_prop_ro("num_rotors", [](const JitSim& jit){ return jit->config().num_rotors; })
+        .def_prop_ro("action_low", [](const JitSim& jit){
+            nb::list result;
+            const float* bounds = jit->action_bounds(false);
+            for(uint32_t index = 0; index < jit->config().action_dim; index++){
+                result.append(bounds[index]);
+            }
+            return result;
+        })
+        .def_prop_ro("action_high", [](const JitSim& jit){
+            nb::list result;
+            const float* bounds = jit->action_bounds(true);
+            for(uint32_t index = 0; index < jit->config().action_dim; index++){
+                result.append(bounds[index]);
+            }
+            return result;
+        })
         .def_prop_ro("observation_dim", [](const JitSim& jit){ return jit->config().observation_dim; })
         .def_prop_ro("device_name", [](const JitSim& jit){ return std::string(jit->device_name()); })
         .def_prop_ro("buffer_device_type", [](const JitSim& jit){ return jit->buffer_device_type(); })
@@ -133,8 +150,8 @@ NB_MODULE(hyperdrone_dynamics_core, m){
         }, nb::arg("component"), nb::arg("values"))
         .def("read_rotor_rpm", [](JitSim& jit, nb::ndarray<float, nb::c_contig, nb::device::cpu> out){
             const hdd::Config config = jit->config();
-            if(out.size() != (size_t)config.num_drones * config.action_dim){
-                throw std::invalid_argument("hyperdrone: rotor rpm output must have num_drones * action_dim elements");
+            if(out.size() != (size_t)config.num_drones * config.num_rotors){
+                throw std::invalid_argument("hyperdrone: rotor rpm output must have num_drones * num_rotors elements");
             }
             nb::gil_scoped_release release;
             jit->read_rotor_rpm(out.data());

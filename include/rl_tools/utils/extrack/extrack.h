@@ -61,8 +61,8 @@ namespace rl_tools{
         // Example training setup (using the Loop step):
             rlt::malloc(device, ts);
             ts.extrack_config.name = "foundation-policy-pre-training";
-            ts.extrack_config.population_variates = "motor-mapping_thrust-curves_rng-warmup";
-            ts.extrack_config.population_values = std::string(OPTIONS::RANDOMIZE_MOTOR_MAPPING ? "true" : "false") + "_" + (OPTIONS::RANDOMIZE_THRUST_CURVES ? "true" : "false") + "_" + std::to_string(FACTORY::RNG_PARAMS_WARMUP_STEPS);
+            ts.extrack_config.population_variates = "thrust-curves_rng-warmup";
+            ts.extrack_config.population_values = std::string(OPTIONS::RANDOMIZE_THRUST_CURVES ? "true" : "false") + "_" + std::to_string(FACTORY::RNG_PARAMS_WARMUP_STEPS);
             rlt::init(device, ts, seed);
 
         // Example query:
