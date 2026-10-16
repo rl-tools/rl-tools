@@ -61,6 +61,7 @@ namespace rl_tools {
             OWLBuffer cameras_buffer = nullptr;
             OWLBuffer cameras_open_buffer = nullptr;
             OWLGroup world = nullptr;
+            std::vector<OWLGeom> world_geoms;
             OWLParams launch_params = nullptr;
             OWLRayGen collision_ray_gen = nullptr;
             OWLBuffer probe_dirs_buffer = nullptr;
@@ -101,8 +102,19 @@ namespace rl_tools {
             OWLGroup world = nullptr;
             OWLGroup filler_group = nullptr;
             std::vector<OWLGroup> object_groups;
+            std::vector<OWLGeom> world_geoms;
             size_t num_scene_instances = 0;
         };
+    }
+
+    namespace rendering::raytracing::backends::optix::detail {
+        // OWL frees objects by reference count and a geom's "world" variable holds the instance group
+        // that holds the geom: the cycle must be cut before owlContextDestroy or the context outlives it
+        inline void release_world_references(const std::vector<OWLGeom>& geoms){
+            for(OWLGeom geom : geoms){
+                owlGeomSetGroup(geom, "world", nullptr);
+            }
+        }
     }
 
     namespace rendering::raytracing::detail {
@@ -651,6 +663,11 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Optix>& library){
         if(library.backend != nullptr && library.backend->context != nullptr){
+            for(auto* assets : library.assets){
+                if(assets != nullptr){
+                    rendering::raytracing::backends::optix::detail::release_world_references(assets->world_geoms);
+                }
+            }
             owlContextDestroy(library.backend->context);
         }
         for(auto* assets : library.assets){
@@ -966,6 +983,7 @@ namespace rl_tools {
                 for(size_t m = 0; m < geoms.size(); m++){
                     owlGeomSetGroup(geoms[m], "world", world);
                 }
+                assets.world_geoms = geoms;
             }
 
             if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
@@ -1002,7 +1020,7 @@ namespace rl_tools {
                 host_instance_classes.push_back(0);
             }
             if(renderer.backend->instance_classes_buffer != nullptr){
-                owlBufferDestroy(renderer.backend->instance_classes_buffer);
+                owlBufferRelease(renderer.backend->instance_classes_buffer);
             }
             OWLBuffer instance_classes_buffer = owlDeviceBufferCreate(context, OWL_UINT, host_instance_classes.size(), host_instance_classes.data());
             renderer.backend->instance_classes_buffer = instance_classes_buffer;
@@ -1150,6 +1168,7 @@ namespace rl_tools {
 
         rendering::raytracing::backends::SceneState<rendering::raytracing::backends::Optix, SPEC> assets;
         optix::detail::build_scene_assets<DEVICE, SPEC>(device, context, triangles_geom_type, scene, all_objects, assets);
+        renderer.backend->world_geoms.insert(renderer.backend->world_geoms.end(), assets.world_geoms.begin(), assets.world_geoms.end());
         optix::detail::init_renderer_scene(device, renderer, scene, all_objects, assets);
     }
 
@@ -1520,10 +1539,12 @@ namespace rl_tools {
         log(device, device.logger, devices::logging::Verbosity::debug, rendering::raytracing::LOG_PREFIX, "destroying devicegroups ...");
         if(renderer.backend != nullptr){
             if(renderer.backend->instance_classes_buffer != nullptr){
-                owlBufferDestroy(renderer.backend->instance_classes_buffer);
+                // owlBufferDestroy would leave behind a handle that keeps the context alive past owlContextDestroy
+                owlBufferRelease(renderer.backend->instance_classes_buffer);
                 renderer.backend->instance_classes_buffer = nullptr;
             }
             if(renderer.backend->context != nullptr && renderer.backend->library == nullptr){
+                rendering::raytracing::backends::optix::detail::release_world_references(renderer.backend->world_geoms);
                 owlContextDestroy((OWLContext)renderer.backend->context); // library-backed renderers borrow the context — the library destroys it
             }
             if(renderer.backend->overlay_state != nullptr){
