@@ -606,7 +606,7 @@ async function main(){
                 : "";
         },
         rlt_input: poll_input,
-        rlt_segmentation_classes: classes => { segmentation_classes = classes; },
+        rlt_segmentation_classes: classes => { segmentation_classes = {...classes, 0xfffffffd: "Drone"}; },
         rlt_present: (segmentation_pointer, width, height, x, y, z, qw, qx, qy, qz) => {
             if(segmentation_ids === null || segmentation_ids.length !== width * height){
                 segmentation_ids = new Uint32Array(width * height);
