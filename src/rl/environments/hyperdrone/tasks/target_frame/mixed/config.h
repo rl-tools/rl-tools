@@ -33,6 +33,7 @@ namespace obs = l2f::observation;
     static constexpr T GYRO_BIAS_TRACKING_TAU = static_cast<T>(10);
     static constexpr T IMITATION_POSITION_LIMIT = static_cast<T>(0.2);
     static constexpr T IMITATION_ANGLE_LIMIT = static_cast<T>(0.05);
+    static constexpr TI IMITATION_EPISODE_STEPS = 40;
     static constexpr TI SIMULATION_FREQUENCY = 100;
     static constexpr TI EPISODE_STEP_LIMIT = 10000;
     using PARAMETERS_SPEC = l2f::ParametersBaseSpecification<T, TI, 4, EPISODE_STEP_LIMIT, REWARD_FUNCTION>;
@@ -154,9 +155,7 @@ namespace obs = l2f::observation;
 
     using ACTOR_ACCEL_OBS = obs::LinearAccelerationBodyFrameHistory<obs::LinearAccelerationBodyFrameHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>;
     using ACTOR_STATE_OBS = obs::OrientationMahonyWorldZ<obs::OrientationMahonyWorldZSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, ACTOR_ACCEL_OBS>>>>>>;
-    static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM + 3;
-    using INERTIAL_SPEC = rlt::rl::environments::l2f::inertial_velocity::Specification<TYPE_POLICY, TI>;
-    using INERTIAL_STATE = rlt::rl::environments::l2f::inertial_velocity::State<INERTIAL_SPEC>;
+    static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM;
 
     static constexpr TI N_TOTAL_SCENES = 25;
     static constexpr TI N_ACTIVE_SCENES = 8;
@@ -197,19 +196,21 @@ namespace mixed_imitation = rlt::rl::algorithms::ppo::mixed_imitation;
     static constexpr T RENDER_SHUTTER_FRACTION_MAX = static_cast<T>(1);
     static_assert(RENDER_SHUTTER_FRACTION_MIN >= static_cast<T>(0) && RENDER_SHUTTER_FRACTION_MIN <= RENDER_SHUTTER_FRACTION_MAX && RENDER_SHUTTER_FRACTION_MAX <= static_cast<T>(1), "Invalid hyperdrone training shutter fraction range");
 
-    static constexpr TI FRAME_STACK_N = 1;
-    static constexpr TI FRAME_STACK_STRIDE = 2;
+    static constexpr TI FRAME_STACK_N = 2;
+    static constexpr TI FRAME_STACK_STRIDE = 20;
+    using POSITION_HOLD_SPEC = rlt::rl::environments::hyperdrone::tasks::target_frame::position_hold::Specification<TYPE_POLICY, TI, FRAME_STACK_STRIDE, SIMULATION_FREQUENCY>;
     static constexpr TI ROLLOUT_STEPS_PER_ENV = 4;
     static constexpr TI SCENE_SET_MIN_STEPS = 2048;
     static constexpr TI ROLLOUTS_PER_SCENE_SET = (SCENE_SET_MIN_STEPS + ROLLOUT_STEPS_PER_ENV - 1) / ROLLOUT_STEPS_PER_ENV;
-    static constexpr TI FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + ROLLOUT_STEPS_PER_ENV;
     static constexpr TI IMAGE_CHANNELS = 3;
     static constexpr TI STACKED_IMG_C = IMAGE_CHANNELS * FRAME_STACK_N;
-    static constexpr TI COMBINED_IMG_C_LOGICAL = STACKED_IMG_C + IMAGE_CHANNELS;
+    static constexpr TI TASK_IMG_C = (STACKED_IMG_C + IMAGE_CHANNELS + 7) & ~((TI)7);
+    static constexpr TI N_PAIRS = 2 * FRAME_STACK_N;
+    static constexpr TI COMBINED_IMG_C_LOGICAL = 2 * IMAGE_CHANNELS;
     static constexpr TI COMBINED_IMG_C = (COMBINED_IMG_C_LOGICAL + 7) & ~((TI)7);
-    static constexpr TI COMBINED_OBS_DIM = CAM_HEIGHT * CAM_WIDTH * 2 * COMBINED_IMG_C;
+    static constexpr TI COMBINED_OBS_DIM = CAM_HEIGHT * CAM_WIDTH * N_PAIRS * COMBINED_IMG_C;
     static constexpr TI IMG_H = CAM_HEIGHT;
-    static constexpr TI IMG_W = CAM_WIDTH * 2;
+    static constexpr TI IMG_W = CAM_WIDTH * N_PAIRS;
     static constexpr TI IMG_C = IMAGE_CHANNELS;
     static constexpr TI INDOOR_POSITION_DIM = 3;
     static constexpr T BRIGHTNESS_RANDOMIZATION_RANGE = 0.5;
@@ -269,7 +270,7 @@ namespace mixed_imitation = rlt::rl::algorithms::ppo::mixed_imitation;
         static constexpr T_TI FORWARD_BATCH_SIZE = PARAMETERS::BATCH_SIZE;
 
         static constexpr T_TI IMG_H = T_ENVIRONMENT::Observation::HEIGHT;
-        static constexpr T_TI IMG_W = T_ENVIRONMENT::Observation::WIDTH * 2;
+        static constexpr T_TI IMG_W = T_ENVIRONMENT::Observation::WIDTH * N_PAIRS;
 
         template <typename CAPABILITY>
         struct Actor{
@@ -297,11 +298,15 @@ namespace mixed_imitation = rlt::rl::algorithms::ppo::mixed_imitation;
             using IMAGE_CONTEXT = rlt::nn::layers::conv2d::BindConfiguration<IMAGE_CONTEXT_CONFIG>;
             using IMAGE_OUTPUT_CONFIG = rlt::nn::layers::conv2d::Configuration<T_TYPE_POLICY, T_TI, 4, 1, 1, 1, 1, 0, 0, rlt::nn::activation_functions::IDENTITY>;
             using IMAGE_OUTPUT = rlt::nn::layers::conv2d::BindConfiguration<IMAGE_OUTPUT_CONFIG>;
-            using PAIR_RESPONSES = rlt::nn_models::sequential::Module<GREY, COST, POOL, NORMALIZE, DIFFERENCE, PATCH_CONTEXT, IMAGE_CONTEXT, IMAGE_OUTPUT>;
-            using PAIR_RESPONSE_TYPE = typename PAIR_RESPONSES::template Layer<CAPABILITY, IMAGE_INPUT_SHAPE>;
-            static_assert(rlt::get<2>(typename PAIR_RESPONSE_TYPE::OUTPUT_SHAPE{}) == 1 && rlt::get<3>(typename PAIR_RESPONSE_TYPE::OUTPUT_SHAPE{}) == 2);
+            using MATCHING = rlt::nn_models::sequential::Module<GREY, COST, POOL, NORMALIZE, DIFFERENCE>;
+            using MATCHING_TYPE = typename MATCHING::template Layer<CAPABILITY, IMAGE_INPUT_SHAPE>;
+            using FEATURE_INPUT_SHAPE = typename MATCHING_TYPE::OUTPUT_SHAPE;
+            using PAIR_RESPONSES = rlt::nn_models::sequential::Module<PATCH_CONTEXT, IMAGE_CONTEXT, IMAGE_OUTPUT>;
+            using PAIR_RESPONSE_TYPE = typename PAIR_RESPONSES::template Layer<CAPABILITY, FEATURE_INPUT_SHAPE>;
+            static_assert(rlt::get<2>(typename PAIR_RESPONSE_TYPE::OUTPUT_SHAPE{}) == 1 && rlt::get<3>(typename PAIR_RESPONSE_TYPE::OUTPUT_SHAPE{}) == N_PAIRS);
             using PAIR_DIFFERENCE = rlt::nn::layers::dense::BindConfiguration<rlt::nn::layers::dense::Configuration<T_TYPE_POLICY, T_TI, 4, rlt::nn::activation_functions::IDENTITY>>;
-            using IMAGE_BRANCH = rlt::nn_models::sequential::Module<rlt::nn_models::Group<groups::Fixed, rlt::nn_models::sequential::Module<GREY, COST, POOL, NORMALIZE, DIFFERENCE>>, rlt::nn_models::Group<groups::Visual, rlt::nn_models::sequential::Module<PATCH_CONTEXT, IMAGE_CONTEXT>>, rlt::nn_models::Group<groups::Readout, IMAGE_OUTPUT>, OUTPUT_FLATTEN, rlt::nn_models::Group<groups::Fixed, PAIR_DIFFERENCE>>;
+            using VISUAL_READOUT = rlt::nn_models::sequential::Module<rlt::nn_models::Group<groups::Visual, rlt::nn_models::sequential::Module<PATCH_CONTEXT, IMAGE_CONTEXT>>, rlt::nn_models::Group<groups::Readout, IMAGE_OUTPUT>, OUTPUT_FLATTEN, rlt::nn_models::Group<groups::Fixed, PAIR_DIFFERENCE>>;
+            using IMAGE_BRANCH = rlt::nn_models::sequential::Module<rlt::nn_models::Group<groups::Fixed, MATCHING>, VISUAL_READOUT>;
 
             using STATE_STANDARDIZE_CONFIG = rlt::nn::layers::standardize::Configuration<T_TYPE_POLICY, T_TI>;
             using STATE_STANDARDIZE = rlt::nn::layers::standardize::BindConfiguration<STATE_STANDARDIZE_CONFIG>;
@@ -314,9 +319,12 @@ namespace mixed_imitation = rlt::rl::algorithms::ppo::mixed_imitation;
             };
             using MLP_HEAD = rlt::nn_models::Group<groups::Fixed, rlt::nn_models::mlp_unconditional_stddev::BindConfiguration<MLP_HEAD_CONFIG>>;
 
+            using BRANCH_FEATURES = rlt::nn_models::parallel::Branch<VISUAL_READOUT, FEATURE_INPUT_SHAPE>;
             using BRANCH_IMAGE = rlt::nn_models::parallel::Branch<IMAGE_BRANCH, IMAGE_INPUT_SHAPE>;
             using BRANCH_STATE = rlt::nn_models::parallel::Branch<rlt::nn_models::Group<groups::Fixed, STATE_BRANCH>, STATE_INPUT_SHAPE>;
-            using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, MLP_HEAD, BRANCH_IMAGE, BRANCH_STATE>;
+            // PPO trains on the features the rollout's matching prefix computed once per sample; checkpoints export the prefix with the actor
+            using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, MLP_HEAD, BRANCH_FEATURES, BRANCH_STATE>;
+            using EXPORT_MODEL = rlt::nn_models::parallel::Build<CAPABILITY, MLP_HEAD, BRANCH_IMAGE, BRANCH_STATE>;
         };
         template <typename CAPABILITY>
         struct Critic{

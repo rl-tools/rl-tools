@@ -9,10 +9,6 @@ add_executable(test_rl_environments_l2f_ideal_ctbr ideal_ctbr.cpp)
 target_link_libraries(test_rl_environments_l2f_ideal_ctbr PRIVATE RLtools::RLtools GTest::gtest_main)
 gtest_discover_tests(test_rl_environments_l2f_ideal_ctbr)
 
-add_executable(test_rl_environments_l2f_inertial_velocity inertial_velocity.cpp)
-target_link_libraries(test_rl_environments_l2f_inertial_velocity PRIVATE RLtools::RLtools GTest::gtest_main)
-gtest_discover_tests(test_rl_environments_l2f_inertial_velocity)
-
 if(RL_TOOLS_ENABLE_JSON)
     if(RL_TOOLS_TEST_DATA_PATH)
         add_executable(test_rl_environments_l2f_validation validation.cpp)

@@ -30,7 +30,7 @@ Both scripts use `emscripten/emsdk:4.0.17` and write their output to `static/l2f
 
 This installs the versions in `package-lock.json` and writes the bundles to `external/blob/lib/`. The studio uses the WASM inference backend and does not require a separate `rltools.js` package.
 
-Mixed visual checkpoints with image input `[T,B,50,160,8]` and sensor input `[T,B,65]` require both WASM modules to be rebuilt. Load the checkpoint with the existing file or URL loader. Studio selects `crazyflie_openmv`, supplies the paired current/target images and Mahony/IMU observations, and uses the CTBR action interface. The target image is captured at the origin with identity orientation; trajectory controls are hidden while this policy is active. Switching to Controller or Gamepad restores direct motor control and resets the simulator state.
+Mixed visual checkpoints with image input `[T,B,50,320,8]` and sensor input `[T,B,62]` require both WASM modules to be rebuilt. Load the checkpoint with the existing file or URL loader. Studio selects `crazyflie_openmv`, pairs the current and the stride-old frame with the target image in both orders, supplies the Mahony/IMU observations, and uses the CTBR action interface. The target image is captured at the origin with identity orientation; trajectory controls are hidden while this policy is active. Switching to Controller or Gamepad restores direct motor control and resets the simulator state.
 
 The compatibility checks use Node.js and the repository's `.venv` with `h5py` installed. After rebuilding, run from the repository root:
 

@@ -4,7 +4,7 @@ import {execFileSync} from "node:child_process"
 import {fileURLToPath} from "node:url"
 import createSimulator from "../external/blob/l2f-interface.js"
 import createInference from "../external/blob/dyn-inference.js"
-import {packVisualPair, visualPolicyProfile} from "../visual_policy.js"
+import {packVisualPairs, visualPolicyProfile} from "../visual_policy.js"
 
 const checkpoint = process.argv[2]
 assert(checkpoint, "Usage: node test_visual_policy.mjs checkpoint.h5")
@@ -27,13 +27,11 @@ const profile = visualPolicyProfile({
     meta: JSON.parse(model.get_meta()), input_shapes: model.get_input_shapes(), output_dim: model.get_output_dim(),
 })
 assert.equal(profile.state_type, "VisualState")
-assert(profile.observation.endsWith(".InertialVelocity"))
 let maxDifference = 0
 for(let sample = 0; sample < examples.images.length; sample++) {
     const image = examples.images[sample]
-    const current = image.flatMap(row => row.slice(0, 80).flatMap(pixel => pixel.slice(0, 3)))
-    const target = image.flatMap(row => row.slice(0, 80).flatMap(pixel => pixel.slice(3, 6)))
-    const packed = packVisualPair(current, target, 80, 50)
+    const stacked = image.flatMap(row => row.slice(0, 80).flatMap((pixel, x) => [...pixel.slice(0, 3), ...row[160 + x].slice(0, 3), ...pixel.slice(3, 6)]))
+    const packed = packVisualPairs(stacked, 2, 80, 50)
     assert.deepEqual(Array.from(packed), image.flat(2))
     for(let repeat = 0; repeat < 3; repeat++) {
         const actual = Array.from(model.evaluate_tuple([packed, new Float32Array(examples.sensors[sample])]))
@@ -50,9 +48,8 @@ const simulator = await createSimulator({wasmBinary: readFileSync(new URL("../ex
 const state = new simulator.VisualState(12)
 state.initial_state()
 const initial = Array.from(state.get_policy_observation())
-assert.equal(initial.length, 65)
+assert.equal(initial.length, 62)
 assert(initial.slice(0, 3).every((v, i) => v === [0, 0, 1][i]))
-assert(initial.slice(62).every(v => v === 0))
 assert(Math.abs(initial[40] - 9.81) < 1e-5)
 const before = state.get_state()
 for(let i = 0; i < 10; i++) {
@@ -85,7 +82,6 @@ assert(Math.abs(state.get_policy_observation()[6] - hoverAction) < 1e-6)
 assert.equal(state.get_policy_observation()[7], 0)
 state.sample_initial_state()
 assert(Array.from(state.get_policy_observation()).every(Number.isFinite))
-assert(Array.from(state.get_policy_observation()).slice(62).every(v => v === 0))
 state.delete()
 
 const legacy = new simulator.State(12)
@@ -93,4 +89,4 @@ legacy.initial_state()
 legacy.observe()
 assert.equal(legacy.get_observation().length, 21 + 64 * 4)
 legacy.delete()
-console.log(`Paired image, single-sample inference, CTBR hover, sensor/reset and legacy checks passed; max action difference ${maxDifference}`)
+console.log(`Frame-pair image, single-sample inference, CTBR hover, sensor/reset and legacy checks passed; max action difference ${maxDifference}`)

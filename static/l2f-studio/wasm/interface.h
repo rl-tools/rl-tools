@@ -34,39 +34,25 @@ struct SimulatorState{
     void prepare_policy_observation(bool reset){
         using rlt::get;
         using rlt::set;
-        using rlt::view;
         if constexpr(VISUAL){
-            auto base = view(device, policy.observation, rlt::matrix::ViewSpec<1, 62>{}, 0, 0);
             for(TI axis = 0; axis < 3; axis++){
                 T error = rlt::random::normal_distribution::sample(device.random, T(0), T(0.001), rng);
                 if(reset){
                     state.bias_estimate[axis] = state.gyro_bias[axis] + error;
                 }
             }
-            rlt::observe(device, env, parameters, state, visual_policy::ACTOR_OBSERVATION{}, base, rng);
+            rlt::observe(device, env, parameters, state, visual_policy::ACTOR_OBSERVATION{}, policy.observation, rng);
             if(reset){
-                set(base, 0, 40, T(9.81));
+                set(policy.observation, 0, 40, T(9.81));
             }
-            T gyro[3], world_z[3];
             for(TI axis = 0; axis < 3; axis++){
                 if(reset){
-                    state.gyro[axis] = get(base, 0, 3 + axis);
+                    state.gyro[axis] = get(policy.observation, 0, 3 + axis);
                 }
                 else{
                     state.bias_estimate[axis] += (state.gyro[axis] - state.bias_estimate[axis]) * parameters.integration.dt / T(10);
                 }
-                gyro[axis] = state.gyro[axis] - state.bias_estimate[axis];
-                world_z[axis] = get(base, 0, axis);
-                set(base, 0, 3 + axis, gyro[axis]);
-            }
-            if(reset){
-                rlt::init(device, policy.inertial, gyro);
-            }
-            else{
-                rlt::step(device, policy.inertial, world_z, state.accelerometer, gyro, parameters.integration.dt);
-            }
-            for(TI axis = 0; axis < 3; axis++){
-                set(policy.observation, 0, 62 + axis, policy.inertial.velocity[axis]);
+                set(policy.observation, 0, 3 + axis, state.gyro[axis] - state.bias_estimate[axis]);
             }
         }
     };
@@ -114,10 +100,10 @@ struct SimulatorState{
     emscripten::val get_policy_observation() const {
         using rlt::get;
         if constexpr(VISUAL){
-            for(TI i = 0; i < 65; i++){
+            for(TI i = 0; i < visual_policy::ACTOR_OBSERVATION::DIM; i++){
                 policy.cache[i] = get(policy.observation, 0, i);
             }
-            return emscripten::val(emscripten::typed_memory_view(65, policy.cache));
+            return emscripten::val(emscripten::typed_memory_view(visual_policy::ACTOR_OBSERVATION::DIM, policy.cache));
         }
         else{
             return get_observation();
