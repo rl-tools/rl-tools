@@ -7,14 +7,17 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::position_hold{
-    template<typename T_TYPE_POLICY, typename T_TI>
+    template<typename T_TYPE_POLICY, typename T_TI, T_TI T_FRAME_STRIDE, T_TI T_SIMULATION_FREQUENCY>
     struct Specification{
         using TYPE_POLICY = T_TYPE_POLICY;
         using T = typename TYPE_POLICY::DEFAULT;
         using TI = T_TI;
+        static constexpr T FRAME_INTERVAL = static_cast<T>(T_FRAME_STRIDE) / static_cast<T>(T_SIMULATION_FREQUENCY);
+        static constexpr T DAMPING_TIME = 1;
+        static constexpr T DERIVATIVE_GAIN = DAMPING_TIME / FRAME_INTERVAL;
         static constexpr T GRAVITY = 9.81;
         static constexpr TI ACTION_HISTORY_LENGTH = 8;
-        static constexpr TI BASE_OBSERVATION_DIM = 62;
+        static constexpr TI OBSERVATION_DIM = 62;
         static constexpr TI ACTION_DIM = 4;
     };
 }

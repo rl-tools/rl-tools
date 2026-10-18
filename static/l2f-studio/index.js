@@ -5,7 +5,7 @@ import { ParameterManager } from "./parameter_manager.js";
 import * as rlt from "./dyn_inference_wrapper.js"
 import { Gamepad } from "./gamepad.js"
 import { GamepadController } from "./gamepad_controller.js"
-import { visualPolicyProfile, packVisualPair } from "./visual_policy.js"
+import { visualPolicyProfile, packVisualPairs } from "./visual_policy.js"
 import { fetchExperimentCheckpoints, filterExperimentCheckpoints } from "./experiments.js"
 import { ActionSparklines, ACTION_COLORS } from "./action_sparklines.js"
 import { AttitudeSetpointGamepadInput, ATTITUDE_SETPOINT_GAMEPAD_INTERFACE, ATTITUDE_SETPOINT_GAMEPAD_STORAGE_KEY } from "./attitude_setpoint_gamepad.js"
@@ -488,17 +488,8 @@ class Policy{
         }
         const raw = ui.render_onboard_pixels(ui_state, render_state, parameters)
         if(!raw) return []
-        if(model?.visual_profile) {
-            const target = this.target_buffers?.[drone_index]
-            if(!target) {
-                return []
-            }
-            const current = Float32Array.from(raw, srgb)
-            const output = packVisualPair(current, target, cfg.w, cfg.h)
-            if(drone_index === 0) {
-                this.last_stacked_frames = {data: output, cfg: {...cfg, w: cfg.w * 2, channels: 8}}
-            }
-            return output
+        if(model?.visual_profile && !this.target_buffers?.[drone_index]) {
+            return []
         }
         if(!cfg || !this.frame_buffers || drone_index === undefined){
             for(let i = 0; i < raw.length; i++) raw[i] = srgb(raw[i])
@@ -514,7 +505,7 @@ class Policy{
         const n_pixels = cfg.w * cfg.h
         const data_channels = img_c * cfg.n_frames + (cfg.with_target ? img_c : 0)
         let stacked_c = data_channels
-        if(model && model.input_dims && branch_index !== undefined && model.input_dims[branch_index]){
+        if(!model?.visual_profile && model && model.input_dims && branch_index !== undefined && model.input_dims[branch_index]){
             const expected = Math.floor(model.input_dims[branch_index] / n_pixels)
             if(expected >= data_channels) stacked_c = expected
         }
@@ -540,6 +531,9 @@ class Policy{
             }
         }
         if(drone_index === 0) this.last_stacked_frames = { data: output, cfg: { ...cfg, channels: stacked_c } }
+        if(model?.visual_profile) {
+            return packVisualPairs(output, cfg.n_frames, cfg.w, cfg.h)
+        }
         return Array.from(output)
     }
     evaluate_step(states, ui_state, ui, parameters) {

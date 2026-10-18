@@ -1,5 +1,4 @@
 #pragma once
-#include <rl_tools/rl/environments/l2f/operations_generic_inertial_velocity.h>
 
 namespace visual_policy {
     using namespace rl_tools::rl::environments::l2f;
@@ -58,13 +57,11 @@ namespace visual_policy {
         static constexpr auto PARAMETER_VALUES = nominal_parameters;
     };
     using ENVIRONMENT = rl_tools::rl::environments::Multirotor<Specification<T, TI, CONFIG>>;
-    using INERTIAL_SPEC = rl_tools::rl::environments::l2f::inertial_velocity::Specification<rl_tools::numeric_types::Policy<T>, TI>;
     template<bool ENABLED>
     struct PolicyState {};
     template<>
     struct PolicyState<true> {
-        rl_tools::rl::environments::l2f::inertial_velocity::State<INERTIAL_SPEC> inertial;
-        rl_tools::Matrix<rl_tools::matrix::Specification<T, TI, 1, 65, false>> observation;
-        mutable T cache[65];
+        rl_tools::Matrix<rl_tools::matrix::Specification<T, TI, 1, ACTOR_OBSERVATION::DIM, false>> observation;
+        mutable T cache[ACTOR_OBSERVATION::DIM];
     };
 }

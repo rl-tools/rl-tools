@@ -10,41 +10,44 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template<typename DEVICE, typename MODEL, typename TYPE_POLICY, typename TI>
-    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, MODEL& actor, const rl::environments::hyperdrone::tasks::target_frame::position_hold::Specification<TYPE_POLICY, TI>&){
-        using SPEC = rl::environments::hyperdrone::tasks::target_frame::position_hold::Specification<TYPE_POLICY, TI>;
+    template<typename DEVICE, typename MATCHING, typename MODEL, typename TYPE_POLICY, typename TI, TI FRAME_STRIDE, TI SIMULATION_FREQUENCY>
+    RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, MATCHING& matching, MODEL& actor, const rl::environments::hyperdrone::tasks::target_frame::position_hold::Specification<TYPE_POLICY, TI, FRAME_STRIDE, SIMULATION_FREQUENCY>&){
+        using SPEC = rl::environments::hyperdrone::tasks::target_frame::position_hold::Specification<TYPE_POLICY, TI, FRAME_STRIDE, SIMULATION_FREQUENCY>;
         using T = typename SPEC::T;
         constexpr TI ACTION_DIM = SPEC::ACTION_DIM;
         using nn_models::sequential::layer;
         {
-            auto& image_branch = get<0>(actor.pipelines);
-            auto& grey = layer<0>(image_branch);
-            auto& cost = layer<1>(image_branch);
-            auto& pool = layer<2>(image_branch);
-            set_all(device, layer<5>(image_branch).biases.parameters, 0);
-            set_all(device, layer<6>(image_branch).biases.parameters, 0);
-            set_all(device, layer<7>(image_branch).biases.parameters, 0);
-            set_all(device, layer<7>(image_branch).weights.parameters, 0);
-            auto& pair_difference = layer<9>(image_branch);
+            auto& visual_readout = get<0>(actor.pipelines);
+            auto& grey = layer<0>(matching);
+            auto& cost = layer<1>(matching);
+            auto& pool = layer<2>(matching);
+            set_all(device, layer<0>(visual_readout).biases.parameters, 0);
+            set_all(device, layer<1>(visual_readout).biases.parameters, 0);
+            set_all(device, layer<2>(visual_readout).biases.parameters, 0);
+            set_all(device, layer<2>(visual_readout).weights.parameters, 0);
+            auto& pair_difference = layer<4>(visual_readout);
             set_all(device, pair_difference.weights.parameters, 0);
             set_all(device, pair_difference.biases.parameters, 0);
+            using PAIR_WEIGHTS_SHAPE = typename decltype(pair_difference.weights.parameters)::SPEC::SHAPE;
+            static_assert(get<1>(PAIR_WEIGHTS_SHAPE{}) == 4 * ACTION_DIM);
+            // pairs [current, target], [target, current], [previous, target], [target, previous]: the antisymmetric differences estimate the current and previous position, their scaled difference damps translation
             for(TI action = 0; action < ACTION_DIM; action++){
-                set(device, pair_difference.weights.parameters, static_cast<T>(0.5), action, action);
-                set(device, pair_difference.weights.parameters, static_cast<T>(-0.5), action, action + ACTION_DIM);
+                const T damping = action < 3 ? SPEC::DERIVATIVE_GAIN : static_cast<T>(0);
+                set(device, pair_difference.weights.parameters, (1 + damping) / 2, action, action);
+                set(device, pair_difference.weights.parameters, -(1 + damping) / 2, action, action + ACTION_DIM);
+                set(device, pair_difference.weights.parameters, -damping / 2, action, action + 2 * ACTION_DIM);
+                set(device, pair_difference.weights.parameters, damping / 2, action, action + 3 * ACTION_DIM);
             }
             auto& known = layer<1>(get<1>(actor.pipelines));
             using STATE_WEIGHTS_SHAPE = typename decltype(known.weights.parameters)::SPEC::SHAPE;
-            static_assert(get<0>(STATE_WEIGHTS_SHAPE{}) == 4 && get<1>(STATE_WEIGHTS_SHAPE{}) == 65);
+            static_assert(get<0>(STATE_WEIGHTS_SHAPE{}) == 4 && get<1>(STATE_WEIGHTS_SHAPE{}) == SPEC::OBSERVATION_DIM);
             set_all(device, known.weights.parameters, 0);
             set_all(device, known.biases.parameters, 0);
             const T gravity = SPEC::GRAVITY;
             set(device, known.weights.parameters, static_cast<T>(1), 0, 6);
             set(device, known.weights.parameters, static_cast<T>(-0.02) * gravity, 0, 40);
-            set(device, known.weights.parameters, static_cast<T>(-0.04), 0, 64);
             set(device, known.weights.parameters, static_cast<T>(-1.5), 1, 1);
-            set(device, known.weights.parameters, static_cast<T>(3) / gravity, 1, 63);
             set(device, known.weights.parameters, static_cast<T>(1.5), 2, 0);
-            set(device, known.weights.parameters, static_cast<T>(-3) / gravity, 2, 62);
             set_all(device, actor.head.input_layer.weights.parameters, 0);
             set_all(device, actor.head.input_layer.biases.parameters, 0);
             set_all(device, actor.head.output_layer.weights.parameters, 0);
@@ -60,8 +63,8 @@ namespace rl_tools{
             set_all(device, cost.biases.parameters, 0);
             set_all(device, pool.weights.parameters, 0);
             set_all(device, pool.biases.parameters, 0);
-            auto& normalization = layer<3>(image_branch);
-            auto& difference = layer<4>(image_branch);
+            auto& normalization = layer<3>(matching);
+            auto& difference = layer<4>(matching);
             set_all(device, normalization.weights.parameters, 0);
             set_all(device, normalization.biases.parameters, 0);
             set_all(device, difference.weights.parameters, 0);
@@ -114,7 +117,7 @@ namespace rl_tools{
         {
             auto& state_normalization = layer<0>(get<1>(actor.pipelines));
             const T gravity = SPEC::GRAVITY;
-            constexpr TI acceleration_offset = SPEC::BASE_OBSERVATION_DIM - 3 * SPEC::ACTION_HISTORY_LENGTH;
+            constexpr TI acceleration_offset = SPEC::OBSERVATION_DIM - 3 * SPEC::ACTION_HISTORY_LENGTH;
             for(TI item = 0; item < SPEC::ACTION_HISTORY_LENGTH; item++){
                 for(TI axis = 0; axis < 3; axis++){
                     set(device, state_normalization.mean.parameters, axis == 2 ? gravity : static_cast<T>(0), acceleration_offset + 3 * item + axis);
