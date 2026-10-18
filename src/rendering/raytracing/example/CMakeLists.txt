@@ -139,61 +139,32 @@ target_link_libraries(rendering_raytracing_pose_trace_motion_blur
 
 find_package(glfw3 QUIET)
 find_package(OpenGL QUIET)
-if(glfw3_FOUND AND OpenGL_FOUND)
-    if(APPLE)
-        add_compile_definitions(GL_SILENCE_DEPRECATION)
+function(add_rendering_raytracing_interactive_target target_name output_mode backend_target)
+    add_executable(${target_name} ${ARGN} interactive.cpp)
+    target_link_libraries(${target_name}
+        PRIVATE
+            RLtools::RLtools
+            ${backend_target}
+            rendering_raytracing_stb
+    )
+    target_compile_definitions(${target_name} PRIVATE RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE=${output_mode})
+    if(glfw3_FOUND AND OpenGL_FOUND)
+        target_link_libraries(${target_name} PRIVATE glfw OpenGL::GL)
+        target_compile_definitions(${target_name} PRIVATE RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_ENABLE_GLFW)
+        if(APPLE)
+            target_compile_definitions(${target_name} PRIVATE GL_SILENCE_DEPRECATION)
+        endif()
     endif()
-    add_executable(rendering_raytracing_interactive interactive.cpp)
-    target_link_libraries(rendering_raytracing_interactive
-        PRIVATE
-            RLtools::RLtools
-            rendering_raytracing_backend
-            rendering_raytracing_stb
-            glfw
-            OpenGL::GL
-    )
+    if(RL_TOOLS_ENABLE_ZLIB AND UNIX)
+        target_link_libraries(${target_name} PRIVATE ${RL_TOOLS_ZLIB_TARGET})
+        target_compile_definitions(${target_name} PRIVATE RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_ENABLE_KITTY)
+    endif()
+endfunction()
 
-    add_executable(rendering_raytracing_interactive_depth EXCLUDE_FROM_ALL interactive.cpp)
-    target_link_libraries(rendering_raytracing_interactive_depth
-        PRIVATE
-            RLtools::RLtools
-            rendering_raytracing_backend_depth
-            rendering_raytracing_stb
-            glfw
-            OpenGL::GL
-    )
-    target_compile_definitions(rendering_raytracing_interactive_depth PRIVATE RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE=2)
-
-    add_executable(rendering_raytracing_interactive_rgbd EXCLUDE_FROM_ALL interactive.cpp)
-    target_link_libraries(rendering_raytracing_interactive_rgbd
-        PRIVATE
-            RLtools::RLtools
-            rendering_raytracing_backend_depth
-            rendering_raytracing_stb
-            glfw
-            OpenGL::GL
-    )
-    target_compile_definitions(rendering_raytracing_interactive_rgbd PRIVATE RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE=1)
-
-    add_executable(rendering_raytracing_interactive_segmentation EXCLUDE_FROM_ALL interactive.cpp)
-    target_link_libraries(rendering_raytracing_interactive_segmentation
-        PRIVATE
-            RLtools::RLtools
-            rendering_raytracing_backend_segmentation
-            rendering_raytracing_stb
-            glfw
-            OpenGL::GL
-    )
-    target_compile_definitions(rendering_raytracing_interactive_segmentation PRIVATE RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE=3)
-
-    add_executable(rendering_raytracing_interactive_flow EXCLUDE_FROM_ALL interactive.cpp)
-    target_link_libraries(rendering_raytracing_interactive_flow
-        PRIVATE
-            RLtools::RLtools
-            rendering_raytracing_backend
-            rendering_raytracing_stb
-            glfw
-            OpenGL::GL
-    )
-    target_compile_definitions(rendering_raytracing_interactive_flow PRIVATE RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE=4)
+if((glfw3_FOUND AND OpenGL_FOUND) OR (RL_TOOLS_ENABLE_ZLIB AND UNIX))
+    add_rendering_raytracing_interactive_target(rendering_raytracing_interactive 0 rendering_raytracing_backend)
+    add_rendering_raytracing_interactive_target(rendering_raytracing_interactive_depth 2 rendering_raytracing_backend_depth EXCLUDE_FROM_ALL)
+    add_rendering_raytracing_interactive_target(rendering_raytracing_interactive_rgbd 1 rendering_raytracing_backend_depth EXCLUDE_FROM_ALL)
+    add_rendering_raytracing_interactive_target(rendering_raytracing_interactive_segmentation 3 rendering_raytracing_backend_segmentation EXCLUDE_FROM_ALL)
+    add_rendering_raytracing_interactive_target(rendering_raytracing_interactive_flow 4 rendering_raytracing_backend EXCLUDE_FROM_ALL)
 endif()

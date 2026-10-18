@@ -14,7 +14,12 @@
 #include "environment/environment.h"
 #include "environment/operations_cpu.h"
 
-#include <GLFW/glfw3.h>
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_ENABLE_GLFW
+#include "interactive/glfw.h"
+#endif
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_ENABLE_KITTY
+#include "interactive/kitty.h"
+#endif
 
 #include <conta/conta.h>
 
@@ -250,19 +255,6 @@ static Quaternion l2f_camera_quaternion(const float forward_in[3], const float u
     return quaternion_from_rotation_columns(x_axis, y_axis, z_axis);
 }
 
-struct InputState {
-    bool forward = false, backward = false, left = false, right = false;
-    bool up = false, down = false;
-    double mouse_x = 0, mouse_y = 0;
-    double last_mouse_x = 0, last_mouse_y = 0;
-    bool first_mouse = true;
-    bool cursor_captured = true;
-    float yaw = 0;
-    float pitch = 0;
-};
-
-static InputState g_input;
-static bool g_capture_pose_requested = false;
 #if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
 static bool g_show_depth = true;
 #endif
@@ -312,10 +304,17 @@ static void flow_cube_transform(const float centre[3], float time_s, float trans
 
 static constexpr char CAPTURED_POSE_PATH[] = "camera_poses.txt";
 
+enum class Frontend {
+    AUTOMATIC,
+    WINDOW,
+    KITTY
+};
+
 struct InteractiveOptions {
     std::string scene_arg;
     std::string record_camera_pose_path;
     float linear_velocity = 3.0f;
+    Frontend frontend = Frontend::AUTOMATIC;
     bool help = false;
 };
 
@@ -330,8 +329,9 @@ struct RecordedCameraPose {
 };
 
 static void print_usage(const char* argv0) {
-    std::cerr << "Usage: " << argv0 << " [conta:HASH | scene.glb] [--record-camera-pose trace.json] [--linear-velocity m/s]" << std::endl;
+    std::cerr << "Usage: " << argv0 << " [conta:HASH | scene.glb] [--record-camera-pose trace.json] [--linear-velocity m/s] [--kitty | --window]" << std::endl;
     std::cerr << "  Without arguments the default scene is fetched via conta (downloaded into the cache if required)" << std::endl;
+    std::cerr << "  Renders into the terminal (locally or over ssh) if it supports the kitty graphics and keyboard protocols and into a window otherwise; --kitty / --window force either" << std::endl;
 }
 
 static bool parse_float_arg(const std::string& value, float& out) {
@@ -354,7 +354,13 @@ static bool parse_options(int argc, char** argv, InteractiveOptions& options) {
         const std::string record_prefix = "--record-camera-pose=";
         const std::string record_trace_prefix = "--record-camera-trace=";
         const std::string linear_velocity_prefix = "--linear-velocity=";
-        if(arg == "--record-camera-pose" || arg == "--record-camera-trace") {
+        if(arg == "--kitty") {
+            options.frontend = Frontend::KITTY;
+        }
+        else if(arg == "--window") {
+            options.frontend = Frontend::WINDOW;
+        }
+        else if(arg == "--record-camera-pose" || arg == "--record-camera-trace") {
             if(i + 1 >= argc) {
                 std::cerr << "Missing value for " << arg << std::endl;
                 return false;
@@ -576,72 +582,8 @@ static bool append_captured_pose(const char* path, const float position[3], cons
     return static_cast<bool>(f);
 }
 
-static void key_callback(GLFWwindow* window, int key, int /*scancode*/, int action, int /*mods*/) {
-    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
-        glfwSetWindowShouldClose(window, GLFW_TRUE);
-        return;
-    }
-    if (key == GLFW_KEY_C && action == GLFW_PRESS) {
-        g_capture_pose_requested = true;
-        return;
-    }
-#if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
-    if (key == GLFW_KEY_TAB && action == GLFW_PRESS) {
-        g_show_depth = !g_show_depth;
-        return;
-    }
-#endif
-#if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_FLOW
-    if (key == GLFW_KEY_TAB && action == GLFW_PRESS) {
-        g_flow_view = static_cast<FlowView>((static_cast<int>(g_flow_view) + 1) % static_cast<int>(FlowView::COUNT));
-        std::cout << flow_view_label(g_flow_view) << std::endl;
-        return;
-    }
-#endif
-    bool pressed = (action == GLFW_PRESS || action == GLFW_REPEAT);
-    if (key == GLFW_KEY_W || key == GLFW_KEY_UP) g_input.forward = pressed;
-    if (key == GLFW_KEY_S || key == GLFW_KEY_DOWN) g_input.backward = pressed;
-    if (key == GLFW_KEY_A || key == GLFW_KEY_LEFT) g_input.left = pressed;
-    if (key == GLFW_KEY_D || key == GLFW_KEY_RIGHT) g_input.right = pressed;
-    if (key == GLFW_KEY_SPACE) g_input.up = pressed;
-    if (key == GLFW_KEY_LEFT_SHIFT) g_input.down = pressed;
-}
-
-static void cursor_pos_callback(GLFWwindow* /*window*/, double xpos, double ypos) {
-    if (!g_input.cursor_captured) return;
-    if (g_input.first_mouse) {
-        g_input.last_mouse_x = xpos;
-        g_input.last_mouse_y = ypos;
-        g_input.first_mouse = false;
-        return;
-    }
-    float dx = static_cast<float>(xpos - g_input.last_mouse_x);
-    float dy = static_cast<float>(ypos - g_input.last_mouse_y);
-    g_input.last_mouse_x = xpos;
-    g_input.last_mouse_y = ypos;
-
-    constexpr float sensitivity = 0.002f;
-    g_input.yaw -= dx * sensitivity;
-    g_input.pitch -= dy * sensitivity;
-    constexpr float max_pitch = static_cast<float>(M_PI) * 0.49f;
-    if (g_input.pitch > max_pitch) g_input.pitch = max_pitch;
-    if (g_input.pitch < -max_pitch) g_input.pitch = -max_pitch;
-}
-
-static void mouse_button_callback(GLFWwindow* window, int button, int action, int /*mods*/) {
-    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
-        if (g_input.cursor_captured) {
-            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-            g_input.cursor_captured = false;
-        } else {
-            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-            g_input.cursor_captured = true;
-            g_input.first_mouse = true;
-        }
-    }
-}
-
-int main(int argc, char** argv) {
+template <typename FRONTEND>
+static int run(const InteractiveOptions& options) {
     using T = float;
     using TI = unsigned int;
     constexpr TI CAM_WIDTH = 1280;
@@ -660,16 +602,6 @@ int main(int argc, char** argv) {
     const T fov = OUTPUT_FLOW ? static_cast<T>(2) * std::atan(std::tan(rlt::rendering::degrees_to_radians(SPEC::FOV) / static_cast<T>(2)) / static_cast<T>(FLOW_HALVES)) * static_cast<T>(180.0 / M_PI) : SPEC::FOV;
     const T aspect = static_cast<T>(RENDER_WIDTH) / static_cast<T>(CAM_HEIGHT);
     using DEVICE = rlt::devices::DEVICE_FACTORY<>;
-
-    InteractiveOptions options;
-    if(!parse_options(argc, argv, options)) {
-        print_usage(argv[0]);
-        return 1;
-    }
-    if(options.help) {
-        print_usage(argv[0]);
-        return 0;
-    }
 
     DEVICE device;
     rlt::init(device);
@@ -723,26 +655,14 @@ int main(int argc, char** argv) {
         std::cout << "Restored camera from " << cam_cache << std::endl;
     }
 
-    if (!glfwInit()) {
-        std::cerr << "Failed to initialize GLFW" << std::endl;
+    FRONTEND frontend;
+    if (!rlt::init(device, frontend, CAM_WIDTH, CAM_HEIGHT)) {
         return 1;
     }
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-    GLFWwindow* window = glfwCreateWindow(CAM_WIDTH, CAM_HEIGHT, "RLtools Interactive Viewer", nullptr, nullptr);
-    if (!window) {
-        std::cerr << "Failed to create GLFW window" << std::endl;
-        glfwTerminate();
-        return 1;
-    }
-    glfwMakeContextCurrent(window);
-    glfwSwapInterval(0);
-    glfwSetKeyCallback(window, key_callback);
-    glfwSetCursorPosCallback(window, cursor_pos_callback);
-    glfwSetMouseButtonCallback(window, mouse_button_callback);
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-    g_input.yaw = cached_yaw;
-    g_input.pitch = cached_pitch;
+    rlt::rendering::raytracing::interactive::InputState input;
+    input.yaw = cached_yaw;
+    input.pitch = cached_pitch;
 #if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_FLOW
     const float flow_cube_centre[3] = {state.position[0] + FLOW_CUBE_DISTANCE * std::cos(cached_yaw), state.position[1] + FLOW_CUBE_DISTANCE * std::sin(cached_yaw), state.position[2]};
     rlt::attach(device, *env.renderer, (TI)0, rlt::rendering::raytracing::OverlayIndex{0});
@@ -752,13 +672,6 @@ int main(int argc, char** argv) {
     rlt::update(device, *env.renderer);
 #endif
 
-    GLuint texture;
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, CAM_WIDTH, CAM_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-
     std::vector<uint32_t> pixels(CAM_WIDTH * CAM_HEIGHT);
     std::vector<RecordedCameraPose> camera_trace;
     rlt::Tensor<typename decltype(env.renderer->cameras)::SPEC> camera_staging;
@@ -767,7 +680,7 @@ int main(int argc, char** argv) {
     {
         // publish the start pose as the current instant so the first advance_flow has a valid previous camera
         const T eye[3] = {state.position[0], state.position[1], state.position[2]};
-        const T look_at[3] = {eye[0] + std::cos(g_input.yaw) * std::cos(g_input.pitch), eye[1] + std::sin(g_input.yaw) * std::cos(g_input.pitch), eye[2] + std::sin(g_input.pitch)};
+        const T look_at[3] = {eye[0] + std::cos(input.yaw) * std::cos(input.pitch), eye[1] + std::sin(input.yaw) * std::cos(input.pitch), eye[2] + std::sin(input.pitch)};
         const T up[3] = {0, 0, 1};
         rlt::set(device, camera_staging, rlt::make_camera_data(eye, look_at, up, fov, aspect), 0);
         rlt::copy(device, env.renderer->device, camera_staging, rlt::cameras(device, *env.renderer));
@@ -780,23 +693,35 @@ int main(int argc, char** argv) {
     const auto trace_start_time = last_time;
     size_t frame_index = 0;
 
-    while (!glfwWindowShouldClose(window)) {
+    while (true) {
+        rlt::poll(device, frontend, input);
+        if (input.quit) {
+            break;
+        }
         auto now = std::chrono::steady_clock::now();
         float dt = std::chrono::duration<float>(now - last_time).count();
         last_time = now;
         if (dt > 0.1f) dt = 0.1f;
 
-        glfwPollEvents();
+        if (input.cycle_view) {
+            input.cycle_view = false;
+#if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
+            g_show_depth = !g_show_depth;
+#elif RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_FLOW
+            g_flow_view = static_cast<FlowView>((static_cast<int>(g_flow_view) + 1) % static_cast<int>(FlowView::COUNT));
+            std::cout << flow_view_label(g_flow_view) << std::endl;
+#endif
+        }
 
-        float cos_yaw = std::cos(g_input.yaw);
-        float sin_yaw = std::sin(g_input.yaw);
+        float cos_yaw = std::cos(input.yaw);
+        float sin_yaw = std::sin(input.yaw);
         float dx = 0, dy = 0, dz = 0;
-        if (g_input.forward)  { dx += cos_yaw; dy += sin_yaw; }
-        if (g_input.backward) { dx -= cos_yaw; dy -= sin_yaw; }
-        if (g_input.left)     { dx -= sin_yaw; dy += cos_yaw; }
-        if (g_input.right)    { dx += sin_yaw; dy -= cos_yaw; }
-        if (g_input.up)       { dz += 1; }
-        if (g_input.down)     { dz -= 1; }
+        if (input.forward)  { dx += cos_yaw; dy += sin_yaw; }
+        if (input.backward) { dx -= cos_yaw; dy -= sin_yaw; }
+        if (input.left)     { dx -= sin_yaw; dy += cos_yaw; }
+        if (input.right)    { dx += sin_yaw; dy -= cos_yaw; }
+        if (input.up)       { dz += 1; }
+        if (input.down)     { dz -= 1; }
         float move_len = std::sqrt(dx * dx + dy * dy + dz * dz);
         if (move_len > 0) {
             linear_velocity_ramp_elapsed_s = std::min(linear_velocity_ramp_elapsed_s + dt, LINEAR_VELOCITY_RAMP_S);
@@ -809,20 +734,20 @@ int main(int argc, char** argv) {
         else {
             linear_velocity_ramp_elapsed_s = 0.0f;
         }
-        state.yaw = g_input.yaw;
+        state.yaw = input.yaw;
 
         T eye[3] = {state.position[0], state.position[1], state.position[2]};
         T look_at[3] = {
-            eye[0] + std::cos(g_input.yaw) * std::cos(g_input.pitch),
-            eye[1] + std::sin(g_input.yaw) * std::cos(g_input.pitch),
-            eye[2] + std::sin(g_input.pitch)
+            eye[0] + std::cos(input.yaw) * std::cos(input.pitch),
+            eye[1] + std::sin(input.yaw) * std::cos(input.pitch),
+            eye[2] + std::sin(input.pitch)
         };
         T up[3] = {0, 0, 1};
         const auto camera = rlt::make_camera_data(eye, look_at, up, fov, aspect);
 
-        if (g_capture_pose_requested) {
-            g_capture_pose_requested = false;
-            if (append_captured_pose(CAPTURED_POSE_PATH, eye, look_at, up, g_input.yaw, g_input.pitch)) {
+        if (input.capture_pose) {
+            input.capture_pose = false;
+            if (append_captured_pose(CAPTURED_POSE_PATH, eye, look_at, up, input.yaw, input.pitch)) {
                 std::cout << "Appended camera pose to " << CAPTURED_POSE_PATH << std::endl;
             }
             else {
@@ -843,8 +768,8 @@ int main(int argc, char** argv) {
             pose.up[0] = up[0];
             pose.up[1] = up[1];
             pose.up[2] = up[2];
-            pose.yaw = g_input.yaw;
-            pose.pitch = g_input.pitch;
+            pose.yaw = input.yaw;
+            pose.pitch = input.pitch;
             camera_trace.push_back(pose);
         }
         frame_index++;
@@ -987,21 +912,11 @@ int main(int argc, char** argv) {
 #endif
         }
 
-        glBindTexture(GL_TEXTURE_2D, texture);
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, CAM_WIDTH, CAM_HEIGHT, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
-
-        glEnable(GL_TEXTURE_2D);
-        glBegin(GL_QUADS);
-        glTexCoord2f(0, 1); glVertex2f(-1, -1);
-        glTexCoord2f(1, 1); glVertex2f( 1, -1);
-        glTexCoord2f(1, 0); glVertex2f( 1,  1);
-        glTexCoord2f(0, 0); glVertex2f(-1,  1);
-        glEnd();
-
-        glfwSwapBuffers(window);
+        rlt::present(device, frontend, pixels.data());
     }
+    rlt::free(device, frontend);
 
-    save_camera_state(cam_cache, state.position[0], state.position[1], state.position[2], g_input.yaw, g_input.pitch);
+    save_camera_state(cam_cache, state.position[0], state.position[1], state.position[2], input.yaw, input.pitch);
     const bool pose_recorded = write_camera_trace_json(
         options.record_camera_pose_path,
         resolved_scene_path,
@@ -1011,11 +926,41 @@ int main(int argc, char** argv) {
         std::cout << "Wrote camera pose trace JSON to " << options.record_camera_pose_path << std::endl;
     }
 
-    glDeleteTextures(1, &texture);
-    glfwDestroyWindow(window);
-    glfwTerminate();
-
     rlt::free(device, camera_staging);
     rlt::free(device, env);
     return pose_recorded ? 0 : 1;
+}
+
+static bool kitty_available() {
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_ENABLE_KITTY
+    return rlt::rendering::raytracing::interactive::kitty::available();
+#else
+    return false;
+#endif
+}
+
+int main(int argc, char** argv) {
+    InteractiveOptions options;
+    if(!parse_options(argc, argv, options)) {
+        print_usage(argv[0]);
+        return 1;
+    }
+    if(options.help) {
+        print_usage(argv[0]);
+        return 0;
+    }
+    if(options.frontend == Frontend::KITTY || (options.frontend == Frontend::AUTOMATIC && kitty_available())) {
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_ENABLE_KITTY
+        return run<rlt::rendering::raytracing::interactive::Kitty>(options);
+#else
+        std::cerr << "--kitty is unavailable: this build has no zlib or is not on a POSIX system" << std::endl;
+        return 1;
+#endif
+    }
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_ENABLE_GLFW
+    return run<rlt::rendering::raytracing::interactive::Glfw>(options);
+#else
+    std::cerr << "This build has no window (GLFW/OpenGL not found): run it in a terminal that supports the kitty graphics and keyboard protocols" << std::endl;
+    return 1;
+#endif
 }
