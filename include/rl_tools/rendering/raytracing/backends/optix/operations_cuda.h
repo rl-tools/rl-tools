@@ -938,12 +938,18 @@ namespace rl_tools {
                 geoms.push_back(geom);
                 object_geoms.push_back(geom);
                 }
+                if(object_geoms.empty()){
+                    object_groups.push_back(nullptr);
+                    continue;
+                }
             OWLGroup triangles_group = owlTrianglesGeomGroupCreate(context, object_geoms.size(), object_geoms.data());
                 owlGroupBuildAccel(triangles_group);
                 object_groups.push_back(triangles_group);
             }
 
-            if constexpr (SPEC::ENABLE_OVERLAYS){
+            // objects without geometry (e.g. light carriers) share the filler: OWL cannot build an empty triangles group
+            const bool has_empty_object = std::find(object_groups.begin(), object_groups.end(), nullptr) != object_groups.end();
+            if(SPEC::ENABLE_OVERLAYS || has_empty_object){
                 // degenerate triangle: valid to build, never reported as a hit
                 const float filler_vertices[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
                 const int filler_indices[3] = {0, 1, 2};
@@ -959,6 +965,7 @@ namespace rl_tools {
                 OWLGroup filler_group = owlTrianglesGeomGroupCreate(context, 1, &filler_geom);
                 owlGroupBuildAccel(filler_group);
                 assets.filler_group = filler_group;
+                std::replace(object_groups.begin(), object_groups.end(), (OWLGroup)nullptr, filler_group);
             }
 
             std::vector<OWLGroup> instance_children;

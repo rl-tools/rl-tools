@@ -659,11 +659,13 @@ def test_error_on_wrong_output():
         renderer.outputs[RGB(format="rgba8")].read()
 
 
-def write_minimal_glb(path, color=(0.0, 1.0, 0.0)):
+def write_minimal_glb(path, color=(0.0, 1.0, 0.0), light=None):
     """Two glTF scene-root nodes sharing one quad mesh in the glTF x=2 plane. The FLU
     swizzle (x, -z, y) keeps x, so the first quad sits straight ahead of a camera at the
     origin looking along +X at distance 2; the second sits behind it at x=5. Two roots
-    also make Assimp keep a wrapper root, which the assembly loader requires."""
+    also make Assimp keep a wrapper root, which the assembly loader requires. A light
+    colour adds a third, mesh-less root carrying a directional light that shines along +X,
+    like the habitat_default_* roots of HSSD scenes."""
     import json
     import struct
 
@@ -700,6 +702,11 @@ def write_minimal_glb(path, color=(0.0, 1.0, 0.0)):
             {"bufferView": 1, "componentType": 5123, "count": 6, "type": "SCALAR"},
         ],
     }
+    if light is not None:
+        gltf["scenes"][0]["nodes"].append(2)
+        gltf["nodes"].append({"name": "light", "matrix": [0, 0, 1, 0, 0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 1], "extensions": {"KHR_lights_punctual": {"light": 0}}})
+        gltf["extensions"] = {"KHR_lights_punctual": {"lights": [{"type": "directional", "color": list(light), "intensity": 1.0}]}}
+        gltf["extensionsUsed"] = ["KHR_lights_punctual"]
     json_bytes = json.dumps(gltf).encode()
     json_bytes += b" " * ((4 - len(json_bytes) % 4) % 4)
     length = 12 + 8 + len(json_bytes) + 8 + len(binary)
@@ -727,6 +734,22 @@ def test_glb_roundtrip(tmp_path):
     center = frame[0, 16, 16]
     assert center[1] > center[0]  # green quad
     assert abs(depth[0, 16, 16] - 2.0) < 1e-2  # swizzled to x=+2 in FLU
+
+
+def test_light_only_root_shades_preserved_instances_like_welded_load(tmp_path):
+    glb = tmp_path / "lit.glb"
+    write_minimal_glb(glb, light=(0.5, 0.5, 0.5))
+    frames = {}
+    for preserve_instances in (False, True):
+        scene = render.load_scene(glb, fidelity="high", preserve_instances=preserve_instances)
+        renderer = render.Renderer(width=32, height=32, batch_size=1, num_probes=0, cameras=(CameraSpec("camera", outputs=(RGB(format="rgba8"), Segmentation())),), fidelity="high")
+        renderer.init(scene)
+        look_forward(renderer)
+        renderer.render()
+        frames[preserve_instances] = renderer.outputs[RGB(format="rgba8")].read(), renderer.outputs[Segmentation()].read()
+    assert scene.num_instances == 3
+    np.testing.assert_array_equal(frames[True][0], frames[False][0])
+    assert set(np.unique(frames[True][1]).tolist()) == {0, 0xFFFFFFFF}
 
 
 def test_glb_assembly_names(tmp_path):

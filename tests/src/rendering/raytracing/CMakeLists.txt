@@ -223,6 +223,28 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
             TEST_PREFIX "${RL_TOOLS_OUTPUTS_BACKEND_SUFFIX}."
         )
     endif()
+    add_executable(test_rendering_raytracing_empty_object_contract_generic empty_object_contract.cpp)
+    target_link_libraries(test_rendering_raytracing_empty_object_contract_generic PRIVATE
+        RLtools::RLtools assimp::assimp rendering_raytracing_stb GTest::gtest_main
+    )
+    gtest_discover_tests(test_rendering_raytracing_empty_object_contract_generic
+        PROPERTIES TIMEOUT 60 LABELS "empty-object;empty-object-generic"
+        TEST_PREFIX "generic."
+    )
+    if(NOT RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "GENERIC")
+        set(RL_TOOLS_EMPTY_OBJECT_BACKEND_TARGET test_rendering_raytracing_empty_object_contract_${RL_TOOLS_OUTPUTS_BACKEND_SUFFIX})
+        add_executable(${RL_TOOLS_EMPTY_OBJECT_BACKEND_TARGET} empty_object_contract.cpp)
+        target_link_libraries(${RL_TOOLS_EMPTY_OBJECT_BACKEND_TARGET} PRIVATE
+            RLtools::RLtools rendering_raytracing_backend rendering_raytracing_backend_depth
+            rendering_raytracing_backend_segmentation rendering_raytracing_backend_normals
+            rendering_raytracing_stb GTest::gtest_main
+        )
+        target_compile_definitions(${RL_TOOLS_EMPTY_OBJECT_BACKEND_TARGET} PRIVATE RL_TOOLS_RENDERING_RAYTRACING_EMPTY_OBJECT_ACTIVE_BACKEND)
+        gtest_discover_tests(${RL_TOOLS_EMPTY_OBJECT_BACKEND_TARGET}
+            PROPERTIES TIMEOUT 60 LABELS "empty-object;empty-object-${RL_TOOLS_OUTPUTS_BACKEND_SUFFIX}"
+            TEST_PREFIX "${RL_TOOLS_OUTPUTS_BACKEND_SUFFIX}."
+        )
+    endif()
     if(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "OPTIX")
         add_executable(test_rendering_raytracing_optix_lifecycle optix_lifecycle.cpp)
         target_link_libraries(test_rendering_raytracing_optix_lifecycle PRIVATE RLtools::RLtools rendering_raytracing_backend rendering_raytracing_stb GTest::gtest_main)
