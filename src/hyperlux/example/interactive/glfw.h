@@ -91,7 +91,7 @@ namespace rl_tools {
     template <typename DEVICE>
     bool init(DEVICE& device, hyperlux::interactive::Glfw& glfw, unsigned int width, unsigned int height) {
         if (!glfwInit()) {
-            log(device, device.logger, devices::logging::Verbosity::error, "Failed to initialize GLFW");
+            log(device, device.logger, devices::logging::Verbosity::error, "Failed to initialize GLFW (no display? --kitty renders into the terminal)");
             return false;
         }
         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);

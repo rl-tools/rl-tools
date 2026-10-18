@@ -11,6 +11,11 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::hyperlux::spy::ui {
     struct Window;
+    // WINDOW opens a GLFW/OpenGL window, or renders into the kitty terminal if this build has no window
+    enum class Frontend {
+        WINDOW,
+        KITTY
+    };
     struct Input {
         std::size_t camera = 0;
         float forward = 0;
@@ -22,7 +27,7 @@ namespace rl_tools::hyperlux::spy::ui {
         bool closed = false;
     };
 
-    Window* create(const char* title, const std::vector<std::string>& labels, int atlas_width, int atlas_height, int columns, int rows, int spectator_width, int spectator_height);
+    Window* create(const char* title, const std::vector<std::string>& labels, int atlas_width, int atlas_height, int columns, int rows, int spectator_width, int spectator_height, Frontend frontend = Frontend::WINDOW);
     Input update(Window* window, double atlas_age, double spectator_age, const char* status);
     void upload_atlas(Window* window, const std::uint32_t* pixels);
     void upload_spectator(Window* window, const std::uint32_t* pixels);

@@ -22,7 +22,7 @@ if(RL_TOOLS_ENABLE_HYPERLUX)
     gtest_discover_tests(test_hyperlux_spy_spectator PROPERTIES TIMEOUT 90)
 endif()
 
-if(TARGET RLtools::HyperLuxSpy)
+if(TARGET RLtools::HyperLuxSpy AND RL_TOOLS_HYPERLUX_SPY_GLFW)
     find_package(glfw3 REQUIRED)
     find_package(OpenGL REQUIRED)
     add_executable(test_hyperlux_spy_ui spy_ui.cpp)

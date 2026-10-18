@@ -131,7 +131,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename CONFIG>
-    void init(DEVICE& device, rl::environments::hyperdrone::Spy<CONFIG>& spy, typename CONFIG::ENVIRONMENT& environment) {
+    void init(DEVICE& device, rl::environments::hyperdrone::Spy<CONFIG>& spy, typename CONFIG::ENVIRONMENT& environment, hyperlux::spy::ui::Frontend frontend = hyperlux::spy::ui::Frontend::WINDOW) {
         if(spy.state == nullptr || spy.state->environment != nullptr) {
             throw std::logic_error("HyperDrone spy must be allocated and initialized exactly once");
         }
@@ -150,7 +150,7 @@ namespace rl_tools {
                 }
             }
         }
-        state.window = hyperlux::spy::ui::create("HyperDrone spy", labels, CONFIG::ATLAS_WIDTH, CONFIG::ATLAS_HEIGHT, state.columns, state.rows, CONFIG::SPECTATOR_CONFIG::CAM_WIDTH, CONFIG::SPECTATOR_CONFIG::CAM_HEIGHT);
+        state.window = hyperlux::spy::ui::create("HyperDrone spy", labels, CONFIG::ATLAS_WIDTH, CONFIG::ATLAS_HEIGHT, state.columns, state.rows, CONFIG::SPECTATOR_CONFIG::CAM_WIDTH, CONFIG::SPECTATOR_CONFIG::CAM_HEIGHT, frontend);
         start_spy_spectator(device, state.spectator);
         state.open = true;
     }

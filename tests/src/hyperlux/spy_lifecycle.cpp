@@ -20,7 +20,7 @@ namespace rl_tools::hyperlux::spy::ui {
     size_t created = 0;
     size_t destroyed = 0;
 
-    Window* create(const char*, const std::vector<std::string>& labels, int, int, int, int, int width, int height) {
+    Window* create(const char*, const std::vector<std::string>& labels, int, int, int, int, int width, int height, Frontend) {
         if(fail_create) {
             throw std::runtime_error("Simulated window creation failure");
         }

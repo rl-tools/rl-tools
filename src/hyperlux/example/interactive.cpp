@@ -304,17 +304,11 @@ static void flow_cube_transform(const float centre[3], float time_s, float trans
 
 static constexpr char CAPTURED_POSE_PATH[] = "camera_poses.txt";
 
-enum class Frontend {
-    AUTOMATIC,
-    WINDOW,
-    KITTY
-};
-
 struct InteractiveOptions {
     std::string scene_arg;
     std::string record_camera_pose_path;
     float linear_velocity = 3.0f;
-    Frontend frontend = Frontend::AUTOMATIC;
+    bool kitty = false;
     bool help = false;
 };
 
@@ -329,9 +323,9 @@ struct RecordedCameraPose {
 };
 
 static void print_usage(const char* argv0) {
-    std::cerr << "Usage: " << argv0 << " [conta:HASH | scene.glb] [--record-camera-pose trace.json] [--linear-velocity m/s] [--kitty | --window]" << std::endl;
+    std::cerr << "Usage: " << argv0 << " [conta:HASH | scene.glb] [--record-camera-pose trace.json] [--linear-velocity m/s] [--kitty]" << std::endl;
     std::cerr << "  Without arguments the default scene is fetched via conta (downloaded into the cache if required)" << std::endl;
-    std::cerr << "  Renders into the terminal (locally or over ssh) if it supports the kitty graphics and keyboard protocols and into a window otherwise; --kitty / --window force either" << std::endl;
+    std::cerr << "  --kitty renders into the terminal through the kitty graphics protocol (locally or over ssh) instead of a window; builds without GLFW/OpenGL always do" << std::endl;
 }
 
 static bool parse_float_arg(const std::string& value, float& out) {
@@ -355,10 +349,7 @@ static bool parse_options(int argc, char** argv, InteractiveOptions& options) {
         const std::string record_trace_prefix = "--record-camera-trace=";
         const std::string linear_velocity_prefix = "--linear-velocity=";
         if(arg == "--kitty") {
-            options.frontend = Frontend::KITTY;
-        }
-        else if(arg == "--window") {
-            options.frontend = Frontend::WINDOW;
+            options.kitty = true;
         }
         else if(arg == "--record-camera-pose" || arg == "--record-camera-trace") {
             if(i + 1 >= argc) {
@@ -931,14 +922,6 @@ static int run(const InteractiveOptions& options) {
     return pose_recorded ? 0 : 1;
 }
 
-static bool kitty_available() {
-#ifdef RL_TOOLS_HYPERLUX_INTERACTIVE_ENABLE_KITTY
-    return rlt::hyperlux::interactive::kitty::available();
-#else
-    return false;
-#endif
-}
-
 int main(int argc, char** argv) {
     InteractiveOptions options;
     if(!parse_options(argc, argv, options)) {
@@ -949,18 +932,15 @@ int main(int argc, char** argv) {
         print_usage(argv[0]);
         return 0;
     }
-    if(options.frontend == Frontend::KITTY || (options.frontend == Frontend::AUTOMATIC && kitty_available())) {
-#ifdef RL_TOOLS_HYPERLUX_INTERACTIVE_ENABLE_KITTY
-        return run<rlt::hyperlux::interactive::Kitty>(options);
-#else
-        std::cerr << "--kitty is unavailable: this build has no zlib or is not on a POSIX system" << std::endl;
-        return 1;
-#endif
-    }
 #ifdef RL_TOOLS_HYPERLUX_INTERACTIVE_ENABLE_GLFW
-    return run<rlt::hyperlux::interactive::Glfw>(options);
+    if(!options.kitty) {
+        return run<rlt::hyperlux::interactive::Glfw>(options);
+    }
+#endif
+#ifdef RL_TOOLS_HYPERLUX_INTERACTIVE_ENABLE_KITTY
+    return run<rlt::hyperlux::interactive::Kitty>(options);
 #else
-    std::cerr << "This build has no window (GLFW/OpenGL not found): run it in a terminal that supports the kitty graphics and keyboard protocols" << std::endl;
+    std::cerr << "--kitty is unavailable: this build has no zlib or is not on a POSIX system" << std::endl;
     return 1;
 #endif
 }

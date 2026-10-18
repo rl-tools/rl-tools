@@ -9,6 +9,7 @@
 namespace rl_tools::hyperlux::spy::ui {
     struct Window {
         Input input;
+        Frontend frontend;
         std::vector<std::string> labels;
         size_t atlas_size;
         size_t spectator_size;
@@ -22,11 +23,12 @@ namespace rl_tools::hyperlux::spy::ui {
     size_t created = 0;
     size_t destroyed = 0;
 
-    Window* create(const char*, const std::vector<std::string>& labels, int atlas_width, int atlas_height, int, int, int spectator_width, int spectator_height) {
+    Window* create(const char*, const std::vector<std::string>& labels, int atlas_width, int atlas_height, int, int, int spectator_width, int spectator_height, Frontend frontend) {
         if(fail_create) {
             throw std::runtime_error("Simulated window creation failure");
         }
         auto* window = new Window;
+        window->frontend = frontend;
         window->labels = labels;
         window->atlas_size = static_cast<size_t>(atlas_width) * atlas_height;
         window->spectator_size = static_cast<size_t>(spectator_width) * spectator_height;
@@ -181,6 +183,7 @@ namespace {
         malloc(device, viewer);
         init(device, viewer, environment);
         auto* window = viewer.state->window;
+        EXPECT_EQ(window->frontend, ui::Frontend::WINDOW);
         EXPECT_EQ(window->labels.size(), World::INSTANCES * World::N_VIEWS);
         EXPECT_EQ(window->labels[1], "Member 0 / instance 0 / agent 0 / camera 1");
         await_image(0, 1);
@@ -234,7 +237,8 @@ namespace {
         EXPECT_FALSE(update(device, viewer, environment));
         free(device, viewer);
         malloc(device, viewer);
-        init(device, viewer, environment);
+        init(device, viewer, environment, ui::Frontend::KITTY);
+        EXPECT_EQ(viewer.state->window->frontend, ui::Frontend::KITTY);
         await_image(0, 2);
     }
 

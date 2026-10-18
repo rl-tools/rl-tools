@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <exception>
 #include <filesystem>
+#include <string>
 
 namespace rlt = rl_tools;
 namespace hd = rlt::rl::environments::hyperdrone;
@@ -31,8 +32,9 @@ template <typename ELEMENT, TI... DIMS>
 using InstanceTensor = rlt::Tensor<rlt::tensor::Specification<ELEMENT, TI, rlt::tensor::Shape<TI, ENVIRONMENT::INSTANCES, DIMS...>, DYNAMIC_ALLOCATION>>;
 
 int main(int argc, char** argv){
-    if(argc != 2 || !std::filesystem::is_regular_file(argv[1])){
-        std::fprintf(stderr, "usage: %s /path/to/local/scene.glb\n", argv[0]);
+    const bool kitty = argc == 3 && std::string(argv[2]) == "--kitty";
+    if((argc != 2 && !kitty) || !std::filesystem::is_regular_file(argv[1])){
+        std::fprintf(stderr, "usage: %s /path/to/local/scene.glb [--kitty]\n", argv[0]);
         return 1;
     }
     using namespace rl_tools;
@@ -66,7 +68,7 @@ int main(int argc, char** argv){
         set_all(device, reset_mask, true);
         set_all(device, actions, (T)0);
         malloc(device, spy);
-        init(device, spy, environment);
+        init(device, spy, environment, kitty ? rlt::hyperlux::spy::ui::Frontend::KITTY : rlt::hyperlux::spy::ui::Frontend::WINDOW);
         while(true){
             sample_initial_parameters(device, environment, parameters, reset_mask, rng);
             sample_initial_state(device, environment, parameters, states, reset_mask, rng);

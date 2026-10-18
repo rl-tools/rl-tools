@@ -126,7 +126,7 @@ namespace rl_tools{
         output << manifest.dump(2) << '\n';
     }
 
-    inline int train_yaw(yaw_training::TI seed, bool open_spy){
+    inline int train_yaw(yaw_training::TI seed, bool open_spy, bool spy_in_terminal){
         using namespace yaw_training;
         DEVICE_COMPUTE compute;
         auto& host = compute.rendering;
@@ -209,7 +209,7 @@ namespace rl_tools{
         SPY spy;
         if(open_spy){
             malloc(compute, spy);
-            init(compute, spy, environment);
+            init(compute, spy, environment, spy_in_terminal ? hyperlux::spy::ui::Frontend::KITTY : hyperlux::spy::ui::Frontend::WINDOW);
         }
 #endif
 
@@ -436,19 +436,24 @@ namespace rl_tools{
 
 int main(int argc, char** argv){
     std::vector<std::string> arguments(argv + 1, argv + argc);
-    const auto spy_flag = std::find(arguments.begin(), arguments.end(), "--spy");
-    const bool open_spy = spy_flag != arguments.end();
-    if(open_spy){
-        arguments.erase(spy_flag);
-    }
+    const auto take_flag = [&](const char* flag){
+        const auto position = std::find(arguments.begin(), arguments.end(), flag);
+        const bool present = position != arguments.end();
+        if(present){
+            arguments.erase(position);
+        }
+        return present;
+    };
+    const bool spy_in_terminal = take_flag("--kitty");
+    const bool open_spy = take_flag("--spy") || spy_in_terminal;
     if(arguments.size() > 1){
-        std::cerr << "Usage: " << argv[0] << " [seed] [--spy]" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " [seed] [--spy] [--kitty]  (--kitty opens the spy in the kitty terminal instead of a window)" << std::endl;
         return 1;
     }
     try{
 #ifndef RL_TOOLS_HYPERLUX_ENABLE_SPY
         if(open_spy){
-            throw std::runtime_error("--spy requires the HyperDrone spy (GLFW and desktop OpenGL), see the CMake configure summary");
+            throw std::runtime_error("--spy requires the HyperDrone spy (a GLFW/OpenGL window or the kitty terminal frontend), see the CMake configure summary");
         }
 #endif
         using TI = rl_tools::yaw_training::TI;
@@ -462,7 +467,7 @@ int main(int argc, char** argv){
                 throw std::runtime_error("Seed must be a nonnegative integer");
             }
         }
-        return rl_tools::train_yaw(seed, open_spy);
+        return rl_tools::train_yaw(seed, open_spy, spy_in_terminal);
     } catch(const std::exception& error){
         std::cerr << "Yaw training failed: " << error.what() << std::endl;
         return 1;

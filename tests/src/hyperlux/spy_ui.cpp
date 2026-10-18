@@ -118,7 +118,7 @@ TEST(HyperLuxSpyUI, RealWindowUploadsInputAndHostContext) {
     glClearColor(0.25f, 0.5f, 0.75f, 1.0f);
 
     const auto started = std::chrono::steady_clock::now();
-    std::unique_ptr<ui::Window, decltype(&ui::destroy)> window(ui::create("Raytracing spy", {"Camera 0", "Camera 1", "Camera 2", "Camera 3", "Camera 4", "Camera 5", "Camera 6", "Camera 7"}, 8, 8, 4, 2, 8, 6), ui::destroy);
+    std::unique_ptr<ui::Window, decltype(&ui::destroy)> window(ui::create("Raytracing spy", {"Camera 0", "Camera 1", "Camera 2", "Camera 3", "Camera 4", "Camera 5", "Camera 6", "Camera 7"}, 8, 8, 4, 2, 8, 6, ui::Frontend::WINDOW), ui::destroy);
     EXPECT_EQ(glfwGetCurrentContext(), host.get());
     EXPECT_EQ(ImGui::GetCurrentContext(), host_imgui.get());
     EXPECT_THROW(ui::create("Raytracing spy", {}, 0, 0, 0, 0, 8, 6), std::runtime_error);
