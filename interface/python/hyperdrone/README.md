@@ -69,11 +69,7 @@ build toolchain for GENERIC + cpu.
 | `HYPERDRONE_OFFLINE` | forbid network during builds (requires seeded/vendored dependencies) |
 | `HYPERDRONE_BUILD_JOBS` | parallel build jobs (default 5) |
 
-Each component, variant and native CPU instruction set gets its own build tree (`render-optix-*`, `dynamics-cuda-*`,
-...); switching never invalidates another's cache. All configure/build steps run under a
-per-tree file lock, so many worker processes can share one cache safely. CMake
-FetchContent sources and native build state live in `<cache>/.dependencies`; the native
-build does not write generated files into an editable checkout or installed package. CUDA trees also distinguish the native GPU architecture or explicit `CUDAARCHS` target.
+Each component, variant, Python interpreter path and ABI, and native CPU instruction set gets its own build tree (`render-optix-*`, `dynamics-cuda-*`, ...); switching never invalidates another's cache. All configure/build steps run under a per-tree file lock, so many worker processes can share one cache safely. CMake FetchContent sources and native build state live in `<cache>/.dependencies`; the native build does not write generated files into an editable checkout or installed package. CUDA trees also distinguish the native GPU architecture or explicit `CUDAARCHS` target.
 
 At the default verbosity, each successful renderer allocation reports the selected backend on
 stderr, for example `#rl_tools::rendering::raytracing: backend=metal`. The

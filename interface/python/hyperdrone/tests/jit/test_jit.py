@@ -151,6 +151,24 @@ def test_workspace_layout():
     assert _workspace.dependencies_root() == jit.cache_root() / ".dependencies"
 
 
+def test_python_environments_have_separate_workspaces(tmp_path, monkeypatch):
+    executable = Path(sys.executable).resolve()
+    first = tmp_path / "first" / "bin" / "python3"
+    second = tmp_path / "second" / "bin" / "python3"
+    for interpreter in (first, second):
+        interpreter.parent.mkdir(parents=True)
+        interpreter.symlink_to(executable)
+    assert first.resolve() == second.resolve()
+
+    component = toy_component()
+    monkeypatch.setattr(sys, "executable", str(first))
+    first_directory = jit.build_dir(component)
+    monkeypatch.setattr(sys, "executable", str(second))
+    assert jit.build_dir(component) != first_directory
+    monkeypatch.setattr(sys, "executable", str(first))
+    assert jit.build_dir(component) == first_directory
+
+
 def test_native_host_targets_have_separate_workspaces(monkeypatch):
     from hyperdrone._jit import _workspace
 
