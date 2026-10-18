@@ -67,7 +67,7 @@ namespace {
 
     struct WorldConfig: hd::presets::X500FPV<float, size_t> {
         using SHADING = rt::Low;
-        static constexpr size_t INSTANCES_PER_ENVIRONMENT = 2;
+        static constexpr size_t INSTANCES_PER_WORLD = 2;
         static constexpr size_t N_AGENTS = 2;
         static constexpr size_t N_CAMERA_AGENTS = 1;
         static constexpr size_t CAM_WIDTH = 4;
@@ -82,7 +82,7 @@ namespace {
         static constexpr bool ENABLE_MOTION_BLUR = false;
     };
     using World = hd::World<WorldConfig>;
-    using Environment = hd::MultiEnvironment<World, 1>;
+    using Environment = rl::environments::HyperDrone<World, 1>;
     struct Config: hd::spy::Config<Environment> {
         struct SPECTATOR_CONFIG: hd::spy::SpectatorConfig<World::RENDERER_CONFIG> {
             static constexpr size_t CAM_WIDTH = 16;
@@ -106,7 +106,7 @@ namespace {
             ui::fail_create = false;
             ui::created = 0;
             ui::destroyed = 0;
-            auto& world = environment.environments[0];
+            auto& world = environment.worlds[0];
             world.history._data = history.data();
             world.slots.resize(2);
             environment.shared.library.scenes.resize(2);
@@ -142,7 +142,7 @@ namespace {
 
         void TearDown() override {
             free(device, viewer);
-            for(auto& slot: environment.environments[0].slots) {
+            for(auto& slot: environment.worlds[0].slots) {
                 if(slot.renderer.backend != nullptr) {
                     free(device, slot.renderer);
                 }
@@ -150,7 +150,7 @@ namespace {
         }
 
         void publish_scene(size_t scene) {
-            auto& world = environment.environments[0];
+            auto& world = environment.worlds[0];
             world.active_slot = scene;
             world.scene_version++;
             auto& renderer = world.slots[scene].renderer;
@@ -179,7 +179,7 @@ namespace {
 
     TEST_F(HyperDroneSpyLifecycle, NavigationSelectionSceneChangeAndClosePreserveSource) {
         const auto before = history;
-        const auto sequence = environment.environments[0].history_step;
+        const auto sequence = environment.worlds[0].history_step;
         malloc(device, viewer);
         init(device, viewer, environment);
         auto* window = viewer.state->window;
@@ -211,14 +211,14 @@ namespace {
         EXPECT_FLOAT_EQ(viewer.state->views[0].position[1], 0);
         EXPECT_FLOAT_EQ(viewer.state->views[0].yaw, 0);
         EXPECT_EQ(history, before);
-        EXPECT_EQ(environment.environments[0].history_step, sequence);
+        EXPECT_EQ(environment.worlds[0].history_step, sequence);
         window->input.camera = 1;
         window->input.reset_camera = true;
         await_image(0, 1);
         EXPECT_FLOAT_EQ(viewer.state->views[0].position[1], 2);
         window->input = {};
         std::array<rt::Camera<float>, World::INSTANCES * World::N_VIEWS> after{};
-        auto& renderer = environment.environments[0].slots[0].renderer;
+        auto& renderer = environment.worlds[0].slots[0].renderer;
         Tensor<typename decltype(renderer.cameras)::SPEC> camera_alias;
         camera_alias._data = after.data();
         copy(renderer.device, device, cameras(device, renderer), camera_alias);

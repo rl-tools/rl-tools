@@ -66,7 +66,7 @@ namespace test_hyperdrone_world {
 
     struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS> {
         static constexpr TI N_CAMERA_AGENTS = 1;
-        static constexpr TI INSTANCES_PER_ENVIRONMENT = 2;
+        static constexpr TI INSTANCES_PER_WORLD = 2;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
         using SHADING = rlt::rendering::raytracing::Low;
@@ -76,10 +76,10 @@ namespace test_hyperdrone_world {
         static constexpr T BRIGHTNESS_RANDOMIZATION_RANGE = 0.25;
     };
     using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
-    constexpr TI NUMBER_OF_ENVIRONMENTS = 2;
-    using ENVIRONMENT = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, NUMBER_OF_ENVIRONMENTS>;
+    constexpr TI N_WORLDS = 2;
+    using ENVIRONMENT = rlt::rl::environments::HyperDrone<WORLD, N_WORLDS>;
     constexpr TI INSTANCES = ENVIRONMENT::INSTANCES;
-    static_assert(INSTANCES == NUMBER_OF_ENVIRONMENTS * WORLD_SPEC::INSTANCES_PER_ENVIRONMENT);
+    static_assert(INSTANCES == N_WORLDS * WORLD_SPEC::INSTANCES_PER_WORLD);
 
     struct MOUNTS_SPEC: WORLD_SPEC {
         using OBSERVATION = rlt::rl::environments::hyperdrone::ImageObservation<0, 1, 2>;
@@ -318,17 +318,17 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, SEEDED_ROLLOUT_DETERMINISM){
     ENVIRONMENT env;
     rlt::malloc(device, env);
     rlt::init(device, env, rlt::rendering::datasets::procthor::GLB{scene_directory(), {}});
-    for(TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++){
-        EXPECT_EQ(env.environments[environment_i].slots.size(), 1);
-        EXPECT_EQ(env.environments[environment_i].slots[0].corpus_index, environment_i);
-        EXPECT_GT(env.environments[environment_i].slots[0].annotations.num_positions, 0);
+    for(TI world_i = 0; world_i < N_WORLDS; world_i++){
+        EXPECT_EQ(env.worlds[world_i].slots.size(), 1);
+        EXPECT_EQ(env.worlds[world_i].slots[0].corpus_index, world_i);
+        EXPECT_GT(env.worlds[world_i].slots[0].annotations.num_positions, 0);
     }
     auto* record_a = new Rollout;
     auto* record_b = new Rollout;
     rollout(device, env, *record_a, 1337);
     // reset the per-World frame cursors so the second run starts from the same state
-    for(TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++){
-        env.environments[environment_i].history_step = 0;
+    for(TI world_i = 0; world_i < N_WORLDS; world_i++){
+        env.worlds[world_i].history_step = 0;
     }
     rollout(device, env, *record_b, 1337);
     bool nonzero_observation = false;
@@ -368,7 +368,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, RENDER_PATH_EQUIVALENCE){
     RNG rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, 42);
-    Tensors<WORLD_SPEC::INSTANCES_PER_ENVIRONMENT> tensors;
+    Tensors<WORLD_SPEC::INSTANCES_PER_WORLD> tensors;
     tensors.allocate(device);
     rlt::set_all(device, tensors.reset_mask, true);
     rlt::sample_initial_parameters(device, world, tensors.parameters, tensors.reset_mask, rng);
@@ -377,7 +377,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, RENDER_PATH_EQUIVALENCE){
     rlt::observe(device, world, tensors.parameters, tensors.states, typename WORLD::Observation{}, tensors.observations, rng);
 
     // manual composition of the same inputs
-    constexpr TI NUM_CAMERAS = WORLD_SPEC::INSTANCES_PER_ENVIRONMENT;
+    constexpr TI NUM_CAMERAS = WORLD_SPEC::INSTANCES_PER_WORLD;
     const T aspect = (T)WORLD_SPEC::CAM_WIDTH / (T)WORLD_SPEC::CAM_HEIGHT;
     std::vector<rlt::rendering::raytracing::Camera<T>> manual_cameras(NUM_CAMERAS);
     for(TI instance_i = 0; instance_i < NUM_CAMERAS; instance_i++){
@@ -443,7 +443,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, SCENE_ROTATION){
     RNG rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, 0);
-    Tensors<WORLD_SPEC::INSTANCES_PER_ENVIRONMENT> tensors;
+    Tensors<WORLD_SPEC::INSTANCES_PER_WORLD> tensors;
     tensors.allocate(device);
     rlt::set_all(device, tensors.reset_mask, true);
     rlt::sample_initial_parameters(device, world, tensors.parameters, tensors.reset_mask, rng);

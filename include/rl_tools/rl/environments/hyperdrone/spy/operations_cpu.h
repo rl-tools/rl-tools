@@ -26,8 +26,8 @@ namespace rl_tools {
     void prepare_spy_capture(rl::environments::hyperdrone::spy::State<CONFIG>& state, typename CONFIG::ENVIRONMENT& environment, double now) {
         using WORLD = typename CONFIG::WORLD;
         auto& buffer = state.buffer;
-        for(size_t member = 0; member < CONFIG::ENVIRONMENT::NUMBER_OF_ENVIRONMENTS; member++) {
-            auto& world = environment.environments[member];
+        for(size_t member = 0; member < CONFIG::ENVIRONMENT::N_WORLDS; member++) {
+            auto& world = environment.worlds[member];
             auto& frame = buffer.frames[member];
             const bool valid = !world.render_pending && world.history_step > 0;
             if(!frame.valid || frame.scene_version != world.scene_version || frame.sequence != world.history_step) {
@@ -41,7 +41,7 @@ namespace rl_tools {
         const size_t member = state.selected_camera / (WORLD::INSTANCES * WORLD::N_VIEWS);
         buffer.selected_valid = buffer.frames[member].valid;
         if(buffer.selected_valid) {
-            auto& world = environment.environments[member];
+            auto& world = environment.worlds[member];
             const auto& slot = world.slots[world.active_slot];
             auto& job = buffer.job;
             job.scene = &environment.shared.library.scenes[slot.scene_id];
@@ -63,7 +63,7 @@ namespace rl_tools {
             return;
         }
         auto& job = buffer.job;
-        if(state.environment->environments[job.member].scene_version != job.scene_version) {
+        if(state.environment->worlds[job.member].scene_version != job.scene_version) {
             return;
         }
         auto& view = state.views[job.member * WORLD::INSTANCES + job.instance];
@@ -114,7 +114,7 @@ namespace rl_tools {
         spy.state = new rl::environments::hyperdrone::spy::State<CONFIG>;
         spy.state->owner = std::this_thread::get_id();
         try {
-            constexpr size_t CAMERAS = CONFIG::ENVIRONMENT::NUMBER_OF_ENVIRONMENTS * CONFIG::WORLD::INSTANCES * CONFIG::WORLD::N_VIEWS;
+            constexpr size_t CAMERAS = CONFIG::ENVIRONMENT::N_WORLDS * CONFIG::WORLD::INSTANCES * CONFIG::WORLD::N_VIEWS;
             auto& state = *spy.state;
             while(state.columns * state.columns < CAMERAS) {
                 state.columns++;
@@ -123,7 +123,7 @@ namespace rl_tools {
             if(state.columns > CONFIG::ATLAS_WIDTH || state.rows > CONFIG::ATLAS_HEIGHT) {
                 throw std::invalid_argument("HyperDrone spy atlas needs at least one pixel per camera");
             }
-            state.views.resize(CONFIG::ENVIRONMENT::NUMBER_OF_ENVIRONMENTS * CONFIG::WORLD::INSTANCES);
+            state.views.resize(CONFIG::ENVIRONMENT::N_WORLDS * CONFIG::WORLD::INSTANCES);
             state.buffer.job.overlay.reserve(CONFIG::WORLD::RENDERER_SPEC::MAX_OVERLAY_INSTANCES);
             malloc_spy_capture(device, state, typename CONFIG::BACKEND{});
         }
@@ -143,7 +143,7 @@ namespace rl_tools {
             throw std::logic_error("HyperDrone spy must be initialized on its creating thread");
         }
         state.environment = &environment;
-        state.window = rl::environments::hyperdrone::spy::ui::create(CONFIG::ENVIRONMENT::NUMBER_OF_ENVIRONMENTS, CONFIG::WORLD::INSTANCES, CONFIG::WORLD::N_CAMERA_AGENTS, CONFIG::WORLD::N_CAMERAS_PER_AGENT, CONFIG::ATLAS_WIDTH, CONFIG::ATLAS_HEIGHT, state.columns, state.rows, CONFIG::SPECTATOR_CONFIG::CAM_WIDTH, CONFIG::SPECTATOR_CONFIG::CAM_HEIGHT);
+        state.window = rl::environments::hyperdrone::spy::ui::create(CONFIG::ENVIRONMENT::N_WORLDS, CONFIG::WORLD::INSTANCES, CONFIG::WORLD::N_CAMERA_AGENTS, CONFIG::WORLD::N_CAMERAS_PER_AGENT, CONFIG::ATLAS_WIDTH, CONFIG::ATLAS_HEIGHT, state.columns, state.rows, CONFIG::SPECTATOR_CONFIG::CAM_WIDTH, CONFIG::SPECTATOR_CONFIG::CAM_HEIGHT);
         start_spy_spectator(device, state.spectator);
         state.open = true;
     }
@@ -166,8 +166,8 @@ namespace rl_tools {
         }
         const size_t member = state.selected_camera / (WORLD::INSTANCES * WORLD::N_VIEWS);
         const auto& frame = state.displayed_frames[member];
-        const bool current = frame.valid && frame.scene_version == environment.environments[member].scene_version;
-        if(state.views[state.selected_camera / WORLD::N_VIEWS].scene_version != environment.environments[member].scene_version) {
+        const bool current = frame.valid && frame.scene_version == environment.worlds[member].scene_version;
+        if(state.views[state.selected_camera / WORLD::N_VIEWS].scene_version != environment.worlds[member].scene_version) {
             state.spectator_captured_at = 0;
         }
         const auto input = ui::update(state.window, current ? now - frame.captured_at : -1, state.spectator_captured_at > 0 ? now - state.spectator_captured_at : -1, current ? "" : "Waiting for an observed RGB frame");
@@ -197,7 +197,7 @@ namespace rl_tools {
             const auto& image = buffer.image;
             const size_t selected_member = state.selected_camera / (WORLD::INSTANCES * WORLD::N_VIEWS);
             const size_t selected_instance = (state.selected_camera / WORLD::N_VIEWS) % WORLD::INSTANCES;
-            if(image.member == selected_member && image.instance == selected_instance && image.scene_version == environment.environments[selected_member].scene_version) {
+            if(image.member == selected_member && image.instance == selected_instance && image.scene_version == environment.worlds[selected_member].scene_version) {
                 ui::upload_spectator(state.window, image.pixels.data());
                 state.spectator_captured_at = image.captured_at;
             }

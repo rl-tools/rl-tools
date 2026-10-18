@@ -1,4 +1,4 @@
-"""hyperdrone.env — the RL environment: the C++ rl_tools hyperdrone::MultiEnvironment<World>
+"""hyperdrone.env — the RL environment: the C++ rl_tools rl::environments::HyperDrone<World>
 driven through the exact batch verbs the C++ training targets use.
 
 All environment semantics (reset, reward, termination, scene rotation, observation
@@ -6,12 +6,12 @@ composition) live on the C++ side; this package marshals tensors and nothing els
 manual composition of the render and dynamics packages (no MDP), see
 examples/drone_flythrough.py.
 """
-from ._multi_environment import EnvConfig, MultiEnvironment, ObservationLayout
+from ._hyperdrone import EnvConfig, HyperDrone, ObservationLayout
 from ..camera import ImageObservation
 
 __all__ = [
     "EnvConfig",
-    "MultiEnvironment",
+    "HyperDrone",
     "ObservationLayout",
     "ImageObservation",
     "Rotorcraft",
@@ -19,6 +19,8 @@ __all__ = [
 
 
 def __getattr__(name):
+    if name == "MultiEnvironment":
+        raise ImportError("MultiEnvironment is deprecated; use 'from hyperdrone import HyperDrone' instead.")
     if name == "Rotorcraft":
         from ._rotorcraft import Rotorcraft
         return Rotorcraft

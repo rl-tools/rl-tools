@@ -187,15 +187,15 @@ namespace rl_tools {
     void render_target_frames(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask) {
         rl::environments::hyperdrone::tasks::target_frame::_render_targets(device, world, parameters, world.target_frames, data(reset_mask));
     }
-    template <typename DEVICE, typename TASK_SPEC, typename TASK_SPEC::TI NUMBER_OF_ENVIRONMENTS, typename PARAMETER_SPEC, typename RESET_SPEC>
-    void render_target_frames(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>, NUMBER_OF_ENVIRONMENTS>& env, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask) {
-        using MULTI_ENVIRONMENT = rl::environments::hyperdrone::MultiEnvironment<rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>, NUMBER_OF_ENVIRONMENTS>;
+    template <typename DEVICE, typename TASK_SPEC, typename TASK_SPEC::TI N_WORLDS, typename PARAMETER_SPEC, typename RESET_SPEC>
+    void render_target_frames(DEVICE& device, rl::environments::HyperDrone<rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>, N_WORLDS>& env, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask) {
+        using HYPERDRONE = rl::environments::HyperDrone<rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>, N_WORLDS>;
         using TI = typename TASK_SPEC::TI;
-        constexpr TI M = rl::environments::hyperdrone::instances_per_environment<MULTI_ENVIRONMENT, PARAMETER_SPEC>();
-        for (TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++) {
-            auto parameters_block = view_range(device, parameters, environment_i * M, tensor::ViewSpec<0, M>{});
-            auto reset_block = view_range(device, reset_mask, environment_i * M, tensor::ViewSpec<0, M>{});
-            render_target_frames(device, env.environments[environment_i], parameters_block, reset_block);
+        constexpr TI M = rl::environments::hyperdrone::instances_per_world<HYPERDRONE, PARAMETER_SPEC>();
+        for (TI world_i = 0; world_i < N_WORLDS; world_i++) {
+            auto parameters_block = view_range(device, parameters, world_i * M, tensor::ViewSpec<0, M>{});
+            auto reset_block = view_range(device, reset_mask, world_i * M, tensor::ViewSpec<0, M>{});
+            render_target_frames(device, env.worlds[world_i], parameters_block, reset_block);
         }
     }
     // a target-frame reset adopts a setup and copies its frame per instance, which the batch
@@ -305,7 +305,7 @@ namespace rl_tools {
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
-// ADL entry points: generic composite code (e.g. the MultiEnvironment lifecycle fan-out)
+// ADL entry points: generic composite code (e.g. the HyperDrone lifecycle fan-out)
 // dispatches member verbs without Tensor arguments, so the task's lifecycle overloads must be
 // reachable through the member type's namespace
 RL_TOOLS_NAMESPACE_WRAPPER_START

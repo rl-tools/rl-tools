@@ -72,14 +72,14 @@ namespace test_hyperdrone_on_policy_runner_batched {
 
     struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS> {
         static constexpr TI N_CAMERA_AGENTS = 1;
-        static constexpr TI INSTANCES_PER_ENVIRONMENT = 2;
+        static constexpr TI INSTANCES_PER_WORLD = 2;
         static constexpr TI CAM_WIDTH = 16;
         static constexpr TI CAM_HEIGHT = 16;
         using SHADING = rlt::rendering::raytracing::Low;
     };
     using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
-    constexpr TI NUMBER_OF_ENVIRONMENTS = 2;
-    using ENVIRONMENT = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, NUMBER_OF_ENVIRONMENTS>;
+    constexpr TI N_WORLDS = 2;
+    using ENVIRONMENT = rlt::rl::environments::HyperDrone<WORLD, N_WORLDS>;
     constexpr TI INSTANCES = ENVIRONMENT::INSTANCES;
     constexpr TI ACTION_DIM = ENVIRONMENT::ACTION_DIM;
     constexpr TI OBSERVATION_DIM = ENVIRONMENT::Observation::DIM;
@@ -145,8 +145,8 @@ struct Rollout {
         rlt::malloc(device, runner);
         rlt::malloc(device, runner_buffer);
         rlt::malloc(device, dataset);
-        for(TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++){
-            env.environments[environment_i].history_step = 0;
+        for(TI world_i = 0; world_i < N_WORLDS; world_i++){
+            env.worlds[world_i].history_step = 0;
         }
         rlt::init(device, runner, env, rng);
     }

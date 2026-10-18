@@ -94,8 +94,8 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     m.attr("action_low") = action_low;
     m.attr("action_high") = action_high;
     nb::dict dimensions;
-    dimensions["num_environments"] = NUM_ENVIRONMENTS;
-    dimensions["instances_per_environment"] = WORLD::INSTANCES;
+    dimensions["num_worlds"] = NUM_WORLDS;
+    dimensions["instances_per_world"] = WORLD::INSTANCES;
     dimensions["total_instances"] = TOTAL;
     dimensions["num_agents"] = WORLD::N_AGENTS;
     dimensions["num_camera_agents"] = WORLD::N_CAMERA_AGENTS;

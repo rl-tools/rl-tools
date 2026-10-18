@@ -74,7 +74,7 @@ namespace test_multi_agent_cuda {
         static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
     };
     struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS> {
-        static constexpr TI INSTANCES_PER_ENVIRONMENT = 2;
+        static constexpr TI INSTANCES_PER_WORLD = 2;
         static constexpr TI N_AGENTS = 2;
         static constexpr TI N_CAMERA_AGENTS = 2;
         static constexpr TI MAX_DRONES = 2;

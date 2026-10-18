@@ -17,7 +17,7 @@ using TI = typename DEVICE::index_t;
 using DYNAMICS_STATIC_PARAMETERS = hyperdrone_demo::DynamicsStaticParameters<T, TI>;
 struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS> {
     static constexpr TI N_CAMERA_AGENTS = 1;
-    static constexpr TI INSTANCES_PER_ENVIRONMENT = 2;
+    static constexpr TI INSTANCES_PER_WORLD = 2;
     static constexpr TI HISTORY_LENGTH = 4;
     static constexpr T BRIGHTNESS_RANDOMIZATION_RANGE = 0.25;
 };
@@ -29,8 +29,8 @@ struct TASK_SPEC: rlt::rl::environments::hyperdrone::tasks::target_frame::Specif
     static constexpr T TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE = 0.25;
 };
 using WORLD = rlt::rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
-constexpr TI NUMBER_OF_ENVIRONMENTS = 2;
-using ENVIRONMENT = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, NUMBER_OF_ENVIRONMENTS>;
+constexpr TI N_WORLDS = 2;
+using ENVIRONMENT = rlt::rl::environments::HyperDrone<WORLD, N_WORLDS>;
 
 constexpr TI INSTANCES = ENVIRONMENT::INSTANCES;
 constexpr TI CAM_WIDTH = WORLD_SPEC::CAM_WIDTH;

@@ -36,7 +36,7 @@
 #include <functional>
 #include "../common/output.h"
 
-#if !defined(HYPERDRONE_ENV_NUM_ENVIRONMENTS) || !defined(HYPERDRONE_ENV_INSTANCES) || !defined(HYPERDRONE_ENV_CAM_WIDTH) || !defined(HYPERDRONE_ENV_CAM_HEIGHT) || !defined(HYPERDRONE_ENV_SHADING) || !defined(HYPERDRONE_ENV_MB_SAMPLES) || !defined(HYPERDRONE_ENV_PRESET) || !defined(HYPERDRONE_ENV_TASK) || !defined(HYPERDRONE_ENV_N_AGENTS) || !defined(HYPERDRONE_ENV_N_CAMERA_AGENTS) || !defined(HYPERDRONE_CAMERA_CONFIG_HEADER) || !defined(HYPERDRONE_ENV_DEVICE_CUDA) || !defined(HYPERDRONE_ENV_CONTROL) || !defined(HYPERDRONE_ENV_ACTUATION)
+#if !defined(HYPERDRONE_ENV_NUM_WORLDS) || !defined(HYPERDRONE_ENV_INSTANCES) || !defined(HYPERDRONE_ENV_CAM_WIDTH) || !defined(HYPERDRONE_ENV_CAM_HEIGHT) || !defined(HYPERDRONE_ENV_SHADING) || !defined(HYPERDRONE_ENV_MB_SAMPLES) || !defined(HYPERDRONE_ENV_PRESET) || !defined(HYPERDRONE_ENV_TASK) || !defined(HYPERDRONE_ENV_N_AGENTS) || !defined(HYPERDRONE_ENV_N_CAMERA_AGENTS) || !defined(HYPERDRONE_CAMERA_CONFIG_HEADER) || !defined(HYPERDRONE_ENV_DEVICE_CUDA) || !defined(HYPERDRONE_ENV_CONTROL) || !defined(HYPERDRONE_ENV_ACTUATION)
 #error "every HYPERDRONE_ENV_* configuration define must be set (hyperdrone.env.EnvConfig.defines())"
 #endif
 #if HYPERDRONE_ENV_DEVICE_CUDA && !defined(HYPERDRONE_ENV_CUDA)
@@ -114,7 +114,7 @@ namespace HYPERDRONE_MODULE_NAME {
         using CONTROLLER = typename hyperdrone::ControlConfig<HYPERDRONE_ENV_CONTROL>::TYPE;
         using CAMERA_OUTPUTS = hyperdrone_camera_config::CAMERA_OUTPUTS;
         using OBSERVATION = hyperdrone_camera_config::OBSERVATION;
-        static constexpr TI INSTANCES_PER_ENVIRONMENT = HYPERDRONE_ENV_INSTANCES;
+        static constexpr TI INSTANCES_PER_WORLD = HYPERDRONE_ENV_INSTANCES;
         static constexpr TI N_AGENTS = HYPERDRONE_ENV_N_AGENTS;
         static constexpr TI N_CAMERA_AGENTS = HYPERDRONE_ENV_N_CAMERA_AGENTS;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE =
@@ -152,9 +152,9 @@ namespace HYPERDRONE_MODULE_NAME {
     using OUTPUTS = typename WORLD::RENDERER_SPEC::OUTPUTS;
     using INSTANCE_SEGMENTATION = rro::Segmentation<rro::format::UInt32, rro::labels::Instance>;
     using SEMANTIC_SEGMENTATION = rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>;
-    constexpr TI NUM_ENVIRONMENTS = HYPERDRONE_ENV_NUM_ENVIRONMENTS;
-    using ENV = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, NUM_ENVIRONMENTS>;
-    constexpr TI TOTAL = NUM_ENVIRONMENTS * WORLD::INSTANCES;
+    constexpr TI NUM_WORLDS = HYPERDRONE_ENV_NUM_WORLDS;
+    using ENV = rlt::rl::environments::HyperDrone<WORLD, NUM_WORLDS>;
+    constexpr TI TOTAL = NUM_WORLDS * WORLD::INSTANCES;
     using DYNAMICS = typename WORLD::DYNAMICS_ENV::Parameters::Dynamics;
 
     // optional World surface beyond the base verbs, detected by type: an IMU observation

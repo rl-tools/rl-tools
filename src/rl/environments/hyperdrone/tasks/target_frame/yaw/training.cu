@@ -87,7 +87,7 @@ namespace rl_tools{
         return scenes;
     }
 
-    inline void yaw_manifest(const yaw_training::Scenes& scenes, const yaw_training::MULTI_ENVIRONMENT& environment, const yaw_training::TASK_WORLD& validation_world, const utils::extrack::Paths& paths, yaw_training::TI seed){
+    inline void yaw_manifest(const yaw_training::Scenes& scenes, const yaw_training::HYPERDRONE& environment, const yaw_training::TASK_WORLD& validation_world, const utils::extrack::Paths& paths, yaw_training::TI seed){
         using namespace yaw_training;
         nlohmann::json manifest = {
             {"target", RL_TOOLS_HYPERDRONE_TARGET_NAME}, {"seed", seed}, {"profile", SMOKE ? "smoke" : "production"},
@@ -105,7 +105,7 @@ namespace rl_tools{
         manifest["scenes"] = nlohmann::json::array();
         for(TI scene = 0; scene < N_TOTAL_SCENES; scene++){
             manifest["scenes"].push_back({{"id", SCENE_DATASET::SCENES[scene].id}, {"reference", scenes.references[scene]}, {"split", scene < N_TRAIN_SCENES ? "train" : "validation"}});
-            const auto& annotations = scene < N_TRAIN_SCENES ? environment.environments[0].slots[scene].annotations : validation_world.slots[scene - N_TRAIN_SCENES].annotations;
+            const auto& annotations = scene < N_TRAIN_SCENES ? environment.worlds[0].slots[scene].annotations : validation_world.slots[scene - N_TRAIN_SCENES].annotations;
             auto& positions = manifest["scenes"].back()["free_positions"];
             positions = nlohmann::json::array();
             for(TI index = 0; index < annotations.num_positions; index++){
@@ -181,7 +181,7 @@ namespace rl_tools{
         reset_optimizer_state(compute, optimizer, student);
         free(host, student_host);
 
-        auto environment_storage = std::make_unique<MULTI_ENVIRONMENT>();
+        auto environment_storage = std::make_unique<HYPERDRONE>();
         auto validation_world_storage = std::make_unique<TASK_WORLD>();
         auto& environment = *environment_storage;
         auto& validation_world = *validation_world_storage;
@@ -191,7 +191,7 @@ namespace rl_tools{
         Scenes::Corpus corpus;
         enumerate(host, scenes, corpus);
         for(TI member = 0; member < N_ACTIVE_SCENES; member++){
-            auto& world = environment.environments[member];
+            auto& world = environment.worlds[member];
             world.parameters.agents[0].cameras[0].fov = CAMERA_FOV;
             rl_tools::init(compute, world, environment.shared, scenes, corpus, 0, N_TRAIN_SCENES, member);
             world.rng_offset = member * N_ENVIRONMENTS_PER_SCENE;
@@ -201,7 +201,7 @@ namespace rl_tools{
         yaw_manifest(scenes, environment, validation_world, paths, seed);
         Tensor<typename BASE_WORLD::DRONE_PARAMETERS_SPEC> nominal_host;
         malloc(host, nominal_host);
-        copy(compute, host, environment.environments[0].drone_parameters, nominal_host);
+        copy(compute, host, environment.worlds[0].drone_parameters, nominal_host);
         ValidationState validation;
         malloc(host, compute, validation);
         init(host, compute, validation, seed);
@@ -239,7 +239,7 @@ namespace rl_tools{
             }
             get_ref(host, nominal_host, 0).dynamics.mdp.init.max_angle = orientation_bound / (T)180 * math::PI<T>;
             for(TI member = 0; member < N_ACTIVE_SCENES; member++){
-                auto& world = environment.environments[member];
+                auto& world = environment.worlds[member];
                 copy(host, compute, nominal_host, world.drone_parameters);
                 select_scene(compute, world, selected[member]);
             }
@@ -250,7 +250,7 @@ namespace rl_tools{
             }
             std::array<TI, N_ACTIVE_SCENES> bank_steps;
             for(TI member = 0; member < N_ACTIVE_SCENES; member++){
-                bank_steps[member] = environment.environments[member].bank_step;
+                bank_steps[member] = environment.worlds[member].bank_step;
             }
             prologue(compute, dataset, runner, environment, compute_rng);
             for(TI time = 0; time < STEPS_PER_ENV; time++){
@@ -269,7 +269,7 @@ namespace rl_tools{
                 global_step += N_ENVIRONMENTS;
             }
             for(TI member = 0; member < N_ACTIVE_SCENES; member++){
-                if(environment.environments[member].bank_step != bank_steps[member]){
+                if(environment.worlds[member].bank_step != bank_steps[member]){
                     throw std::runtime_error("Yaw target bank refreshed inside an epoch");
                 }
             }

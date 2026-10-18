@@ -66,7 +66,7 @@ NB_MODULE(hyperdrone_dynamics_core, m){
         DEVICE device;
         ENVIRONMENT environment;
         return rl_tools::json(device, environment, dynamics);
-    }, nb::arg("name"), "The l2f dynamics of a registry model as JSON (the schema of MultiEnvironment.parameters['dynamics']['dynamics']); None for an unknown name.");
+    }, nb::arg("name"), "The l2f dynamics of a registry model as JSON (the schema of HyperDrone.parameters['dynamics']['dynamics']); None for an unknown name.");
 
     auto jit_sim_class = nb::class_<JitSim>(m, "JitSim");
     jit_sim_class

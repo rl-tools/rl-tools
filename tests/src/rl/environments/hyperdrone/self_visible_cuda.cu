@@ -69,7 +69,7 @@ namespace test_self_visible_cuda {
     };
     struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS> {
         static constexpr TI N_CAMERA_AGENTS = 1;
-        static constexpr TI INSTANCES_PER_ENVIRONMENT = 2;
+        static constexpr TI INSTANCES_PER_WORLD = 2;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
         using SHADING = rlt::rendering::raytracing::Low;
@@ -285,30 +285,30 @@ namespace test_self_visible_cuda {
         static constexpr bool ENABLE_MOTION_BLUR = true;
         static constexpr TI MOTION_BLUR_SAMPLES = 4;
     };
-    using FAN_OUT_MEMBER = rlt::rl::environments::hyperdrone::World<FAN_OUT_WORLD_SPEC>;
-    using FAN_OUT_MULTI = rlt::rl::environments::hyperdrone::MultiEnvironment<FAN_OUT_MEMBER, 3>;
+    using FAN_OUT_WORLD = rlt::rl::environments::hyperdrone::World<FAN_OUT_WORLD_SPEC>;
+    using FAN_OUT_HYPERDRONE = rlt::rl::environments::HyperDrone<FAN_OUT_WORLD, 3>;
     struct FanOutRollout {
-        FAN_OUT_MULTI env;
+        FAN_OUT_HYPERDRONE env;
         RNG_GPU rng;
-        rlt::Tensor<rlt::tensor::Specification<typename FAN_OUT_MULTI::Parameters, TI, rlt::tensor::Shape<TI, FAN_OUT_MULTI::INSTANCES>>> parameters;
-        rlt::Tensor<rlt::tensor::Specification<typename FAN_OUT_MULTI::State, TI, rlt::tensor::Shape<TI, FAN_OUT_MULTI::INSTANCES>>> states, next_states;
-        rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, FAN_OUT_MULTI::INSTANCES, FAN_OUT_MEMBER::OBSERVATION_DIM>>> observations;
+        rlt::Tensor<rlt::tensor::Specification<typename FAN_OUT_HYPERDRONE::Parameters, TI, rlt::tensor::Shape<TI, FAN_OUT_HYPERDRONE::INSTANCES>>> parameters;
+        rlt::Tensor<rlt::tensor::Specification<typename FAN_OUT_HYPERDRONE::State, TI, rlt::tensor::Shape<TI, FAN_OUT_HYPERDRONE::INSTANCES>>> states, next_states;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, FAN_OUT_HYPERDRONE::INSTANCES, FAN_OUT_WORLD::OBSERVATION_DIM>>> observations;
     };
 }
 
-// a MultiEnvironment renders and observes its members concurrently on their renderer streams; the
+// a HyperDrone renders and observes its Worlds concurrently on their renderer streams; the
 // frames must equal rendering the same members one after another through the World verbs
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, MULTI_ENVIRONMENT_FAN_OUT){
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, HYPERDRONE_FAN_OUT){
     if(SCENE_PATH.empty()){
         GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
     }
     if(!cuda_available()){
         GTEST_SKIP() << "no CUDA device available";
     }
-    constexpr TI N = FAN_OUT_MULTI::NUMBER_OF_ENVIRONMENTS;
-    constexpr TI M = FAN_OUT_MULTI::INSTANCES_PER_ENVIRONMENT;
-    constexpr TI TOTAL = FAN_OUT_MULTI::INSTANCES;
-    constexpr TI DIM = FAN_OUT_MEMBER::OBSERVATION_DIM;
+    constexpr TI N = FAN_OUT_HYPERDRONE::N_WORLDS;
+    constexpr TI M = FAN_OUT_HYPERDRONE::INSTANCES_PER_WORLD;
+    constexpr TI TOTAL = FAN_OUT_HYPERDRONE::INSTANCES;
+    constexpr TI DIM = FAN_OUT_WORLD::OBSERVATION_DIM;
     DEVICE_GPU device_gpu;
     auto& device = device_gpu.rendering;
     rlt::init(device);
@@ -330,7 +330,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, MULTI_ENVIRONMENT_FA
         rlt::malloc(device_gpu, rollout->observations);
     }
     rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, TOTAL>>> reset_mask;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TOTAL, FAN_OUT_MULTI::ACTION_DIM>>> actions, actions_host;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TOTAL, FAN_OUT_HYPERDRONE::ACTION_DIM>>> actions, actions_host;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TOTAL, DIM>>> fanned_host, memberwise_host;
     rlt::malloc(device_gpu, reset_mask);
     rlt::malloc(device_gpu, actions);
@@ -346,16 +346,16 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, MULTI_ENVIRONMENT_FA
     for(TI step_i = 0; step_i < 4; step_i++){
         // a member stream busy beyond the delayed step below: the observations are read on
         // device.stream, which must join it (each member in turn)
-        spin_kernel<<<1, 1, 0, rlt::stream(device_gpu, rlt::get_renderer(device_gpu, fanned.env.environments[step_i % N]))>>>(3 * SPIN_CYCLES);
+        spin_kernel<<<1, 1, 0, rlt::stream(device_gpu, rlt::get_renderer(device_gpu, fanned.env.worlds[step_i % N]))>>>(3 * SPIN_CYCLES);
         rlt::render(device_gpu, fanned.env, fanned.parameters, fanned.states, reset_mask);
-        rlt::observe(device_gpu, fanned.env, fanned.parameters, fanned.states, typename FAN_OUT_MULTI::Observation{}, fanned.observations, fanned.rng);
-        for(TI environment_i = 0; environment_i < N; environment_i++){
-            auto parameters_block = rlt::view_range(device_gpu, memberwise.parameters, environment_i * M, rlt::tensor::ViewSpec<0, M>{});
-            auto states_block = rlt::view_range(device_gpu, memberwise.states, environment_i * M, rlt::tensor::ViewSpec<0, M>{});
-            auto reset_block = rlt::view_range(device_gpu, reset_mask, environment_i * M, rlt::tensor::ViewSpec<0, M>{});
-            auto observations_block = rlt::view_range(device_gpu, memberwise.observations, environment_i * M, rlt::tensor::ViewSpec<0, M>{});
-            rlt::render(device_gpu, memberwise.env.environments[environment_i], parameters_block, states_block, reset_block);
-            rlt::observe(device_gpu, memberwise.env.environments[environment_i], parameters_block, states_block, typename FAN_OUT_MEMBER::Observation{}, observations_block, memberwise.rng);
+        rlt::observe(device_gpu, fanned.env, fanned.parameters, fanned.states, typename FAN_OUT_HYPERDRONE::Observation{}, fanned.observations, fanned.rng);
+        for(TI world_i = 0; world_i < N; world_i++){
+            auto parameters_block = rlt::view_range(device_gpu, memberwise.parameters, world_i * M, rlt::tensor::ViewSpec<0, M>{});
+            auto states_block = rlt::view_range(device_gpu, memberwise.states, world_i * M, rlt::tensor::ViewSpec<0, M>{});
+            auto reset_block = rlt::view_range(device_gpu, reset_mask, world_i * M, rlt::tensor::ViewSpec<0, M>{});
+            auto observations_block = rlt::view_range(device_gpu, memberwise.observations, world_i * M, rlt::tensor::ViewSpec<0, M>{});
+            rlt::render(device_gpu, memberwise.env.worlds[world_i], parameters_block, states_block, reset_block);
+            rlt::observe(device_gpu, memberwise.env.worlds[world_i], parameters_block, states_block, typename FAN_OUT_WORLD::Observation{}, observations_block, memberwise.rng);
         }
         rlt::copy(device_gpu, device, fanned.observations, fanned_host);
         rlt::copy(device_gpu, device, memberwise.observations, memberwise_host);
@@ -370,7 +370,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, MULTI_ENVIRONMENT_FA
         EXPECT_EQ(mismatches, 0) << "step " << step_i;
         EXPECT_GT(total, 0) << "step " << step_i;
         for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
-            for(TI action_i = 0; action_i < FAN_OUT_MULTI::ACTION_DIM; action_i++){
+            for(TI action_i = 0; action_i < FAN_OUT_HYPERDRONE::ACTION_DIM; action_i++){
                 rlt::set(device, actions_host, (T)(((instance_i * 7 + action_i * 3 + step_i * 5) % 11) / 5.0 - 1), instance_i, action_i);
             }
         }

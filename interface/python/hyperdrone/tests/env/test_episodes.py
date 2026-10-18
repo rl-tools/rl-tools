@@ -43,7 +43,7 @@ class BatchEnvironment:
 
 @pytest.fixture
 def env(monkeypatch):
-    monkeypatch.setattr(gym, "MultiEnvironment", BatchEnvironment)
+    monkeypatch.setattr(gym, "HyperDrone", BatchEnvironment)
     environment = gym.VectorEnv("unused")
     environment.reset()
     yield environment
@@ -107,7 +107,7 @@ def test_command_bounds_reach_gym(monkeypatch, lower, upper):
         action_dim = len(lower)
         action_low = np.asarray(lower, dtype=np.float32)
         action_high = np.asarray(upper, dtype=np.float32)
-    monkeypatch.setattr(gym, "MultiEnvironment", ControlledBatch)
+    monkeypatch.setattr(gym, "HyperDrone", ControlledBatch)
     environment = gym.VectorEnv("unused")
     try:
         np.testing.assert_array_equal(environment.single_action_space.low, lower)

@@ -7,12 +7,12 @@ import pytest
 
 from hyperdrone import render
 from hyperdrone.camera import CameraSpec, RGB, Depth, Segmentation, Normals, Flow, FlowStatus, Probes, ImageObservation
-from hyperdrone.env import EnvConfig, MultiEnvironment
-from test_multi_environment import rigged_asset_path, scene_directory
+from hyperdrone.env import EnvConfig, HyperDrone
+from test_hyperdrone import rigged_asset_path, scene_directory
 
 
 OUTPUTS = (RGB("float32"), Depth(), Segmentation(), Normals(), Flow(), FlowStatus())
-CONFIG = EnvConfig(instances_per_environment=2, width=16, height=16, fidelity="low", cameras=(CameraSpec("front", outputs=OUTPUTS),))
+CONFIG = EnvConfig(instances_per_world=2, width=16, height=16, fidelity="low", cameras=(CameraSpec("front", outputs=OUTPUTS),))
 # At 4–6 mm depth, float reprojection after an identity reset reaches 1.52e-3 pixels on OptiX.
 RESET_FLOW_ATOL = 2e-3
 
@@ -36,7 +36,7 @@ def test_environment_capture_and_partial_reset(scene_directory, device, task, ca
     if device == "cuda" and render._backend() != "optix":
         pytest.skip("CUDA Worlds require OptiX")
     parameters = {"cameras": {"rear": {"fov": 100, "mount": {"pose": {"position": [0.1, 0.1, 0.1]}}}}} if cameras == 2 else {}
-    with closing(MultiEnvironment(scene_directory, config=replace(CONFIG, device=device, task=task, cameras=profiles(cameras)), parameters=parameters, seed=9)) as env:
+    with closing(HyperDrone(scene_directory, config=replace(CONFIG, device=device, task=task, cameras=profiles(cameras)), parameters=parameters, seed=9)) as env:
         env.reset()
         with pytest.raises(RuntimeError, match="render or observe"):
             env.outputs[Depth()].read()
@@ -112,7 +112,7 @@ def test_auxiliary_outputs_preserve_policy_observations(scene_directory, device)
         pytest.skip("CUDA Worlds require OptiX")
     config = replace(CONFIG, device=device, observation=ImageObservation(cameras=("front",)))
     mixed = (CameraSpec("front", outputs=OUTPUTS), CameraSpec("diagnostic", outputs=(RGB("float32"), RGB(format="rgba8"))), CameraSpec("down", outputs=(Depth(),)))
-    with closing(MultiEnvironment(scene_directory, config=replace(config, cameras=profiles(1, (RGB("float32"),))), seed=3)) as base, closing(MultiEnvironment(scene_directory, config=replace(config, cameras=mixed), seed=3)) as extra:
+    with closing(HyperDrone(scene_directory, config=replace(config, cameras=profiles(1, (RGB("float32"),))), seed=3)) as base, closing(HyperDrone(scene_directory, config=replace(config, cameras=mixed), seed=3)) as extra:
         for env in (base, extra):
             env.reset()
         assert base.observation_dim == extra.observation_dim == 16 * 16 * 3
@@ -134,8 +134,8 @@ def test_raw_only_sparse_outputs_and_blocks(scene_directory, device):
     if device == "cuda" and render._backend() != "optix":
         pytest.skip("CUDA Worlds require OptiX")
     cameras = (CameraSpec("left", outputs=(Depth(), FlowStatus(direction="forward"))), CameraSpec("display", outputs=(RGB(format="rgba8"),)), CameraSpec("right", outputs=(Depth(), Probes())))
-    config = replace(CONFIG, num_environments=2, cameras=cameras, observation=None, device=device)
-    env = MultiEnvironment([scene_directory / "ProcTHOR-Train-1.glb"] * 2, config=config, seed=4)
+    config = replace(CONFIG, num_worlds=2, cameras=cameras, observation=None, device=device)
+    env = HyperDrone([scene_directory / "ProcTHOR-Train-1.glb"] * 2, config=config, seed=4)
     try:
         assert env.observation_dim == 0 and not env.has_image_observation
         env.reset()
@@ -195,8 +195,8 @@ def test_environment_cuda_image_outputs(scene_directory):
     torch = pytest.importorskip("torch")
     if not torch.cuda.is_available():
         pytest.skip("PyTorch needs CUDA")
-    config = replace(CONFIG, num_environments=2, cameras=profiles(2), device="cuda")
-    with closing(MultiEnvironment([scene_directory / "ProcTHOR-Train-1.glb"] * 2, config=config, seed=3)) as env:
+    config = replace(CONFIG, num_worlds=2, cameras=profiles(2), device="cuda")
+    with closing(HyperDrone([scene_directory / "ProcTHOR-Train-1.glb"] * 2, config=config, seed=3)) as env:
         env.reset()
         producer = torch.cuda.Stream()
         consumer = torch.cuda.Stream()
@@ -236,9 +236,9 @@ def _check_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, devic
         using CAMERA_OUTPUTS = rl_tools::rl::environments::hyperdrone::CameraOutputs<DEPTH_PROFILE, OUTPUT_PROFILE, DEPTH_PROFILE>;
         using OBSERVATION = rl_tools::rl::environments::hyperdrone::ImageObservation<1>;
 """).replace("        static constexpr TI N_CAMERA_AGENTS = 1;", "")
-    source = source.replace("INSTANCES_PER_ENVIRONMENT = 2;", f"INSTANCES_PER_ENVIRONMENT = {instances_per_world};")
+    source = source.replace("INSTANCES_PER_WORLD = 2;", f"INSTANCES_PER_WORLD = {instances_per_world};")
     header.write_text(source)
-    with closing(MultiEnvironment([scene_directory / "ProcTHOR-Train-1.glb"] * 2, config=EnvConfig(spec_header=str(header), num_environments=2, device=device), drone_asset=str(asset), seed=4)) as env:
+    with closing(HyperDrone([scene_directory / "ProcTHOR-Train-1.glb"] * 2, config=EnvConfig(spec_header=str(header), num_worlds=2, device=device), drone_asset=str(asset), seed=4)) as env:
         assert env.total_instances == 2 * instances_per_world
         assert (env.num_agents, env.num_camera_agents, env.num_cameras_per_agent, env.num_views) == (2, 2, 3, 6)
         assert env.outputs[RGB("float32")].layout.cameras == ((0, "camera1"), (1, "camera1"))
@@ -274,7 +274,7 @@ def _check_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, devic
 @pytest.mark.parametrize("cameras", [1, 2])
 def test_flow_between_intermittent_captures(scene_directory, cameras):
     config = replace(CONFIG, preset="x500_fpv_imu", task="visual_inertial_localization", device="cpu", cameras=profiles(cameras))
-    with closing(MultiEnvironment(scene_directory, config=config, seed=5)) as env:
+    with closing(HyperDrone(scene_directory, config=config, seed=5)) as env:
         env.reset()
         env.render()
         captured = env.outputs[Flow()].read()
@@ -296,7 +296,7 @@ def test_flow_between_intermittent_captures(scene_directory, cameras):
 @pytest.mark.parametrize("acquisition", ["render", "observe"])
 def test_intermittent_capture_preserves_outputs_and_probes(scene_directory, acquisition):
     config = replace(CONFIG, preset="x500_fpv_imu", task="visual_inertial_localization", device="cpu", cameras=profiles(1, (*OUTPUTS, Probes())))
-    with closing(MultiEnvironment(scene_directory, config=config, seed=5)) as env:
+    with closing(HyperDrone(scene_directory, config=config, seed=5)) as env:
         acquire = getattr(env, acquisition)
         depth = env.outputs[Depth()]
         probes = env.outputs[Probes()].distance
@@ -380,8 +380,8 @@ def test_cuda_batched_transport_without_tensor_framework(scene_directory, device
     consumer = ctypes.c_void_p()
     assert runtime.cudaStreamCreate(ctypes.byref(consumer)) == 0
     cameras = (CameraSpec("front", outputs=(RGB("float32"), Depth())), CameraSpec("aux", outputs=(RGB(format="rgba8"), Probes())))
-    config = replace(CONFIG, num_environments=2, cameras=cameras, device=device)
-    env = MultiEnvironment([scene_directory / "ProcTHOR-Train-1.glb"] * 2, config=config, seed=11)
+    config = replace(CONFIG, num_worlds=2, cameras=cameras, device=device)
+    env = HyperDrone([scene_directory / "ProcTHOR-Train-1.glb"] * 2, config=config, seed=11)
     try:
         env.reset()
         env.render()

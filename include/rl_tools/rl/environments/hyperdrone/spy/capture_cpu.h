@@ -12,8 +12,8 @@ namespace rl_tools {
         using WORLD = typename CONFIG::WORLD;
         constexpr size_t CAMERAS = WORLD::INSTANCES * WORLD::N_VIEWS;
         constexpr size_t WIDTH = CONFIG::ATLAS_WIDTH, HEIGHT = CONFIG::ATLAS_HEIGHT;
-        for(size_t member = 0; member < CONFIG::ENVIRONMENT::NUMBER_OF_ENVIRONMENTS; member++) {
-            auto& world = environment.environments[member];
+        for(size_t member = 0; member < CONFIG::ENVIRONMENT::N_WORLDS; member++) {
+            auto& world = environment.worlds[member];
             const bool valid = state.buffer.frames[member].valid;
             auto& renderer = world.slots[world.active_slot].renderer;
             if(valid) {
@@ -93,7 +93,7 @@ namespace rl_tools {
             const size_t camera = state.buffer.selected_camera % (WORLD::INSTANCES * WORLD::N_VIEWS);
             const size_t member = state.buffer.selected_camera / (WORLD::INSTANCES * WORLD::N_VIEWS);
             const size_t instance = camera / WORLD::N_VIEWS;
-            auto& world = environment.environments[member];
+            auto& world = environment.worlds[member];
             auto& renderer = world.slots[world.active_slot].renderer;
             state.buffer.geometry.camera = data(cameras(device, renderer))[camera];
             if constexpr(WORLD::RENDERER_SPEC::ENABLE_OVERLAYS) {

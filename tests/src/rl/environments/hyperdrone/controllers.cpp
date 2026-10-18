@@ -16,7 +16,7 @@ using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 namespace {
     struct PositionSpec: hd::presets::X500FPVIMU<T, TI> {
         using CONTROLLER = hd::controllers::raptor::Config;
-        static constexpr TI INSTANCES_PER_ENVIRONMENT = 2;
+        static constexpr TI INSTANCES_PER_WORLD = 2;
         static constexpr TI N_CAMERA_AGENTS = 1;
         static constexpr TI CAM_WIDTH = 8;
         static constexpr TI CAM_HEIGHT = 8;
@@ -115,8 +115,8 @@ TEST(HYPERDRONE_CONTROLLERS, AutonomousControllerMutationAcrossMembers) {
     RNG rng;
     malloc(device, rng);
     init(device, rng, 42);
-    hd::MultiEnvironment<VILWorld, 2> env;
-    for (auto& world : env.environments) {
+    rl_tools::rl::environments::HyperDrone<VILWorld, 2> env;
+    for (auto& world : env.worlds) {
         allocate_controller(device, world, rng);
         world.task_step = 19;
     }
@@ -126,7 +126,7 @@ TEST(HYPERDRONE_CONTROLLERS, AutonomousControllerMutationAcrossMembers) {
     set(device, mask, true, 2);
     reset_controller(device, env, mask, rng);
     for (TI member = 0; member < 2; member++) {
-        auto& world = env.environments[member];
+        auto& world = env.worlds[member];
         auto& hidden = nn_models::sequential::content_state<1>(world.controller_state.recurrent.content_state);
         EXPECT_EQ(get(device, hidden.step, 0), member == 1 ? 0 : 1);
         EXPECT_EQ(get(device, hidden.step, 1), 1);

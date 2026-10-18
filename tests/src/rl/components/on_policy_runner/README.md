@@ -68,7 +68,7 @@ retains the bulk path and `bootstrap_values` aliases the next value row.
 | Generic CPU, MKL, Accelerate, OpenBLAS, and custom/freestanding devices | Plain generic overloads and freestanding helper headers; no required device identifier. Backend selection stays in mux headers. |
 | CUDA independent Pendulum/L2F, scalar and recurrent policies, portable and cuRAND engines | Preserve fused phases, one RNG stream per instance, deterministic reset order, and memory residence. Share scalar transition/reset/observation logic without changing phase ordering. |
 | CPU batches using a shared scalar RNG | Preserve all-parameters, all-states, and observation-channel ordering across instances. Do not replace composition with a per-instance fused loop. |
-| Native HyperDrone World/MultiEnvironment, target-frame, moving-gate, localization, self-visible and multi-agent tasks | Preserve composed batch verbs, renderer caches, scene sharing, and stream ownership within environments. Accumulate pending reset masks until rendering consumes them. |
+| Native HyperDrone and World, target-frame, moving-gate, localization, self-visible and multi-agent tasks | Preserve composed batch verbs, renderer caches, scene sharing, and stream ownership within environments. Accumulate pending reset masks until rendering consumes them. |
 | Generic, Metal, OptiX, Vulkan, WebGPU rendering | Compute devices own their rendering device through the extension. Callers initialize the owned member explicitly; renderer libraries retain their backend lifecycle. |
 | CUDA Adam/SGD, TD3, and renderer producer/physics kernels | Runtime devices may contain noncopyable extensions. Host launchers retain stream ownership; kernels receive CUDA tags by value and their data separately. |
 | Legacy Pendulum training inside a CUDA kernel | The complete training loop needs a device-side logging context. Construct it inside the kernel and pass only the training-state pointer across the launch boundary. |
@@ -99,8 +99,8 @@ These changes are separate from overload dispatch:
 - Visual L2F training configures environment default scene translations before
   loop initialization, so initial sampling and later resets use those defaults.
 - A CUDA rendering extension owns its host device by value. Use
-  `auto& host = compute.rendering` and initialize both devices before world or
-  multi-environment lifecycle calls. Free environments and their shared renderer
+  `auto& host = compute.rendering` and initialize both devices before World or
+  HyperDrone lifecycle calls. Free environments and their shared renderer
   library before releasing host resources. Worlds do not initialize devices.
   Host operations take devices by reference; CUDA kernels receive
   `devices::cuda::TAG<DEVICE, true>` by value, without copying runtime extensions.

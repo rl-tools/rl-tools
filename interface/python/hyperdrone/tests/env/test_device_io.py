@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from hyperdrone import _cuda as cuda, render
-from hyperdrone.env import EnvConfig, MultiEnvironment
+from hyperdrone.env import EnvConfig, HyperDrone
 from hyperdrone._jit import source_root
 
 pytestmark = pytest.mark.skipif(
@@ -15,8 +15,8 @@ pytestmark = pytest.mark.skipif(
     reason="the device-resident environment needs the OptiX backend",
 )
 
-CONFIG = EnvConfig(num_environments=2, instances_per_environment=2, width=16, height=16, fidelity="low", device="cuda")
-HOST_WORLD_CONFIG = EnvConfig(num_environments=1, instances_per_environment=2, width=16, height=16, fidelity="low", device="cpu")
+CONFIG = EnvConfig(num_worlds=2, instances_per_world=2, width=16, height=16, fidelity="low", device="cuda")
+HOST_WORLD_CONFIG = EnvConfig(num_worlds=1, instances_per_world=2, width=16, height=16, fidelity="low", device="cpu")
 
 
 @pytest.fixture(scope="module")
@@ -29,8 +29,8 @@ def scenes():
 
 @pytest.fixture
 def pair(scenes):
-    device = MultiEnvironment(scenes, config=CONFIG, seed=11)
-    host = MultiEnvironment(scenes, config=CONFIG, seed=11)
+    device = HyperDrone(scenes, config=CONFIG, seed=11)
+    host = HyperDrone(scenes, config=CONFIG, seed=11)
     try:
         yield device, host
     finally:
@@ -134,7 +134,7 @@ def test_stream_switch_waits_for_pending_work(pair, cupy):
 
 @pytest.fixture
 def host_world(scenes):
-    environment = MultiEnvironment(scenes[:1], config=HOST_WORLD_CONFIG, seed=0)
+    environment = HyperDrone(scenes[:1], config=HOST_WORLD_CONFIG, seed=0)
     try:
         yield environment
     finally:

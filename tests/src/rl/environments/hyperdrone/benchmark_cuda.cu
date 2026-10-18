@@ -78,7 +78,7 @@ namespace benchmark_hyperdrone {
     // training_cuda.cu's configuration: 2 active scenes x 64 envs, 80x50, High shading, AA 2
     struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS> {
         static constexpr TI N_CAMERA_AGENTS = 1;
-        static constexpr TI INSTANCES_PER_ENVIRONMENT = 64;
+        static constexpr TI INSTANCES_PER_WORLD = 64;
         static constexpr TI CAM_WIDTH = 80;
         static constexpr TI CAM_HEIGHT = 50;
         using SHADING = rlt::rendering::raytracing::High;
@@ -87,8 +87,8 @@ namespace benchmark_hyperdrone {
         static constexpr T BRIGHTNESS_RANDOMIZATION_RANGE = 0.5;
     };
     using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
-    constexpr TI NUMBER_OF_ENVIRONMENTS = 2;
-    using ENVIRONMENT = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, NUMBER_OF_ENVIRONMENTS>;
+    constexpr TI N_WORLDS = 2;
+    using ENVIRONMENT = rlt::rl::environments::HyperDrone<WORLD, N_WORLDS>;
     constexpr TI INSTANCES = ENVIRONMENT::INSTANCES;
     constexpr TI WARMUP_STEPS = 5;
     constexpr TI MEASURE_STEPS = 50;
@@ -101,7 +101,7 @@ namespace benchmark_self_visible {
     using PARAMETERS_SPEC = typename PRESET::DYNAMICS_STATIC_PARAMETERS::PARAMETERS_SPEC;
     struct WORLD_SPEC: PRESET {
         static constexpr TI N_CAMERA_AGENTS = 1;
-        static constexpr TI INSTANCES_PER_ENVIRONMENT = 64;
+        static constexpr TI INSTANCES_PER_WORLD = 64;
         static constexpr TI CAM_WIDTH = 80;
         static constexpr TI CAM_HEIGHT = 50;
         using SHADING = rlt::rendering::raytracing::High;
@@ -110,7 +110,7 @@ namespace benchmark_self_visible {
         static constexpr TI MAX_DRONES = 4;
     };
     using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
-    using ENVIRONMENT = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, benchmark_hyperdrone::NUMBER_OF_ENVIRONMENTS>;
+    using ENVIRONMENT = rlt::rl::environments::HyperDrone<WORLD, benchmark_hyperdrone::N_WORLDS>;
     template <l2f::parameters::dynamics::REGISTRY MODEL>
     rlt::rl::environments::hyperdrone::Drone<WORLD_SPEC> drone(const char* asset){
         rlt::rl::environments::hyperdrone::Drone<WORLD_SPEC> entry;
@@ -146,8 +146,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
     rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
     rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
-    for(TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++){
-        rlt::init(device_gpu, env.environments[environment_i], env.shared, dataset, corpus, environment_i, 1, environment_i);
+    for(TI world_i = 0; world_i < N_WORLDS; world_i++){
+        rlt::init(device_gpu, env.worlds[world_i], env.shared, dataset, corpus, world_i, 1, world_i);
     }
 
     RNG_GPU rng;
@@ -167,7 +167,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
     rlt::set_all(device_gpu, reset_mask, false);
 
     auto request_frame = [&](){
-        for(auto& world: env.environments){
+        for(auto& world: env.worlds){
             using rlt::request_render;
             request_render(device_gpu, world);
         }
@@ -192,43 +192,43 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
     cudaMalloc(&hand_rolled_observations, INSTANCES * WORLD::OBSERVATION_DIM * sizeof(float));
     // training_cuda joins the render streams back into the main stream before the policy
     // evaluation consumes the observations (render_scatter_done events)
-    cudaEvent_t render_scatter_done[NUMBER_OF_ENVIRONMENTS];
-    for(TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++){
-        cudaEventCreateWithFlags(&render_scatter_done[environment_i], cudaEventDisableTiming);
+    cudaEvent_t render_scatter_done[N_WORLDS];
+    for(TI world_i = 0; world_i < N_WORLDS; world_i++){
+        cudaEventCreateWithFlags(&render_scatter_done[world_i], cudaEventDisableTiming);
     }
     auto hand_rolled_path = [&](){
         using TAG = rlt::devices::cuda::TAG<DEVICE_GPU, true>;
         TAG tag_device{};
         constexpr TI BLOCKSIZE = 32;
-        for(TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++){
-            auto& world = env.environments[environment_i];
+        for(TI world_i = 0; world_i < N_WORLDS; world_i++){
+            auto& world = env.worlds[world_i];
             constexpr TI M = WORLD::INSTANCES;
-            auto parameters_block = rlt::view_range(device_gpu, parameters, environment_i * M, rlt::tensor::ViewSpec<0, M>{});
-            auto states_block = rlt::view_range(device_gpu, states, environment_i * M, rlt::tensor::ViewSpec<0, M>{});
-            auto reset_block = rlt::view_range(device_gpu, reset_mask, environment_i * M, rlt::tensor::ViewSpec<0, M>{});
+            auto parameters_block = rlt::view_range(device_gpu, parameters, world_i * M, rlt::tensor::ViewSpec<0, M>{});
+            auto states_block = rlt::view_range(device_gpu, states, world_i * M, rlt::tensor::ViewSpec<0, M>{});
+            auto reset_block = rlt::view_range(device_gpu, reset_mask, world_i * M, rlt::tensor::ViewSpec<0, M>{});
             constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(M, BLOCKSIZE);
-            rlt::rl::environments::hyperdrone::cuda::pose_kernel<TAG, WORLD_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device_gpu.stream>>>(tag_device, parameters_block, states_block, reset_block, staging_cameras + environment_i * M, staging_cameras + environment_i * M, rlt::data(world.prev_cameras), world.history_step, (T)WORLD_SPEC::CAM_WIDTH / (T)WORLD_SPEC::CAM_HEIGHT);
+            rlt::rl::environments::hyperdrone::cuda::pose_kernel<TAG, WORLD_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device_gpu.stream>>>(tag_device, parameters_block, states_block, reset_block, staging_cameras + world_i * M, staging_cameras + world_i * M, rlt::data(world.prev_cameras), world.history_step, (T)WORLD_SPEC::CAM_WIDTH / (T)WORLD_SPEC::CAM_HEIGHT);
         }
         cudaEventRecord(cameras_ready, device_gpu.stream);
-        for(TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++){
-            auto& world = env.environments[environment_i];
+        for(TI world_i = 0; world_i < N_WORLDS; world_i++){
+            auto& world = env.worlds[world_i];
             constexpr TI M = WORLD::INSTANCES;
             auto& renderer = rlt::get_renderer(device_gpu, world);
             cudaStream_t render_stream = rlt::stream(device_gpu, renderer);
             cudaStreamWaitEvent(render_stream, cameras_ready, 0);
-            cudaMemcpyAsync(rlt::data(rlt::cameras(device_gpu, renderer)), staging_cameras + environment_i * M, M * sizeof(rlt::rendering::raytracing::Camera<T>), cudaMemcpyDeviceToDevice, render_stream);
+            cudaMemcpyAsync(rlt::data(rlt::cameras(device_gpu, renderer)), staging_cameras + world_i * M, M * sizeof(rlt::rendering::raytracing::Camera<T>), cudaMemcpyDeviceToDevice, render_stream);
             rlt::render_launch(device_gpu, renderer);
-            auto parameters_block = rlt::view_range(device_gpu, parameters, environment_i * M, rlt::tensor::ViewSpec<0, M>{});
-            auto reset_block = rlt::view_range(device_gpu, reset_mask, environment_i * M, rlt::tensor::ViewSpec<0, M>{});
+            auto parameters_block = rlt::view_range(device_gpu, parameters, world_i * M, rlt::tensor::ViewSpec<0, M>{});
+            auto reset_block = rlt::view_range(device_gpu, reset_mask, world_i * M, rlt::tensor::ViewSpec<0, M>{});
             constexpr TI SCATTER_BLOCKSIZE = 256;
             constexpr TI SCATTER_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(M * WORLD_SPEC::CAM_WIDTH * WORLD_SPEC::CAM_HEIGHT, SCATTER_BLOCKSIZE);
-            rlt::rl::environments::hyperdrone::cuda::scatter_kernel<TAG, WORLD_SPEC><<<dim3(SCATTER_BLOCKS), dim3(SCATTER_BLOCKSIZE), 0, render_stream>>>(tag_device, rlt::data(output(device, renderer, rro::RGB<rro::format::Float32>{})), hand_rolled_history + environment_i * M * WORLD::OBSERVATION_DIM, parameters_block, rlt::data(world.episode_start), reset_block, world.history_step);
-            auto observations_block = rlt::view_range(device_gpu, observations, environment_i * M, rlt::tensor::ViewSpec<0, M>{});
+            rlt::rl::environments::hyperdrone::cuda::scatter_kernel<TAG, WORLD_SPEC><<<dim3(SCATTER_BLOCKS), dim3(SCATTER_BLOCKSIZE), 0, render_stream>>>(tag_device, rlt::data(output(device, renderer, rro::RGB<rro::format::Float32>{})), hand_rolled_history + world_i * M * WORLD::OBSERVATION_DIM, parameters_block, rlt::data(world.episode_start), reset_block, world.history_step);
+            auto observations_block = rlt::view_range(device_gpu, observations, world_i * M, rlt::tensor::ViewSpec<0, M>{});
             constexpr TI ASSEMBLY_BLOCKSIZE = 256;
             constexpr TI ASSEMBLY_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(M * WORLD::FRAME_DIM, ASSEMBLY_BLOCKSIZE);
-            rlt::rl::environments::hyperdrone::cuda::observe_kernel<TAG, WORLD_SPEC><<<dim3(ASSEMBLY_BLOCKS), dim3(ASSEMBLY_BLOCKSIZE), 0, render_stream>>>(tag_device, hand_rolled_history + environment_i * M * WORLD::OBSERVATION_DIM, observations_block);
-            cudaEventRecord(render_scatter_done[environment_i], render_stream);
-            cudaStreamWaitEvent(device_gpu.stream, render_scatter_done[environment_i], 0);
+            rlt::rl::environments::hyperdrone::cuda::observe_kernel<TAG, WORLD_SPEC><<<dim3(ASSEMBLY_BLOCKS), dim3(ASSEMBLY_BLOCKSIZE), 0, render_stream>>>(tag_device, hand_rolled_history + world_i * M * WORLD::OBSERVATION_DIM, observations_block);
+            cudaEventRecord(render_scatter_done[world_i], render_stream);
+            cudaStreamWaitEvent(device_gpu.stream, render_scatter_done[world_i], 0);
         }
     };
 
@@ -258,23 +258,23 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
         using TAG = rlt::devices::cuda::TAG<DEVICE_GPU, true>;
         TAG tag_device{};
         constexpr TI BLOCKSIZE = 32;
-        for(TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++){
-            auto& world = env.environments[environment_i];
+        for(TI world_i = 0; world_i < N_WORLDS; world_i++){
+            auto& world = env.worlds[world_i];
             constexpr TI M = WORLD::INSTANCES;
-            auto parameters_block = rlt::view_range(device_gpu, parameters, environment_i * M, rlt::tensor::ViewSpec<0, M>{});
-            auto states_block = rlt::view_range(device_gpu, states, environment_i * M, rlt::tensor::ViewSpec<0, M>{});
-            auto reset_block = rlt::view_range(device_gpu, reset_mask, environment_i * M, rlt::tensor::ViewSpec<0, M>{});
+            auto parameters_block = rlt::view_range(device_gpu, parameters, world_i * M, rlt::tensor::ViewSpec<0, M>{});
+            auto states_block = rlt::view_range(device_gpu, states, world_i * M, rlt::tensor::ViewSpec<0, M>{});
+            auto reset_block = rlt::view_range(device_gpu, reset_mask, world_i * M, rlt::tensor::ViewSpec<0, M>{});
             constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(M, BLOCKSIZE);
-            rlt::rl::environments::hyperdrone::cuda::pose_kernel<TAG, WORLD_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device_gpu.stream>>>(tag_device, parameters_block, states_block, reset_block, staging_cameras + environment_i * M, staging_cameras + environment_i * M, rlt::data(world.prev_cameras), world.history_step, (T)WORLD_SPEC::CAM_WIDTH / (T)WORLD_SPEC::CAM_HEIGHT);
+            rlt::rl::environments::hyperdrone::cuda::pose_kernel<TAG, WORLD_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device_gpu.stream>>>(tag_device, parameters_block, states_block, reset_block, staging_cameras + world_i * M, staging_cameras + world_i * M, rlt::data(world.prev_cameras), world.history_step, (T)WORLD_SPEC::CAM_WIDTH / (T)WORLD_SPEC::CAM_HEIGHT);
         }
         cudaEventRecord(cameras_ready, device_gpu.stream);
-        for(TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++){
-            auto& world = env.environments[environment_i];
+        for(TI world_i = 0; world_i < N_WORLDS; world_i++){
+            auto& world = env.worlds[world_i];
             constexpr TI M = WORLD::INSTANCES;
             auto& renderer = rlt::get_renderer(device_gpu, world);
             cudaStream_t render_stream = rlt::stream(device_gpu, renderer);
             cudaStreamWaitEvent(render_stream, cameras_ready, 0);
-            cudaMemcpyAsync(rlt::data(rlt::cameras(device_gpu, renderer)), staging_cameras + environment_i * M, M * sizeof(rlt::rendering::raytracing::Camera<T>), cudaMemcpyDeviceToDevice, render_stream);
+            cudaMemcpyAsync(rlt::data(rlt::cameras(device_gpu, renderer)), staging_cameras + world_i * M, M * sizeof(rlt::rendering::raytracing::Camera<T>), cudaMemcpyDeviceToDevice, render_stream);
             // the host device: cameras_ready alone orders the launch, so the renderers run concurrently
             rlt::render_launch(device, renderer);
         }
@@ -314,8 +314,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
     cudaFree(hand_rolled_history);
     cudaFree(hand_rolled_observations);
     cudaEventDestroy(cameras_ready);
-    for(TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++){
-        cudaEventDestroy(render_scatter_done[environment_i]);
+    for(TI world_i = 0; world_i < N_WORLDS; world_i++){
+        cudaEventDestroy(render_scatter_done[world_i]);
     }
     rlt::free(device_gpu, parameters);
     rlt::free(device_gpu, states);
@@ -371,7 +371,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, SELF_VISIBLE_MOTION_BLUR){
         rlt::sample_initial_state(device_gpu, env, parameters, states, reset_mask, rng);
         rlt::set_all(device_gpu, reset_mask, false);
         auto body = [&](){
-            for(auto& world: env.environments){
+            for(auto& world: env.worlds){
                 using rlt::request_render;
                 request_render(device_gpu, world);
             }

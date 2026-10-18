@@ -1,4 +1,4 @@
-"""Direct bindings to the C++ rl_tools hyperdrone::MultiEnvironment<World>.
+"""Direct bindings to the C++ rl_tools rl::environments::HyperDrone<World>.
 
 The JIT extension binds the rl_tools batch verbs; this class mirrors that
 verb surface one-to-one (reset / observe / observe_privileged / step / rewards /
@@ -7,7 +7,7 @@ targets use — no runners involved.
 
 Configuration follows the C++ extension ladder: a preset names the platform
 (`presets::*` on the C++ side), a task names the wrapper (`tasks::*`), and a handful of
-universal knobs (instances_per_environment, camera resolution, fidelity, motion blur) complete the picture. Arbitrary
+universal knobs (instances_per_world, camera resolution, fidelity, motion blur) complete the picture. Arbitrary
 C++ specifications are reached through `spec_header=`: a path to a C++ header defining
 `hyperdrone_env_user::WORLD` (including any rl_tools headers it needs); the header's
 content hash is part of the JIT key, and preset/task/num_agents/num_camera_agents/cameras/observation must stay at their
@@ -57,8 +57,8 @@ _SHADING = {"low": 0, "medium": 1, "high": 2}
 
 @dataclass(frozen=True, kw_only=True)
 class EnvConfig:
-    num_environments: int = 1
-    instances_per_environment: int = 4
+    num_worlds: int = 1
+    instances_per_world: int = 4
     width: int = 32
     height: int = 32
     fidelity: str = "high"
@@ -77,7 +77,7 @@ class EnvConfig:
 
     def __post_init__(self):
         validate_control(self.control, self.actuation)
-        for name in ("num_environments", "instances_per_environment", "width", "height", "num_agents", "num_camera_agents"):
+        for name in ("num_worlds", "instances_per_world", "width", "height", "num_agents", "num_camera_agents"):
             if type(getattr(self, name)) is not int or getattr(self, name) < 1:
                 raise ValueError(f"hyperdrone: {name} must be a positive integer")
         if self.num_camera_agents > self.num_agents:
@@ -117,7 +117,7 @@ class EnvConfig:
                 raise ValueError("hyperdrone: task 'visual_inertial_localization' has no CUDA verbs — use device='cpu'")
         if self.spec_header is not None:
             defaults = EnvConfig()
-            superseded = [item.name for item in fields(self) if item.name not in ("num_environments", "spec_header", "device", "dataset") and getattr(self, item.name) != getattr(defaults, item.name)]
+            superseded = [item.name for item in fields(self) if item.name not in ("num_worlds", "spec_header", "device", "dataset") and getattr(self, item.name) != getattr(defaults, item.name)]
             if superseded:
                 raise ValueError(f"hyperdrone: spec_header supersedes {', '.join(superseded)}; leave these fields at their defaults")
             if not os.path.isfile(self.spec_header):
@@ -140,8 +140,8 @@ class EnvConfig:
         values = {
             "HYPERDRONE_CAMERA_BACKEND_REQUIREMENT": backend_requirement(self.cameras),
             "HYPERDRONE_ENV_DATASET": DATASETS[self.dataset],
-            "HYPERDRONE_ENV_NUM_ENVIRONMENTS": self.num_environments,
-            "HYPERDRONE_ENV_INSTANCES": self.instances_per_environment,
+            "HYPERDRONE_ENV_NUM_WORLDS": self.num_worlds,
+            "HYPERDRONE_ENV_INSTANCES": self.instances_per_world,
             "HYPERDRONE_ENV_CAM_WIDTH": self.width,
             "HYPERDRONE_ENV_CAM_HEIGHT": self.height,
             "HYPERDRONE_ENV_SHADING": _SHADING[self.fidelity],
@@ -208,7 +208,7 @@ def _resolve_asset(asset):
     return str(asset)
 
 
-def _normalize_scenes(scenes, num_environments):
+def _normalize_scenes(scenes, num_worlds):
     """Normalize the scene corpus into a list of local paths.
 
     Accepts a directory (the corpus is its sorted .glb files), a single reference, or a
@@ -225,24 +225,24 @@ def _normalize_scenes(scenes, num_environments):
     ]
     if len(references) == 1 and os.path.isdir(references[0]):
         count = sum(1 for name in os.listdir(references[0]) if name.endswith(".glb"))
-        if count < num_environments:
+        if count < num_worlds:
             raise ValueError(
                 f"hyperdrone: {count} .glb scene(s) in {references[0]}, but "
-                f"num_environments={num_environments} needs at least one scene per environment"
+                f"num_worlds={num_worlds} needs at least one scene per World"
             )
         return references
     missing = [reference for reference in references if not os.path.isfile(reference)]
     if missing:
         raise ValueError(f"hyperdrone: scene reference(s) not found: {missing}")
-    if len(references) < num_environments:
+    if len(references) < num_worlds:
         raise ValueError(
             f"hyperdrone: {len(references)} scene reference(s), but "
-            f"num_environments={num_environments} needs at least one scene per environment"
+            f"num_worlds={num_worlds} needs at least one scene per World"
         )
     return references
 
 
-class MultiEnvironment:
+class HyperDrone:
     """The C++ environment behind the same verb surface: construct with scenes, then
     reset(mask) -> observe() -> step(actions) -> rewards()/terminated().
 
@@ -252,7 +252,7 @@ class MultiEnvironment:
     config.dataset: "glb" uses the authored taxonomy; "procthor" requires ai2thor-hab
     metadata for semantic output. The shared taxonomy covers all scenes and overlay assets.
     drones: the drone table every agent samples from uniformly at each reset, independently of
-    the scene its environment shows: a list of {"asset": <GLB reference or None>, "parameters":
+    the scene its World shows: a list of {"asset": <GLB reference or None>, "parameters":
     {partial dict}}. The asset is the body/prop_* GLB rendered into the instance's cameras
     (required per entry when the compiled world is SELF_VISIBLE, rejected otherwise); the parameters are merged
     over the shared constructor base (see parameters) and may only touch what varies per drone: dynamics.dynamics
@@ -268,7 +268,7 @@ class MultiEnvironment:
     Tasks with an IMU stream (task='visual_inertial_localization') add observe_imu() — the
     IMU sample of the last step, named by observation_layout_imu — and render a camera frame
     only every frame_stride steps; their episodes are fixed-length and synchronized, so the
-    reset mask must be all-or-none per environment. Autonomous tasks fly themselves:
+    reset mask must be all-or-none per World. Autonomous tasks fly themselves:
     action_dim is 0 and step() takes no actions.
 
     Every verb takes host (numpy) arrays and, when the World runs on the GPU (device ==
@@ -308,7 +308,7 @@ class MultiEnvironment:
                 raise ValueError("hyperdrone: this SELF_VISIBLE world needs an asset per drone; pass drone_asset= or drones=")
             if not self.self_visible and entry.get("asset") is not None:
                 raise ValueError("hyperdrone: drone assets need a SELF_VISIBLE world, nothing would render them")
-        scene_references = _normalize_scenes(scenes, self.num_environments)
+        scene_references = _normalize_scenes(scenes, self.num_worlds)
         drone_assets = [_resolve_asset(entry.get("asset")) for entry in drones]
         assets = {name: _resolve_asset(asset) for name, asset in (assets or {}).items()}
         self.observation_layout = ObservationLayout(**self._module.observation_layout)
@@ -563,7 +563,7 @@ class MultiEnvironment:
         return out
 
     def rotate_scene(self):
-        """Selects the next scene of each environment; reset every instance before using it."""
+        """Selects the next scene of each World; reset every instance before using it."""
         self._environment.rotate_scene()
 
     def frames(self):

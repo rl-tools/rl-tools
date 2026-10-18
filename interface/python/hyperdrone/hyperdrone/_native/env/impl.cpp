@@ -91,7 +91,7 @@ namespace HYPERDRONE_MODULE_NAME {
                 reshape(field.second);
             }
             value.cameras.erase(std::lower_bound(value.cameras.begin(), value.cameras.end(), WORLD::N_VIEWS), value.cameras.end());
-            value.block_count = NUM_ENVIRONMENTS;
+            value.block_count = NUM_WORLDS;
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
             value.device_type = 2;
 #endif
@@ -114,8 +114,8 @@ namespace HYPERDRONE_MODULE_NAME {
         int device_id = 0;
         std::array<bool, TOTAL> sampled{};
         bool all_sampled = false;
-        std::array<bool, NUM_ENVIRONMENTS> captured{};
-        std::array<bool, NUM_ENVIRONMENTS> probed{};
+        std::array<bool, NUM_WORLDS> captured{};
+        std::array<bool, NUM_WORLDS> probed{};
         std::vector<hyperdrone::OutputMetadata> outputs = environment_output_metadata();
         InstanceTensor<typename WORLD::Parameters> parameters{};
         InstanceTensor<typename WORLD::Parameters> parameters_host{};
@@ -139,13 +139,13 @@ namespace HYPERDRONE_MODULE_NAME {
             }
         }
         void require_current(TI member, bool probes, const char* verb) const {
-            if(env.environments[member].render_pending || !(probes ? probed[member] : captured[member])){
+            if(env.worlds[member].render_pending || !(probes ? probed[member] : captured[member])){
                 throw std::runtime_error(std::string(probes ? "hyperdrone: render and probe before " : "hyperdrone: render or observe before ") + verb + " this output");
             }
         }
         void invalidate_pending_probes(){
-            for(TI member = 0; member < NUM_ENVIRONMENTS; member++){
-                if(env.environments[member].render_pending){
+            for(TI member = 0; member < NUM_WORLDS; member++){
+                if(env.worlds[member].render_pending){
                     probed[member] = false;
                 }
             }
@@ -165,11 +165,11 @@ namespace HYPERDRONE_MODULE_NAME {
                 std::copy(mask, mask + TOTAL, selected.begin());
             }
             if constexpr (SynchronizedResets<WORLD>::VALUE){
-                for(TI environment_i = 0; environment_i < NUM_ENVIRONMENTS; environment_i++){
-                    const auto first = selected.begin() + environment_i * WORLD::INSTANCES;
+                for(TI world_i = 0; world_i < NUM_WORLDS; world_i++){
+                    const auto first = selected.begin() + world_i * WORLD::INSTANCES;
                     const auto last = first + WORLD::INSTANCES;
                     if(std::any_of(first, last, [](bool value){ return value; }) && !std::all_of(first, last, [](bool value){ return value; })){
-                        throw std::invalid_argument("hyperdrone: the reset mask must be all-or-none per environment");
+                        throw std::invalid_argument("hyperdrone: the reset mask must be all-or-none per World");
                     }
                 }
             }
@@ -235,7 +235,7 @@ namespace HYPERDRONE_MODULE_NAME {
 
     template <typename DYNAMICS_PARAMETERS>
     std::string parameters_to_json(Environment::Impl& impl, const DYNAMICS_PARAMETERS& dynamics, const rlt::rl::environments::hyperdrone::Camera<T> (&cameras)[WORLD::N_CAMERAS_PER_AGENT], std::optional<TI> drone = std::nullopt){
-        const auto& world = impl.env.environments[0];
+        const auto& world = impl.env.worlds[0];
         std::string value = "{\"dynamics\": " + rlt::json(impl.host(), world.dynamics, dynamics) + ", \"cameras\": [";
         for(TI camera_i = 0; camera_i < WORLD::N_CAMERAS_PER_AGENT; camera_i++){
             value += (camera_i > 0 ? ", " : "") + rlt::json(impl.host(), world, cameras[camera_i]);
@@ -248,7 +248,7 @@ namespace HYPERDRONE_MODULE_NAME {
     }
     template <typename DYNAMICS_PARAMETERS>
     void parameters_from_json(Environment::Impl& impl, const nlohmann::json& parameters, DYNAMICS_PARAMETERS& dynamics, rlt::rl::environments::hyperdrone::Camera<T> (&cameras)[WORLD::N_CAMERAS_PER_AGENT]){
-        auto& world = impl.env.environments[0];
+        auto& world = impl.env.worlds[0];
         const auto& values = parameters.at("cameras");
         if(!values.is_array() || values.size() != WORLD::N_CAMERAS_PER_AGENT){
             throw std::invalid_argument("hyperdrone: provide one camera parameter dict per camera");
@@ -426,8 +426,8 @@ namespace HYPERDRONE_MODULE_NAME {
             }
         }
         for(const auto& asset : assets){
-            for(TI environment_i = 0; environment_i < NUM_ENVIRONMENTS; environment_i++){
-                if(!rlt::set_asset(impl->device, impl->env.environments[environment_i], asset.first, asset.second)){
+            for(TI world_i = 0; world_i < NUM_WORLDS; world_i++){
+                if(!rlt::set_asset(impl->device, impl->env.worlds[world_i], asset.first, asset.second)){
                     throw std::invalid_argument("hyperdrone: no task of this world consumes asset '" + asset.first + "'");
                 }
             }
@@ -450,7 +450,7 @@ namespace HYPERDRONE_MODULE_NAME {
         return taxonomy ? taxonomy->classes : std::map<uint32_t, std::string>{};
     }
     std::string Environment::parameters_json(){
-        const auto& world = impl->env.environments[0];
+        const auto& world = impl->env.worlds[0];
         return parameters_to_json(*impl, world.dynamics.parameters, world.parameters.agents[0].cameras);
     }
     std::string Environment::drones_json(){
@@ -504,7 +504,7 @@ namespace HYPERDRONE_MODULE_NAME {
                     const auto& agent_entry = WORLD::N_AGENTS == 1 ? entry : entry.at("agents").at(agent_i);
                     auto& agent = updated.back().agents[agent_i];
                     parameters_from_json(*impl, agent_entry, agent.dynamics, agent.cameras);
-                    if(agent.dynamics.integration.dt != impl->env.environments[0].dynamics.parameters.integration.dt){
+                    if(agent.dynamics.integration.dt != impl->env.worlds[0].dynamics.parameters.integration.dt){
                         throw std::invalid_argument("hyperdrone: every drone must use the same integration timestep");
                     }
                     if(agent_entry.contains("drone")){
@@ -537,8 +537,8 @@ namespace HYPERDRONE_MODULE_NAME {
         const auto reset_mask = impl->input(mask, !CUDA_WORLD, impl->mask_staging);
         using rlt::reset_controller;
         reset_controller(impl->device, impl->env, reset_mask, impl->rng);
-        for(TI environment_i = 0; environment_i < NUM_ENVIRONMENTS; environment_i++){
-            request_render(impl->device, impl->env.environments[environment_i]);
+        for(TI world_i = 0; world_i < NUM_WORLDS; world_i++){
+            request_render(impl->device, impl->env.worlds[world_i]);
         }
     }
     std::optional<std::string> Environment::model(const std::string& name){
@@ -546,7 +546,7 @@ namespace HYPERDRONE_MODULE_NAME {
         if(!hyperdrone::model_by_name<typename WORLD::SPEC>(name, dynamics)){
             return std::nullopt;
         }
-        return rlt::json(impl->host(), impl->env.environments[0].dynamics, dynamics);
+        return rlt::json(impl->host(), impl->env.worlds[0].dynamics, dynamics);
     }
     void Environment::rotate_scene(){
         impl->captured.fill(false);
@@ -564,7 +564,7 @@ namespace HYPERDRONE_MODULE_NAME {
         const auto& states = impl->on_host(impl->states, impl->states_host);
         nlohmann::json entries = nlohmann::json::array();
         for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
-            const auto& world = impl->env.environments[instance_i / WORLD::INSTANCES];
+            const auto& world = impl->env.worlds[instance_i / WORLD::INSTANCES];
             const auto& instance = rlt::get_ref(impl->host(), parameters, instance_i);
             nlohmann::json poses = nlohmann::json::array();
             for(TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++){
@@ -606,7 +606,7 @@ namespace HYPERDRONE_MODULE_NAME {
             for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
                 if(mask == nullptr || mask[instance_i]){
                     const auto& entry = entries.at(spawns.size());
-                    const auto& world = impl->env.environments[instance_i / WORLD::INSTANCES];
+                    const auto& world = impl->env.worlds[instance_i / WORLD::INSTANCES];
                     const auto& drone_entries = entry.at("drone");
                     if(!drone_entries.is_array() || drone_entries.size() != WORLD::N_AGENTS || !entry.at("poses").is_array() || entry.at("poses").size() != WORLD::N_AGENTS){
                         throw std::invalid_argument("hyperdrone: spawn drone and poses need one entry per agent");
@@ -705,8 +705,8 @@ namespace HYPERDRONE_MODULE_NAME {
         impl->require_sampled("render");
         const CurrentDevice current(impl->device_id);
         impl->invalidate_pending_probes();
-        for(TI member = 0; member < NUM_ENVIRONMENTS; member++){
-            auto& world = impl->env.environments[member];
+        for(TI member = 0; member < NUM_WORLDS; member++){
+            auto& world = impl->env.worlds[member];
             if(world.render_pending){
                 auto parameters = view_range(impl->device, impl->parameters, member * WORLD::INSTANCES, rlt::tensor::ViewSpec<0, WORLD::INSTANCES>{});
                 auto states = view_range(impl->device, impl->states, member * WORLD::INSTANCES, rlt::tensor::ViewSpec<0, WORLD::INSTANCES>{});
@@ -723,13 +723,13 @@ namespace HYPERDRONE_MODULE_NAME {
         }
         impl->require_sampled("probe");
         const CurrentDevice current(impl->device_id);
-        for(TI member = 0; member < NUM_ENVIRONMENTS; member++){
-            if(impl->env.environments[member].render_pending || !impl->captured[member]){
+        for(TI member = 0; member < NUM_WORLDS; member++){
+            if(impl->env.worlds[member].render_pending || !impl->captured[member]){
                 throw std::runtime_error("hyperdrone: render the camera poses before probing");
             }
         }
-        for(TI member = 0; member < NUM_ENVIRONMENTS; member++){
-            auto& renderer = get_renderer(impl->device, impl->env.environments[member]);
+        for(TI member = 0; member < NUM_WORLDS; member++){
+            auto& renderer = get_renderer(impl->device, impl->env.worlds[member]);
             probe(impl->device, renderer);
             impl->probed[member] = true;
         }
@@ -745,17 +745,17 @@ namespace HYPERDRONE_MODULE_NAME {
 #endif
         const auto& metadata = impl->outputs.at(index);
         const auto& layout = hyperdrone::output_layout(metadata, field);
-        const size_t count = layout.size() / NUM_ENVIRONMENTS;
+        const size_t count = layout.size() / NUM_WORLDS;
         const size_t bytes = count * layout.item_size;
         const CurrentDevice current(impl->device_id);
         hyperdrone::visit_output(index, [&](auto tag){
             using OUTPUT = typename decltype(tag)::TYPE;
             constexpr bool PROBES = std::is_same<OUTPUT, rro::Probes>::value;
-            for(TI member = 0; member < NUM_ENVIRONMENTS; member++){
+            for(TI member = 0; member < NUM_WORLDS; member++){
                 impl->require_current(member, PROBES, "reading");
             }
-            for(TI member = 0; member < NUM_ENVIRONMENTS; member++){
-                auto& renderer = get_renderer(impl->device, impl->env.environments[member]);
+            for(TI member = 0; member < NUM_WORLDS; member++){
+                auto& renderer = get_renderer(impl->device, impl->env.worlds[member]);
                 auto& source = output(impl->device, renderer, OUTPUT{});
                 auto* target = static_cast<unsigned char*>(destination) + member * bytes;
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
@@ -802,7 +802,7 @@ namespace HYPERDRONE_MODULE_NAME {
     }
 
     OutputBlock Environment::output_block(size_t index, size_t member, const std::string& field){
-        if(member >= NUM_ENVIRONMENTS){
+        if(member >= NUM_WORLDS){
             throw std::out_of_range("hyperdrone: output block index out of range");
         }
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
@@ -820,7 +820,7 @@ namespace HYPERDRONE_MODULE_NAME {
             using OUTPUT = typename decltype(tag)::TYPE;
             constexpr bool PROBES = std::is_same<OUTPUT, rro::Probes>::value;
             impl->require_current(member, PROBES, "exporting");
-            auto& renderer = get_renderer(impl->device, impl->env.environments[member]);
+            auto& renderer = get_renderer(impl->device, impl->env.worlds[member]);
             auto& source = output(impl->device, renderer, OUTPUT{});
             result.pointer = reinterpret_cast<unsigned char*>(data(source)) + result.layout.offset;
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
@@ -908,8 +908,8 @@ namespace HYPERDRONE_MODULE_NAME {
 #if HYPERDRONE_ENV_DEVICE_CUDA
         cudaStreamSynchronize(impl->device.stream);
 #endif
-        for(TI member = 0; member < NUM_ENVIRONMENTS; member++){
-            auto& renderer = get_renderer(impl->device, impl->env.environments[member]);
+        for(TI member = 0; member < NUM_WORLDS; member++){
+            auto& renderer = get_renderer(impl->device, impl->env.worlds[member]);
             render_sync(impl->device, renderer);
             probe_sync(impl->device, renderer);
         }

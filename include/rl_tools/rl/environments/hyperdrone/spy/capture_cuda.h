@@ -58,8 +58,8 @@ namespace rl_tools {
         auto& capture = *state.buffer.capture.state;
         capture.producer_stream = device.stream;
         capture.capturing = true;
-        for(size_t member = 0; member < CONFIG::ENVIRONMENT::NUMBER_OF_ENVIRONMENTS; member++) {
-            auto& world = env.environments[member];
+        for(size_t member = 0; member < CONFIG::ENVIRONMENT::N_WORLDS; member++) {
+            auto& world = env.worlds[member];
             auto& renderer = world.slots[world.active_slot].renderer;
             const float* rgb_float = nullptr;
             const uint32_t* rgb_packed = nullptr;

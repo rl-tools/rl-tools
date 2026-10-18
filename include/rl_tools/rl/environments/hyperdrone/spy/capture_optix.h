@@ -96,7 +96,7 @@ namespace rl_tools {
             const size_t member_i = state.buffer.selected_camera / CAMERAS_PER_MEMBER;
             const size_t local_camera = state.buffer.selected_camera % CAMERAS_PER_MEMBER;
             const size_t instance_i = local_camera / WORLD::N_VIEWS;
-            auto& world = env.environments[member_i];
+            auto& world = env.worlds[member_i];
             auto& renderer = world.slots[world.active_slot].renderer;
             auto* geometry = static_cast<GEOMETRY*>(capture.device_geometry);
             spy_capture_cuda_check(cudaMemcpyAsync(&geometry->camera, data(cameras(device, renderer)) + local_camera, sizeof(geometry->camera), cudaMemcpyDeviceToDevice, producer_stream));
@@ -152,7 +152,7 @@ namespace rl_tools {
         pack_spy_atlas_cpu(device, state, env);
         constexpr size_t CAMERAS_PER_MEMBER = CONFIG::WORLD::INSTANCES * CONFIG::WORLD::N_VIEWS;
         const size_t member_i = state.buffer.selected_camera / CAMERAS_PER_MEMBER;
-        auto& world = env.environments[member_i];
+        auto& world = env.worlds[member_i];
         auto& renderer = world.slots[world.active_slot].renderer;
         capture_spy_geometry(device, state, env, stream(device, renderer));
         transfer_spy_capture(device, state, false);

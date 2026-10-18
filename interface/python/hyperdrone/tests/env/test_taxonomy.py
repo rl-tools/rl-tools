@@ -9,10 +9,10 @@ import pytest
 
 from hyperdrone import render
 from hyperdrone.camera import CameraSpec, RGB, Segmentation
-from hyperdrone.env import EnvConfig, MultiEnvironment
+from hyperdrone.env import EnvConfig, HyperDrone
 
 
-CONFIG = EnvConfig(instances_per_environment=2, width=16, height=16, fidelity="low",
+CONFIG = EnvConfig(instances_per_world=2, width=16, height=16, fidelity="low",
                    cameras=(CameraSpec("front", outputs=(RGB("float32"), Segmentation(labels="semantic"))),), device="cpu")
 CLASSES = {0: "Unknown", 7: "Room"}
 
@@ -64,7 +64,7 @@ def test_shared_taxonomy_and_rotation(tmp_path, device):
     first = room_glb(tmp_path / "first.glb")
     second = room_glb(tmp_path / "second.glb", extent=6)
     for scenes in ([first, second, second, first], [second, first, first, second]):
-        env = MultiEnvironment(scenes, config=replace(CONFIG, num_environments=2, device=device))
+        env = HyperDrone(scenes, config=replace(CONFIG, num_worlds=2, device=device))
         try:
             assert env.segmentation_taxonomy == "test"
             assert env.segmentation_classes == CLASSES
@@ -93,7 +93,7 @@ def test_conflicting_scenes(tmp_path, taxonomy, classes):
     first = room_glb(tmp_path / "first.glb")
     second = room_glb(tmp_path / "second.glb", taxonomy=taxonomy, classes=classes)
     with pytest.raises(ValueError, match="incompatible segmentation taxonomies.*scene"):
-        MultiEnvironment([first, second], config=replace(CONFIG, num_environments=2))
+        HyperDrone([first, second], config=replace(CONFIG, num_worlds=2))
 
 
 def test_procthor_contract(tmp_path):
@@ -101,9 +101,9 @@ def test_procthor_contract(tmp_path):
     for name in (None, "custom"):
         scene = room_glb(tmp_path / "invalid.glb", taxonomy=name)
         with pytest.raises(ValueError, match="requires segmentation taxonomy 'ai2thor-hab'"):
-            MultiEnvironment(scene, config=config)
+            HyperDrone(scene, config=config)
     scene = room_glb(tmp_path / "procthor.glb", taxonomy="ai2thor-hab")
-    env = MultiEnvironment(scene, config=config)
+    env = HyperDrone(scene, config=config)
     try:
         assert env.segmentation_taxonomy == "ai2thor-hab"
         assert env.segmentation_classes == CLASSES
@@ -115,7 +115,7 @@ def test_procthor_contract(tmp_path):
 def test_directory_order(tmp_path, dataset):
     later = room_glb(tmp_path / "room10.glb", taxonomy="ai2thor-hab")
     earlier = room_glb(tmp_path / "room2.glb", taxonomy="ai2thor-hab", extent=6)
-    env = MultiEnvironment(tmp_path, config=replace(CONFIG, dataset=dataset))
+    env = HyperDrone(tmp_path, config=replace(CONFIG, dataset=dataset))
     try:
         for path in (earlier, later):
             env.reset()
@@ -129,7 +129,7 @@ def test_directory_order(tmp_path, dataset):
 
 def test_unnamed_and_nonsemantic(tmp_path):
     scene = room_glb(tmp_path / "unnamed.glb", taxonomy=None)
-    env = MultiEnvironment(scene, config=CONFIG)
+    env = HyperDrone(scene, config=CONFIG)
     try:
         assert env.segmentation_taxonomy == ""
         assert env.segmentation_classes == {}
@@ -140,7 +140,7 @@ def test_unnamed_and_nonsemantic(tmp_path):
         env.close()
     scenes = [room_glb(tmp_path / "one.glb"), room_glb(tmp_path / "two.glb", taxonomy="other")]
     for outputs in ((RGB("float32"),), (RGB("float32"), Segmentation())):
-        env = MultiEnvironment(scenes, config=replace(CONFIG, cameras=(CameraSpec("front", outputs=outputs),), dataset="procthor"))
+        env = HyperDrone(scenes, config=replace(CONFIG, cameras=(CameraSpec("front", outputs=outputs),), dataset="procthor"))
         try:
             assert env.segmentation_taxonomy == ""
             assert env.segmentation_classes == {}
@@ -160,7 +160,7 @@ def test_custom_world_metadata(tmp_path):
     if not asset.exists():
         pytest.skip("no x500 test asset")
     scene = room_glb(tmp_path / "room.glb", taxonomy="ai2thor-hab")
-    env = MultiEnvironment(scene, drone_asset=asset,
+    env = HyperDrone(scene, drone_asset=asset,
                            config=EnvConfig(spec_header=str(header), dataset="procthor", device="cpu"))
     try:
         assert env.segmentation_taxonomy == "ai2thor-hab"

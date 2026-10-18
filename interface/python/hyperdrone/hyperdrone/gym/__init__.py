@@ -10,13 +10,13 @@ try:
 except ImportError as error:
     raise ImportError("hyperdrone.gym needs gymnasium — pip install 'hyperdrone[gym]'") from error
 
-from ..env import EnvConfig, MultiEnvironment
+from ..env import EnvConfig, HyperDrone
 
 __all__ = ["VectorEnv"]
 
 
 class VectorEnv(gymnasium.vector.VectorEnv):
-    """Same-step autoreset vectorized environment over MultiEnvironment.
+    """Same-step autoreset vectorized environment over HyperDrone.
 
     Instances that terminate or hit the step limit reset within the same step, so the
     returned observation is the first of the new episode. No final_observation is surfaced;
@@ -28,7 +28,7 @@ class VectorEnv(gymnasium.vector.VectorEnv):
     render_mode = None
 
     def __init__(self, scenes, config=None, seed=0, **environment_arguments):
-        self._env = MultiEnvironment(scenes, config=config, seed=seed, **environment_arguments)
+        self._env = HyperDrone(scenes, config=config, seed=seed, **environment_arguments)
         if not self._env.has_image_observation:
             self._env.close()
             raise ValueError("hyperdrone: Gym requires a configured policy observation")

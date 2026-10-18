@@ -17,7 +17,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         template <typename T_ENVIRONMENT>
         struct Config {
             using ENVIRONMENT = T_ENVIRONMENT;
-            using WORLD = typename ENVIRONMENT::ENVIRONMENT;
+            using WORLD = typename ENVIRONMENT::WORLD;
             using RGB_FLOAT = rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>;
             using RGB_PACKED = rendering::raytracing::outputs::RGB<>;
             using FLOAT_ROWS = world::OutputRows<typename WORLD::RENDERER_SPEC, RGB_FLOAT, WORLD::N_CAMERAS_PER_AGENT>;
@@ -72,7 +72,7 @@ namespace rl_tools::rl::environments::hyperdrone {
             std::vector<uint32_t> rgb_packed;
             Geometry<CONFIG> geometry{};
             CaptureStorage<typename CONFIG::BACKEND> capture;
-            std::array<Frame, CONFIG::ENVIRONMENT::NUMBER_OF_ENVIRONMENTS> frames{};
+            std::array<Frame, CONFIG::ENVIRONMENT::N_WORLDS> frames{};
             SpectatorJob<typename CONFIG::T> job;
             SpectatorImage image;
             size_t selected_camera = 0;
@@ -87,7 +87,7 @@ namespace rl_tools::rl::environments::hyperdrone {
             Buffer<CONFIG> buffer;
             Spectator<typename CONFIG::SPECTATOR_CONFIG> spectator;
             std::vector<View<typename CONFIG::T>> views;
-            std::array<Frame, CONFIG::ENVIRONMENT::NUMBER_OF_ENVIRONMENTS> displayed_frames{};
+            std::array<Frame, CONFIG::ENVIRONMENT::N_WORLDS> displayed_frames{};
             std::thread::id owner;
             size_t selected_camera = 0;
             size_t columns = 1;

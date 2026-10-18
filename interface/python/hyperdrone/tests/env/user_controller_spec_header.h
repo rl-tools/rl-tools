@@ -25,7 +25,7 @@ namespace hyperdrone_env_user {
     struct SPEC: rl_tools::rl::environments::hyperdrone::presets::X500FPV<float, std::size_t> {
         using CONTROLLER = CollectiveConfig;
         static constexpr std::size_t N_CAMERA_AGENTS = 1;
-        static constexpr std::size_t INSTANCES_PER_ENVIRONMENT = 2;
+        static constexpr std::size_t INSTANCES_PER_WORLD = 2;
         static constexpr std::size_t MAX_DRONES = 3;
         static constexpr std::size_t CAM_WIDTH = 16;
         static constexpr std::size_t CAM_HEIGHT = 16;

@@ -1,9 +1,11 @@
 """hyperdrone — drone simulation stack for RLtools.
 
+hyperdrone.HyperDrone is the RL environment, re-exported from hyperdrone.env.
+
 Subpackages:
   hyperdrone.render   — raytracing renderer (self-contained, no drone dynamics)
   hyperdrone.dynamics — L2F multirotor simulator (vectorized, stateful Sim; pure dynamics)
-  hyperdrone.env      — the RL environment: the C++ MultiEnvironment behind the batch verbs
+  hyperdrone.env      — the RL environment: the C++ HyperDrone behind the batch verbs
   hyperdrone.gym      — optional Gymnasium VectorEnv adapter (pip install "hyperdrone[gym]")
 
 Render and dynamics are independent peers coupled by DLPack camera bases; env integrates them through the C++ environment. Native components are JIT-compiled per set of compile-time constants and
@@ -13,7 +15,7 @@ set_verbosity(level) selects the native log level (error|warning|info|debug, def
 """
 import importlib
 
-__all__ = ["set_verbosity", "verbosity"]
+__all__ = ["HyperDrone", "set_verbosity", "verbosity"]
 
 __version__ = "0.1.7"
 
@@ -44,10 +46,14 @@ def _register_extension(extension):
 
 
 def __getattr__(name):
+    if name == "MultiEnvironment":
+        raise ImportError("MultiEnvironment is deprecated; use 'from hyperdrone import HyperDrone' instead.")
     if name in _SUBPACKAGES:
         return importlib.import_module(f".{name}", __name__)
+    if name == "HyperDrone":
+        return importlib.import_module(".env", __name__).HyperDrone
     raise AttributeError(f"module 'hyperdrone' has no attribute {name}")
 
 
 def __dir__():
-    return sorted(list(globals()) + list(_SUBPACKAGES))
+    return sorted(list(globals()) + list(_SUBPACKAGES) + ["HyperDrone"])

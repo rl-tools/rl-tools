@@ -7,7 +7,7 @@ def _main_thread():
 
 
 class Spy:
-    """An explicitly polled native viewer, created by MultiEnvironment.spy()."""
+    """An explicitly polled native viewer, created by HyperDrone.spy()."""
 
     def __init__(self, environment):
         _main_thread()

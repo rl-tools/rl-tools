@@ -24,7 +24,7 @@ namespace hyperdrone_vio {
 
     struct DefaultWorldSpec: rlt::rl::environments::hyperdrone::presets::X500FPVIMU<T, TI> {
         static constexpr TI N_CAMERA_AGENTS = 1;
-        static constexpr TI INSTANCES_PER_ENVIRONMENT = 2;
+        static constexpr TI INSTANCES_PER_WORLD = 2;
         static constexpr bool SELF_VISIBLE = false;
     };
     using DefaultBaseWorld = rlt::rl::environments::hyperdrone::World<DefaultWorldSpec>;
@@ -35,7 +35,7 @@ namespace hyperdrone_vio {
     // stationary hold so static visual-inertial initializers can bootstrap
     struct BaselineWorldSpec: rlt::rl::environments::hyperdrone::presets::X500FPVIMU<T, TI> {
         static constexpr TI N_CAMERA_AGENTS = 1;
-        static constexpr TI INSTANCES_PER_ENVIRONMENT = 1;
+        static constexpr TI INSTANCES_PER_WORLD = 1;
         static constexpr bool SELF_VISIBLE = false;
         static constexpr TI CAM_WIDTH = 320;
         static constexpr TI CAM_HEIGHT = 240;

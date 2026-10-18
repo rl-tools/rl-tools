@@ -171,7 +171,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::imitation
 
     struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, STATIC_PARAMETERS>{
         static constexpr TI N_CAMERA_AGENTS = 1;
-        static constexpr TI INSTANCES_PER_ENVIRONMENT = N_ENVIRONMENTS_PER_SCENE;
+        static constexpr TI INSTANCES_PER_WORLD = N_ENVIRONMENTS_PER_SCENE;
         static constexpr TI CAM_WIDTH = imitation::CAM_WIDTH;
         static constexpr TI CAM_HEIGHT = imitation::CAM_HEIGHT;
         static constexpr TI NUM_PROBES = imitation::NUM_PROBES;
@@ -200,13 +200,13 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::imitation
         static constexpr TI TARGET_BANK_REFRESH_STEPS = EPISODE_STEP_LIMIT / 2;
     };
     using TASK_WORLD = rlt::rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
-    static constexpr TI NUMBER_OF_ENVIRONMENTS = N_ACTIVE_SCENES;
-    using MULTI_ENVIRONMENT = rlt::rl::environments::hyperdrone::MultiEnvironment<TASK_WORLD, NUMBER_OF_ENVIRONMENTS>;
+    static constexpr TI N_WORLDS = N_ACTIVE_SCENES;
+    using HYPERDRONE = rlt::rl::environments::HyperDrone<TASK_WORLD, N_WORLDS>;
     using ENVIRONMENT = TASK_WORLD;
     static constexpr bool RENDER_MOTION_BLUR_ACTIVE = BASE_WORLD::RENDERER_SPEC::ENABLE_MOTION_BLUR;
     static constexpr bool RENDER_ANTI_ALIASING_ACTIVE = BASE_WORLD::RENDERER_SPEC::ENABLE_ANTI_ALIASING;
     static_assert(TASK_WORLD::INSTANCES == N_ENVIRONMENTS_PER_SCENE);
-    static_assert(MULTI_ENVIRONMENT::INSTANCES == N_ENVIRONMENTS);
+    static_assert(HYPERDRONE::INSTANCES == N_ENVIRONMENTS);
     static constexpr TI OBSERVATION_DIM = BASE_WORLD::OBSERVATION_DIM;
     static constexpr TI IMG_H = BASE_WORLD::Observation::HEIGHT;
     static constexpr TI IMG_W = BASE_WORLD::Observation::WIDTH;
@@ -321,7 +321,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::imitation
     // the batched on-policy runner collects the composed observations (student input, activation
     // precision) and the teacher's privileged observations per row; the teacher's recurrent state is
     // the rollout policy state
-    using RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, MULTI_ENVIRONMENT, typename RAPTOR_MODEL::State<true>, typename TASK_WORLD::Observation, RAPTOR_OBSERVATION_TYPE, T_ACTIVATION, T, EPISODE_STEP_LIMIT, false, true, false>;
+    using RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, HYPERDRONE, typename RAPTOR_MODEL::State<true>, typename TASK_WORLD::Observation, RAPTOR_OBSERVATION_TYPE, T_ACTIVATION, T, EPISODE_STEP_LIMIT, false, true, false>;
     using RUNNER = rlt::rl::components::OnPolicyRunner<RUNNER_SPEC>;
     using RUNNER_BUFFER = rlt::rl::components::on_policy_runner::Buffer<RUNNER_SPEC>;
     using DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<RUNNER_SPEC, STEPS_PER_ENV>;

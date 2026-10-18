@@ -1,7 +1,7 @@
 import numpy as np
 
 from .. import _jit as jit, render
-from ._multi_environment import component
+from ._hyperdrone import component
 
 
 def _rotors(value, what):

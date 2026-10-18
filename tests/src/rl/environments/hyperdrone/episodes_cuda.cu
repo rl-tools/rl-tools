@@ -72,7 +72,7 @@ namespace test_hyperdrone_episodes_cuda {
 
     struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS> {
         static constexpr TI N_CAMERA_AGENTS = 1;
-        static constexpr TI INSTANCES_PER_ENVIRONMENT = 4;
+        static constexpr TI INSTANCES_PER_WORLD = 4;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
         using SHADING = rlt::rendering::raytracing::Low;

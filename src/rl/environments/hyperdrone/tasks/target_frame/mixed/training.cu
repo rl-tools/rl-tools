@@ -134,7 +134,7 @@ static_assert(CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_X == CAMERA_MOUNT_ROTATI
 static_assert(CAMERA_PITCH == static_cast<T>(0), "The Hyperdrone World uses the default forward camera mount");
 struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, STATIC_PARAMETERS>{
     static constexpr TI N_CAMERA_AGENTS = 1;
-    static constexpr TI INSTANCES_PER_ENVIRONMENT = N_ENVIRONMENTS_PER_SCENE;
+    static constexpr TI INSTANCES_PER_WORLD = N_ENVIRONMENTS_PER_SCENE;
     static constexpr TI CAM_WIDTH = training_mixed::CAM_WIDTH;
     static constexpr TI CAM_HEIGHT = training_mixed::CAM_HEIGHT;
     static constexpr TI NUM_PROBES = training_mixed::NUM_PROBES;
@@ -163,8 +163,8 @@ struct TASK_SPEC: rlt::rl::environments::hyperdrone::tasks::target_frame::Specif
     static constexpr TI TARGET_BANK_REFRESH_STEPS = IMITATION_EPISODE_STEPS;
 };
 using TASK_WORLD = rlt::rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
-static constexpr TI NUMBER_OF_ENVIRONMENTS = N_ACTIVE_SCENES;
-using MULTI_ENVIRONMENT = rlt::rl::environments::hyperdrone::MultiEnvironment<TASK_WORLD, NUMBER_OF_ENVIRONMENTS>;
+static constexpr TI N_WORLDS = N_ACTIVE_SCENES;
+using HYPERDRONE = rlt::rl::environments::HyperDrone<TASK_WORLD, N_WORLDS>;
 using ENVIRONMENT = TASK_WORLD;
 static constexpr bool RENDER_MOTION_BLUR_ACTIVE = BASE_WORLD::RENDERER_SPEC::ENABLE_MOTION_BLUR;
 static constexpr bool RENDER_ANTI_ALIASING_ACTIVE = BASE_WORLD::RENDERER_SPEC::ENABLE_ANTI_ALIASING;
@@ -193,7 +193,7 @@ using FEATURE_SHAPE = typename MATCHING_TYPE::OUTPUT_SHAPE;
 static constexpr TI FEATURE_DIM = rlt::product(rlt::tensor::PopFront<rlt::tensor::PopFront<FEATURE_SHAPE>>{});
 using CHECKPOINT_ACTOR_TYPE = typename ACTOR_CONFIG::EXPORT_MODEL::template CHANGE_BATCH_SIZE<TI, N_EXAMPLES>;
 using ROLLOUT_POLICY_STATE = typename ROLLOUT_ACTOR_TYPE::template State<true>;
-using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, MULTI_ENVIRONMENT, ROLLOUT_POLICY_STATE, typename BASE_WORLD::Observation, typename BASE_WORLD::ObservationPrivileged, T, T, EPISODE_STEP_LIMIT, LOOP_CORE_PARAMETERS::PPO_PARAMETERS::TRUNCATE_ON_EACH_ITERATION, true, LOOP_CORE_PARAMETERS::PPO_PARAMETERS::BOOTSTRAP_TRUNCATIONS || LOOP_CORE_PARAMETERS::PPO_PARAMETERS::IGNORE_TERMINATION>;
+using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, HYPERDRONE, ROLLOUT_POLICY_STATE, typename BASE_WORLD::Observation, typename BASE_WORLD::ObservationPrivileged, T, T, EPISODE_STEP_LIMIT, LOOP_CORE_PARAMETERS::PPO_PARAMETERS::TRUNCATE_ON_EACH_ITERATION, true, LOOP_CORE_PARAMETERS::PPO_PARAMETERS::BOOTSTRAP_TRUNCATIONS || LOOP_CORE_PARAMETERS::PPO_PARAMETERS::IGNORE_TERMINATION>;
 using ON_POLICY_RUNNER = rlt::rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC>;
 using ON_POLICY_RUNNER_BUFFER = rlt::rl::components::on_policy_runner::Buffer<ON_POLICY_RUNNER_SPEC>;
 using ON_POLICY_RUNNER_DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, LOOP_CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV, true>;
@@ -589,8 +589,8 @@ int main(int argc, char** argv){
     malloc(device, actor_optimizer);
     malloc(device, critic_optimizer);
 
-    auto* env_storage = new MULTI_ENVIRONMENT{};
-    MULTI_ENVIRONMENT& env = *env_storage;
+    auto* env_storage = new HYPERDRONE{};
+    HYPERDRONE& env = *env_storage;
     env.shared.annotation_cache.directory = rlt::rendering::datasets::annotations::default_cache_directory();
     malloc(device_gpu, env);
     typename decltype(scene_dataset)::Corpus scene_corpus;
@@ -600,16 +600,16 @@ int main(int argc, char** argv){
         return 1;
     }
     scene_corpus.references.resize(N_TOTAL_SCENES);
-    for(TI member_i = 0; member_i < NUMBER_OF_ENVIRONMENTS; member_i++){
-        auto& world = env.environments[member_i];
+    for(TI member_i = 0; member_i < N_WORLDS; member_i++){
+        auto& world = env.worlds[member_i];
         world.rng_offset = member_i * N_ENVIRONMENTS_PER_SCENE;
         world.parameters.agents[0].cameras[0].fov = CAMERA_FOV;
         rlt::init(device_gpu, world, env.shared, scene_dataset, scene_corpus, (TI)0, N_TOTAL_SCENES, member_i);
     }
-    std::cout << "Loaded " << N_TOTAL_SCENES << " scenes on " << NUMBER_OF_ENVIRONMENTS << " Worlds" << std::endl;
+    std::cout << "Loaded " << N_TOTAL_SCENES << " scenes on " << N_WORLDS << " Worlds" << std::endl;
 
     {
-        std::string ui = get_ui(device, env.environments[0].dynamics);
+        std::string ui = get_ui(device, env.worlds[0].dynamics);
         if(!ui.empty()){
             std::filesystem::create_directories(extrack_paths.seed);
             std::ofstream ui_file(extrack_paths.seed / "ui.esm.js");
@@ -811,8 +811,8 @@ int main(int argc, char** argv){
         bool log_reward_components_this_step = ppo_step_i % REWARD_COMPONENT_LOG_INTERVAL_PPO_STEPS == 0;
         if(scene_set_boundary){
             std::shuffle(scene_permutation.begin(), scene_permutation.end(), scene_rng);
-            for(TI member_i = 0; member_i < NUMBER_OF_ENVIRONMENTS; member_i++){
-                select_scene(device_gpu, env.environments[member_i], scene_permutation[member_i]);
+            for(TI member_i = 0; member_i < N_WORLDS; member_i++){
+                select_scene(device_gpu, env.worlds[member_i], scene_permutation[member_i]);
             }
             if(ppo_step_i == 0){
                 init(device_gpu, gpu_runner, env, rng_gpu);
@@ -844,16 +844,16 @@ int main(int argc, char** argv){
         for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i++){
             evaluate_values(device_gpu, dataset_gpu, ppo_gpu.critic, critic_states_gae, critic_buffers_gae, rng_gpu, step_i);
             auto state_observations = view_range(device_gpu, gpu_all_state_observations, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
-            mixed_state_observation_kernel<<<grid, block, 0, device_gpu.stream>>>(tag_device, env.environments[0].dynamics, gpu_env_parameters, gpu_env_states, gpu_runner.reset, state_observations, rng_gpu);
+            mixed_state_observation_kernel<<<grid, block, 0, device_gpu.stream>>>(tag_device, env.worlds[0].dynamics, gpu_env_parameters, gpu_env_states, gpu_runner.reset, state_observations, rng_gpu);
             check_status(device_gpu);
             geometric_teacher_kernel<<<grid, block, 0, device_gpu.stream>>>(tag_device, data(gpu_env_states), data(state_observations), gpu_runner.episode_step, data(teacher_body_positions), data(teacher_actions_gpu) + step_i * N_ENVIRONMENTS * ACTION_DIM);
             check_status(device_gpu);
             if(video_pipe != nullptr){
                 const T* obs_ptr = data(dataset_gpu.all_observations) + step_i * N_ENVIRONMENTS * OBSERVATION_DIM;
                 cudaMemcpyAsync(video_observations.data(), obs_ptr, video_observations.size() * sizeof(T), cudaMemcpyDeviceToHost, device_gpu.stream);
-                for(TI member_i = 0; member_i < NUMBER_OF_ENVIRONMENTS; member_i++){
+                for(TI member_i = 0; member_i < N_WORLDS; member_i++){
                     constexpr TI M = TASK_WORLD::INSTANCES;
-                    cudaMemcpyAsync(video_targets.data() + member_i * M * OBSERVATION_DIM, data(env.environments[member_i].target_frames), M * OBSERVATION_DIM * sizeof(T), cudaMemcpyDeviceToHost, device_gpu.stream);
+                    cudaMemcpyAsync(video_targets.data() + member_i * M * OBSERVATION_DIM, data(env.worlds[member_i].target_frames), M * OBSERVATION_DIM * sizeof(T), cudaMemcpyDeviceToHost, device_gpu.stream);
                 }
                 cudaStreamSynchronize(device_gpu.stream);
                 check_status(device_gpu);
@@ -971,7 +971,7 @@ int main(int argc, char** argv){
             for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                 set(reward_log_action, 0, action_i, get(dataset.actions, REWARD_LOG_POS, action_i));
             }
-            log_reward(device, env.environments[0].dynamics, reward_log_parameters.agents[0].dynamics, reward_log_state, reward_log_action, reward_log_next_state, reward_log_rng);
+            log_reward(device, env.worlds[0].dynamics, reward_log_parameters.agents[0].dynamics, reward_log_state, reward_log_action, reward_log_next_state, reward_log_rng);
         }
         {
             T length_sum = 0;
@@ -1126,7 +1126,7 @@ int main(int argc, char** argv){
                     TrajectoryStep ts;
                     ts.state = trajectory_states[step_i * TRAJECTORY_NUM_ENVS + env_i];
                     ts.parameters = trajectory_parameters[step_i * TRAJECTORY_NUM_ENVS + env_i];
-                    const auto& world = env.environments[env_i / N_ENVIRONMENTS_PER_SCENE];
+                    const auto& world = env.worlds[env_i / N_ENVIRONMENTS_PER_SCENE];
                     ts.scene_hash = world.slots[world.active_slot].metadata.content_hash;
                     for(TI a = 0; a < ACTION_DIM; a++){
                         ts.actions[a] = get(dataset.actions, pos, a);
@@ -1145,7 +1145,7 @@ int main(int argc, char** argv){
             }
             if(!completed_episodes.empty()){
                 auto step_folder = get_step_folder(device, extrack_config, extrack_paths, environment_step);
-                std::string trajectories_json = trajectory_episodes_to_json(device, env.environments[0], completed_episodes, simulation_dt);
+                std::string trajectories_json = trajectory_episodes_to_json(device, env.worlds[0], completed_episodes, simulation_dt);
                 std::vector<uint8_t> compressed;
                 if(rlt::compress_zlib(trajectories_json, compressed)){
                     std::filesystem::path trajectories_path = step_folder / "trajectories.json.gz";
@@ -1464,7 +1464,7 @@ int main(int argc, char** argv){
 
             char fov_buf[32];
             std::snprintf(fov_buf, sizeof(fov_buf), "%.6g", (double)CAMERA_FOV);
-            std::string state_obs_string = rlt::string(device, env.environments[0].dynamics, ACTOR_STATE_OBS{});
+            std::string state_obs_string = rlt::string(device, env.worlds[0].dynamics, ACTOR_STATE_OBS{});
             const auto gyro_observation = state_obs_string.find("AngularVelocity");
             if(gyro_observation == std::string::npos){
                 throw std::runtime_error("Missing gyro observation metadata");

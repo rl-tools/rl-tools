@@ -6,13 +6,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from hyperdrone.env import EnvConfig, MultiEnvironment, ObservationLayout
+from hyperdrone.env import EnvConfig, HyperDrone, ObservationLayout
 from hyperdrone._jit import source_root
 
 GOLDEN = source_root() / "tests" / "data" / "rl" / "environments" / "hyperdrone" / "python_golden"
 
 # the generator's World runs on the host; a CUDA World draws from a different RNG engine
-CONFIG = EnvConfig(num_environments=1, instances_per_environment=2, width=16, height=16, fidelity="low", device="cpu")
+CONFIG = EnvConfig(num_worlds=1, instances_per_world=2, width=16, height=16, fidelity="low", device="cpu")
 
 
 def observe_pair(env):
@@ -48,7 +48,7 @@ def test_golden_rollout(scene_directory):
     manifest = json.loads((GOLDEN / "manifest.json").read_text())
     scalar_defines = {name: value for name, value in CONFIG.defines().items() if name != "HYPERDRONE_CAMERA_BACKEND_REQUIREMENT"}
     assert scalar_defines == {name: manifest["defines"][name] for name in scalar_defines}, "the test configuration drifted from the golden's — regenerate deliberately"
-    env = MultiEnvironment(scene_directory, config=CONFIG, seed=manifest["seed"])
+    env = HyperDrone(scene_directory, config=CONFIG, seed=manifest["seed"])
     try:
         assert env.observation_layout == layout_from_json(manifest["observation_layout"])
         assert env.observation_layout_privileged == layout_from_json(manifest["observation_layout_privileged"])

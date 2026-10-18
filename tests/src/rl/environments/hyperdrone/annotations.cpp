@@ -63,13 +63,13 @@ namespace test_hyperdrone_annotations {
 
     struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS> {
         static constexpr TI N_CAMERA_AGENTS = 1;
-        static constexpr TI INSTANCES_PER_ENVIRONMENT = 2;
+        static constexpr TI INSTANCES_PER_WORLD = 2;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
         using SHADING = rlt::rendering::raytracing::Low;
     };
     using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
-    using ENVIRONMENT = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, 1>;
+    using ENVIRONMENT = rlt::rl::environments::HyperDrone<WORLD, 1>;
     using ANNOTATIONS = typename WORLD::ANNOTATIONS;
     using GLB = rlt::rendering::datasets::procthor::GLB;
 }
@@ -103,7 +103,7 @@ static void init_and_capture(DEVICE& device, const DATASET& dataset, const std::
     rlt::malloc(device, env);
     env.shared.annotation_cache.directory = cache_directory;
     rlt::init(device, env, dataset);
-    annotations_out = env.environments[0].slots[0].annotations;
+    annotations_out = env.worlds[0].slots[0].annotations;
     rlt::free(device, env);
 }
 
@@ -204,7 +204,7 @@ TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, PARAMETER_KEYING) {
     ENVIRONMENT env;
     rlt::malloc(device, env);
     rlt::init(device, env, dataset);
-    auto& slot = env.environments[0].slots[0];
+    auto& slot = env.worlds[0].slots[0];
 
     // different parameters are different cache entries; each warm read is bit-identical to the
     // uncached scan with the same parameters

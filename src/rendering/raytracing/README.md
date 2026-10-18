@@ -245,8 +245,8 @@ and the `_launch`/`_sync` verb split maps onto phase-based scheduling.
 
 Browser demo: `src/rl/environments/hyperdrone/web/build.sh` compiles the WebGPU backend to
 WASM with an activated emsdk (`--use-port=emdawnwebgpu`, ASYNCIFY, `-fexceptions` — assimp
-relies on internal try/catch) and the page in `static/hyperdrone/` uses HyperDrone's
-MultiEnvironment for interactive flight with two mounted RGB cameras and onboard depth,
+relies on internal try/catch) and the page in `static/hyperdrone/` uses the
+HyperDrone environment for interactive flight with two mounted RGB cameras and onboard depth,
 semantic segmentation, normals, and optical flow. RAPTOR runs at 100 Hz: WASD moves horizontally,
 E ascends, and Q descends through current-relative position and velocity targets; releasing
 the keys holds position and altitude. Combined input is normalized to the configured speed. Click a
@@ -254,7 +254,7 @@ camera to capture or release the mouse, horizontal mouse motion controls yaw, an
 holds position without user input; hidden tabs pause. The scene selector uses the shared
 `procthor::Train200` catalog. `static/hyperdrone/registry.json` pins the rigged airframes and
 RAPTOR checkpoint; `pose.json` pins the default scene and its starting position in FLU meters
-and yaw in degrees (other scenes use MultiEnvironment's free-space annotations).
+and yaw in degrees (other scenes use HyperDrone's free-space annotations).
 The browser conta `load` resolver reuses verified gzip assets from persistent browser Cache Storage;
 on a miss it requests `blob/<sha1>.gz`, then the format-1 conta providers, preferring advertised gzip
 variants. Scene, airframe, and RAPTOR downloads share this cache; raw-only assets are gzipped before

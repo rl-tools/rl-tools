@@ -8,7 +8,7 @@ import inspect
 import pytest
 
 SURFACE = {
-    "hyperdrone": ["set_verbosity", "verbosity"],
+    "hyperdrone": ["HyperDrone", "set_verbosity", "verbosity"],
     "hyperdrone.camera": ["CameraSpec", "RGB", "Depth", "Segmentation", "Normals", "Flow", "FlowStatus", "Probes", "ImageObservation", "OutputDescriptor"],
     "hyperdrone.render": [
         "AGENT_SEGMENTATION_CLASS",
@@ -42,7 +42,7 @@ SURFACE = {
     "hyperdrone.env": [
         "EnvConfig",
         "ImageObservation",
-        "MultiEnvironment",
+        "HyperDrone",
         "ObservationLayout",
         "Rotorcraft",
     ],
@@ -57,11 +57,17 @@ def test_public_surface_is_locked():
         )
 
 
+def test_top_level_hyperdrone_is_the_environment():
+    import hyperdrone
+    from hyperdrone.env import HyperDrone
+    assert hyperdrone.HyperDrone is HyperDrone
+
+
 def test_sim_has_no_mdp_surface():
     from hyperdrone.dynamics import Sim
     for name in ("set_compute_mdp", "rewards", "terminated"):
         assert not hasattr(Sim, name), (
-            f"Sim.{name} was removed — reward/termination live in hyperdrone.env.MultiEnvironment"
+            f"Sim.{name} was removed — reward/termination live in hyperdrone.env.HyperDrone"
         )
 
 
@@ -98,11 +104,11 @@ SIGNATURES = {
     "hyperdrone.dynamics.Sim.camera_bases_dlpack": (),
     "hyperdrone.env.EnvConfig": (),
     "hyperdrone.env.ObservationLayout": (),
-    "hyperdrone.env.MultiEnvironment": ("scenes",),
-    "hyperdrone.env.MultiEnvironment.reset": ("mask",),
-    "hyperdrone.env.MultiEnvironment.step": ("actions",),
-    "hyperdrone.env.MultiEnvironment.set_instance_parameters": ("overrides", "mask"),
-    **{f"hyperdrone.env.MultiEnvironment.{name}": () for name in ("observe", "observe_privileged", "observe_imu", "rewards", "terminated", "render", "probe", "spy")},
+    "hyperdrone.env.HyperDrone": ("scenes",),
+    "hyperdrone.env.HyperDrone.reset": ("mask",),
+    "hyperdrone.env.HyperDrone.step": ("actions",),
+    "hyperdrone.env.HyperDrone.set_instance_parameters": ("overrides", "mask"),
+    **{f"hyperdrone.env.HyperDrone.{name}": () for name in ("observe", "observe_privileged", "observe_imu", "rewards", "terminated", "render", "probe", "spy")},
     "hyperdrone.env.Rotorcraft": ("assembly",),
 }
 

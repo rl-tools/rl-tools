@@ -62,7 +62,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         using DYNAMICS_STATIC_PARAMETERS = T_DYNAMICS_STATIC_PARAMETERS;
         using CONTROLLER = controllers::direct::Config<DYNAMICS_STATIC_PARAMETERS::ACTION_INTERFACE>;
         // derive-and-shadow: override by deriving from this Specification and shadowing members
-        static constexpr TI INSTANCES_PER_ENVIRONMENT = 64;
+        static constexpr TI INSTANCES_PER_WORLD = 64;
         static constexpr TI N_AGENTS = 1;
         static constexpr T AGENT_COLLISION_DISTANCE = 0.15;
         static constexpr TI CAM_WIDTH = 64;
@@ -164,7 +164,7 @@ namespace rl_tools::rl::environments::hyperdrone {
             using TI = typename SPEC::TI;
             static constexpr TI CAM_WIDTH = SPEC::CAM_WIDTH;
             static constexpr TI CAM_HEIGHT = SPEC::CAM_HEIGHT;
-            static constexpr TI NUM_CAMERAS = SPEC::INSTANCES_PER_ENVIRONMENT * SPEC::N_CAMERA_AGENTS * SPEC::CAMERA_OUTPUTS::COUNT;
+            static constexpr TI NUM_CAMERAS = SPEC::INSTANCES_PER_WORLD * SPEC::N_CAMERA_AGENTS * SPEC::CAMERA_OUTPUTS::COUNT;
             static constexpr TI NUM_PROBES = SPEC::NUM_PROBES;
             using SHADING = typename SPEC::SHADING;
             using DECLARED_OUTPUTS = typename RendererOutputs<typename SPEC::CAMERA_OUTPUTS>::TYPE;
@@ -174,7 +174,7 @@ namespace rl_tools::rl::environments::hyperdrone {
             static constexpr TI MOTION_BLUR_SAMPLES = SPEC::MOTION_BLUR_SAMPLES;
             static constexpr bool ENABLE_ANTI_ALIASING = SPEC::ENABLE_ANTI_ALIASING;
             static constexpr TI ANTI_ALIASING_GRID_SIZE = SPEC::ANTI_ALIASING_GRID_SIZE;
-            static constexpr TI NUM_OVERLAYS = SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE > 0 ? SPEC::INSTANCES_PER_ENVIRONMENT : 0;
+            static constexpr TI NUM_OVERLAYS = SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE > 0 ? SPEC::INSTANCES_PER_WORLD : 0;
             static constexpr TI MAX_OVERLAY_INSTANCES = SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE;
             static constexpr TI MAX_OVERLAYS_PER_CAMERA = SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE > 0 ? 1 : 0;
             static constexpr bool ENABLE_DYNAMIC_MOTION_BLUR = SPEC::ENABLE_MOTION_BLUR && SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE > 0;
@@ -277,7 +277,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         TI mesh = 0;
     };
 
-    // owned by the caller (typically the MultiEnvironment) and shared by all its Worlds: the
+    // owned by the caller (typically the HyperDrone) and shared by all its Worlds: the
     // AssetLibrary, the pool-asset registry (entities, deduplicated by path, registered before
     // any hot slot builds) and the drone table, built once by init(device, shared) from the
     // entries registered before the first World init (none: that World registers its nominal
@@ -315,13 +315,13 @@ namespace rl_tools::rl::environments::hyperdrone {
         static_assert(SPEC::N_AGENTS == 1 || SPEC::SELF_VISIBLE, "multi-agent Worlds require SELF_VISIBLE: agents seeing each other needs geometry to see");
 
         using CONTROLLER_CONFIG = typename SPEC::CONTROLLER;
-        using CONTROLLER = typename CONTROLLER_CONFIG::template Bind<numeric_types::Policy<T>, TI, SPEC::INSTANCES_PER_ENVIRONMENT * SPEC::N_AGENTS>;
+        using CONTROLLER = typename CONTROLLER_CONFIG::template Bind<numeric_types::Policy<T>, TI, SPEC::INSTANCES_PER_WORLD * SPEC::N_AGENTS>;
         using DYNAMICS_STATIC_PARAMETERS = typename CONTROLLER_CONFIG::template DynamicsParameters<typename SPEC::DYNAMICS_STATIC_PARAMETERS>;
         using DYNAMICS_ENV = Multirotor<l2f::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS>>;
         using State = utils::typing::conditional_t<SPEC::N_AGENTS == 1, typename DYNAMICS_ENV::State, world::MultiAgentState<typename DYNAMICS_ENV::State, TI, SPEC::N_AGENTS>>;
         using Parameters = hyperdrone::Parameters<SPEC>;
 
-        static constexpr TI INSTANCES = SPEC::INSTANCES_PER_ENVIRONMENT;
+        static constexpr TI INSTANCES = SPEC::INSTANCES_PER_WORLD;
         static constexpr TI N_AGENTS = SPEC::N_AGENTS;
         static constexpr TI N_CAMERA_AGENTS = SPEC::N_CAMERA_AGENTS;
         static constexpr TI N_CAMERAS_PER_AGENT = SPEC::CAMERA_OUTPUTS::COUNT;
@@ -436,34 +436,35 @@ namespace rl_tools::rl::environments::hyperdrone {
         // dynamics and camera nominal is drone 0 after init
         Parameters parameters;
     };
+}
+namespace rl_tools::rl::environments {
+    // the root environment: it satisfies the batch-verb contract by fanning out to its Worlds over
+    // contiguous instance blocks (flat, world-major). The Worlds are identical (base Worlds or task
+    // wrappers over them); the shared AssetLibrary lives in the World-defined SharedContext, the
+    // dataset corpus is enumerated at init
+    template <typename T_WORLD, typename T_WORLD::TI T_N_WORLDS>
+    struct HyperDrone{
+        using WORLD = T_WORLD;
+        using T = typename WORLD::T;
+        using TI = typename WORLD::TI;
+        static constexpr TI N_WORLDS = T_N_WORLDS;
+        static_assert(N_WORLDS > 0);
 
-    // the composite is itself an environment: it satisfies the batch-verb contract by fanning
-    // out to its members over contiguous instance blocks (flat, member-major). Members are
-    // identical Worlds (or task wrappers over Worlds); the shared AssetLibrary lives in the
-    // member-defined SharedContext, the dataset corpus is enumerated at init
-    template <typename T_ENVIRONMENT, typename T_ENVIRONMENT::TI T_NUMBER_OF_ENVIRONMENTS>
-    struct MultiEnvironment{
-        using ENVIRONMENT = T_ENVIRONMENT;
-        using T = typename ENVIRONMENT::T;
-        using TI = typename ENVIRONMENT::TI;
-        static constexpr TI NUMBER_OF_ENVIRONMENTS = T_NUMBER_OF_ENVIRONMENTS;
-        static_assert(NUMBER_OF_ENVIRONMENTS > 0);
+        using State = typename WORLD::State;
+        using Parameters = typename WORLD::Parameters;
+        using Observation = typename WORLD::Observation;
+        using ObservationPrivileged = typename WORLD::ObservationPrivileged;
+        static constexpr TI N_AGENTS = WORLD::N_AGENTS;
+        static constexpr TI N_CAMERA_AGENTS = WORLD::N_CAMERA_AGENTS;
+        static constexpr TI N_CAMERAS_PER_AGENT = WORLD::N_CAMERAS_PER_AGENT;
+        static constexpr TI ACTION_DIM = WORLD::ACTION_DIM;
+        static constexpr TI EPISODE_STEP_LIMIT = WORLD::EPISODE_STEP_LIMIT;
+        static constexpr TI INSTANCES_PER_WORLD = WORLD::INSTANCES;
+        static constexpr TI INSTANCES = N_WORLDS * INSTANCES_PER_WORLD;
 
-        using State = typename ENVIRONMENT::State;
-        using Parameters = typename ENVIRONMENT::Parameters;
-        using Observation = typename ENVIRONMENT::Observation;
-        using ObservationPrivileged = typename ENVIRONMENT::ObservationPrivileged;
-        static constexpr TI N_AGENTS = ENVIRONMENT::N_AGENTS;
-        static constexpr TI N_CAMERA_AGENTS = ENVIRONMENT::N_CAMERA_AGENTS;
-        static constexpr TI N_CAMERAS_PER_AGENT = ENVIRONMENT::N_CAMERAS_PER_AGENT;
-        static constexpr TI ACTION_DIM = ENVIRONMENT::ACTION_DIM;
-        static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT::EPISODE_STEP_LIMIT;
-        static constexpr TI INSTANCES_PER_ENVIRONMENT = ENVIRONMENT::INSTANCES;
-        static constexpr TI INSTANCES = NUMBER_OF_ENVIRONMENTS * INSTANCES_PER_ENVIRONMENT;
-
-        using SharedContext = typename ENVIRONMENT::SharedContext;
+        using SharedContext = typename WORLD::SharedContext;
         SharedContext shared;
-        ENVIRONMENT environments[NUMBER_OF_ENVIRONMENTS];
+        WORLD worlds[N_WORLDS];
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

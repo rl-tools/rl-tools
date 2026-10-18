@@ -7,7 +7,7 @@ import weakref
 import pytest
 
 from hyperdrone.camera import CameraSpec, RGB, ImageObservation
-from hyperdrone.env import MultiEnvironment
+from hyperdrone.env import HyperDrone
 
 
 class NativeEnvironment:
@@ -33,7 +33,7 @@ class NativeEnvironment:
 
 @pytest.fixture
 def environment():
-    env = MultiEnvironment.__new__(MultiEnvironment)
+    env = HyperDrone.__new__(HyperDrone)
     env._environment = NativeEnvironment()
     env._spy = None
     yield env
@@ -78,7 +78,7 @@ def test_environment_close_closes_spy_and_rejects_reopen(environment):
 
 
 def test_spy_keeps_native_environment_alive_without_reference_cycle():
-    env = MultiEnvironment.__new__(MultiEnvironment)
+    env = HyperDrone.__new__(HyperDrone)
     env._environment = NativeEnvironment()
     env._spy = None
     native = weakref.ref(env._environment)
@@ -135,9 +135,9 @@ def test_native_spy_preserves_rollout_and_environment_lifecycle(tmp_path, num_ca
     from test_taxonomy import room_glb
 
     scenes = [room_glb(tmp_path / "first.glb", taxonomy=None), room_glb(tmp_path / "second.glb", taxonomy=None, extent=6)]
-    config = EnvConfig(instances_per_environment=2, width=32, height=32, fidelity="low", cameras=tuple(CameraSpec(name, outputs=(RGB("float32"),)) for name in ("front", "rear")[:num_cameras_per_agent]), observation=ImageObservation(cameras=("front", "rear")[:num_cameras_per_agent]))
-    control = MultiEnvironment(scenes, config=config, seed=1337)
-    observed = MultiEnvironment(scenes, config=config, seed=1337)
+    config = EnvConfig(instances_per_world=2, width=32, height=32, fidelity="low", cameras=tuple(CameraSpec(name, outputs=(RGB("float32"),)) for name in ("front", "rear")[:num_cameras_per_agent]), observation=ImageObservation(cameras=("front", "rear")[:num_cameras_per_agent]))
+    control = HyperDrone(scenes, config=config, seed=1337)
+    observed = HyperDrone(scenes, config=config, seed=1337)
     try:
         control.reset()
         observed.reset()

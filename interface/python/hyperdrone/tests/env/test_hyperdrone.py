@@ -10,7 +10,7 @@ import pytest
 
 import conta
 import hyperdrone
-from hyperdrone.env import EnvConfig, MultiEnvironment, ImageObservation
+from hyperdrone.env import EnvConfig, HyperDrone, ImageObservation
 from hyperdrone.camera import CameraSpec, RGB, Flow, FlowStatus
 from hyperdrone._jit import source_root
 
@@ -26,10 +26,10 @@ def scene_directory(tmp_path_factory):
     return directory
 
 
-CONFIG = EnvConfig(num_environments=1, instances_per_environment=2, width=32, height=32, fidelity="low")
+CONFIG = EnvConfig(num_worlds=1, instances_per_world=2, width=32, height=32, fidelity="low")
 
 
-@pytest.mark.parametrize("name", ["num_environments", "instances_per_environment", "width", "height", "num_agents", "num_camera_agents"])
+@pytest.mark.parametrize("name", ["num_worlds", "instances_per_world", "width", "height", "num_agents", "num_camera_agents"])
 @pytest.mark.parametrize("value", [0, -1, 2.5, True])
 def test_positive_integer_configuration(name, value):
     with pytest.raises(ValueError, match=f"{name} must be a positive integer"):
@@ -55,7 +55,7 @@ def test_tasks_reject_multiple_agents(task):
 
 
 def test_reset_guard_and_repeated_acquisition(scene_directory):
-    env = MultiEnvironment(scene_directory, config=CONFIG)
+    env = HyperDrone(scene_directory, config=CONFIG)
     try:
         actions = np.zeros((env.total_instances, env.action_dim), dtype=np.float32)
         verbs = [env.observe, env.observe_privileged, env.instance_parameters, env.spawn_points, lambda: env.step(actions)]
@@ -81,7 +81,7 @@ def test_privileged_reads_do_not_change_trajectory(scene_directory):
     parameters = {"dynamics": {"mdp": {"observation_noise": {"position": 0.05, "orientation": 0.05, "linear_velocity": 0.05, "angular_velocity": 0.05}, "action_noise": {"normalized_rpm": 0.05}}}}
     records = []
     for reads in (0, 1, 3):
-        env = MultiEnvironment(scene_directory, config=CONFIG, seed=987, parameters=parameters)
+        env = HyperDrone(scene_directory, config=CONFIG, seed=987, parameters=parameters)
         try:
             env.reset()
             actions = np.zeros((env.total_instances, env.action_dim), dtype=np.float32)
@@ -101,7 +101,7 @@ def test_environment_verbosity(scene_directory, capfd, monkeypatch):
     try:
         for level in ("warning", "debug"):
             hyperdrone.set_verbosity(level)
-            environment = MultiEnvironment(scene_directory, config=CONFIG, seed=0)
+            environment = HyperDrone(scene_directory, config=CONFIG, seed=0)
             try:
                 backend = environment.render_backend
                 with monkeypatch.context() as context:
@@ -121,7 +121,7 @@ def test_environment_verbosity(scene_directory, capfd, monkeypatch):
 
 
 def rollout(scene_directory, seed, steps=3):
-    env = MultiEnvironment(scene_directory, config=CONFIG, seed=seed)
+    env = HyperDrone(scene_directory, config=CONFIG, seed=seed)
     try:
         assert env.total_instances == 2
         assert env.action_dim == 4
@@ -158,8 +158,8 @@ def test_verb_sequence_shapes_and_determinism(scene_directory):
 
 
 def test_configurations_keep_independent_state(scene_directory):
-    small = MultiEnvironment(scene_directory, config=EnvConfig(instances_per_environment=2, width=16, height=16, fidelity="low"), seed=5)
-    large = MultiEnvironment(scene_directory, config=CONFIG, seed=5)
+    small = HyperDrone(scene_directory, config=EnvConfig(instances_per_world=2, width=16, height=16, fidelity="low"), seed=5)
+    large = HyperDrone(scene_directory, config=CONFIG, seed=5)
     try:
         assert type(small._environment) is not type(large._environment)
         for environment in (small, large):
@@ -182,7 +182,7 @@ def test_motion_blur_shutter_reset_and_determinism(scene_directory):
     assert config.key() != CONFIG.key()
     records = []
     for _ in range(2):
-        env = MultiEnvironment(scene_directory, config=config, seed=5)
+        env = HyperDrone(scene_directory, config=config, seed=5)
         try:
             env.reset()
             env.observe()
@@ -204,7 +204,7 @@ def test_motion_blur_shutter_reset_and_determinism(scene_directory):
 
 
 def test_native_binding_rejects_invalid_buffers(scene_directory):
-    environment = MultiEnvironment(scene_directory, config=CONFIG)
+    environment = HyperDrone(scene_directory, config=CONFIG)
     try:
         with pytest.raises(ValueError, match="buffer size"):
             environment._environment.reset(np.ones(1, dtype=bool))
@@ -220,7 +220,7 @@ def test_native_binding_rejects_invalid_buffers(scene_directory):
 
 
 def test_frames_and_rotate_scene(scene_directory):
-    env = MultiEnvironment(scene_directory, config=CONFIG, seed=7)
+    env = HyperDrone(scene_directory, config=CONFIG, seed=7)
     try:
         mask = np.ones(env.total_instances, dtype=np.uint8)
         env.reset(mask)
@@ -236,7 +236,7 @@ def test_frames_and_rotate_scene(scene_directory):
 
 
 def nominal_rollout(scene_directory, parameters=None):
-    env = MultiEnvironment(scene_directory, config=CONFIG, seed=3, parameters=parameters)
+    env = HyperDrone(scene_directory, config=CONFIG, seed=3, parameters=parameters)
     try:
         mask = np.ones(env.total_instances, dtype=np.uint8)
         env.reset(mask)
@@ -281,16 +281,16 @@ def test_nominal_parameters(scene_directory):
 
 def test_nominal_parameter_validation(scene_directory):
     with pytest.raises(ValueError, match="unknown dynamics model"):
-        MultiEnvironment(scene_directory, config=CONFIG, parameters={"dynamics": {"dynamics": {"model": "zeppelin"}}})
+        HyperDrone(scene_directory, config=CONFIG, parameters={"dynamics": {"dynamics": {"model": "zeppelin"}}})
     with pytest.raises(ValueError, match="unknown parameter"):
-        MultiEnvironment(scene_directory, config=CONFIG, parameters={"dynamics": {"dynamics": {"weight": 1.0}}})
+        HyperDrone(scene_directory, config=CONFIG, parameters={"dynamics": {"dynamics": {"weight": 1.0}}})
     with pytest.raises(ValueError, match="must have shape"):
-        MultiEnvironment(scene_directory, config=CONFIG, parameters={"cameras": {"front": {"mount": {"pose": {"orientation": [1, 0, 0]}}}}})
+        HyperDrone(scene_directory, config=CONFIG, parameters={"cameras": {"front": {"mount": {"pose": {"orientation": [1, 0, 0]}}}}})
 
 
 def test_instance_parameters(scene_directory):
-    env = MultiEnvironment(scene_directory, config=CONFIG, seed=3)
-    reference = MultiEnvironment(scene_directory, config=CONFIG, seed=3)
+    env = HyperDrone(scene_directory, config=CONFIG, seed=3)
+    reference = HyperDrone(scene_directory, config=CONFIG, seed=3)
     try:
         all_instances = np.ones(env.total_instances, dtype=np.uint8)
         no_reset = np.zeros(env.total_instances, dtype=np.uint8)
@@ -351,7 +351,7 @@ def test_gym_autoreset_observations_match_explicit_render(scene_directory, monke
     from hyperdrone.gym import VectorEnv
 
     env = VectorEnv(scene_directory, config=CONFIG, seed=7)
-    reference = MultiEnvironment(scene_directory, config=CONFIG, seed=7)
+    reference = HyperDrone(scene_directory, config=CONFIG, seed=7)
     try:
         monkeypatch.setattr(env._env, "episode_step_limit", 1)
         reset_mask = np.ones(reference.total_instances, dtype=np.uint8)
@@ -408,11 +408,11 @@ def test_config_validation_errors():
         EnvConfig(preset="x500_fpv_imu", task="visual_inertial_localization", device="cuda")
     assert EnvConfig(spec_header=__file__).world_device == "cpu"
     with pytest.raises(ValueError, match="asset per drone"):
-        MultiEnvironment("/nonexistent", config=EnvConfig(preset="x500_fpv", num_agents=1))
+        HyperDrone("/nonexistent", config=EnvConfig(preset="x500_fpv", num_agents=1))
 
 
 def test_observation_layout(scene_directory):
-    env = MultiEnvironment(scene_directory, config=CONFIG, seed=0)
+    env = HyperDrone(scene_directory, config=CONFIG, seed=0)
     try:
         layout = env.observation_layout
         assert layout.axis == "channel"
@@ -431,14 +431,14 @@ def test_observation_layout(scene_directory):
 
 @pytest.mark.parametrize("num_agents", [1, 2])
 def test_position_commands_use_scene_frame_for_every_agent(scene_directory, num_agents):
-    config = EnvConfig(instances_per_environment=2, width=16, height=16, fidelity="low",
+    config = EnvConfig(instances_per_world=2, width=16, height=16, fidelity="low",
                        control="position", preset="crazyflie" if num_agents == 1 else "x500_fpv",
                        num_agents=num_agents, device="cpu")
     drones = None if num_agents == 1 else [{"asset": drone_asset_path(), "parameters": {}}]
     parameters = {"dynamics": {"mdp": {"init": {
         "max_linear_velocity": 0, "max_angular_velocity": 0, "min_rpm": 0, "max_rpm": 0,
     }}}}
-    with closing(MultiEnvironment(scene_directory, config=config, seed=29, drones=drones, parameters=parameters)) as env:
+    with closing(HyperDrone(scene_directory, config=config, seed=29, drones=drones, parameters=parameters)) as env:
         env.reset()
         points = env.spawn_points()
         anchor = np.asarray(points[0]["scene_translation"], dtype=np.float32)
@@ -468,9 +468,9 @@ def test_position_commands_use_scene_frame_for_every_agent(scene_directory, num_
 
 
 def test_ctbr_commands_reach_every_agent_current_step(scene_directory):
-    config = EnvConfig(instances_per_environment=2, num_agents=2, preset="x500_fpv_imu",
+    config = EnvConfig(instances_per_world=2, num_agents=2, preset="x500_fpv_imu",
                        width=16, height=16, fidelity="low", control="ctbr", actuation="ideal", device="cpu")
-    with closing(MultiEnvironment(scene_directory, config=config, drone_asset=drone_asset_path(), seed=31)) as env:
+    with closing(HyperDrone(scene_directory, config=config, drone_asset=drone_asset_path(), seed=31)) as env:
         env.reset()
         assert env.control == "ctbr" and env.actuation == "ideal"
         assert env.action_dim == 8
@@ -502,12 +502,12 @@ def test_ctbr_commands_reach_every_agent_current_step(scene_directory):
 
 
 def test_position_parameter_mutation_resets_only_selected_instances(scene_directory):
-    config = EnvConfig(instances_per_environment=2, width=16, height=16, fidelity="low",
+    config = EnvConfig(instances_per_world=2, width=16, height=16, fidelity="low",
                        control="position", device="cpu")
     parameters = {"dynamics": {"mdp": {"init": {
         "max_linear_velocity": 0, "max_angular_velocity": 0, "min_rpm": 0, "max_rpm": 0,
     }}}}
-    with closing(MultiEnvironment(scene_directory, config=config, seed=37, parameters=parameters)) as env:
+    with closing(HyperDrone(scene_directory, config=config, seed=37, parameters=parameters)) as env:
         env.reset()
         points = env.spawn_points()
         commands = np.empty((2, 4), dtype=np.float32)
@@ -542,19 +542,19 @@ def drone_asset_path():
     return rigged_asset_path("x500")
 
 
-CONFIG_DRONES = EnvConfig(instances_per_environment=4, width=16, height=16, preset="x500_fpv")
-CONFIG_MULTI_AGENT = EnvConfig(instances_per_environment=2, num_agents=7, num_camera_agents=7, width=16, height=16, fidelity="low", preset="x500_fpv")
+CONFIG_DRONES = EnvConfig(instances_per_world=4, width=16, height=16, preset="x500_fpv")
+CONFIG_MULTI_AGENT = EnvConfig(instances_per_world=2, num_agents=7, num_camera_agents=7, width=16, height=16, fidelity="low", preset="x500_fpv")
 
 
 @pytest.mark.parametrize("camera_agents", [1, 2])
 def test_multi_camera_model_parameters_and_replay(scene_directory, camera_agents):
-    config = replace(CONFIG_MULTI_AGENT, num_environments=2, num_agents=2, num_camera_agents=camera_agents, cameras=(CameraSpec("front", (RGB("float32"),)), CameraSpec("chase", (RGB("float32"),))), observation=ImageObservation(("front", "chase")))
+    config = replace(CONFIG_MULTI_AGENT, num_worlds=2, num_agents=2, num_camera_agents=camera_agents, cameras=(CameraSpec("front", (RGB("float32"),)), CameraSpec("chase", (RGB("float32"),))), observation=ImageObservation(("front", "chase")))
     drones = [{"asset": rigged_asset_path(name), "parameters": {
         "dynamics": {"dynamics": {"model": name}},
         "cameras": {"front": {"fov": fov}, "chase": {"fov": fov + 10, "mount": {"pose": {"position": [-1, 0, 0.5]}}}},
     }} for name, fov in (("x500", 60), ("crazyflie", 80))]
     initial = {"dynamics": {"mdp": {"init": {"max_linear_velocity": 0, "max_angular_velocity": 0, "min_rpm": 0, "max_rpm": 0}}}}
-    env = MultiEnvironment([scene_directory / "ProcTHOR-Train-1.glb"] * 2, config=config, drones=drones, parameters=initial, seed=7)
+    env = HyperDrone([scene_directory / "ProcTHOR-Train-1.glb"] * 2, config=config, drones=drones, parameters=initial, seed=7)
     try:
         assert (env.num_agents, env.num_camera_agents, env.num_cameras_per_agent, env.num_views) == (2, camera_agents, 2, camera_agents * 2)
         assert env.action_dim == 8
@@ -613,7 +613,7 @@ def mixed_drones():
 
 
 def test_multi_agent_parameters(scene_directory):
-    env = MultiEnvironment(scene_directory, config=CONFIG_MULTI_AGENT, seed=5, drones=mixed_drones())
+    env = HyperDrone(scene_directory, config=CONFIG_MULTI_AGENT, seed=5, drones=mixed_drones())
     try:
         env.reset()
         table = env.drones
@@ -664,7 +664,7 @@ def test_multi_agent_spawn_replay(scene_directory, motion_blur_samples):
     parameters = {"dynamics": {"mdp": {"init": {"max_linear_velocity": 0, "max_angular_velocity": 0, "min_rpm": 0, "max_rpm": 0}}}}
     reference = None
     for seed in (1, 123):
-        env = MultiEnvironment(scene_directory, config=replace(CONFIG_MULTI_AGENT, motion_blur_samples=motion_blur_samples), seed=seed, drones=mixed_drones(), parameters=parameters)
+        env = HyperDrone(scene_directory, config=replace(CONFIG_MULTI_AGENT, motion_blur_samples=motion_blur_samples), seed=seed, drones=mixed_drones(), parameters=parameters)
         try:
             if reference is None:
                 env.reset()
@@ -716,12 +716,12 @@ def test_multi_agent_spawn_replay(scene_directory, motion_blur_samples):
 
 @pytest.mark.parametrize("task", [None, "target_frame"])
 def test_explicit_spawns_ignore_seed_and_preserve_mask(scene_directory, task):
-    config = EnvConfig(instances_per_environment=2, width=16, height=16, preset="x500_fpv", motion_blur_samples=8, task=task)
+    config = EnvConfig(instances_per_world=2, width=16, height=16, preset="x500_fpv", motion_blur_samples=8, task=task)
     drones = [{"asset": rigged_asset_path(name), "parameters": {"dynamics": {"dynamics": {"model": name}}}} for name in ("x500", "crazyflie")]
     parameters = {"dynamics": {"mdp": {"init": {"max_linear_velocity": 0, "max_angular_velocity": 0, "min_rpm": 0, "max_rpm": 0}}}}
     reference = None
     for seed in (1, 123):
-        env = MultiEnvironment(scene_directory, config=config, seed=seed, drones=drones, parameters=parameters)
+        env = HyperDrone(scene_directory, config=config, seed=seed, drones=drones, parameters=parameters)
         try:
             if reference is None:
                 env.reset()
@@ -766,7 +766,7 @@ def test_drones_table(scene_directory):
         {"asset": rigged_asset_path("crazyflie"), "parameters": {"dynamics": {"dynamics": {"model": "crazyflie"}}, "cameras": {"front": {"fov": 70}}}},
         {"asset": rigged_asset_path("x500"), "parameters": {"dynamics": {"dynamics": {"model": "x500_sim"}}}},
     ]
-    env = MultiEnvironment(scene_directory, config=CONFIG_DRONES, seed=5, drones=drones)
+    env = HyperDrone(scene_directory, config=CONFIG_DRONES, seed=5, drones=drones)
     try:
         assert env.max_drone_types == 8
         table = env.drones
@@ -803,7 +803,7 @@ def test_drones_table(scene_directory):
                 env.set_instance_parameters({"drone": 0, "dynamics": {"dynamics": {"rotor_positions": (positions * scale).tolist()}}}, mask=switched)
             assert env.instance_parameters() == before_invalid_geometry
         with pytest.raises(ValueError, match="sampled at reset"):
-            MultiEnvironment(scene_directory, config=CONFIG_DRONES, seed=0, drones=[{"asset": drones[0]["asset"], "parameters": {"drone": 1}}])
+            HyperDrone(scene_directory, config=CONFIG_DRONES, seed=0, drones=[{"asset": drones[0]["asset"], "parameters": {"drone": 1}}])
     finally:
         env.close()
 
@@ -814,7 +814,7 @@ def test_drones_resolved_nominals(scene_directory):
         {"asset": asset, "parameters": {"dynamics": {"dynamics": {"mass": 0.1}}, "cameras": {"front": {"fov": 60}}}},
         {"asset": asset},
     ]
-    env = MultiEnvironment(scene_directory, config=CONFIG_DRONES, seed=5, parameters={"cameras": {"front": {"fov": 90}}}, drones=drones)
+    env = HyperDrone(scene_directory, config=CONFIG_DRONES, seed=5, parameters={"cameras": {"front": {"fov": 90}}}, drones=drones)
     try:
         table = env.drones
         assert table[0]["parameters"] == env.parameters
@@ -833,7 +833,7 @@ def test_drone_asset_is_a_one_entry_table(scene_directory):
     asset = rigged_asset_path("x500")
     frames = []
     for arguments in ({"drone_asset": asset}, {"drones": [{"asset": asset}]}):
-        env = MultiEnvironment(scene_directory, config=CONFIG_DRONES, seed=7, **arguments)
+        env = HyperDrone(scene_directory, config=CONFIG_DRONES, seed=7, **arguments)
         try:
             assert [entry["asset"] for entry in env.drones] == [str(asset)]
             env.reset()
@@ -848,17 +848,17 @@ def test_drone_asset_is_a_one_entry_table(scene_directory):
 def test_drones_validation(scene_directory):
     asset = rigged_asset_path("x500")
     with pytest.raises(ValueError, match="either"):
-        MultiEnvironment(scene_directory, config=CONFIG_DRONES, seed=0, drone_asset=asset, drones=[{"asset": asset}])
+        HyperDrone(scene_directory, config=CONFIG_DRONES, seed=0, drone_asset=asset, drones=[{"asset": asset}])
     with pytest.raises(ValueError, match="holds 8"):
-        MultiEnvironment(scene_directory, config=CONFIG_DRONES, seed=0, drones=[{"asset": asset}] * 9)
+        HyperDrone(scene_directory, config=CONFIG_DRONES, seed=0, drones=[{"asset": asset}] * 9)
     with pytest.raises(ValueError, match="asset per drone"):
-        MultiEnvironment(scene_directory, config=CONFIG_DRONES, seed=0, drones=[{"asset": asset}, {}])
+        HyperDrone(scene_directory, config=CONFIG_DRONES, seed=0, drones=[{"asset": asset}, {}])
     with pytest.raises(ValueError, match="SELF_VISIBLE world"):
-        MultiEnvironment(scene_directory, config=CONFIG, seed=0, drones=[{"asset": asset}])
+        HyperDrone(scene_directory, config=CONFIG, seed=0, drones=[{"asset": asset}])
     with pytest.raises(ValueError, match="shared by all instances"):
-        MultiEnvironment(scene_directory, config=CONFIG_DRONES, seed=0, drones=[{"asset": asset, "parameters": {"dynamics": {"integration": {"dt": 0.1}}}}])
+        HyperDrone(scene_directory, config=CONFIG_DRONES, seed=0, drones=[{"asset": asset, "parameters": {"dynamics": {"integration": {"dt": 0.1}}}}])
     with pytest.raises(ValueError, match="unknown drone entry"):
-        MultiEnvironment(scene_directory, config=CONFIG_DRONES, seed=0, drones=[{"asset": asset, "mass": 1}])
+        HyperDrone(scene_directory, config=CONFIG_DRONES, seed=0, drones=[{"asset": asset, "mass": 1}])
 
 
 def smoke_rollout(env):
@@ -875,8 +875,8 @@ def smoke_rollout(env):
 
 
 def test_x500_target_frame(scene_directory):
-    config = EnvConfig(instances_per_environment=2, width=16, height=16, preset="x500_fpv", task="target_frame")
-    env = MultiEnvironment(scene_directory, config=config, seed=3, drone_asset=drone_asset_path())
+    config = EnvConfig(instances_per_world=2, width=16, height=16, preset="x500_fpv", task="target_frame")
+    env = HyperDrone(scene_directory, config=config, seed=3, drone_asset=drone_asset_path())
     try:
         assert env.observation_dim == 16 * 16 * 6
         layout = env.observation_layout
@@ -892,10 +892,10 @@ def test_x500_target_frame(scene_directory):
 @pytest.mark.parametrize("cameras", [1, 2])
 def test_moving_gate(scene_directory, cameras):
     profiles = tuple(CameraSpec(f"camera{index}", (RGB("float32"),)) for index in range(cameras))
-    config = EnvConfig(instances_per_environment=2, width=16, height=16, task="moving_gate", cameras=profiles, observation=ImageObservation(tuple(camera.name for camera in profiles)))
+    config = EnvConfig(instances_per_world=2, width=16, height=16, task="moving_gate", cameras=profiles, observation=ImageObservation(tuple(camera.name for camera in profiles)))
     with pytest.raises(ValueError, match="needs assets"):
-        MultiEnvironment(scene_directory, config=config, seed=4)
-    env = MultiEnvironment(scene_directory, config=config, seed=4, assets={"gate": drone_asset_path()})
+        HyperDrone(scene_directory, config=config, seed=4)
+    env = HyperDrone(scene_directory, config=config, seed=4, assets={"gate": drone_asset_path()})
     try:
         privileged = env.observation_layout_privileged
         assert privileged.blocks["gate_state"] == (18, 8)
@@ -910,9 +910,9 @@ def test_visual_inertial_localization(scene_directory):
     with pytest.raises(ValueError, match="x500_fpv_imu"):
         EnvConfig(task="visual_inertial_localization")
     with pytest.raises(ValueError, match="asset per drone"):
-        MultiEnvironment(scene_directory, config=EnvConfig(preset="x500_fpv_imu"), seed=6)
-    config = EnvConfig(instances_per_environment=2, width=16, height=16, preset="x500_fpv_imu", task="visual_inertial_localization")
-    env = MultiEnvironment(scene_directory, config=config, seed=6)
+        HyperDrone(scene_directory, config=EnvConfig(preset="x500_fpv_imu"), seed=6)
+    config = EnvConfig(instances_per_world=2, width=16, height=16, preset="x500_fpv_imu", task="visual_inertial_localization")
+    env = HyperDrone(scene_directory, config=config, seed=6)
     try:
         assert env.action_dim == 0, "the task flies itself"
         assert env.frame_stride == 4
@@ -960,11 +960,11 @@ def test_visual_inertial_localization(scene_directory):
 def test_spec_header_escape_hatch(scene_directory):
     header = Path(__file__).parent / "user_spec_header.h"
     config = EnvConfig(spec_header=str(header))
-    env = MultiEnvironment(scene_directory, config=config, seed=5, drone_asset=drone_asset_path())
+    env = HyperDrone(scene_directory, config=config, seed=5, drone_asset=drone_asset_path())
     try:
         assert env.self_visible
         assert env.max_drone_types == 3
-        assert env.instances_per_environment == 2
+        assert env.instances_per_world == 2
         assert env.width == 16 and env.height == 16
         assert env.observation_layout.blocks == {"image": (0, 3)}
         smoke_rollout(env)
@@ -974,8 +974,8 @@ def test_spec_header_escape_hatch(scene_directory):
 
 def test_spec_header_custom_controller(scene_directory):
     directory = Path(__file__).parent
-    with closing(MultiEnvironment(scene_directory, config=EnvConfig(spec_header=str(directory / "user_controller_spec_header.h")), seed=5, drone_asset=drone_asset_path())) as custom, \
-         closing(MultiEnvironment(scene_directory, config=EnvConfig(spec_header=str(directory / "user_spec_header.h")), seed=5, drone_asset=drone_asset_path())) as direct:
+    with closing(HyperDrone(scene_directory, config=EnvConfig(spec_header=str(directory / "user_controller_spec_header.h")), seed=5, drone_asset=drone_asset_path())) as custom, \
+         closing(HyperDrone(scene_directory, config=EnvConfig(spec_header=str(directory / "user_spec_header.h")), seed=5, drone_asset=drone_asset_path())) as direct:
         assert custom.control == "collective"
         assert custom.action_dim == 1
         np.testing.assert_array_equal(custom.action_low, [0])
@@ -995,7 +995,7 @@ def test_spec_header_drone_table(scene_directory):
     config = EnvConfig(spec_header=str(header))
     asset = drone_asset_path()
     drones = [{"asset": asset, "parameters": {"cameras": {"camera0": {"fov": fov}}}} for fov in (50, 70, 90)]
-    env = MultiEnvironment(scene_directory, config=config, seed=5, drones=drones)
+    env = HyperDrone(scene_directory, config=config, seed=5, drones=drones)
     try:
         assert env.self_visible
         assert env.max_drone_types == 3
@@ -1011,9 +1011,9 @@ def test_spec_header_drone_table(scene_directory):
     finally:
         env.close()
     with pytest.raises(ValueError, match="MAX_DRONES in spec_header"):
-        MultiEnvironment(scene_directory, config=config, drones=drones + drones[:1])
+        HyperDrone(scene_directory, config=config, drones=drones + drones[:1])
     with pytest.raises(ValueError, match="asset per drone"):
-        MultiEnvironment(scene_directory, config=config, drones=[{}])
+        HyperDrone(scene_directory, config=config, drones=[{}])
 
 
 def scene_source():
@@ -1068,19 +1068,19 @@ def test_scenes_conta_reference(monkeypatch, tmp_path):
 def test_scenes_preflight_errors(tmp_path):
     source = scene_source()
     with pytest.raises(ValueError, match="scene reference"):
-        MultiEnvironment([source], config=EnvConfig(num_environments=2), seed=0)
+        HyperDrone([source], config=EnvConfig(num_worlds=2), seed=0)
     with pytest.raises(ValueError, match="not found"):
-        MultiEnvironment(["/nonexistent.glb"], config=EnvConfig(), seed=0)
+        HyperDrone(["/nonexistent.glb"], config=EnvConfig(), seed=0)
     with pytest.raises(ValueError, match=r"\.glb scene"):
-        MultiEnvironment(tmp_path, config=EnvConfig(), seed=0)
+        HyperDrone(tmp_path, config=EnvConfig(), seed=0)
 
 
 def test_drone_asset_conta_reference(monkeypatch, tmp_path):
     scene = scene_source()
     asset = drone_asset_path()
     scene_hash, asset_hash = conta_store(monkeypatch, tmp_path, scene, asset)
-    config = EnvConfig(instances_per_environment=2, width=16, height=16, preset="x500_fpv", task="target_frame")
-    env = MultiEnvironment([f"conta:{scene_hash}"], config=config, seed=3, drone_asset=f"conta:{asset_hash}")
+    config = EnvConfig(instances_per_world=2, width=16, height=16, preset="x500_fpv", task="target_frame")
+    env = HyperDrone([f"conta:{scene_hash}"], config=config, seed=3, drone_asset=f"conta:{asset_hash}")
     try:
         smoke_rollout(env)
     finally:
@@ -1097,7 +1097,7 @@ def test_step_clock_is_independent_of_image_reads(scene_directory, history_lengt
 namespace hyperdrone_env_user {
     struct SPEC: rl_tools::rl::environments::hyperdrone::presets::X500FPV<float, std::size_t> {
         static constexpr std::size_t N_CAMERA_AGENTS = 1;
-        static constexpr std::size_t INSTANCES_PER_ENVIRONMENT = 2;
+        static constexpr std::size_t INSTANCES_PER_WORLD = 2;
         static constexpr std::size_t CAM_WIDTH = 16;
         static constexpr std::size_t CAM_HEIGHT = 16;
         static constexpr std::size_t HISTORY_LENGTH = HISTORY_COUNT;
@@ -1112,7 +1112,7 @@ namespace hyperdrone_env_user {
     config = EnvConfig(spec_header=str(header), device="cuda" if render._backend() == "optix" else "cpu")
     records = []
     for read_every_step in (False, True):
-        with closing(MultiEnvironment(scene_directory, config=config, seed=319)) as env:
+        with closing(HyperDrone(scene_directory, config=config, seed=319)) as env:
             env.reset()
             actions = np.full((env.total_instances, env.action_dim), 0.1, dtype=np.float32)
             for step in range(8):
@@ -1129,10 +1129,10 @@ namespace hyperdrone_env_user {
 
 
 def test_vil_cadence_does_not_depend_on_reads(scene_directory):
-    config = EnvConfig(instances_per_environment=2, width=16, height=16, preset="x500_fpv_imu", task="visual_inertial_localization")
+    config = EnvConfig(instances_per_world=2, width=16, height=16, preset="x500_fpv_imu", task="visual_inertial_localization")
     records = []
     for read_every_step in (False, True):
-        with closing(MultiEnvironment(scene_directory, config=config, seed=419)) as env:
+        with closing(HyperDrone(scene_directory, config=config, seed=419)) as env:
             env.reset()
             for _ in range(9):
                 env.step()
@@ -1154,7 +1154,7 @@ def test_custom_vil_rejects_partial_reset_before_sampling(scene_directory, tmp_p
 namespace hyperdrone_env_user {
     struct SPEC: rl_tools::rl::environments::hyperdrone::presets::X500FPVIMU<float, std::size_t> {
         static constexpr std::size_t N_CAMERA_AGENTS = 1;
-        static constexpr std::size_t INSTANCES_PER_ENVIRONMENT = 2;
+        static constexpr std::size_t INSTANCES_PER_WORLD = 2;
         static constexpr std::size_t CAM_WIDTH = 16;
         static constexpr std::size_t CAM_HEIGHT = 16;
         static constexpr bool SELF_VISIBLE = false;
@@ -1167,7 +1167,7 @@ namespace hyperdrone_env_user {
 """)
     records = []
     for reject_first in (False, True):
-        with closing(MultiEnvironment(scene_directory, config=EnvConfig(spec_header=str(header)), seed=37)) as env:
+        with closing(HyperDrone(scene_directory, config=EnvConfig(spec_header=str(header)), seed=37)) as env:
             if reject_first:
                 with pytest.raises(ValueError, match="all-or-none"):
                     env.reset([True, False])
@@ -1181,7 +1181,7 @@ def test_flow_reference_does_not_depend_on_image_reads(scene_directory):
     config = replace(CONFIG, width=16, height=16, cameras=(CameraSpec("front", (RGB("float32"), Flow(), FlowStatus())),))
     records = []
     for read_every_step in (False, True):
-        with closing(MultiEnvironment(scene_directory, config=config, seed=541)) as env:
+        with closing(HyperDrone(scene_directory, config=config, seed=541)) as env:
             env.reset()
             env.observe()
             actions = np.full((env.total_instances, env.action_dim), 0.1, dtype=np.float32)
@@ -1204,7 +1204,7 @@ def test_flow_reference_survives_same_step_reacquisition(scene_directory, device
     if device == "cuda" and render._backend() != "optix":
         pytest.skip("CUDA Worlds require OptiX")
     config = replace(CONFIG, width=16, height=16, cameras=(CameraSpec("front", (RGB("float32"), Flow(), FlowStatus())),), device=device)
-    with closing(MultiEnvironment(scene_directory, config=config, seed=541)) as env:
+    with closing(HyperDrone(scene_directory, config=config, seed=541)) as env:
         env.reset()
         env.observe()
         actions = np.full((env.total_instances, env.action_dim), 0.1, dtype=np.float32)
@@ -1238,7 +1238,7 @@ def test_motion_blur_reset_survives_same_step_reacquisition(scene_directory, dev
     if device == "cuda" and render._backend() != "optix":
         pytest.skip("CUDA Worlds require OptiX")
     config = replace(CONFIG, width=16, height=16, motion_blur_samples=4, device=device)
-    with closing(MultiEnvironment(scene_directory, config=config, seed=673)) as env:
+    with closing(HyperDrone(scene_directory, config=config, seed=673)) as env:
         env.reset()
         actions = np.full((env.total_instances, env.action_dim), 0.1, dtype=np.float32)
         for _ in range(8):
@@ -1255,7 +1255,7 @@ def test_motion_blur_reset_survives_same_step_reacquisition(scene_directory, dev
 
 def test_spawn_points_accept_scene_references(scene_directory):
     parameters = {"dynamics": {"mdp": {"init": {"max_linear_velocity": 0, "max_angular_velocity": 0, "min_rpm": 0, "max_rpm": 0}}}}
-    env = MultiEnvironment(scene_directory, config=CONFIG, seed=5, parameters=parameters)
+    env = HyperDrone(scene_directory, config=CONFIG, seed=5, parameters=parameters)
     try:
         env.reset()
         points = env.spawn_points()

@@ -184,7 +184,7 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
     set(HYPERDRONE_PYTHON_ENV_NATIVE ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../interface/python/hyperdrone/hyperdrone/_native/env)
     add_executable(test_rl_environments_hyperdrone_python_golden python_golden.cpp ${HYPERDRONE_PYTHON_ENV_NATIVE}/impl.cpp)
     target_compile_definitions(test_rl_environments_hyperdrone_python_golden PRIVATE
-        HYPERDRONE_ENV_NUM_ENVIRONMENTS=1
+        HYPERDRONE_ENV_NUM_WORLDS=1
         HYPERDRONE_ENV_INSTANCES=2
         HYPERDRONE_ENV_CAM_WIDTH=16
         HYPERDRONE_ENV_CAM_HEIGHT=16

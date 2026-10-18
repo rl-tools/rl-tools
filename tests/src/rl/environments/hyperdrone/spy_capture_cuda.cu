@@ -18,7 +18,7 @@ namespace {
         using OBSERVATION = hd::NoObservation;
         static constexpr size_t N_CAMERA_AGENTS = 1;
         using SHADING = rt::Low;
-        static constexpr size_t INSTANCES_PER_ENVIRONMENT = 3;
+        static constexpr size_t INSTANCES_PER_WORLD = 3;
         static constexpr size_t CAM_WIDTH = 7;
         static constexpr size_t CAM_HEIGHT = 5;
         static constexpr size_t HISTORY_LENGTH = 1;
@@ -30,7 +30,7 @@ namespace {
         static constexpr bool ENABLE_MOTION_BLUR = false;
     };
     using World = hd::World<WorldConfig>;
-    using Environment = hd::MultiEnvironment<World, 2>;
+    using Environment = rl::environments::HyperDrone<World, 2>;
     struct Config: hd::spy::Config<Environment> {
         static constexpr size_t ATLAS_WIDTH = 17;
         static constexpr size_t ATLAS_HEIGHT = 11;
@@ -55,7 +55,7 @@ namespace {
         rendering::SceneMetadata<float> metadata;
         metadata.max_ray_length = 10;
         for(size_t member = 0; member < 2; member++) {
-            auto& world = environment.environments[member];
+            auto& world = environment.worlds[member];
             world.slots.emplace_back();
             world.history_step = 1;
             state.buffer.frames[member].valid = true;
@@ -67,7 +67,7 @@ namespace {
             init(cpu, renderer, scene, pool, metadata);
             device_histories[member] = data(output(cpu, renderer, Config::RGB_FLOAT{}));
         }
-        auto& selected = environment.environments[1].slots[0].renderer;
+        auto& selected = environment.worlds[1].slots[0].renderer;
         rt::Camera<float> source_camera{};
         source_camera.pos[0] = 37;
         source_camera.pos[1] = -4;
@@ -115,19 +115,19 @@ namespace {
         free_spy_capture(device, state, rt::backends::Optix{});
         free_spy_capture(device, state, rt::backends::Optix{});
         for(size_t member = 0; member < 2; member++) {
-            free(cpu, environment.environments[member].slots[0].renderer);
+            free(cpu, environment.worlds[member].slots[0].renderer);
         }
         cudaStreamDestroy(device.stream);
     }
 
     struct CaptureWorldConfig: WorldConfig {
-        static constexpr size_t INSTANCES_PER_ENVIRONMENT = 64;
+        static constexpr size_t INSTANCES_PER_WORLD = 64;
         using CAMERA_OUTPUTS = hd::CameraOutputs<CAMERA_PROFILE>;
         static constexpr size_t CAM_WIDTH = 64;
         static constexpr size_t CAM_HEIGHT = 64;
     };
     using CaptureWorld = hd::World<CaptureWorldConfig>;
-    using CaptureEnvironment = hd::MultiEnvironment<CaptureWorld, 4>;
+    using CaptureEnvironment = rl::environments::HyperDrone<CaptureWorld, 4>;
     using CaptureConfig = hd::spy::Config<CaptureEnvironment>;
 
     TEST(HYPERDRONE_SPY_CUDA, CameraAtlasParityAndTiming) {
@@ -147,7 +147,7 @@ namespace {
             for(size_t i = 0; i < HISTORY_SIZE; i++) {
                 histories[member][i] = float((i * 17 + member * 29) % 257) / 256.0f;
             }
-            auto& world = environment.environments[member];
+            auto& world = environment.worlds[member];
             world.slots.emplace_back();
             auto& renderer = world.slots[0].renderer;
             rt::Scene scene;
@@ -191,7 +191,7 @@ namespace {
         metra::log("hyperdrone/spy/capture/cuda/complete_seconds", complete_seconds);
         std::cout << "256 x 64x64 cameras -> 1024x1024 atlas: CPU pack " << cpu_seconds * 1000 << " ms, CUDA enqueue " << enqueue_seconds * 1000 << " ms, CUDA completion " << complete_seconds * 1000 << " ms\n";
         free_spy_capture(device, state, rt::backends::Optix{});
-        for(auto& world : environment.environments) {
+        for(auto& world : environment.worlds) {
             free(cpu, world.slots[0].renderer);
         }
         cudaStreamDestroy(device.stream);

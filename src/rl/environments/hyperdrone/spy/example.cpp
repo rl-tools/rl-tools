@@ -19,13 +19,13 @@ constexpr bool DYNAMIC_ALLOCATION = true;
 constexpr TI SEED = 0;
 struct WORLD_SPEC: hd::presets::X500FPV<T, TI> {
     static constexpr TI N_CAMERA_AGENTS = 1;
-    static constexpr TI INSTANCES_PER_ENVIRONMENT = 4;
+    static constexpr TI INSTANCES_PER_WORLD = 4;
     static constexpr TI CAM_WIDTH = 64;
     static constexpr TI CAM_HEIGHT = 64;
     static constexpr bool SELF_VISIBLE = false;
 };
 using WORLD = hd::World<WORLD_SPEC>;
-using ENVIRONMENT = hd::MultiEnvironment<WORLD, 1>;
+using ENVIRONMENT = rlt::rl::environments::HyperDrone<WORLD, 1>;
 using SPY = hd::Spy<hd::spy::Config<ENVIRONMENT>>;
 template <typename ELEMENT, TI... DIMS>
 using InstanceTensor = rlt::Tensor<rlt::tensor::Specification<ELEMENT, TI, rlt::tensor::Shape<TI, ENVIRONMENT::INSTANCES, DIMS...>, DYNAMIC_ALLOCATION>>;

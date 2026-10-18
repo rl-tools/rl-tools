@@ -11,7 +11,7 @@
 
 // device-resident per-step path, stream-ordered on device.stream with no host synchronization: the
 // World's kernels are enqueued on it and the renderer's launch verbs fork from and join back into it;
-// a MultiEnvironment renders and observes its members concurrently (fan_out)
+// a HyperDrone renders and observes its Worlds concurrently (fan_out)
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
@@ -517,52 +517,52 @@ namespace rl_tools{
         // fork/join of their own; the guard restores the caller's stream and joins every member
         // back into it, also when a verb throws. Members write disjoint memory and draw from
         // disjoint RNG partitions
-        template <typename DEV_SPEC, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename VERB>
-        void fan_out(devices::CUDA<DEV_SPEC>& device, MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env, VERB&& verb){
-            using TI = typename MEMBER::TI;
+        template <typename DEV_SPEC, typename WORLD, typename WORLD::TI N_WORLDS, typename VERB>
+        void fan_out(devices::CUDA<DEV_SPEC>& device, HyperDrone<WORLD, N_WORLDS>& env, VERB&& verb){
+            using TI = typename WORLD::TI;
             struct Join{
                 devices::CUDA<DEV_SPEC>& device;
-                MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env;
+                HyperDrone<WORLD, N_WORLDS>& env;
                 const cudaStream_t caller_stream;
                 ~Join(){
                     device.stream = caller_stream;
-                    for (TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++) {
-                        devices::cuda::order_after(device.ordering_event, stream(device, get_renderer(device, env.environments[environment_i])), caller_stream);
+                    for (TI world_i = 0; world_i < N_WORLDS; world_i++) {
+                        devices::cuda::order_after(device.ordering_event, stream(device, get_renderer(device, env.worlds[world_i])), caller_stream);
                     }
                 }
             } join{device, env, device.stream};
             cudaEventRecord(device.ordering_event, join.caller_stream);
-            for (TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++) {
-                cudaStreamWaitEvent(stream(device, get_renderer(device, env.environments[environment_i])), device.ordering_event, 0);
+            for (TI world_i = 0; world_i < N_WORLDS; world_i++) {
+                cudaStreamWaitEvent(stream(device, get_renderer(device, env.worlds[world_i])), device.ordering_event, 0);
             }
-            for (TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++) {
-                device.stream = stream(device, get_renderer(device, env.environments[environment_i]));
-                verb(environment_i);
+            for (TI world_i = 0; world_i < N_WORLDS; world_i++) {
+                device.stream = stream(device, get_renderer(device, env.worlds[world_i]));
+                verb(world_i);
             }
         }
     }
-    template <typename DEV_SPEC, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
-    void render(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask){
-        using MULTI_ENVIRONMENT = rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>;
-        using TI = typename MEMBER::TI;
-        constexpr TI M = rl::environments::hyperdrone::instances_per_environment<MULTI_ENVIRONMENT, STATE_SPEC>();
-        rl::environments::hyperdrone::cuda::fan_out(device, env, [&](TI environment_i){
-            auto parameters_block = view_range(device, parameters, environment_i * M, tensor::ViewSpec<0, M>{});
-            auto states_block = view_range(device, states, environment_i * M, tensor::ViewSpec<0, M>{});
-            auto reset_block = view_range(device, reset_mask, environment_i * M, tensor::ViewSpec<0, M>{});
-            render(device, env.environments[environment_i], parameters_block, states_block, reset_block);
+    template <typename DEV_SPEC, typename WORLD, typename WORLD::TI N_WORLDS, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
+    void render(devices::CUDA<DEV_SPEC>& device, rl::environments::HyperDrone<WORLD, N_WORLDS>& env, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask){
+        using HYPERDRONE = rl::environments::HyperDrone<WORLD, N_WORLDS>;
+        using TI = typename WORLD::TI;
+        constexpr TI M = rl::environments::hyperdrone::instances_per_world<HYPERDRONE, STATE_SPEC>();
+        rl::environments::hyperdrone::cuda::fan_out(device, env, [&](TI world_i){
+            auto parameters_block = view_range(device, parameters, world_i * M, tensor::ViewSpec<0, M>{});
+            auto states_block = view_range(device, states, world_i * M, tensor::ViewSpec<0, M>{});
+            auto reset_block = view_range(device, reset_mask, world_i * M, tensor::ViewSpec<0, M>{});
+            render(device, env.worlds[world_i], parameters_block, states_block, reset_block);
         });
     }
-    template <typename DEV_SPEC, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename PARAMETER_SPEC, typename STATE_SPEC, typename OBSERVATION_TYPE, typename OBSERVATION_SPEC, typename RNG>
-    void observe(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, OBSERVATION_TYPE observation_type, Tensor<OBSERVATION_SPEC>& observations, RNG& rng){
-        using MULTI_ENVIRONMENT = rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>;
-        using TI = typename MEMBER::TI;
-        constexpr TI M = rl::environments::hyperdrone::instances_per_environment<MULTI_ENVIRONMENT, STATE_SPEC>();
-        rl::environments::hyperdrone::cuda::fan_out(device, env, [&](TI environment_i){
-            auto parameters_block = view_range(device, parameters, environment_i * M, tensor::ViewSpec<0, M>{});
-            auto states_block = view_range(device, states, environment_i * M, tensor::ViewSpec<0, M>{});
-            auto observations_block = view_range(device, observations, environment_i * M, tensor::ViewSpec<0, M>{});
-            observe(device, env.environments[environment_i], parameters_block, states_block, observation_type, observations_block, rng);
+    template <typename DEV_SPEC, typename WORLD, typename WORLD::TI N_WORLDS, typename PARAMETER_SPEC, typename STATE_SPEC, typename OBSERVATION_TYPE, typename OBSERVATION_SPEC, typename RNG>
+    void observe(devices::CUDA<DEV_SPEC>& device, rl::environments::HyperDrone<WORLD, N_WORLDS>& env, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, OBSERVATION_TYPE observation_type, Tensor<OBSERVATION_SPEC>& observations, RNG& rng){
+        using HYPERDRONE = rl::environments::HyperDrone<WORLD, N_WORLDS>;
+        using TI = typename WORLD::TI;
+        constexpr TI M = rl::environments::hyperdrone::instances_per_world<HYPERDRONE, STATE_SPEC>();
+        rl::environments::hyperdrone::cuda::fan_out(device, env, [&](TI world_i){
+            auto parameters_block = view_range(device, parameters, world_i * M, tensor::ViewSpec<0, M>{});
+            auto states_block = view_range(device, states, world_i * M, tensor::ViewSpec<0, M>{});
+            auto observations_block = view_range(device, observations, world_i * M, tensor::ViewSpec<0, M>{});
+            observe(device, env.worlds[world_i], parameters_block, states_block, observation_type, observations_block, rng);
         });
     }
 }

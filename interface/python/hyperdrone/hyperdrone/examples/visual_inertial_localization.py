@@ -12,7 +12,7 @@ import time
 
 import numpy as np
 
-from hyperdrone.env import EnvConfig, MultiEnvironment
+from hyperdrone.env import EnvConfig, HyperDrone
 from hyperdrone.examples.data import procthor_scene_path
 
 parser = argparse.ArgumentParser()
@@ -27,9 +27,9 @@ arguments = parser.parse_args()
 
 GRAVITY = np.array([0.0, 0.0, -9.81])
 
-env = MultiEnvironment(
+env = HyperDrone(
     [arguments.model or procthor_scene_path()],
-    config=EnvConfig(instances_per_environment=arguments.instances, width=arguments.width, height=arguments.height,
+    config=EnvConfig(instances_per_world=arguments.instances, width=arguments.width, height=arguments.height,
                      fidelity="high", preset="x500_fpv_imu", task="visual_inertial_localization"),
     seed=arguments.seed,
 )

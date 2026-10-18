@@ -155,7 +155,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::yaw{
 
     struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, STATIC_PARAMETERS>{
         static constexpr TI N_CAMERA_AGENTS = 1;
-        static constexpr TI INSTANCES_PER_ENVIRONMENT = N_ENVIRONMENTS_PER_SCENE;
+        static constexpr TI INSTANCES_PER_WORLD = N_ENVIRONMENTS_PER_SCENE;
         static constexpr TI CAM_WIDTH = yaw::CAM_WIDTH;
         static constexpr TI CAM_HEIGHT = yaw::CAM_HEIGHT;
         static constexpr TI NUM_PROBES = yaw::NUM_PROBES;
@@ -183,9 +183,9 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::yaw{
         static constexpr TI TARGET_BANK_REFRESH_STEPS = STEPS_PER_ENV + 2;
     };
     using TASK_WORLD = rlt::rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
-    using MULTI_ENVIRONMENT = rlt::rl::environments::hyperdrone::MultiEnvironment<TASK_WORLD, N_ACTIVE_SCENES>;
+    using HYPERDRONE = rlt::rl::environments::HyperDrone<TASK_WORLD, N_ACTIVE_SCENES>;
 #ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
-    using SPY = rlt::rl::environments::hyperdrone::Spy<rlt::rl::environments::hyperdrone::spy::Config<MULTI_ENVIRONMENT>>;
+    using SPY = rlt::rl::environments::hyperdrone::Spy<rlt::rl::environments::hyperdrone::spy::Config<HYPERDRONE>>;
 #endif
     using ENVIRONMENT = TASK_WORLD;
     static constexpr TI OBSERVATION_DIM = BASE_WORLD::OBSERVATION_DIM;
@@ -245,7 +245,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::yaw{
     using CPU_STUDENT_INIT_TYPE = typename StudentActor<CAPABILITY_ADAM, TEACHER_TYPE_POLICY>::MODEL;
     using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI, ADAM_PARAMETERS, true>;
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
-    using RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, MULTI_ENVIRONMENT, typename RAPTOR_MODEL::State<true>, typename TASK_WORLD::Observation, RAPTOR_OBSERVATION_TYPE, T_ACTIVATION, T, EPISODE_STEP_LIMIT, false, true, false>;
+    using RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, HYPERDRONE, typename RAPTOR_MODEL::State<true>, typename TASK_WORLD::Observation, RAPTOR_OBSERVATION_TYPE, T_ACTIVATION, T, EPISODE_STEP_LIMIT, false, true, false>;
     using RUNNER = rlt::rl::components::OnPolicyRunner<RUNNER_SPEC>;
     using RUNNER_BUFFER = rlt::rl::components::on_policy_runner::Buffer<RUNNER_SPEC>;
     using DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<RUNNER_SPEC, STEPS_PER_ENV>;

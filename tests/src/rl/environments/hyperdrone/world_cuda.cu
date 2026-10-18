@@ -73,7 +73,7 @@ namespace test_hyperdrone_world_cuda {
         using CAMERA_OUTPUTS = rlt::rl::environments::hyperdrone::CameraOutputs<RGB, rlt::rendering::raytracing::outputs::List<rlt::rendering::raytracing::outputs::Depth<>>, RGB>;
         using OBSERVATION = rlt::rl::environments::hyperdrone::ImageObservation<2>;
         static constexpr TI N_CAMERA_AGENTS = 1;
-        static constexpr TI INSTANCES_PER_ENVIRONMENT = 4;
+        static constexpr TI INSTANCES_PER_WORLD = 4;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
         using SHADING = rlt::rendering::raytracing::Low;

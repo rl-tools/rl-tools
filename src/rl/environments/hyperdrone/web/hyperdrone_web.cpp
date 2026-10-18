@@ -33,7 +33,7 @@ namespace rl_tools::rl::environments::hyperdrone::web {
         static constexpr const char* FIDELITY = utils::typing::is_same_v<SHADING, rendering::raytracing::Low> ? "low"
             : utils::typing::is_same_v<SHADING, rendering::raytracing::Medium> ? "medium"
             : utils::typing::is_same_v<SHADING, rendering::raytracing::High> ? "high" : "very-high";
-        static constexpr TI INSTANCES_PER_ENVIRONMENT = 1;
+        static constexpr TI INSTANCES_PER_WORLD = 1;
         static constexpr TI N_AGENTS = T_N_AGENTS;
         static constexpr TI N_CAMERA_AGENTS = 1;
         static constexpr TI MAX_DRONES = 6;
@@ -79,7 +79,7 @@ namespace rl_tools::rl::environments::hyperdrone::web {
     template <typename CONFIG>
     struct State {
         using WORLD = World<CONFIG>;
-        using ENVIRONMENT = MultiEnvironment<WORLD, 1>;
+        using ENVIRONMENT = HyperDrone<WORLD, 1>;
         using PILOT = controllers::raptor::Config::Bind<TYPE_POLICY, TI, CONFIG::N_AGENTS>;
         ENVIRONMENT environment;
         PILOT pilot;
@@ -183,13 +183,13 @@ namespace rl_tools {
         }
         rendering::datasets::procthor::GLB dataset{{}, {scene_path}};
         init(device, state.environment, dataset);
-        const auto& world = state.environment.environments[0];
+        const auto& world = state.environment.worlds[0];
         state.spawn = world.slots[world.active_slot].annotations.positions[0];
     }
     template <typename CONFIG>
     bool reset(web::DEVICE& device, web::State<CONFIG>& state) {
         using namespace web;
-        auto& world = state.environment.environments[0];
+        auto& world = state.environment.worlds[0];
         auto& parameters = get_ref(device, state.parameters, (TI)0);
         auto& physical = get_ref(device, state.states, (TI)0);
         init(device, state.rng, state.seed);
@@ -306,7 +306,7 @@ namespace rl_tools {
     template <typename CONFIG>
     void step(web::DEVICE& device, web::State<CONFIG>& state, web::T forward, web::T left, web::T up, web::T yaw_delta, web::T yaw_axis, web::TI steps) {
         using namespace web;
-        auto& world = state.environment.environments[0];
+        auto& world = state.environment.worlds[0];
         auto actions = matrix_view(device, state.actions);
         for(TI step_i = 0; step_i < steps; step_i++) {
             control(device, state, forward, left, up, yaw_delta / steps, yaw_axis);
@@ -325,7 +325,7 @@ namespace rl_tools {
         namespace outputs = rendering::raytracing::outputs;
         render_launch(device, state.environment, state.parameters, state.states, state.reset_mask);
         set_all(device, state.reset_mask, false);
-        auto& renderer = get_renderer(device, state.environment.environments[0]);
+        auto& renderer = get_renderer(device, state.environment.worlds[0]);
         present(device, renderer, canvases[0], outputs::RGB<>{}, (TI)0);
         present(device, renderer, canvases[1], outputs::RGB<>{}, (TI)1);
         present(device, renderer, canvases[2], outputs::Depth<outputs::format::RGBA8>{}, (TI)0);
@@ -455,7 +455,7 @@ static int run(const char* scene_path, const char* policy_path, int max_frames, 
     status("Loading the scene and finding a clear starting position ...");
     state.seed = seed;
     init(device, state, scene_path, drones);
-    show_gpu_info(get_renderer(device, state.environment.environments[0]).backend->adapter);
+    show_gpu_info(get_renderer(device, state.environment.worlds[0]).backend->adapter);
     auto classes = nlohmann::json::object();
     for(const auto& entry: state.environment.shared.segmentation_taxonomy->classes) {
         classes[std::to_string(entry.first)] = entry.second;
@@ -484,7 +484,7 @@ static int run(const char* scene_path, const char* policy_path, int max_frames, 
         }
     }
     for(web::TI view_i = 0; view_i < web::VIEWS; view_i++) {
-        init(device, get_renderer(device, state.environment.environments[0]), canvases[view_i], web::CANVASES[view_i]);
+        init(device, get_renderer(device, state.environment.worlds[0]), canvases[view_i], web::CANVASES[view_i]);
     }
     const auto release = [&]() {
         for(auto& canvas: canvases) {
@@ -545,7 +545,7 @@ static int run(const char* scene_path, const char* policy_path, int max_frames, 
                 const web::T fov = std::clamp((web::T)input[12 + camera_i], (web::T)30, (web::T)140);
                 if(cameras[camera_i].fov != fov) {
                     cameras[camera_i].fov = fov;
-                    request_render(device, state.environment.environments[0]);
+                    request_render(device, state.environment.worlds[0]);
                 }
             }
             render(device, state, buffer, canvases);

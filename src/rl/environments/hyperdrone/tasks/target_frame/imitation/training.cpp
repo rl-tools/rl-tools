@@ -427,10 +427,10 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
     }
 
     // ---------------------------------------------------------------------
-    // Environment: MultiEnvironment of target-frame Worlds over the scene corpus
+    // Environment: HyperDrone of target-frame Worlds over the scene corpus
     // ---------------------------------------------------------------------
-    auto* env_storage = new MULTI_ENVIRONMENT{};
-    MULTI_ENVIRONMENT& env = *env_storage;
+    auto* env_storage = new HYPERDRONE{};
+    HYPERDRONE& env = *env_storage;
     {
         std::lock_guard<std::mutex> loading_lock(shared.io_mutex);
         rlt::malloc(device_compute, env);
@@ -439,12 +439,12 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
         if(static_cast<TI>(scene_corpus.references.size()) != N_TOTAL_SCENES){
             throw std::runtime_error("Unexpected scene corpus size");
         }
-        for(TI member_i = 0; member_i < NUMBER_OF_ENVIRONMENTS; member_i++){
+        for(TI member_i = 0; member_i < N_WORLDS; member_i++){
             const TI global_member = rank * N_ACTIVE_SCENES + member_i;
             const TI first = global_member * N_TOTAL_SCENES / N_ACTIVE_SCENES_TOTAL;
             const TI last = (global_member + 1) * N_TOTAL_SCENES / N_ACTIVE_SCENES_TOTAL;
             std::cout << "[rank " << rank << "] Initializing World " << global_member << " with scenes [" << first << ", " << last << ")" << std::endl;
-            auto& world = env.environments[member_i];
+            auto& world = env.worlds[member_i];
             world.parameters.agents[0].cameras[0].fov = CAMERA_FOV;
             rlt::init(device_compute, world, env.shared, scene_dataset, scene_corpus, first, last - first, global_member);
             world.rng_offset = global_member * N_ENVIRONMENTS_PER_SCENE;
@@ -455,7 +455,7 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
     }
 
     if(rank == 0){
-        std::string ui = rlt::get_ui(device, env.environments[0].dynamics);
+        std::string ui = rlt::get_ui(device, env.worlds[0].dynamics);
         if(!ui.empty()){
             std::filesystem::create_directories(extrack_paths.seed);
             std::ofstream ui_file(extrack_paths.seed / "ui.esm.js");
@@ -627,8 +627,8 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
             // 4. video mosaic: (target | actual) per instance
             if(record_video && ffmpeg_pipe){
                 synchronize_compute(device_compute);
-                for(TI member_i = 0; member_i < NUMBER_OF_ENVIRONMENTS; member_i++){
-                    fetch_world_frames(device, device_compute, env.environments[member_i], video_frames.data() + member_i * TASK_WORLD::INSTANCES * OBSERVATION_DIM, video_target_frames.data() + member_i * TASK_WORLD::INSTANCES * OBSERVATION_DIM);
+                for(TI member_i = 0; member_i < N_WORLDS; member_i++){
+                    fetch_world_frames(device, device_compute, env.worlds[member_i], video_frames.data() + member_i * TASK_WORLD::INSTANCES * OBSERVATION_DIM, video_target_frames.data() + member_i * TASK_WORLD::INSTANCES * OBSERVATION_DIM);
                 }
                 for(TI scene_row = 0; scene_row < SCENE_GRID_ROWS; scene_row++){
                     for(TI scene_col = 0; scene_col < SCENE_GRID_COLS; scene_col++){
@@ -936,7 +936,7 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
                 rlt::copy(device_compute, device, student, eval_student);
                 char fov_buf[32];
                 std::snprintf(fov_buf, sizeof(fov_buf), "%.6g", (double)CAMERA_FOV);
-                std::string state_obs_string = rlt::string(device, env.environments[0].dynamics, ACTOR_STATE_OBS{});
+                std::string state_obs_string = rlt::string(device, env.worlds[0].dynamics, ACTOR_STATE_OBS{});
                 std::string image_obs_string = std::string("CameraRGBStackedWithTarget(") + fov_buf + ", "
                     + std::to_string(CAM_HEIGHT) + ", " + std::to_string(CAM_WIDTH) + ", "
                     + std::to_string(FRAME_STACK_STRIDE) + ", " + std::to_string(FRAME_STACK_N) + ")";
@@ -1095,7 +1095,7 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
                 rlt::free(device, example_output);
                 rlt::free(device, eval_student);
                 {
-                    std::string trajectories_json = trajectory_episodes_to_json(device, env.environments[0], completed_episodes, simulation_dt);
+                    std::string trajectories_json = trajectory_episodes_to_json(device, env.worlds[0], completed_episodes, simulation_dt);
 #ifdef RL_TOOLS_ENABLE_ZLIB
                     std::vector<uint8_t> compressed;
                     if(rlt::compress_zlib(trajectories_json, compressed)){

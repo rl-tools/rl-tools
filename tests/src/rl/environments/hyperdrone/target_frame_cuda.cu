@@ -69,7 +69,7 @@ namespace test_target_frame_cuda {
         using CAMERA_OUTPUTS = rlt::rl::environments::hyperdrone::CameraOutputs<rlt::rendering::raytracing::outputs::List<rlt::rendering::raytracing::outputs::RGB<>>, rlt::rendering::raytracing::outputs::List<RGB, rlt::rendering::raytracing::outputs::Flow<>, rlt::rendering::raytracing::outputs::FlowStatus<>>, rlt::rendering::raytracing::outputs::List<RGB, rlt::rendering::raytracing::outputs::Depth<>>>;
         using OBSERVATION = rlt::rl::environments::hyperdrone::ImageObservation<1>;
         static constexpr TI N_CAMERA_AGENTS = 1;
-        static constexpr TI INSTANCES_PER_ENVIRONMENT = 4;
+        static constexpr TI INSTANCES_PER_WORLD = 4;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
         static constexpr TI HISTORY_LENGTH = 4;
@@ -108,32 +108,32 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, GLOBAL_RNG_PARTITION
     DEVICE_GPU device;
     rlt::init(host);
     rlt::init(device);
-    using MULTI = rlt::rl::environments::hyperdrone::MultiEnvironment<MEMBER, 2>;
-    MULTI multi{};
+    using HYPERDRONE = rlt::rl::environments::HyperDrone<MEMBER, 2>;
+    HYPERDRONE env{};
     MEMBER isolated{};
-    rlt::malloc(device, multi);
+    rlt::malloc(device, env);
     rlt::malloc(device, isolated);
-    multi.shared.drones.push_back({});
-    rlt::init(device, multi.shared);
+    env.shared.drones.push_back({});
+    rlt::init(device, env.shared);
     using DRONE_SPEC = typename MEMBER::DRONE_PARAMETERS_SPEC;
-    std::vector<typename DRONE_SPEC::T> nominals(DRONE_SPEC::SIZE, multi.shared.drones[0].parameters);
+    std::vector<typename DRONE_SPEC::T> nominals(DRONE_SPEC::SIZE, env.shared.drones[0].parameters);
     rlt::Tensor<DRONE_SPEC> table_host;
     table_host._data = nominals.data();
     auto init_sampling = [&](MEMBER& world){
-        world.num_drones = multi.shared.num_drones;
+        world.num_drones = env.shared.num_drones;
         rlt::copy(host, device, table_host, world.drone_parameters);
     };
-    for(auto& world : multi.environments){
+    for(auto& world : env.worlds){
         init_sampling(world);
     }
     init_sampling(isolated);
-    multi.environments[1].rng_offset = MEMBER::INSTANCES;
+    env.worlds[1].rng_offset = MEMBER::INSTANCES;
     isolated.rng_offset = MEMBER::INSTANCES;
-    using PARAMETERS_SPEC = rlt::tensor::Specification<typename MEMBER::Parameters, TI, rlt::tensor::Shape<TI, MULTI::INSTANCES>>;
+    using PARAMETERS_SPEC = rlt::tensor::Specification<typename MEMBER::Parameters, TI, rlt::tensor::Shape<TI, HYPERDRONE::INSTANCES>>;
     using LOCAL_SPEC = rlt::tensor::Specification<typename MEMBER::Parameters, TI, rlt::tensor::Shape<TI, MEMBER::INSTANCES>>;
     rlt::Tensor<PARAMETERS_SPEC> parameters, parameters_host;
     rlt::Tensor<LOCAL_SPEC> local, local_host;
-    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, MULTI::INSTANCES>>> reset_mask, mask_host;
+    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, HYPERDRONE::INSTANCES>>> reset_mask, mask_host;
     rlt::malloc(device, parameters);
     rlt::malloc(host, parameters_host);
     rlt::malloc(device, local);
@@ -147,11 +147,11 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, GLOBAL_RNG_PARTITION
     rlt::init(device, isolated_rng, 1337);
     auto local_mask = rlt::view_range(device, reset_mask, MEMBER::INSTANCES, rlt::tensor::ViewSpec<0, MEMBER::INSTANCES>{});
     for(TI round = 0; round < 4; round++){
-        for(TI i = 0; i < MULTI::INSTANCES; i++){
+        for(TI i = 0; i < HYPERDRONE::INSTANCES; i++){
             rlt::set(host, mask_host, round == 0 || (i + round) % 3 == 0, i);
         }
         rlt::copy(host, device, mask_host, reset_mask);
-        rlt::sample_initial_parameters(device, multi, parameters, reset_mask, shared_rng);
+        rlt::sample_initial_parameters(device, env, parameters, reset_mask, shared_rng);
         rlt::sample_initial_parameters(device, isolated, local, local_mask, isolated_rng);
         rlt::copy(device, host, parameters, parameters_host);
         rlt::copy(device, host, local, local_host);
@@ -175,7 +175,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, GLOBAL_RNG_PARTITION
     rlt::free(device, reset_mask);
     rlt::free(host, mask_host);
     rlt::free(device, isolated);
-    rlt::free(device, multi);
+    rlt::free(device, env);
 }
 
 // host copies of the World's device-resident bank state

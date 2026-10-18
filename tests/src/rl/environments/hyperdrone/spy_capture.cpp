@@ -11,7 +11,7 @@ namespace {
     struct WorldConfig: hd::presets::X500FPV<float, size_t> {
         using OBSERVATION = hd::NoObservation;
         static constexpr size_t N_CAMERA_AGENTS = 1;
-        static constexpr size_t INSTANCES_PER_ENVIRONMENT = 3;
+        static constexpr size_t INSTANCES_PER_WORLD = 3;
         static constexpr size_t CAM_WIDTH = 2;
         static constexpr size_t CAM_HEIGHT = 2;
         static constexpr size_t HISTORY_LENGTH = 2;
@@ -19,7 +19,7 @@ namespace {
         static constexpr bool SELF_VISIBLE = false;
     };
     using World = hd::World<WorldConfig>;
-    using Environment = hd::MultiEnvironment<World, 2>;
+    using Environment = rl::environments::HyperDrone<World, 2>;
     struct Config: hd::spy::Config<Environment> {
         static constexpr size_t ATLAS_WIDTH = 7;
         static constexpr size_t ATLAS_HEIGHT = 5;
@@ -41,7 +41,7 @@ namespace {
         environment.shared.library.scenes.emplace_back();
         environment.shared.library.scenes.emplace_back();
         for(size_t member = 0; member < 2; member++) {
-            auto& world = environment.environments[member];
+            auto& world = environment.worlds[member];
             world.slots.emplace_back();
             world.slots[0].scene_id = member;
             output(device, world.slots[0].renderer, Config::RGB_FLOAT{})._data = history[member].data() + 36;
@@ -69,19 +69,19 @@ namespace {
         EXPECT_EQ(atlas[3], 0xff008000u);
         EXPECT_EQ(atlas[4 * 7 + 6], 0xffffffffu);
         EXPECT_EQ(history, before);
-        EXPECT_EQ(environment.environments[0].history_step, 2u);
-        EXPECT_EQ(environment.environments[1].history_step, 2u);
+        EXPECT_EQ(environment.worlds[0].history_step, 2u);
+        EXPECT_EQ(environment.worlds[1].history_step, 2u);
         prepare_spy_capture(state, environment, 20);
         EXPECT_EQ(state.buffer.frames[1].captured_at, 10);
-        environment.environments[1].scene_version++;
-        environment.environments[1].render_pending = true;
+        environment.worlds[1].scene_version++;
+        environment.worlds[1].render_pending = true;
         prepare_spy_capture(state, environment, 30);
         pack_spy_atlas_cpu(device, state, environment);
         EXPECT_FALSE(state.buffer.selected_valid);
         EXPECT_FALSE(state.buffer.frames[1].valid);
         EXPECT_EQ(atlas[4 * 7 + 6], 0xff202020u);
-        environment.environments[1].render_pending = false;
-        environment.environments[1].history_step++;
+        environment.worlds[1].render_pending = false;
+        environment.worlds[1].history_step++;
         prepare_spy_capture(state, environment, 40);
         pack_spy_atlas_cpu(device, state, environment);
         EXPECT_TRUE(state.buffer.selected_valid);
@@ -92,11 +92,11 @@ namespace {
     }
 
     struct SparseWorldConfig: WorldConfig {
-        static constexpr size_t INSTANCES_PER_ENVIRONMENT = 1;
+        static constexpr size_t INSTANCES_PER_WORLD = 1;
         using CAMERA_OUTPUTS = hd::CameraOutputs<rendering::raytracing::outputs::List<Config::RGB_FLOAT>, rendering::raytracing::outputs::List<rendering::raytracing::outputs::Depth<>>, rendering::raytracing::outputs::List<Config::RGB_PACKED>>;
     };
     using SparseWorld = hd::World<SparseWorldConfig>;
-    using SparseEnvironment = hd::MultiEnvironment<SparseWorld, 1>;
+    using SparseEnvironment = rl::environments::HyperDrone<SparseWorld, 1>;
     struct SparseConfig: hd::spy::Config<SparseEnvironment> {
         static constexpr size_t ATLAS_WIDTH = 3;
         static constexpr size_t ATLAS_HEIGHT = 1;
@@ -112,7 +112,7 @@ namespace {
         uint32_t atlas[3]{};
         float rgb[12] = {0.25f, 0.5f, 1};
         uint32_t packed[4] = {0xff332211};
-        auto& world = environment.environments[0];
+        auto& world = environment.worlds[0];
         world.slots.emplace_back();
         auto& renderer = world.slots[0].renderer;
         output(device, renderer, Config::RGB_FLOAT{})._data = rgb;
