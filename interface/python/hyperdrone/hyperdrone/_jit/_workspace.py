@@ -2,6 +2,7 @@ import hashlib
 import os
 import platform
 import subprocess
+import sys
 import sysconfig
 from pathlib import Path
 
@@ -84,7 +85,7 @@ def cuda_target():
 
 def workspace_tag(component=None):
     from .. import __version__
-    fingerprint = f"{source_root()}|{sysconfig.get_config_var('SOABI')}|{__version__}|{host_target()}"
+    fingerprint = f"{source_root()}|{os.path.abspath(sys.executable)}|{sysconfig.get_config_var('SOABI')}|{__version__}|{host_target()}"
     if component is not None and component.needs_cuda:
         fingerprint += "|" + cuda_target()
     return hashlib.sha1(fingerprint.encode()).hexdigest()[:8]
