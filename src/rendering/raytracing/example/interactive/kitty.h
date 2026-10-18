@@ -33,6 +33,7 @@ namespace rl_tools::rendering::raytracing::interactive {
         bool shared_memory = false;
         bool frame_in_flight = false;
         unsigned long frame_index = 0;
+        unsigned int image_id = 0;
         std::string frame_shared_memory_name;
         unsigned short terminal_rows = 0;
         unsigned short terminal_columns = 0;
@@ -45,9 +46,9 @@ namespace rl_tools::rendering::raytracing::interactive {
         std::vector<unsigned char> compressed;
     };
     namespace kitty {
-        constexpr unsigned int IMAGE_ID = 1;
-        constexpr unsigned int PROBE_SHARED_MEMORY_ID = 2;
-        constexpr unsigned int PROBE_DIRECT_ID = 3;
+        constexpr unsigned int FIRST_IMAGE_ID = 1;
+        constexpr unsigned int PROBE_SHARED_MEMORY_ID = 3;
+        constexpr unsigned int PROBE_DIRECT_ID = 4;
         constexpr int PROBE_TIMEOUT_MS = 2000;
         constexpr int COMPRESSION_LEVEL = 1;
         constexpr std::size_t CHUNK_SIZE = 4096;
@@ -388,7 +389,7 @@ namespace rl_tools::rendering::raytracing::interactive {
             unsigned int id;
             std::string message;
             if (graphics_response(sequence, id, message)) {
-                if (id == IMAGE_ID && kitty.frame_in_flight) {
+                if (id == kitty.image_id && kitty.frame_in_flight) {
                     kitty.frame_in_flight = false;
                     if (!kitty.frame_shared_memory_name.empty()) {
                         ::shm_unlink(kitty.frame_shared_memory_name.c_str());
@@ -522,7 +523,11 @@ namespace rl_tools {
         output += "\x1b[" + std::to_string((image_rows - rows) / 2 + 1) + ";" + std::to_string((size.ws_col - columns) / 2 + 1) + "H";
         const std::size_t pixel_count = static_cast<std::size_t>(kitty.width) * kitty.height;
         const std::size_t rgb_size = pixel_count * 3;
-        const std::string control = "a=T,f=24,s=" + std::to_string(kitty.width) + ",v=" + std::to_string(kitty.height) + ",i=" + std::to_string(kitty_protocol::IMAGE_ID) + ",p=1,c=" + std::to_string(columns) + ",C=1";
+        // frames alternate between two image ids and the previous one is deleted only after its successor is complete: re-transmitting
+        // an existing id blanks its placements until the last chunk arrives, which flickers whenever chunks span a screen refresh
+        const unsigned int previous_image_id = kitty.image_id;
+        kitty.image_id = previous_image_id == kitty_protocol::FIRST_IMAGE_ID ? kitty_protocol::FIRST_IMAGE_ID + 1 : kitty_protocol::FIRST_IMAGE_ID;
+        const std::string control = "a=T,f=24,s=" + std::to_string(kitty.width) + ",v=" + std::to_string(kitty.height) + ",i=" + std::to_string(kitty.image_id) + ",p=1,c=" + std::to_string(columns) + ",C=1";
         if (kitty.shared_memory) {
             const std::string name = "/rlt-kitty-" + std::to_string(::getpid()) + "-" + std::to_string(kitty.frame_index++);
             if (unsigned char* data = kitty_protocol::create_shared_memory(name, rgb_size)) {
@@ -551,6 +556,9 @@ namespace rl_tools {
                 output.append(kitty.encoded, offset, kitty_protocol::CHUNK_SIZE);
                 output += "\x1b\\";
             }
+        }
+        if (previous_image_id != 0) {
+            output += "\x1b_Ga=d,d=I,i=" + std::to_string(previous_image_id) + ",q=2\x1b\\";
         }
         output += "\x1b[" + std::to_string(size.ws_row) + ";1H";
         kitty_protocol::write_all(kitty.tty, output);
