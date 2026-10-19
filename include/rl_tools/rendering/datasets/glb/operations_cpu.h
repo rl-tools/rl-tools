@@ -628,12 +628,9 @@ namespace rl_tools {
             if(mesh->mTextureCoords[uv_channel]){
                 for(unsigned int v = 0; v < mesh->mNumVertices; v++){
                     const aiVector3D& tc = mesh->mTextureCoords[uv_channel][v];
+                    // Assimp flips glTF's v; every shading tier samples with glTF's top-left origin
                     md.tex_coords.push_back(tc.x);
-                    if constexpr (SHADING::PBR_SHADING) {
-                        md.tex_coords.push_back(1.0f - tc.y);
-                    } else {
-                        md.tex_coords.push_back(tc.y);
-                    }
+                    md.tex_coords.push_back(1.0f - tc.y);
                 }
             }
         }
