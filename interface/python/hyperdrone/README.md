@@ -115,6 +115,12 @@ objects or assemblies leaves the parent environment alone. Ambient affects `high
 and `veryhigh`, approximating indirect illumination without light bounces. Override
 imported settings with `scene.set_environment(...)` before `renderer.init(scene)`.
 
+Lights have a `radius`: metres for `SceneLight.point` / `spot`, an angular radius in radians for
+`SceneLight.directional`, default `0.1` (also for GLB lights, which glTF leaves sizeless). It
+widens `high` / `veryhigh` specular highlights by the light's apparent size, so smooth surfaces
+show the light's reflection instead of unboundedly bright sub-pixel glints; `radius=0` gives
+ideal point lights.
+
 `render()` acquires the declared image outputs; `render_launch()` and `render_sync()` split submission from waiting. Reads never create a capture or advance temporal state. Declare `Probes()` on the cameras that need collision probes, set `num_probes` per selected camera, call `generate_probe_directions()`, and execute `probe()` separately. `renderer.outputs[Probes()].distance.read()` returns float32 distances; `.hit.read()` returns native int32 hit flags. Probe 0 follows the camera's principal axis; remaining directions form a fixed Fibonacci set in camera FLU coordinates.
 
 ### Output buffers and DLPack

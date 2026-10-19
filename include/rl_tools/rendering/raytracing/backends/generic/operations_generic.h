@@ -768,7 +768,6 @@ namespace rl_tools {
 
                 roughness = maximum(roughness, (T)0.04);
                 const T roughness_alpha = roughness * roughness;
-                const T alpha2 = roughness_alpha * roughness_alpha;
                 const T k = (roughness + (T)1) * (roughness + (T)1) / (T)8;
 
                 const Vec3<T> V = -ray_dir;
@@ -782,6 +781,7 @@ namespace rl_tools {
                     Vec3<T> L;
                     T attenuation = 1;
                     T light_distance = (T)1e20;
+                    T light_size = (T)light.radius;
 
                     if(light.type == 0){
                         L = {(T)light.direction[0], (T)light.direction[1], (T)light.direction[2]};
@@ -790,6 +790,7 @@ namespace rl_tools {
                         const Vec3<T> to_light = Vec3<T>{(T)light.position[0], (T)light.position[1], (T)light.position[2]} - hit_point;
                         const T dist = length(math_device, to_light);
                         light_distance = maximum(dist - (T)1e-3, (T)0);
+                        light_size = minimum((T)light.radius / maximum(dist, (T)1e-6), (T)1);
                         L = to_light * ((T)1 / maximum(dist, (T)1e-6));
                         attenuation = (T)1 / ((T)light.attenuation_constant + (T)light.attenuation_linear * dist + (T)light.attenuation_quadratic * dist * dist);
                         if(light.type == 2){
@@ -812,8 +813,11 @@ namespace rl_tools {
                     const T NdotH = maximum(dot(N, H), (T)0);
                     const T VdotH = maximum(dot(V, H), (T)0);
 
-                    const T denom_D = NdotH * NdotH * (alpha2 - (T)1) + (T)1;
-                    const T D = alpha2 / ((T)3.14159265 * denom_D * denom_D);
+                    // a light's angular size widens its highlight (the half vector moves half as far as the light direction)
+                    const T light_alpha = minimum(roughness_alpha + (T)0.5 * light_size, (T)1);
+                    const T light_alpha2 = light_alpha * light_alpha;
+                    const T denom_D = NdotH * NdotH * (light_alpha2 - (T)1) + (T)1;
+                    const T D = light_alpha2 / ((T)3.14159265 * denom_D * denom_D);
 
                     const T G1_V = NdotV / (NdotV * ((T)1 - k) + k);
                     const T G1_L = NdotL / (NdotL * ((T)1 - k) + k);

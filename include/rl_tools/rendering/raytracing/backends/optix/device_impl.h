@@ -590,7 +590,6 @@ namespace rl_tools
 
       roughness = fmaxf(roughness, 0.04f);
       float roughness_alpha = roughness * roughness;
-      float alpha2 = roughness_alpha * roughness_alpha;
       float k = (roughness + 1.f) * (roughness + 1.f) / 8.f;
 
       owl::vec3f V = -ray_dir;
@@ -604,6 +603,7 @@ namespace rl_tools
         owl::vec3f L;
         float attenuation = 1.f;
         float light_distance = 1e20f;
+        float light_size = light.radius;
 
         if (light.type == 0) {
           L = owl::vec3f(light.direction[0], light.direction[1], light.direction[2]);
@@ -611,6 +611,7 @@ namespace rl_tools
           owl::vec3f to_light = owl::vec3f(light.position[0], light.position[1], light.position[2]) - hit_point;
           float dist = length(to_light);
           light_distance = fmaxf(dist - 1e-3f, 0.f);
+          light_size = fminf(light.radius / fmaxf(dist, 1e-6f), 1.f);
           L = to_light * (1.f / fmaxf(dist, 1e-6f));
           attenuation = 1.f / (light.attenuation_constant + light.attenuation_linear * dist + light.attenuation_quadratic * dist * dist);
           if (light.type == 2) {
@@ -632,8 +633,11 @@ namespace rl_tools
         float NdotH = fmaxf(dot(N, H), 0.f);
         float VdotH = fmaxf(dot(V, H), 0.f);
 
-        float denom_D = NdotH * NdotH * (alpha2 - 1.f) + 1.f;
-        float D = __fdividef(alpha2, 3.14159265f * denom_D * denom_D);
+        // a light's angular size widens its highlight (the half vector moves half as far as the light direction)
+        float light_alpha = fminf(roughness_alpha + .5f * light_size, 1.f);
+        float light_alpha2 = light_alpha * light_alpha;
+        float denom_D = NdotH * NdotH * (light_alpha2 - 1.f) + 1.f;
+        float D = __fdividef(light_alpha2, 3.14159265f * denom_D * denom_D);
 
         float G1_V = __fdividef(NdotV, NdotV * (1.f - k) + k);
         float G1_L = __fdividef(NdotL, NdotL * (1.f - k) + k);

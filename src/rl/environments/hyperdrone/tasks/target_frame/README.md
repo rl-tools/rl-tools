@@ -21,7 +21,7 @@ Yaw refreshes its target bank every epoch; early resets reuse that epoch's posit
 
 Free-space sampling stops at 50 accepted positions instead of finishing the historical 64-candidate block; this changes the spawn distribution. Pixel encoding, spawn stopping and validation batch size are deliberate approximations, while scene/batch shuffling, epoch bank refresh and checkpoint example selection preserve the historical algorithm.
 
-Yaw's dataset adapter restores ambient RGB `(0.5, 0.5, 0.5)`, always prepends the three historical directional fill lights to authored lights, and treats unlit materials as lit. This target-local interpretation preserves the normal dataset loaders and other rendering consumers. The modern metallic ambient term and black background remain differences from the historical renderer's metallic shading and red/white checker background.
+Yaw's dataset adapter restores ambient RGB `(0.5, 0.5, 0.5)`, always prepends the three historical directional fill lights to authored lights, gives all lights zero extent, and treats unlit materials as lit. This target-local interpretation preserves the normal dataset loaders and other rendering consumers. The modern metallic ambient term and black background remain differences from the historical renderer's metallic shading and red/white checker background.
 
 On-policy targets default to the first `N_TOTAL_SCENES` entries of the header-pinned `procthor::Train200` catalog; pass `procthor_train_200 [seed]` to set the seed explicitly. Conta resolves its GLBs, and metra records the selected references.
 

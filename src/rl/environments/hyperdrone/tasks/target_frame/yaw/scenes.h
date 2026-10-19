@@ -34,6 +34,9 @@ namespace rl_tools{
             {0, {0,0,0}, {0.f, inv_sqrt2, inv_sqrt2}, {0.2f, 0.2f, 0.2f}, 0,0,0, 0,0}
         };
         bundle.scene.lights.insert(bundle.scene.lights.begin(), fill, fill + 3);
+        for(auto& light: bundle.scene.lights){
+            light.radius = 0;
+        }
         bundle.scene.environment.mode = rendering::Scene::Environment::Mode::SOLID;
         for(unsigned int channel = 0; channel < 3; channel++){
             bundle.scene.environment.ambient[channel] = 0.5f;

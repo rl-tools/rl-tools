@@ -108,8 +108,9 @@ struct SceneLight{
     float attenuation_quadratic;
     float cos_inner_cone;
     float cos_outer_cone;
+    float radius;
 };
-static_assert(sizeof(SceneLight) == 60, "SceneLight layout must match rendering/raytracing/types.h");
+static_assert(sizeof(SceneLight) == 64, "SceneLight layout must match rendering/raytracing/types.h");
 
 struct Camera{
     packed_float3 pos;
@@ -479,7 +480,6 @@ inline float3 shade_pbr(thread const TraceContext& ctx, thread const ray& r, thr
 
         roughness = fmax(roughness, 0.04f);
         float roughness_alpha = roughness * roughness;
-        float alpha2 = roughness_alpha * roughness_alpha;
         float k = (roughness + 1.f) * (roughness + 1.f) / 8.f;
 
         float3 V = -ray_dir;
@@ -493,6 +493,7 @@ inline float3 shade_pbr(thread const TraceContext& ctx, thread const ray& r, thr
             float3 L;
             float attenuation = 1.f;
             float light_distance = 1e20f;
+            float light_size = light.radius;
 
             if (light.type == 0) {
                 L = float3(light.direction);
@@ -500,6 +501,7 @@ inline float3 shade_pbr(thread const TraceContext& ctx, thread const ray& r, thr
                 float3 to_light = float3(light.position) - hit_point;
                 float dist = length(to_light);
                 light_distance = fmax(dist - 1e-3f, 0.f);
+                light_size = fmin(light.radius / fmax(dist, 1e-6f), 1.f);
                 L = to_light * (1.f / fmax(dist, 1e-6f));
                 attenuation = 1.f / (light.attenuation_constant + light.attenuation_linear * dist + light.attenuation_quadratic * dist * dist);
                 if (light.type == 2) {
@@ -521,8 +523,11 @@ inline float3 shade_pbr(thread const TraceContext& ctx, thread const ray& r, thr
             float NdotH = fmax(dot(N, H), 0.f);
             float VdotH = fmax(dot(V, H), 0.f);
 
-            float denom_D = NdotH * NdotH * (alpha2 - 1.f) + 1.f;
-            float D = alpha2 / (3.14159265f * denom_D * denom_D);
+            // a light's angular size widens its highlight (the half vector moves half as far as the light direction)
+            float light_alpha = fmin(roughness_alpha + 0.5f * light_size, 1.f);
+            float light_alpha2 = light_alpha * light_alpha;
+            float denom_D = NdotH * NdotH * (light_alpha2 - 1.f) + 1.f;
+            float D = light_alpha2 / (3.14159265f * denom_D * denom_D);
 
             float G1_V = NdotV / (NdotV * (1.f - k) + k);
             float G1_L = NdotL / (NdotL * (1.f - k) + k);
