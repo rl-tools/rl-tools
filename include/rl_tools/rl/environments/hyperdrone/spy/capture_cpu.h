@@ -102,7 +102,7 @@ namespace rl_tools {
                     const auto& source = renderer.overlays[instance].slots[slot];
                     destination.object = source.object;
                     destination.active = source.active;
-                    const float* transform = data(transforms(device, renderer)) + (instance * WORLD::RENDERER_SPEC::MAX_OVERLAY_INSTANCES + slot) * 12;
+                    const float* transform = data(renderer.transforms) + (instance * WORLD::RENDERER_SPEC::MAX_OVERLAY_INSTANCES + slot) * 12;
                     std::copy_n(transform, 12, destination.transform);
                 }
             }

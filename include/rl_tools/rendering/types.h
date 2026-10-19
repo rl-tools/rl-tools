@@ -4,6 +4,7 @@
 #define RL_TOOLS_RENDERING_TYPES_H
 
 #include "../rl_tools.h"
+#include "../utils/generic/typing.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
@@ -29,6 +30,43 @@ namespace rl_tools {
     }
 
     namespace rendering{
+        // Read exponent bits through a reference: fast-math may assume a floating-point value parameter is finite before inspecting its bits.
+        template <typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT bool is_finite(const T& value){
+            static_assert(sizeof(T) == 4 || sizeof(T) == 8, "is_finite expects an IEEE-754 single or double");
+            using BITS = utils::typing::conditional_t<sizeof(T) == 4, unsigned int, unsigned long long>;
+            static_assert(sizeof(BITS) == sizeof(T));
+            BITS bits;
+            auto* destination = reinterpret_cast<unsigned char*>(&bits);
+            const auto* source = reinterpret_cast<const unsigned char*>(&value);
+            for(unsigned byte = 0; byte < sizeof(T); byte++){
+                destination[byte] = source[byte];
+            }
+            constexpr BITS EXPONENT = sizeof(T) == 4 ? (BITS)0x7f800000u : (BITS)0x7ff0000000000000ull;
+            return (bits & EXPONENT) != EXPONENT;
+        }
+        template <typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT bool is_finite(const T* values, unsigned count){
+            for(unsigned i = 0; i < count; i++){
+                if(!is_finite(values[i])){
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // a part's articulation relative to its parent part (the assembly base for a root part),
+        // in the part frame: revolute turns coordinates[coordinate] radians about axis through
+        // pivot, prismatic slides coordinates[coordinate] metres along axis; at zero coordinates
+        // every part sits at its rest frame
+        struct Joint {
+            enum class Type { FIXED, REVOLUTE, PRISMATIC };
+            Type type = Type::FIXED;
+            float axis[3] = {0, 0, 1};
+            float pivot[3] = {0, 0, 0};
+            size_t coordinate = 0;
+        };
+
         struct SceneLight {
             int type; // 0=directional, 1=point, 2=spot
             float position[3];

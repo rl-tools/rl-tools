@@ -93,7 +93,7 @@ namespace rl_tools {
                 buffer.structure[slot_i].segmentation_class = rendering::segmentation::INHERIT;
                 std::memcpy(buffer.transforms + slot_i * 12, source.transform, 12 * sizeof(float));
             }
-            spy_spectator_cuda_check(cudaMemcpyAsync(data(transforms(device, renderer)), buffer.transforms, SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), cudaMemcpyHostToDevice, device.stream));
+            spy_spectator_cuda_check(cudaMemcpyAsync(data(renderer.transforms), buffer.transforms, SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), cudaMemcpyHostToDevice, device.stream));
             spy_spectator_cuda_check(cudaMemcpyAsync(overlay_structure(device, renderer), buffer.structure, SPEC::MAX_OVERLAY_INSTANCES * sizeof(*buffer.structure), cudaMemcpyHostToDevice, device.stream));
             renderer.overlays[0].dirty = false;
             update_launch(device, renderer);

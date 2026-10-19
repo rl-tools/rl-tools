@@ -139,7 +139,6 @@ namespace rl_tools {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         const auto& kind = world.entity_kinds[world.entity_kind_index];
         const auto placement = rl::environments::hyperdrone::_entity_placement(world, kind);
-        const float* no_coordinates = nullptr;
         auto& renderer = get_renderer(device, world);
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             const auto& instance_parameters = get_ref(device, parameters, instance_i);
@@ -152,9 +151,9 @@ namespace rl_tools {
                 constexpr T TWO_PI = (T)2 * math::PI<T>;
                 T phase_open = state.gate_phase - TWO_PI * instance_parameters.gate_frequency * dt * instance_parameters.shutter_fraction;
                 rl::environments::hyperdrone::tasks::moving_gate::gate_pose(device, instance_parameters, phase_open, pose_open);
-                set_transform_pair(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, kind.rig, pose_open, pose, no_coordinates, no_coordinates);
+                set_pose(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, make_pose(pose_open), make_pose(pose));
             } else {
-                set_transform(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, kind.rig, pose, no_coordinates);
+                set_pose(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, make_pose(pose));
             }
         }
     }

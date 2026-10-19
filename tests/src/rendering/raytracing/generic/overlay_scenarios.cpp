@@ -635,12 +635,11 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, ATTACHMENT_TIES_AND_PARTIAL_ACCEL_GROUP){
     init(device, renderer, bundle, pool);
     set_identical_cameras(device, renderer);
     const auto scene_only = capture(device, renderer);
-    const float identity[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
     std::array<rendering::raytracing::OverlayPlacement, OverlaySpec::NUM_OVERLAYS> placements{};
     for(TI overlay : {0u, 1u, 7u, 8u, 9u}){
-        placements[overlay] = spawn(device, renderer, OverlayIndex{overlay}, overlay % 2 ? blue : red, identity);
+        placements[overlay] = spawn(device, renderer, OverlayIndex{overlay}, overlay % 2 ? blue : red);
     }
-    spawn(device, renderer, OverlayIndex{6}, green, identity);
+    spawn(device, renderer, OverlayIndex{6}, green);
     const std::array<std::array<TI, 2>, 4> attachments = {{{0, 1}, {1, 0}, {7, 8}, {8, 9}}};
     for(TI camera = 0; camera < OverlaySpec::NUM_CAMERAS; camera++){
         for(TI overlay : attachments[camera]){
@@ -666,7 +665,7 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, ATTACHMENT_TIES_AND_PARTIAL_ACCEL_GROUP){
 
     float pose[12] = {1, 0, 0, 5, 0, 1, 0, 0, 0, 0, 1, 0};
     for(TI overlay : {0u, 1u, 7u, 8u, 9u}){
-        set_transform(device, renderer, OverlayIndex{overlay}, placements[overlay], pose);
+        set_pose(device, renderer, OverlayIndex{overlay}, placements[overlay], make_pose(pose));
     }
     update(device, renderer);
     const auto scene_tie = capture(device, renderer);
@@ -675,7 +674,7 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, ATTACHMENT_TIES_AND_PARTIAL_ACCEL_GROUP){
     EXPECT_EQ(scene_only.segmentation, scene_tie.segmentation);
 
     pose[3] = 10;
-    set_transform(device, renderer, OverlayIndex{0}, placements[0], pose);
+    set_pose(device, renderer, OverlayIndex{0}, placements[0], make_pose(pose));
     update(device, renderer);
     const T position[3] = {10, 0, 0}, target[3] = {11, 0, 0}, up[3] = {0, 0, 1};
     const auto camera = make_camera_data(position, target, up, OverlaySpec::CONFIG::FOV, T{1});

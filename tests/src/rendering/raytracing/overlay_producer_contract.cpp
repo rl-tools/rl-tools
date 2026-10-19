@@ -23,11 +23,12 @@
 #endif
 
 // Overlay pose ownership contract, per backend: the transforms/transforms_motion tensors are the
-// single source of truth consumed unconditionally at update(), so a producer-style tensor write
-// (rlt::copy with no pending row — the GPU-resident training path) must render identically to
-// the equivalent set_transform* verb. Pending rows only arbitrate which side owns a row between
-// updates: a verb leaves its rows pending until the next update publishes them, so producer
-// writes are valid exactly after an update has consumed them — the sequence below encodes that rule.
+// single source of truth consumed unconditionally at update(), so a producer write (set_pose on a
+// pose sink over the resident tensors, here staged through a host copy of them, with no pending
+// row — the GPU-resident training path) must render identically to the host set_pose verb.
+// Pending rows only arbitrate which side owns a row between updates: a verb leaves its rows
+// pending until the next update publishes them, so producer writes are valid exactly after an
+// update has consumed them — the sequence below encodes that rule.
 
 namespace rlt = rl_tools;
 namespace rro = rlt::rendering::raytracing::outputs;
@@ -140,7 +141,7 @@ namespace producer_contract {
             rlt::init(device, renderer, bundle, pool);
             set_camera();
             rlt::attach(device, renderer, (TI)0, rlt::rendering::raytracing::OverlayIndex{0});
-            placement = rlt::spawn(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, asset, POSE_A.data());
+            placement = rlt::spawn(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, asset, rlt::make_pose(POSE_A.data()));
         }
         ~Harness(){
             rlt::free(device, renderer);
@@ -170,8 +171,23 @@ namespace producer_contract {
             return frame;
         }
 
-        std::size_t slot_row() const {
-            return (std::size_t)0 * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot;
+        // a device producer's write, through a host copy of the resident tensors
+        template <typename... POSES>
+        void produce(const POSES&... poses){
+            std::vector<float> slab, motion;
+            golden::copy_out(renderer.device, device, renderer.transforms, slab);
+            rlt::rendering::raytracing::PoseSink<SPEC> sink;
+            sink.transforms = slab.data();
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+                golden::copy_out(renderer.device, device, renderer.transforms_motion, motion);
+                sink.transforms_motion = motion.data();
+            }
+            sink.parts = renderer.asset_parts.data();
+            rlt::set_pose(device, sink, rlt::rendering::raytracing::OverlayIndex{0}, placement, poses...);
+            golden::copy_in(device, renderer.device, slab.data(), renderer.transforms);
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+                golden::copy_in(device, renderer.device, motion.data(), renderer.transforms_motion);
+            }
         }
     };
 }
@@ -184,28 +200,24 @@ TEST(RL_TOOLS_OVERLAY_PRODUCER_SUITE, POSE_TENSOR_WRITE_EQUALS_VERB){
 
     const Frame baseline = harness.capture();
 
-    rlt::set_transform(harness.device, harness.renderer, rlt::rendering::raytracing::OverlayIndex{0}, harness.placement, POSE_B.data());
+    rlt::set_pose(harness.device, harness.renderer, rlt::rendering::raytracing::OverlayIndex{0}, harness.placement, rlt::make_pose(POSE_B.data()));
     const Frame verb = harness.capture();
     const auto move = difference(baseline, verb);
     ASSERT_GT(move.rgb, MIN_MOVE_CHANGED_PIXELS);
     ASSERT_GT(move.depth, MIN_MOVE_CHANGED_PIXELS);
 
-    rlt::set_transform(harness.device, harness.renderer, rlt::rendering::raytracing::OverlayIndex{0}, harness.placement, POSE_A.data());
+    rlt::set_pose(harness.device, harness.renderer, rlt::rendering::raytracing::OverlayIndex{0}, harness.placement, rlt::make_pose(POSE_A.data()));
     const Frame reset = harness.capture();
     const auto reset_difference = difference(baseline, reset);
     EXPECT_EQ(reset_difference.rgb, 0u) << "verb-driven render is not deterministic";
     EXPECT_EQ(reset_difference.depth, 0u) << "verb-driven render is not deterministic";
 
-    // producer path: read-modify-write of the transforms tensor with no dirty flag
-    std::vector<float> slab;
-    golden::copy_out(harness.renderer.device, harness.device, rlt::transforms(harness.device, harness.renderer), slab);
-    std::memcpy(slab.data() + harness.slot_row() * 12, POSE_B.data(), 12 * sizeof(float));
-    golden::copy_in(harness.device, harness.renderer.device, slab.data(), rlt::transforms(harness.device, harness.renderer));
+    harness.produce(rlt::make_pose(POSE_B.data()));
     const Frame producer = harness.capture();
 
     const auto equivalence = difference(verb, producer);
-    EXPECT_EQ(equivalence.rgb, 0u) << "producer tensor write did not take effect like the set_transform verb";
-    EXPECT_EQ(equivalence.depth, 0u) << "producer tensor write did not take effect like the set_transform verb";
+    EXPECT_EQ(equivalence.rgb, 0u) << "producer write did not take effect like the set_pose verb";
+    EXPECT_EQ(equivalence.depth, 0u) << "producer write did not take effect like the set_pose verb";
     const auto visibility = difference(baseline, producer);
     EXPECT_GT(visibility.rgb, MIN_MOVE_CHANGED_PIXELS) << "producer frame did not move away from the baseline (stale transforms)";
 }
@@ -218,36 +230,24 @@ TEST(RL_TOOLS_OVERLAY_PRODUCER_SUITE, MOTION_TENSOR_WRITE_EQUALS_VERB){
 
     const Frame baseline = harness.capture();
 
-    rlt::set_transform_pair(harness.device, harness.renderer, rlt::rendering::raytracing::OverlayIndex{0}, harness.placement, POSE_B.data(), POSE_C.data());
+    rlt::set_pose(harness.device, harness.renderer, rlt::rendering::raytracing::OverlayIndex{0}, harness.placement, rlt::make_pose(POSE_B.data()), rlt::make_pose(POSE_C.data()));
     const Frame verb = harness.capture();
     const auto move = difference(baseline, verb);
     ASSERT_GT(move.rgb, MIN_MOVE_CHANGED_PIXELS);
     ASSERT_GT(move.depth, MIN_MOVE_CHANGED_PIXELS);
 
-    rlt::set_transform_pair(harness.device, harness.renderer, rlt::rendering::raytracing::OverlayIndex{0}, harness.placement, POSE_A.data(), POSE_A.data());
+    rlt::set_pose(harness.device, harness.renderer, rlt::rendering::raytracing::OverlayIndex{0}, harness.placement, rlt::make_pose(POSE_A.data()), rlt::make_pose(POSE_A.data()));
     const Frame reset = harness.capture();
     const auto reset_difference = difference(baseline, reset);
     EXPECT_EQ(reset_difference.rgb, 0u) << "verb-driven render is not deterministic";
     EXPECT_EQ(reset_difference.depth, 0u) << "verb-driven render is not deterministic";
 
-    // producer path: the per-sample world poses into transforms_motion and the close pose into
-    // transforms, read-modify-write with no pending row — the kernel-producer layout
-    constexpr std::size_t SLOTS = (std::size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
-    std::vector<float> motion;
-    golden::copy_out(harness.renderer.device, harness.device, rlt::transforms_motion(harness.device, harness.renderer), motion);
-    for(std::size_t sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
-        rlt::rendering::screw_interpolate(POSE_B.data(), POSE_C.data(), ((float)sample + 0.5f) / (float)SPEC::MOTION_BLUR_SAMPLES, motion.data() + (sample * SLOTS + harness.slot_row()) * 12);
-    }
-    golden::copy_in(harness.device, harness.renderer.device, motion.data(), rlt::transforms_motion(harness.device, harness.renderer));
-    std::vector<float> slab;
-    golden::copy_out(harness.renderer.device, harness.device, rlt::transforms(harness.device, harness.renderer), slab);
-    std::memcpy(slab.data() + harness.slot_row() * 12, POSE_C.data(), 12 * sizeof(float));
-    golden::copy_in(harness.device, harness.renderer.device, slab.data(), rlt::transforms(harness.device, harness.renderer));
+    harness.produce(rlt::make_pose(POSE_B.data()), rlt::make_pose(POSE_C.data()));
     const Frame producer = harness.capture();
 
     const auto equivalence = difference(verb, producer);
-    EXPECT_EQ(equivalence.rgb, 0u) << "producer motion write did not take effect like the set_transform_pair verb";
-    EXPECT_EQ(equivalence.depth, 0u) << "producer motion write did not take effect like the set_transform_pair verb";
+    EXPECT_EQ(equivalence.rgb, 0u) << "producer motion write did not take effect like the set_pose verb";
+    EXPECT_EQ(equivalence.depth, 0u) << "producer motion write did not take effect like the set_pose verb";
     const auto visibility = difference(baseline, producer);
     EXPECT_GT(visibility.rgb, MIN_MOVE_CHANGED_PIXELS) << "producer frame did not move away from the baseline (stale transforms)";
 }
@@ -276,9 +276,8 @@ TEST(RL_TOOLS_OVERLAY_PRODUCER_SUITE, MOTION_STRUCTURE_WRITE_WITHOUT_UPDATE){
     malloc(device, renderer);
     init(device, renderer, bundle, pool);
     generate_probe_directions(device, renderer);
-    const auto identity = pose(0, 0, 0);
-    spawn(device, renderer, OverlayIndex{0}, red, identity.data());
-    spawn(device, renderer, OverlayIndex{1}, green, identity.data());
+    spawn(device, renderer, OverlayIndex{0}, red);
+    spawn(device, renderer, OverlayIndex{1}, green);
     attach(device, renderer, TI{0}, OverlayIndex{0});
     const T position[3] = {0, 0, 0}, target[3] = {1, 0, 0}, up[3] = {0, 0, 1};
     const auto camera = make_camera_data(position, target, up, T{80}, T{1});

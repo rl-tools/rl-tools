@@ -1,5 +1,5 @@
-"""A spinning hinge and a sliding block: joint coordinates are sampled across the shutter
-before the kinematics, so the hinge keeps its full revolutions in the motion blur.
+"""A spinning hinge and a block sliding along it: joint coordinates are interpolated across the
+shutter before the kinematics, so the hinge keeps its full revolutions in the motion blur.
 Run with python -m hyperdrone.examples.articulation; writes articulation.gif.
 """
 import imageio.v2 as imageio
@@ -20,10 +20,10 @@ def rectangle(half_y, half_z, color):
 def main():
     identity = render.make_transform()
     asset = render.ObjectAssembly()
-    asset.add_part(rectangle(0.8, 0.08, (1, 0.2, 0)), identity)
-    asset.add_part(rectangle(0.15, 0.15, (0, 0.8, 1)), identity)
-    rig = render.Rig([-1, 0], ["revolute", "prismatic"], axes=[[1, 0, 0], [0, 1, 0]],
-                     origins=[identity, render.make_transform(position=(0, 0.5, 0))])
+    hinge = asset.add_part(rectangle(0.8, 0.08, (1, 0.2, 0)), identity)
+    block = asset.add_part(rectangle(0.15, 0.15, (0, 0.8, 1)), render.make_transform(position=(0, 0.5, 0)), parent=hinge)
+    asset.set_joint(hinge, "revolute", axis=(1, 0, 0), coordinate=0)
+    asset.set_joint(block, "prismatic", axis=(0, 1, 0), coordinate=1)
     pool = render.AssetPool()
     handle = pool.add_assembly(asset)
     scene = render.Scene()
@@ -35,17 +35,14 @@ def main():
     renderer.init(scene, asset_pool=pool)
     renderer.attach(0, 0)
     base = render.make_transform(position=(3, 0, 0))
-    placement = renderer.spawn(0, handle, base)
+    placement = renderer.spawn(0, handle, render.Pose(base))
     renderer.set_cameras(renderer.camera(position=(0, 0, 0), look_at=(1, 0, 0))[None])
-    samples = np.empty((renderer.motion_blur_samples, rig.num_parts, 3, 4), dtype=np.float32)
-    close = np.empty((rig.num_parts, 3, 4), dtype=np.float32)
     frames = []
     for frame in range(90):
         time_open, time_close = frame / 30, (frame + 0.75) / 30
         coordinates_open = [12 * time_open, 0.3 * np.sin(4 * time_open)]
         coordinates_close = [12 * time_close, 0.3 * np.sin(4 * time_close)]
-        rig.sample(base, base, coordinates_open, coordinates_close, renderer.motion_blur_samples, out=samples, close_out=close)
-        renderer.set_motion_transforms(placement, samples, close)
+        renderer.set_pose(placement, render.Pose(base, coordinates=coordinates_open), render.Pose(base, coordinates=coordinates_close))
         renderer.update()
         renderer.render()
         frames.append(renderer.outputs[RGB("rgba8")].read()[0, ..., :3])

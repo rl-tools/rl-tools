@@ -1,6 +1,6 @@
-// host/device rig parity: the same StateRenderRotorPhase rollout rendered through the host
-// set_transform_pair(rig) verb and through a device kernel sampling the rig straight into the
-// renderer's transform slabs must be pixel-identical
+// host/device pose parity: the same StateRenderRotorPhase rollout rendered through the host
+// set_pose verb and through a device kernel calling set_pose on the renderer's pose sink must be
+// pixel-identical
 
 #include <rl_tools/operations/cuda.h>
 #include <rl_tools/operations/cpu_mux.h>
@@ -102,12 +102,8 @@ namespace test_hyperdrone_rig_cuda {
     using ENV = rlt::rl::environments::Multirotor<l2f::Specification<T, TI, STATIC_PARAMETERS>>;
 }
 
-using RIG = rlt::rl::environments::hyperdrone::rig::Rotorcraft<TI, 4>;
-static constexpr TI TOTAL_SLOTS = SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
-
 struct KernelParams {
-    RIG rig;
-    TI first_slot;
+    rlt::rendering::raytracing::OverlayPlacement placement;
     float body_open[12];
     float body_close[12];
     float phase_open[4];
@@ -115,12 +111,11 @@ struct KernelParams {
 };
 
 template <typename T_DEVICE>
-__global__ void produce_transforms_kernel(T_DEVICE device, KernelParams params, float* transforms, float* transforms_motion){
+__global__ void produce_transforms_kernel(T_DEVICE device, KernelParams params, rlt::rendering::raytracing::PoseSink<SPEC> sink){
     if(blockIdx.x != 0 || threadIdx.x != 0){
         return;
     }
-    rlt::rendering::rig::Buffer<RIG::SPEC> buffer;
-    rlt::sample(device, params.rig, params.body_open, params.body_close, params.phase_open, params.phase_close, (TI)SPEC::MOTION_BLUR_SAMPLES, buffer, transforms_motion + params.first_slot * 12, (TI)(TOTAL_SLOTS * 12), transforms + params.first_slot * 12);
+    rlt::set_pose(device, sink, rlt::rendering::raytracing::OverlayIndex{0}, params.placement, rlt::make_pose(params.body_open, 1, params.phase_open), rlt::make_pose(params.body_close, 1, params.phase_close));
 }
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
@@ -141,9 +136,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
     rlt::rendering::raytracing::ObjectAssembly drone_assembly;
     ASSERT_TRUE((rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, drone_assembly, DRONE_PATH)));
 
-    RIG rig;
-    ASSERT_TRUE(rlt::init(device, rig, drone_assembly));
-    ASSERT_EQ(rig.num_coordinates, 4);
+    rlt::rl::environments::hyperdrone::rig::Rotorcraft rotorcraft;
+    ASSERT_TRUE(rlt::init(device, rotorcraft, drone_assembly));
+    ASSERT_EQ(rlt::num_coordinates(device, drone_assembly), 4);
 
     rlt::rendering::raytracing::AssetPool pool;
     const auto drone_asset = rlt::add(device, pool, drone_assembly);
@@ -153,8 +148,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
     rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, ONBOARD_CAMERA, rlt::rendering::raytracing::OverlayIndex{0});
     rlt::attach(device, renderer, THIRD_PERSON_CAMERA, rlt::rendering::raytracing::OverlayIndex{0});
-    const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
-    const auto placement = rlt::spawn(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, drone_asset, identity);
+    const auto placement = rlt::spawn(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, drone_asset);
 
     // shutter pair from an actual StateRenderRotorPhase rollout
     using ENV = test_hyperdrone_rig_cuda::ENV;
@@ -180,8 +174,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
 
     const T scene_translation[3] = {-5.0, -5.2, 1.55};
     KernelParams params{};
-    params.rig = rig;
-    params.first_slot = (TI)placement.first_slot;
+    params.placement = placement;
     rlt::rl::environments::hyperdrone::rig::make_body_transform(device, prev_state.orientation, prev_state.position, scene_translation, (T)1, (T)0, params.body_open);
     rlt::rl::environments::hyperdrone::rig::make_body_transform(device, state.orientation, state.position, scene_translation, (T)1, (T)0, params.body_close);
     for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
@@ -189,7 +182,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
         params.phase_close[rotor_i] = state.rotor_phase[rotor_i];
     }
 
-    // cameras (host-produced in both paths; the rig producer is the parity target)
+    // cameras (host-produced in both paths; the pose producer is the parity target)
     const T aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
     const T body_position[3] = {
         state.position[0] + scene_translation[0],
@@ -217,7 +210,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
     std::vector<uint32_t> frame_device_path(NUM_CAMERAS * CAM_PIXELS);
 
     // host path: verbs
-    rlt::set_transform_pair(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, rig, params.body_open, params.body_close, params.phase_open, params.phase_close);
+    rlt::set_pose(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(params.body_open, 1, params.phase_open), rlt::make_pose(params.body_close, 1, params.phase_close));
     rlt::update(device, renderer);
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
@@ -227,11 +220,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
         rlt::copy(renderer.device, device, rlt::output(device, renderer, rro::RGB<>{}), frame_alias);
     }
 
-    // device path: the kernel samples the rig into the transforms and transforms_motion slabs
+    // device path: the kernel poses the drone through the pose sink
     cudaStream_t render_stream = rlt::stream(device, renderer);
-    float* transforms = rlt::data(rlt::transforms(device, renderer));
-    float* transforms_motion = rlt::data(rlt::transforms_motion(device, renderer));
-    produce_transforms_kernel<<<1, 1, 0, render_stream>>>(tag_device, params, transforms, transforms_motion);
+    const auto sink = rlt::pose_sink(device, renderer);
+    produce_transforms_kernel<<<1, 1, 0, render_stream>>>(tag_device, params, sink);
     ASSERT_EQ(cudaGetLastError(), cudaSuccess);
     rlt::update_launch(device, renderer);
     rlt::render_launch(device, renderer);
@@ -278,7 +270,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
             static_params.phase_open[rotor_i] = 0;
             static_params.phase_close[rotor_i] = 0;
         }
-        rlt::set_transform_pair(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, rig, static_params.body_open, static_params.body_close, static_params.phase_open, static_params.phase_close);
+        rlt::set_pose(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(static_params.body_open, 1, static_params.phase_open), rlt::make_pose(static_params.body_close, 1, static_params.phase_close));
         rlt::update(device, renderer);
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
@@ -288,7 +280,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
             frame_alias._data = static_host.data();
             rlt::copy(renderer.device, device, rlt::output(device, renderer, rro::RGB<>{}), frame_alias);
         }
-        produce_transforms_kernel<<<1, 1, 0, render_stream>>>(tag_device, static_params, transforms, transforms_motion);
+        produce_transforms_kernel<<<1, 1, 0, render_stream>>>(tag_device, static_params, sink);
         ASSERT_EQ(cudaGetLastError(), cudaSuccess);
         rlt::update_launch(device, renderer);
         rlt::render_launch(device, renderer);
@@ -314,7 +306,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
         // re-render with the drone parked far below the scene: any pixel that changes belonged
         // to the drone
         float far_away[12] = {1,0,0,0, 0,1,0,-1000, 0,0,1,-1000};
-        rlt::set_transform_pair(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, far_away, far_away);
+        rlt::set_pose(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(far_away), rlt::make_pose(far_away));
         rlt::update(device, renderer);
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
@@ -334,25 +326,27 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
     rlt::free(device, renderer);
 }
 
-namespace general_rig_test {
-    using RIG_SPEC = rlt::rendering::rig::Specification<float, TI, 3, 4>;
-    using Model = rlt::rendering::rig::Model<RIG_SPEC>;
-    static constexpr TI SAMPLES = 4;
-    static constexpr TI POSE_FLOATS = 4 * 12;
+namespace general_pose_test {
+    struct SinkSpec {
+        static constexpr TI NUM_OVERLAYS = 1, MAX_OVERLAY_INSTANCES = 4, MOTION_BLUR_SAMPLES = 4;
+        static constexpr bool ENABLE_DYNAMIC_MOTION_BLUR = true;
+    };
+    static constexpr TI SLOTS = SinkSpec::NUM_OVERLAYS * SinkSpec::MAX_OVERLAY_INSTANCES;
+    static constexpr TI ROWS = (SinkSpec::MOTION_BLUR_SAMPLES + 1) * SLOTS * 12;
 
-    // the model travels as a kernel parameter: a plain value, no device-side setup
     template <typename TAG>
-    __global__ void sample_kernel(TAG device, Model model, const float* base_open, const float* base_close, const float* open, const float* close, float* poses){
+    __global__ void pose_kernel(TAG device, rlt::rendering::raytracing::PoseSink<SinkSpec> sink, rlt::rendering::raytracing::OverlayPlacement placement, const float* base_open, const float* base_close, const float* open, const float* close){
         if(threadIdx.x != 0 || blockIdx.x != 0){
             return;
         }
-        rlt::rendering::rig::Buffer<RIG_SPEC> buffer;
-        rlt::sample(device, model, base_open, base_close, open, close, SAMPLES, buffer, poses, POSE_FLOATS, poses + SAMPLES * POSE_FLOATS);
+        rlt::set_pose(device, sink, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(base_open, 1, open), rlt::make_pose(base_close, 1.5f, close));
     }
 }
 
+// a revolute arm about an off-origin pivot, a prismatic slider riding it and a fixed cap riding
+// the slider, evaluated by the device kernel and the host
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, GENERAL_KINEMATICS_HOST_DEVICE_PARITY){
-    using namespace general_rig_test;
+    using namespace general_pose_test;
     int device_count = 0;
     if(cudaGetDeviceCount(&device_count) != cudaSuccess || device_count == 0){
         GTEST_SKIP() << "CUDA device unavailable";
@@ -361,63 +355,77 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, GENERAL_KINEMATICS_HOST_DEVIC
     DEVICE_GPU gpu;
     rlt::init(host);
     rlt::init(gpu);
-    Model model;
-    model.num_links = 3;
-    model.num_parts = 4;
-    model.links[0].joint = rlt::rendering::rig::Joint::REVOLUTE;
-    model.links[0].axis[0] = 2;
-    model.links[0].axis[1] = 1;
-    model.links[0].axis[2] = 0;
-    model.links[0].origin[7] = 3;
-    model.links[1].parent = 0;
-    model.links[1].joint = rlt::rendering::rig::Joint::PRISMATIC;
-    model.links[1].axis[0] = 0;
-    model.links[1].axis[1] = 2;
-    model.links[1].axis[2] = 0;
-    model.links[1].origin[3] = 1;
-    model.links[2].parent = 1;
-    model.links[2].joint = rlt::rendering::rig::Joint::SPHERICAL;
-    model.links[2].origin[11] = 2;
-    model.parts[0].link = 1;
-    model.parts[1].link = 2;
-    model.parts[2].link = 0;
-    model.parts[3].link = 1;
-    model.parts[3].offset[3] = 2;
-    ASSERT_TRUE(rlt::init(host, model));
-    ASSERT_EQ(model.num_coordinates, 6);
+    rlt::rendering::raytracing::ObjectAssembly assembly;
+    rlt::rendering::raytracing::Object object;
+    const float arm_rest[12] = {1,0,0,0, 0,1,0,3, 0,0,1,0};
+    const float slider_rest[12] = {0,-1,0,1, 1,0,0,3, 0,0,1,0};
+    const float cap_rest[12] = {1,0,0,1, 0,1,0,3, 0,0,1,2};
+    rlt::add(host, assembly, object, arm_rest);
+    rlt::add(host, assembly, object, slider_rest);
+    rlt::add(host, assembly, object, cap_rest);
+    assembly.parts[1].parent = 0;
+    assembly.parts[2].parent = 1;
+    auto& hinge = assembly.parts[0].joint;
+    hinge.type = rlt::rendering::Joint::Type::REVOLUTE;
+    hinge.axis[0] = 2;
+    hinge.axis[1] = 1;
+    hinge.axis[2] = 0;
+    hinge.pivot[0] = 0.5f;
+    hinge.coordinate = 1;
+    auto& rail = assembly.parts[1].joint;
+    rail.type = rlt::rendering::Joint::Type::PRISMATIC;
+    rail.axis[1] = 2;
+    rail.axis[2] = 0;
+    rail.coordinate = 0;
+    rlt::rendering::raytracing::AssetPool pool;
+    ASSERT_TRUE(rlt::can_add(host, pool, assembly));
+    std::vector<rlt::rendering::raytracing::AssetPart> parts;
+    rlt::rendering::raytracing::detail::flatten_parts(assembly, 0, parts);
+    const rlt::rendering::raytracing::OverlayPlacement placement{0, parts.size(), 0};
     const float base_open[12] = {1,0,0,4, 0,1,0,0, 0,0,1,0};
     const float base_close[12] = {0,-1,0,5, 1,0,0,1, 0,0,1,0.5f};
-    const float open[6] = {0, 0, 1,0,0,0};
-    const float close[6] = {12.566370614359172f, 2, -1,0,0,-1};
+    const float open[2] = {0, 0};
+    const float close[2] = {2, 12.566370614359172f};
 
-    constexpr TI OUTPUT_FLOATS = (SAMPLES + 1) * POSE_FLOATS;
-    float *base_open_gpu, *base_close_gpu, *open_gpu, *close_gpu, *poses_gpu;
+    float *base_open_gpu, *base_close_gpu, *open_gpu, *close_gpu, *rows_gpu;
+    rlt::rendering::raytracing::AssetPart* parts_gpu;
     ASSERT_EQ(cudaMalloc(&base_open_gpu, sizeof(base_open)), cudaSuccess);
     ASSERT_EQ(cudaMalloc(&base_close_gpu, sizeof(base_close)), cudaSuccess);
     ASSERT_EQ(cudaMalloc(&open_gpu, sizeof(open)), cudaSuccess);
     ASSERT_EQ(cudaMalloc(&close_gpu, sizeof(close)), cudaSuccess);
-    ASSERT_EQ(cudaMalloc(&poses_gpu, OUTPUT_FLOATS * sizeof(float)), cudaSuccess);
+    ASSERT_EQ(cudaMalloc(&rows_gpu, ROWS * sizeof(float)), cudaSuccess);
+    ASSERT_EQ(cudaMalloc(&parts_gpu, parts.size() * sizeof(parts[0])), cudaSuccess);
     ASSERT_EQ(cudaMemcpy(base_open_gpu, base_open, sizeof(base_open), cudaMemcpyHostToDevice), cudaSuccess);
     ASSERT_EQ(cudaMemcpy(base_close_gpu, base_close, sizeof(base_close), cudaMemcpyHostToDevice), cudaSuccess);
     ASSERT_EQ(cudaMemcpy(open_gpu, open, sizeof(open), cudaMemcpyHostToDevice), cudaSuccess);
     ASSERT_EQ(cudaMemcpy(close_gpu, close, sizeof(close), cudaMemcpyHostToDevice), cudaSuccess);
+    ASSERT_EQ(cudaMemcpy(parts_gpu, parts.data(), parts.size() * sizeof(parts[0]), cudaMemcpyHostToDevice), cudaSuccess);
+    ASSERT_EQ(cudaMemset(rows_gpu, 0, ROWS * sizeof(float)), cudaSuccess);
+    rlt::rendering::raytracing::PoseSink<SinkSpec> device_sink;
+    device_sink.transforms = rows_gpu;
+    device_sink.transforms_motion = rows_gpu + SLOTS * 12;
+    device_sink.parts = parts_gpu;
     rlt::devices::cuda::TAG<DEVICE_GPU, true> tag{};
-    sample_kernel<<<1, 1>>>(tag, model, base_open_gpu, base_close_gpu, open_gpu, close_gpu, poses_gpu);
+    pose_kernel<<<1, 1>>>(tag, device_sink, placement, base_open_gpu, base_close_gpu, open_gpu, close_gpu);
     ASSERT_EQ(cudaGetLastError(), cudaSuccess);
-    float actual[OUTPUT_FLOATS];
-    ASSERT_EQ(cudaMemcpy(actual, poses_gpu, sizeof(actual), cudaMemcpyDeviceToHost), cudaSuccess);
+    std::vector<float> actual(ROWS);
+    ASSERT_EQ(cudaMemcpy(actual.data(), rows_gpu, ROWS * sizeof(float), cudaMemcpyDeviceToHost), cudaSuccess);
 
-    float expected[OUTPUT_FLOATS];
-    rlt::rendering::rig::Buffer<RIG_SPEC> buffer;
-    rlt::sample(host, model, base_open, base_close, open, close, SAMPLES, buffer, expected, POSE_FLOATS, expected + SAMPLES * POSE_FLOATS);
+    std::vector<float> expected(ROWS, 0.0f);
+    rlt::rendering::raytracing::PoseSink<SinkSpec> host_sink;
+    host_sink.transforms = expected.data();
+    host_sink.transforms_motion = expected.data() + SLOTS * 12;
+    host_sink.parts = parts.data();
+    rlt::set_pose(host, host_sink, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(base_open, 1, open), rlt::make_pose(base_close, 1.5f, close));
     float worst = 0;
-    for(TI i = 0; i < OUTPUT_FLOATS; i++){
+    for(TI i = 0; i < ROWS; i++){
         const float error = std::abs(expected[i] - actual[i]);
         worst = std::max(worst, error);
         EXPECT_NEAR(expected[i], actual[i], 2e-5f) << "element " << i;
     }
     metra::log("rendering/rig/cuda/max_pose_error", worst);
-    cudaFree(poses_gpu);
+    cudaFree(parts_gpu);
+    cudaFree(rows_gpu);
     cudaFree(close_gpu);
     cudaFree(open_gpu);
     cudaFree(base_close_gpu);

@@ -169,7 +169,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MOVING_GATE, ENTITY_MECHANISM_AND_TASK)
     rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
 
     ASSERT_EQ(world.entity_kinds.size(), 1);
-    EXPECT_GT(world.entity_kinds[world.entity_kind_index].rig.num_parts, 0);
+    EXPECT_GT(world.entity_kinds[world.entity_kind_index].num_parts, 0);
 
     RNG rng;
     rlt::malloc(device, rng);

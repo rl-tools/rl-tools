@@ -42,7 +42,7 @@ namespace rl_tools {
                 auto& destination = renderer.overlays[0].slots[slot_i];
                 destination.active = source.active;
                 destination.object = source.object;
-                std::copy(source.transform, source.transform + 12, data(transforms(device, renderer)) + slot_i * 12);
+                std::copy(source.transform, source.transform + 12, data(renderer.transforms) + slot_i * 12);
             }
             renderer.overlays[0].dirty = true;
             update(device, renderer);

@@ -267,13 +267,16 @@ namespace rl_tools::rl::environments::hyperdrone {
         std::string asset;  // body/prop_* assembly, a path or conta:HASH; required iff SELF_VISIBLE
         DroneParameters<T_SPEC> parameters;
     };
+    // the parts of a drone asset a World renders (body, props, attachments): one drone region per agent
+    inline constexpr size_t MAX_DRONE_PARTS = 8;
+
     // how a table entry is rendered (SELF_VISIBLE): its mesh (an index into
-    // SharedContext::drone_meshes) and the body/prop_* rig matched to the entry's nominal rotors,
-    // so coordinate i is the phase of rotor i whatever the assembly's prop order
+    // SharedContext::drone_meshes, articulated against the entry's nominal rotors, so coordinate i
+    // is the phase of rotor i whatever the assembly's prop order) and that rotorcraft
     template <typename T_SPEC>
     struct DroneBody {
         using TI = typename T_SPEC::TI;
-        rig::Rotorcraft<TI, 4> rig;
+        rig::Rotorcraft rotorcraft;
         TI mesh = 0;
     };
 
@@ -296,8 +299,8 @@ namespace rl_tools::rl::environments::hyperdrone {
         rendering::datasets::annotations::Cache annotation_cache;
         std::vector<Drone<SPEC>> drones;  // registered before the first World init
         TI num_drones = 0;  // 0 until built
-        // SELF_VISIBLE: one pooled mesh per distinct assembly content, all with drone_parts parts
-        // (a swap then keeps every slot, see replace), and one body per entry
+        // SELF_VISIBLE: one pooled mesh per distinct assembly content and joints, all with
+        // drone_parts parts (a swap then keeps every slot, see replace), and one body per entry
         std::vector<rendering::raytracing::AssetHandle> drone_meshes;
         TI drone_parts = 0;
         std::vector<DroneBody<SPEC>> drone_bodies;
@@ -363,20 +366,14 @@ namespace rl_tools::rl::environments::hyperdrone {
         using LIBRARY = rendering::raytracing::AssetLibrary<RENDERER_SPEC>;
         using SharedContext = hyperdrone::SharedContext<SPEC>;
 
-        // entity rigs produce the part poses of an entity from (base pose, coordinates); an entity
-        // occupies one slot per part, so the per-instance slot budget bounds links and parts
-        static constexpr TI ENTITY_RIG_CAPACITY = SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE > 0 ? SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE : 1;
-        using ENTITY_RIG_SPEC = rendering::rig::Specification<float, TI, ENTITY_RIG_CAPACITY, ENTITY_RIG_CAPACITY>;
-        using ENTITY_RIG = rendering::rig::Model<ENTITY_RIG_SPEC>;
-
         // a registered entity kind (register_entity_kind): its pooled asset, its first slot and its
-        // rig, which for a rigid entity has no coordinates. Spawn order is pinned (instance-major,
-        // registration order, then the drone region, first-fit), so the kind's rows sit at
-        // instance * MAX_ENTITY_SLOTS_PER_INSTANCE + slot_offset in every instance and hot slot
+        // part count. Spawn order is pinned (instance-major, registration order, then the drone
+        // region, first-fit), so the kind's rows sit at instance * MAX_ENTITY_SLOTS_PER_INSTANCE +
+        // slot_offset in every instance and hot slot
         struct EntityKind {
             rendering::raytracing::AssetHandle asset;
             TI slot_offset;
-            ENTITY_RIG rig;
+            TI num_parts;
         };
 
         // hot slot: the scene build in the shared library plus this World's thin per-camera

@@ -137,8 +137,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE, OWN_DRONE_AND_ARTICULATIO
 
     ASSERT_TRUE(world.entity_kinds.empty());
     ASSERT_EQ(shared.drone_bodies.size(), 1);
-    EXPECT_EQ(shared.drone_bodies[0].rig.num_coordinates, 4);
-    EXPECT_GT(shared.drone_bodies[0].rig.num_parts, 1);
+    EXPECT_EQ(rlt::num_coordinates(device, shared.library.pool.assemblies[shared.drone_meshes[0].index]), 4);
+    EXPECT_GT(shared.drone_parts, 1);
 
     RNG rng;
     rlt::malloc(device, rng);

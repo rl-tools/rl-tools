@@ -119,7 +119,7 @@ namespace HYPERDRONE_MODULE_NAME {
         static constexpr TI N_CAMERA_AGENTS = HYPERDRONE_ENV_N_CAMERA_AGENTS;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE =
             (HYPERDRONE_ENV_TASK == 2 && PRESET_SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE == 0 ? 8 : PRESET_SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE)
-            + (N_AGENTS - 1) * rlt::rl::environments::hyperdrone::rig::Rotorcraft<TI>::SPEC::MAX_PARTS;
+            + (N_AGENTS - 1) * rlt::rl::environments::hyperdrone::MAX_DRONE_PARTS;
         // the visual-inertial localization benchmark flies without self-occlusion, like its
         // C++ harness (src/rl/environments/hyperdrone/tasks/visual_inertial_localization_harness.h)
         static constexpr bool SELF_VISIBLE = HYPERDRONE_ENV_TASK != 3 && PRESET_SPEC::SELF_VISIBLE;

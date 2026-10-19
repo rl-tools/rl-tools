@@ -27,21 +27,6 @@ namespace rl_tools{
             return result;
         }
 
-        // the device counterpart of the rig verbs: one entity's part rows (and motion samples)
-        // written straight into the renderer's resident tensors at row (overlay-major slot index)
-        template <typename DEVICE, typename RENDERER_SPEC, typename RIG_SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT void entity_rows(DEVICE& device, const rendering::rig::Model<RIG_SPEC>& rig, const float base_open[12], const float base_close[12], const float* coordinates_open, const float* coordinates_close, float* transforms, float* transforms_motion, typename RIG_SPEC::TI row, float placement_scale = 1){
-            using TI = typename RIG_SPEC::TI;
-            rendering::rig::Buffer<RIG_SPEC> buffer;
-            if constexpr (RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
-                constexpr TI SAMPLE_STRIDE = (TI)RENDERER_SPEC::NUM_OVERLAYS * (TI)RENDERER_SPEC::MAX_OVERLAY_INSTANCES * 12;
-                sample(device, rig, base_open, base_close, coordinates_open, coordinates_close, (TI)RENDERER_SPEC::MOTION_BLUR_SAMPLES, buffer, transforms_motion + row * 12, SAMPLE_STRIDE, transforms + row * 12, placement_scale);
-            }
-            else{
-                evaluate(device, rig, base_close, coordinates_close, buffer, transforms + row * 12, placement_scale);
-            }
-        }
-
         template <typename DEVICE, typename SPEC, typename DRONE_SPEC, typename PARAMETER_SPEC, typename RESET_SPEC, typename RNG>
         __global__ void sample_initial_parameters_kernel(DEVICE device, typename World<SPEC>::DYNAMICS_ENV dynamics, GroupParameters<SPEC> defaults, const Tensor<DRONE_SPEC> drones, typename SPEC::TI num_drones, Tensor<PARAMETER_SPEC> parameters, const Tensor<RESET_SPEC> reset_mask, RNG rng){
             using TI = typename DEVICE::index_t;
@@ -117,32 +102,39 @@ namespace rl_tools{
                 }
             }
         }
-        // the drone meshes in the active renderer, by value: the object ids of every mesh's parts
-        // (the pool's object base differs per hot slot) and the device structure rows their
-        // object column goes to, null with a single mesh (the init mesh stays)
+        // the drone meshes in the active renderer, by value: every mesh's first asset part and, with
+        // several meshes, the object ids of its parts (the pool's object base differs per hot slot)
+        // and the device structure rows their object column goes to (null with a single mesh: the
+        // init mesh stays)
         template <typename SPEC, typename STRUCTURE>
         struct DroneMeshes {
-            using TI = typename SPEC::TI;
-            static constexpr TI MAX_PARTS = decltype(DroneBody<SPEC>::rig)::SPEC::MAX_PARTS;
             STRUCTURE* structure;
-            unsigned int objects[SPEC::MAX_DRONES][MAX_PARTS];
+            size_t first_parts[SPEC::MAX_DRONES];
+            unsigned int objects[SPEC::MAX_DRONES][MAX_DRONE_PARTS];
         };
-        // one agent's drone region at row: the rows from the entry's rig and, with several meshes,
-        // the object column (host truth keeps the init mesh, see overlay_structure)
+        // one agent's drone region: posed through the parts of its mesh and, with several meshes,
+        // the object column swapped to that mesh (host truth keeps the init mesh, see overlay_structure)
         template <typename DEVICE, typename SPEC, typename STRUCTURE>
-        RL_TOOLS_FUNCTION_PLACEMENT void drone_entity_rows(DEVICE& device, const DroneBody<SPEC>& body, const float base_open[12], const float base_close[12], const float* coordinates_open, const float* coordinates_close, float* transforms, float* transforms_motion, const DroneMeshes<SPEC, STRUCTURE>& meshes, typename SPEC::TI parts, typename SPEC::TI row, float placement_scale){
+        RL_TOOLS_FUNCTION_PLACEMENT void drone_entity_rows(DEVICE& device, const rendering::raytracing::PoseSink<typename World<SPEC>::RENDERER_SPEC>& sink, const DroneMeshes<SPEC, STRUCTURE>& meshes, typename SPEC::TI mesh, rendering::raytracing::OverlayIndex overlay, typename SPEC::TI first_slot, typename SPEC::TI parts, const rendering::raytracing::Pose& open, const rendering::raytracing::Pose& close){
             using TI = typename SPEC::TI;
-            entity_rows<DEVICE, typename World<SPEC>::RENDERER_SPEC>(device, body.rig, base_open, base_close, coordinates_open, coordinates_close, transforms, transforms_motion, row, placement_scale);
+            const rendering::raytracing::OverlayPlacement placement{first_slot, parts, meshes.first_parts[mesh]};
+            if constexpr (World<SPEC>::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+                set_pose(device, sink, overlay, placement, open, close);
+            }
+            else{
+                set_pose(device, sink, overlay, placement, close);
+            }
             if(meshes.structure != nullptr){
+                const TI row = overlay.index * World<SPEC>::RENDERER_CONFIG::MAX_OVERLAY_INSTANCES + first_slot;
                 for(TI part_i = 0; part_i < parts; part_i++){
-                    meshes.structure[row + part_i].object = meshes.objects[body.mesh][part_i];
+                    meshes.structure[row + part_i].object = meshes.objects[mesh][part_i];
                 }
             }
         }
         // every agent's drone region follows its own drone entry; the body is posed at
         // shutter close and only the props blur
         template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename BODIES_SPEC, typename STRUCTURE>
-        __global__ void drone_rows_kernel(DEVICE device, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, const Tensor<BODIES_SPEC> bodies, typename SPEC::TI slot_offset, typename SPEC::TI parts, float* transforms, float* transforms_motion, DroneMeshes<SPEC, STRUCTURE> meshes){
+        __global__ void drone_rows_kernel(DEVICE device, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, const Tensor<BODIES_SPEC> bodies, typename SPEC::TI slot_offset, typename SPEC::TI parts, rendering::raytracing::PoseSink<typename World<SPEC>::RENDERER_SPEC> sink, DroneMeshes<SPEC, STRUCTURE> meshes){
             using TI = typename DEVICE::index_t;
             using WORLD = World<SPEC>;
             constexpr TI ENTRIES = WORLD::INSTANCES * WORLD::N_AGENTS;
@@ -156,10 +148,9 @@ namespace rl_tools{
                 rig::make_body_transform(device, agent_state.orientation, agent_state.position, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, base);
                 float coordinates_open[WORLD::DYNAMICS_ENV::ACTION_DIM], coordinates_close[WORLD::DYNAMICS_ENV::ACTION_DIM];
                 _drone_coordinates<DEVICE, SPEC>(device, instance_parameters, agent_i, agent_state, coordinates_open, coordinates_close);
-                const TI row = instance_i * WORLD::RENDERER_CONFIG::MAX_OVERLAY_INSTANCES + slot_offset + agent_i * parts;
                 const auto& body = get_ref(device, bodies, instance_parameters.agents[agent_i].drone);
-                const float placement_scale = rotor_scale(device, body.rig, instance_parameters.agents[agent_i].dynamics.dynamics.rotor_positions, WORLD::DYNAMICS_ENV::ACTION_DIM);
-                drone_entity_rows<DEVICE, SPEC>(device, body, base, base, coordinates_open, coordinates_close, transforms, transforms_motion, meshes, parts, row, placement_scale);
+                const float scale = rotor_scale(device, body.rotorcraft, instance_parameters.agents[agent_i].dynamics.dynamics.rotor_positions, WORLD::DYNAMICS_ENV::ACTION_DIM);
+                drone_entity_rows<DEVICE, SPEC>(device, sink, meshes, body.mesh, rendering::raytracing::OverlayIndex{instance_i}, slot_offset + agent_i * parts, parts, make_pose(base, scale, coordinates_open), make_pose(base, scale, coordinates_close));
             }
         }
         // Fuse no-flow episode bookkeeping into scatter or step to avoid a separate kernel launch.
@@ -287,14 +278,15 @@ namespace rl_tools{
                 utils::assert_exit(device, !renderer.overlays[overlay_i].dirty, "hyperdrone::World: a CUDA World spawns only at init, an update would overwrite the device-written drone meshes");
             }
             DroneMeshes<SPEC, STRUCTURE> meshes{};
+            for(TI mesh_i = 0; mesh_i < (TI)world.drone_meshes.size(); mesh_i++){
+                const auto& record = renderer.assets[world.drone_meshes[mesh_i].index];
+                meshes.first_parts[mesh_i] = record.first_part;
+                for(TI part_i = 0; part_i < world.drone_parts; part_i++){
+                    meshes.objects[mesh_i][part_i] = (unsigned int)renderer.asset_parts[record.first_part + part_i].object;
+                }
+            }
             if(world.drone_meshes.size() > 1){
                 meshes.structure = overlay_structure(device, renderer);
-                for(TI mesh_i = 0; mesh_i < (TI)world.drone_meshes.size(); mesh_i++){
-                    const auto& record = renderer.assets[world.drone_meshes[mesh_i].index];
-                    for(TI part_i = 0; part_i < world.drone_parts; part_i++){
-                        meshes.objects[mesh_i][part_i] = (unsigned int)renderer.asset_part_objects[record.first_part + part_i];
-                    }
-                }
             }
             return meshes;
         }
@@ -342,13 +334,9 @@ namespace rl_tools{
         devices::cuda::TAG<DEVICE, true> tag_device{};
         auto& renderer = get_renderer(device, world);
         if constexpr (SPEC::SELF_VISIBLE){
-            float* transforms_motion_rows = nullptr;
-            if constexpr (WORLD::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
-                transforms_motion_rows = data(transforms_motion(device, renderer));
-            }
             constexpr TI BLOCKSIZE = 32;
             constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES * WORLD::N_AGENTS, BLOCKSIZE);
-            rl::environments::hyperdrone::cuda::drone_rows_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, parameters, states, world.drone_bodies, world.drone_slot_offset, world.drone_parts, data(transforms(device, renderer)), transforms_motion_rows, rl::environments::hyperdrone::cuda::drone_meshes(device, world, renderer));
+            rl::environments::hyperdrone::cuda::drone_rows_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, parameters, states, world.drone_bodies, world.drone_slot_offset, world.drone_parts, pose_sink(device, renderer), rl::environments::hyperdrone::cuda::drone_meshes(device, world, renderer));
             check_status(device);
         }
         {
@@ -376,8 +364,8 @@ namespace rl_tools{
         const float* current_transforms = nullptr;
         float* previous_transforms = nullptr;
         if constexpr(WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){
-            current_transforms = data(transforms(device, renderer));
-            previous_transforms = data(transforms_previous(device, renderer));
+            current_transforms = data(renderer.transforms);
+            previous_transforms = data(renderer.transforms_previous);
         }
         constexpr TI BLOCKSIZE = 32;
         constexpr TI N_BLOCKS = (WORLD::INSTANCES + BLOCKSIZE - 1) / BLOCKSIZE;

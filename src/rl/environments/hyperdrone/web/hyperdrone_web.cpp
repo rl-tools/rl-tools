@@ -37,7 +37,7 @@ namespace rl_tools::rl::environments::hyperdrone::web {
         static constexpr TI N_AGENTS = T_N_AGENTS;
         static constexpr TI N_CAMERA_AGENTS = 1;
         static constexpr TI MAX_DRONES = 6;
-        static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = N_AGENTS * rig::Rotorcraft<TI>::SPEC::MAX_PARTS;
+        static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = N_AGENTS * MAX_DRONE_PARTS;
         static constexpr TI CAM_WIDTH = 480 * T_RESOLUTION_SCALE;
         static constexpr TI CAM_HEIGHT = 270 * T_RESOLUTION_SCALE;
         static constexpr TI NUM_PROBES = 64;
@@ -464,10 +464,10 @@ static int run(const char* scene_path, const char* policy_path, int max_frames, 
     EM_ASM({
         Module.rlt_segmentation_classes(JSON.parse(UTF8ToString($0)));
     }, class_names.c_str());
-    const auto& rig = state.environment.shared.drone_bodies[0].rig;
+    const auto& rotorcraft = state.environment.shared.drone_bodies[0].rotorcraft;
     EM_ASM({
         Module.rlt_motor_layout($0, $1, $2);
-    }, rig.rotor_position_deviation, rig.wheelbase, rl::environments::hyperdrone::rig::ROTOR_POSITION_WARNING_THRESHOLD);
+    }, rotorcraft.rotor_position_deviation, rotorcraft.wheelbase * rotorcraft.scale, rl::environments::hyperdrone::rig::ROTOR_POSITION_WARNING_THRESHOLD);
     if(placement.contains("position")) {
         for(web::TI dim = 0; dim < 3; dim++) {
             state.spawn.position[dim] = placement.at("position").at(dim).get<web::T>();
@@ -604,7 +604,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
         models[drone.dynamics_index] = true;
         for(web::TI dim = 0; dim < 3; dim++) {
             const auto& value = entry.at("fpv_position").at(dim);
-            if(!value.is_number() || !rl_tools::rendering::rig::detail::is_finite(drone.fpv_position[dim] = value.get<web::T>())) {
+            if(!value.is_number() || !rl_tools::rendering::is_finite(drone.fpv_position[dim] = value.get<web::T>())) {
                 status("The airframe camera position is invalid");
                 return 1;
             }
@@ -614,12 +614,12 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
     if(session.contains("position")) {
         if(!session.at("position").is_array() || session.at("position").size() != 3
             || !session.contains("yaw") || !session.at("yaw").is_number()
-            || !rl_tools::rendering::rig::detail::is_finite(session.at("yaw").get<web::T>())) {
+            || !rl_tools::rendering::is_finite(session.at("yaw").get<web::T>())) {
             status("The starting pose is invalid");
             return 1;
         }
         for(const auto& value: session.at("position")) {
-            if(!value.is_number() || !rl_tools::rendering::rig::detail::is_finite(value.get<web::T>())) {
+            if(!value.is_number() || !rl_tools::rendering::is_finite(value.get<web::T>())) {
                 status("The starting pose is invalid");
                 return 1;
             }
@@ -637,7 +637,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
                 return 1;
             }
             for(const auto& value: position) {
-                if(!value.is_number() || !rl_tools::rendering::rig::detail::is_finite(value.get<web::T>())) {
+                if(!value.is_number() || !rl_tools::rendering::is_finite(value.get<web::T>())) {
                     status("The other drone starting positions are invalid");
                     return 1;
                 }

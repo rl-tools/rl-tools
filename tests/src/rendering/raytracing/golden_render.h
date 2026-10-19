@@ -122,21 +122,21 @@ namespace golden {
         }
 
         // fixed overlays sit at the close pose for both instants (spawn initialises previous ==
-        // current and every motion sample); moving ones go through the host verbs: flow keeps the
-        // spawn pose as the previous instant, dynamic motion blur takes the shutter pair
+        // current and every motion sample); moving ones go through set_pose: flow keeps the spawn
+        // pose as the previous instant, dynamic motion blur takes the shutter pair
         template <typename CASE, typename DEVICE, typename RENDERER>
         void place_overlay(DEVICE& device, RENDERER& renderer, rl_tools::rendering::raytracing::OverlayIndex overlay, rl_tools::rendering::raytracing::AssetHandle asset, const float open[12], const float close[12]){
             using SPEC = typename CASE::SPEC;
             if constexpr(CASE::OVERLAYS == Overlays::MOVING && SPEC::HAS_FLOW_OVERLAYS){
-                const auto placement = rl_tools::spawn(device, renderer, overlay, asset, open);
-                rl_tools::set_transform(device, renderer, overlay, placement, close);
+                const auto placement = rl_tools::spawn(device, renderer, overlay, asset, rl_tools::make_pose(open));
+                rl_tools::set_pose(device, renderer, overlay, placement, rl_tools::make_pose(close));
             }
             else if constexpr(CASE::OVERLAYS == Overlays::MOVING){
-                const auto placement = rl_tools::spawn(device, renderer, overlay, asset, close);
-                rl_tools::set_transform_pair(device, renderer, overlay, placement, open, close);
+                const auto placement = rl_tools::spawn(device, renderer, overlay, asset, rl_tools::make_pose(close));
+                rl_tools::set_pose(device, renderer, overlay, placement, rl_tools::make_pose(open), rl_tools::make_pose(close));
             }
             else{
-                rl_tools::spawn(device, renderer, overlay, asset, close);
+                rl_tools::spawn(device, renderer, overlay, asset, rl_tools::make_pose(close));
             }
         }
     }

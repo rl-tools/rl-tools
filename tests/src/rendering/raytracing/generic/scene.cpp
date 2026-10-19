@@ -986,13 +986,13 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_OVERLAY_TRANSLATION){
     rlt::generate_probe_directions(device, renderer);
     rlt::init(device, renderer, scene.bundle, scene.pool);
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
-    const auto placement = rlt::spawn(device, renderer, OverlayIndex{0}, scene.cube_asset, scene.transform_current);
+    const auto placement = rlt::spawn(device, renderer, OverlayIndex{0}, scene.cube_asset, rlt::make_pose(scene.transform_current));
     rlt::update(device, renderer); // publishes the slot structure and clears the dirty flag: the rows are producer-owned from here on
 
     std::vector<float> previous_rows;
-    golden::copy_out(renderer.device, device, rlt::transforms_previous(device, renderer), previous_rows);
+    golden::copy_out(renderer.device, device, renderer.transforms_previous, previous_rows);
     std::memcpy(previous_rows.data() + placement.first_slot * 12, scene.transform_previous, 12 * sizeof(float));
-    golden::copy_in(device, renderer.device, previous_rows.data(), rlt::transforms_previous(device, renderer));
+    golden::copy_in(device, renderer.device, previous_rows.data(), renderer.transforms_previous);
     rlt::update(device, renderer);
 
     set_static_flow_camera(device, renderer);
@@ -1090,10 +1090,10 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_SELF_OCCLUSION){
     float transform_previous[12], transform_current[12];
     rlt::make_transform(position, identity_wxyz, transform_previous);
     rlt::make_transform(position, half_turn_z_wxyz, transform_current);
-    const auto placement = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, transform_previous);
+    const auto placement = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, rlt::make_pose(transform_previous));
     rlt::update(device, renderer);
     rlt::advance_flow(device, renderer);
-    rlt::set_transform(device, renderer, OverlayIndex{0}, placement, transform_current);
+    rlt::set_pose(device, renderer, OverlayIndex{0}, placement, rlt::make_pose(transform_current));
     rlt::update(device, renderer);
 
     set_static_flow_camera(device, renderer);
@@ -1208,7 +1208,7 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_FORWARD_BACKWARD_CONSISTENCY){
 }
 
 // verb path over two frames: spawn initialises the previous instant to the spawn pose (zero
-// object flow), advance_flow moves it forward, set_transform never touches it
+// object flow), advance_flow moves it forward, set_pose never touches it
 TEST(RL_TOOLS_SCENE_SUITE, FLOW_ADVANCE){
     DEVICE device;
     rlt::init(device);
@@ -1221,7 +1221,7 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_ADVANCE){
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
     set_static_flow_camera(device, renderer);
 
-    const auto placement = rlt::spawn(device, renderer, OverlayIndex{0}, scene.cube_asset, scene.transform_previous);
+    const auto placement = rlt::spawn(device, renderer, OverlayIndex{0}, scene.cube_asset, rlt::make_pose(scene.transform_previous));
     rlt::update(device, renderer);
     const FlowFrame spawned = render_flow(device, renderer);
     for(size_t pixel_i = 0; pixel_i < (size_t)FLOW_OVERLAY_SPEC::CAM_PIXELS; pixel_i++){
@@ -1232,7 +1232,7 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_ADVANCE){
     EXPECT_GE(count_status(spawned.status, FlowStatus::VALID), (size_t)FLOW_OVERLAY_SPEC::CAM_PIXELS - WALL_CRACK_PIXEL_TOLERANCE) << "a freshly spawned object has no motion of its own";
 
     rlt::advance_flow(device, renderer);
-    rlt::set_transform(device, renderer, OverlayIndex{0}, placement, scene.transform_current);
+    rlt::set_pose(device, renderer, OverlayIndex{0}, placement, rlt::make_pose(scene.transform_current));
     rlt::update(device, renderer);
     const FlowFrame moved = render_flow(device, renderer);
     expect_object_translation(moved);
@@ -1243,7 +1243,7 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_ADVANCE){
     const float position_further[3] = {OBJECT_POSITION_X, -OBJECT_DELTA_Y, 0};
     float transform_further[12];
     rlt::make_transform(position_further, orientation_wxyz, transform_further);
-    rlt::set_transform(device, renderer, OverlayIndex{0}, placement, transform_further);
+    rlt::set_pose(device, renderer, OverlayIndex{0}, placement, rlt::make_pose(transform_further));
     rlt::update(device, renderer);
     const FlowFrame further = render_flow(device, renderer);
     const float expected_u = -(float)((T)2 * OBJECT_DELTA_Y * flow_pixels_per_unit(OBJECT_VIEWING_DISTANCE));
@@ -1260,7 +1260,7 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_ADVANCE){
 }
 
 // the producer tensor path (direct writes to transforms_previous) and the verb path (spawn,
-// advance_flow, set_transform) publish identical instants and therefore identical flow
+// advance_flow, set_pose) publish identical instants and therefore identical flow
 TEST(RL_TOOLS_SCENE_SUITE, FLOW_PRODUCER_TENSOR_EQUALS_VERBS){
     DEVICE device;
     rlt::init(device);
@@ -1273,21 +1273,21 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_PRODUCER_TENSOR_EQUALS_VERBS){
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
     set_static_flow_camera(device, renderer);
 
-    const auto placement = rlt::spawn(device, renderer, OverlayIndex{0}, scene.cube_asset, scene.transform_previous);
+    const auto placement = rlt::spawn(device, renderer, OverlayIndex{0}, scene.cube_asset, rlt::make_pose(scene.transform_previous));
     rlt::update(device, renderer);
     rlt::advance_flow(device, renderer);
-    rlt::set_transform(device, renderer, OverlayIndex{0}, placement, scene.transform_current);
+    rlt::set_pose(device, renderer, OverlayIndex{0}, placement, rlt::make_pose(scene.transform_current));
     rlt::update(device, renderer);
     const FlowFrame verbs = render_flow(device, renderer);
 
     // producer path on the same renderer: the rows are clean after the update above
     std::vector<float> rows;
-    golden::copy_out(renderer.device, device, rlt::transforms(device, renderer), rows);
+    golden::copy_out(renderer.device, device, renderer.transforms, rows);
     std::memcpy(rows.data() + placement.first_slot * 12, scene.transform_current, 12 * sizeof(float));
-    golden::copy_in(device, renderer.device, rows.data(), rlt::transforms(device, renderer));
-    golden::copy_out(renderer.device, device, rlt::transforms_previous(device, renderer), rows);
+    golden::copy_in(device, renderer.device, rows.data(), renderer.transforms);
+    golden::copy_out(renderer.device, device, renderer.transforms_previous, rows);
     std::memcpy(rows.data() + placement.first_slot * 12, scene.transform_previous, 12 * sizeof(float));
-    golden::copy_in(device, renderer.device, rows.data(), rlt::transforms_previous(device, renderer));
+    golden::copy_in(device, renderer.device, rows.data(), renderer.transforms_previous);
     rlt::update(device, renderer);
     const FlowFrame producer = render_flow(device, renderer);
 
@@ -1310,17 +1310,14 @@ TEST(RL_TOOLS_SCENE_SUITE, ASSEMBLY_COMPOSE){
         rlt::rendering::raytracing::Object body;
         body.meshes.push_back(make_cube(0, 1));
         body.name = "body";
-        assembly.objects.push_back(body);
-        rlt::rendering::raytracing::ObjectAssembly::Part part{0, {1,0,0,0, 0,1,0,0, 0,0,1,0}};
-        assembly.parts.push_back(part);
+        rlt::add(device, assembly, body, rlt::rendering::raytracing::detail::IDENTITY_TRANSFORM);
     }
     {
         rlt::rendering::raytracing::Object attachment;
         attachment.meshes.push_back(make_cube(0, 0.5f));
         attachment.name = "attachment";
-        assembly.objects.push_back(attachment);
-        rlt::rendering::raytracing::ObjectAssembly::Part part{1, {1,0,0,0, 0,1,0,2.0f, 0,0,1,0}};
-        assembly.parts.push_back(part);
+        const float left[12] = {1,0,0,0, 0,1,0,2.0f, 0,0,1,0};
+        rlt::add(device, assembly, attachment, left);
     }
 
     rlt::rendering::Bundle<T> bundle;
@@ -1372,8 +1369,7 @@ TEST(RL_TOOLS_SCENE_SUITE, ASSEMBLY_STATIC_ARTICULATION){
         }
         propeller.meshes.push_back(blade);
     }
-    assembly.objects.push_back(propeller);
-    assembly.parts.push_back({0, {1,0,0,0, 0,1,0,0, 0,0,1,0}});
+    rlt::add(device, assembly, propeller, rlt::rendering::raytracing::detail::IDENTITY_TRANSFORM);
 
     rlt::rendering::raytracing::Renderer<DEPTH_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
@@ -1463,10 +1459,10 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_ATTACHMENT_SCOPES){
     const float orientation_wxyz[4] = {1, 0, 0, 0};
     const float position_private[3] = {0, 3, 0};
     rlt::make_transform(position_private, orientation_wxyz, transform);
-    const auto private_placement = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, transform); // global id 1 (base of overlay 0)
+    const auto private_placement = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, rlt::make_pose(transform)); // global id 1 (base of overlay 0)
     const float position_shared[3] = {0, -3, 0};
     rlt::make_transform(position_shared, orientation_wxyz, transform);
-    rlt::spawn(device, renderer, OverlayIndex{1}, cube_asset, transform); // global id 9 (base of overlay 1)
+    rlt::spawn(device, renderer, OverlayIndex{1}, cube_asset, rlt::make_pose(transform)); // global id 9 (base of overlay 1)
     rlt::update(device, renderer);
 
     const T camera_position[3] = {-8, 0, 0};
@@ -1549,8 +1545,15 @@ TEST(RL_TOOLS_SCENE_SUITE, SEMANTIC_VALIDATION_PRESERVES_RENDERER_AND_LIBRARY){
     synchronize(device, renderer);
     std::vector<uint32_t> before(SEMANTIC_SPEC::CAM_PIXELS), after(before.size());
     read_output(device, renderer, output(device, renderer, rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>{}), before.data());
-    const auto part_objects = renderer.asset_part_objects;
-    const auto part_transforms = renderer.asset_part_transforms;
+    const auto parts_of = [](const auto& renderer){
+        std::vector<float> values;
+        for(const auto& part : renderer.asset_parts){
+            values.push_back((float)part.object);
+            values.insert(values.end(), part.origin, part.origin + 12);
+        }
+        return values;
+    };
+    const auto parts = parts_of(renderer);
     const T ambient = renderer.ambient_color[0];
     for(int failure = 0; failure < 3; failure++){
         auto invalid = bundle;
@@ -1578,8 +1581,7 @@ TEST(RL_TOOLS_SCENE_SUITE, SEMANTIC_VALIDATION_PRESERVES_RENDERER_AND_LIBRARY){
         EXPECT_EQ(renderer.max_ray_length, 20);
         EXPECT_EQ(renderer.ambient_color[0], ambient);
         EXPECT_EQ(renderer.assets.size(), 1u);
-        EXPECT_EQ(renderer.asset_part_objects, part_objects);
-        EXPECT_EQ(renderer.asset_part_transforms, part_transforms);
+        EXPECT_EQ(parts_of(renderer), parts);
         render(device, renderer);
         synchronize(device, renderer);
         read_output(device, renderer, output(device, renderer, rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>{}), after.data());
@@ -1619,7 +1621,7 @@ TEST(RL_TOOLS_SCENE_SUITE, SEMANTIC_SEGMENTATION){
     const float orientation_wxyz[4] = {1, 0, 0, 0};
     const float position[3] = {0, 3, 0};
     rlt::make_transform(position, orientation_wxyz, transform);
-    rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, transform); // instance id 1
+    rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, rlt::make_pose(transform)); // instance id 1
     rlt::update(device, renderer);
 
     const T camera_position[3] = {-8, 0, 0};
@@ -1664,8 +1666,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SPIN_DYNAMIC){
             mesh.vertices[vertex_i] *= 0.1f; // thin in y: a blade along x
         }
         blade.meshes.push_back(mesh);
-        blade_assembly.objects.push_back(blade);
-        blade_assembly.parts.push_back({0, {1,0,0,0, 0,1,0,0, 0,0,1,0}});
+        rlt::add(device, blade_assembly, blade, rlt::rendering::raytracing::detail::IDENTITY_TRANSFORM);
     }
 
     auto bundle = make_far_anchor_bundle(device);
@@ -1679,7 +1680,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SPIN_DYNAMIC){
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
 
     const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
-    const auto blade = rlt::spawn(device, renderer, OverlayIndex{0}, blade_asset, identity);
+    const auto blade = rlt::spawn(device, renderer, OverlayIndex{0}, blade_asset, rlt::make_pose(identity));
 
     auto step_depth = [&](float spin_radians){
         const float half = spin_radians / 2.0f;
@@ -1687,7 +1688,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SPIN_DYNAMIC){
         const float origin[3] = {0, 0, 0};
         const float quaternion_wxyz[4] = {std::cos(half), 0, 0, std::sin(half)};
         rlt::make_transform(origin, quaternion_wxyz, spin);
-        rlt::set_transform(device, renderer, OverlayIndex{0}, blade, spin);
+        rlt::set_pose(device, renderer, OverlayIndex{0}, blade, rlt::make_pose(spin));
         rlt::update(device, renderer);
         return render_center_depth(device, renderer);
     };
@@ -1705,7 +1706,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SPIN_DYNAMIC){
     const float shifted_position[3] = {0.5f, 0, 0};
     const float identity_wxyz[4] = {1, 0, 0, 0};
     rlt::make_transform(shifted_position, identity_wxyz, shifted);
-    rlt::set_transform(device, renderer, OverlayIndex{0}, blade, shifted);
+    rlt::set_pose(device, renderer, OverlayIndex{0}, blade, rlt::make_pose(shifted));
     rlt::update(device, renderer);
     EXPECT_NEAR(render_center_depth(device, renderer), 4.5f, 1e-4f); // near face x=-1 -> x=-0.5
 
@@ -1729,7 +1730,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_TRANSFORMS_TENSOR){
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
 
     const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
-    const auto cube = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, identity);
+    const auto cube = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, rlt::make_pose(identity));
     rlt::update(device, renderer);
     EXPECT_NEAR(render_center_depth(device, renderer), 4.0f, 1e-4f); // near face at x=-1, camera at x=-5
 
@@ -1739,7 +1740,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_TRANSFORMS_TENSOR){
     rlt::make_transform(shifted_position, identity_wxyz, shifted);
     rlt::Tensor<rlt::tensor::Specification<float, TI, rlt::tensor::Shape<TI, 12>>> shifted_host;
     shifted_host._data = shifted;
-    auto overlay_slots = rlt::view(device, rlt::transforms(device, renderer), 0);
+    auto overlay_slots = rlt::view(device, renderer.transforms, 0);
     auto entry = rlt::view(device, overlay_slots, cube.first_slot);
     rlt::copy(device, renderer.device, shifted_host, entry);
     rlt::update(device, renderer);
@@ -1798,8 +1799,7 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_DEPTH){
             mesh.vertices[vertex_i] *= 0.1f;
         }
         blade.meshes.push_back(mesh);
-        blade_assembly.objects.push_back(blade);
-        blade_assembly.parts.push_back({0, {1,0,0,0, 0,1,0,0, 0,0,1,0}});
+        rlt::add(device, blade_assembly, blade, rlt::rendering::raytracing::detail::IDENTITY_TRANSFORM);
     }
 
     auto bundle = make_far_anchor_bundle(device);
@@ -1813,16 +1813,16 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_DEPTH){
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
 
     const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
-    const auto blade = rlt::spawn(device, renderer, OverlayIndex{0}, blade_asset, identity);
+    const auto blade = rlt::spawn(device, renderer, OverlayIndex{0}, blade_asset, rlt::make_pose(identity));
 
     float spin[12];
     spin_transform(3.14159265f / 8.0f, spin);
-    rlt::set_transform(device, renderer, OverlayIndex{0}, blade, spin);
+    rlt::set_pose(device, renderer, OverlayIndex{0}, blade, rlt::make_pose(spin));
     rlt::update(device, renderer);
     const float depth_midpoint_first = render_center_depth_static_camera(device, renderer);
 
     spin_transform(3.0f * 3.14159265f / 8.0f, spin);
-    rlt::set_transform(device, renderer, OverlayIndex{0}, blade, spin);
+    rlt::set_pose(device, renderer, OverlayIndex{0}, blade, rlt::make_pose(spin));
     rlt::update(device, renderer);
     const float depth_midpoint_second = render_center_depth_static_camera(device, renderer);
     EXPECT_GT(std::abs(depth_midpoint_first - depth_midpoint_second), 1e-3f);
@@ -1830,7 +1830,7 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_DEPTH){
     float open[12], close[12];
     spin_transform(0.0f, open);
     spin_transform(3.14159265f / 2.0f, close);
-    rlt::set_transform_pair(device, renderer, OverlayIndex{0}, blade, open, close);
+    rlt::set_pose(device, renderer, OverlayIndex{0}, blade, rlt::make_pose(open), rlt::make_pose(close));
     rlt::update(device, renderer);
     const float depth_blurred = render_center_depth_static_camera(device, renderer);
     EXPECT_NEAR(depth_blurred, 4.9f, 1e-4f);
@@ -1884,7 +1884,7 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_TRANSFORMS_TENSOR){
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
 
     const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
-    const auto cube = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, identity);
+    const auto cube = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, rlt::make_pose(identity));
     rlt::update(device, renderer);
     EXPECT_NEAR(render_center_depth_static_camera(device, renderer), 4.0f, 1e-4f);
 
@@ -1893,12 +1893,12 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_TRANSFORMS_TENSOR){
     const float near_position[3] = {0.5f, 0, 0};
     rlt::make_transform(near_position, identity_wxyz, shifted);
     rlt::Tensor<rlt::tensor::Specification<float, TI, rlt::tensor::Shape<TI, 12>, true, rlt::tensor::RowMajorStride<rlt::tensor::Shape<TI, 12>>, true>> entry_host;
-    auto sample_0 = rlt::view(device, rlt::transforms_motion(device, renderer), 0);
+    auto sample_0 = rlt::view(device, renderer.transforms_motion, 0);
     auto sample_0_overlay = rlt::view(device, sample_0, 0);
     auto sample_0_entry = rlt::view(device, sample_0_overlay, cube.first_slot);
     entry_host._data = shifted;
     rlt::copy(device, renderer.device, entry_host, sample_0_entry);
-    auto sample_1 = rlt::view(device, rlt::transforms_motion(device, renderer), 1);
+    auto sample_1 = rlt::view(device, renderer.transforms_motion, 1);
     auto sample_1_overlay = rlt::view(device, sample_1, 0);
     auto sample_1_entry = rlt::view(device, sample_1_overlay, cube.first_slot);
     entry_host._data = identity;
@@ -1933,13 +1933,13 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_STATIC_EQUIVALENCE){
     float depths[2];
     {
         rlt::attach(device, renderer_dynamic, (TI)0, OverlayIndex{0});
-        const auto cube = rlt::spawn(device, renderer_dynamic, OverlayIndex{0}, cube_asset, spun);
+        const auto cube = rlt::spawn(device, renderer_dynamic, OverlayIndex{0}, cube_asset, rlt::make_pose(spun));
         rlt::update(device, renderer_dynamic);
         depths[0] = render_center_depth_static_camera(device, renderer_dynamic);
     }
     {
         rlt::attach(device, renderer_plain, (TI)0, OverlayIndex{0});
-        const auto cube = rlt::spawn(device, renderer_plain, OverlayIndex{0}, cube_asset, spun);
+        const auto cube = rlt::spawn(device, renderer_plain, OverlayIndex{0}, cube_asset, rlt::make_pose(spun));
         rlt::update(device, renderer_plain);
         depths[1] = render_center_depth(device, renderer_plain);
     }
@@ -1951,7 +1951,7 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_STATIC_EQUIVALENCE){
 
 // producer path: per-sample world poses written into the transforms_motion tensor and the
 // shutter-close pose into transforms (the kernel-producer layout) must reproduce the
-// set_transform_pair result on every backend
+// set_pose shutter-pair result on every backend
 TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_PRODUCER_SAMPLES){
     DEVICE device;
     rlt::init(device);
@@ -1967,7 +1967,7 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_PRODUCER_SAMPLES){
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
 
     const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
-    const auto cube = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, identity);
+    const auto cube = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, rlt::make_pose(identity));
 
     float open[12], close[12];
     const float identity_wxyz[4] = {1, 0, 0, 0};
@@ -1976,7 +1976,7 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_PRODUCER_SAMPLES){
     rlt::make_transform(open_position, identity_wxyz, open);
     rlt::make_transform(close_position, identity_wxyz, close);
 
-    rlt::set_transform_pair(device, renderer, OverlayIndex{0}, cube, open, close);
+    rlt::set_pose(device, renderer, OverlayIndex{0}, cube, rlt::make_pose(open), rlt::make_pose(close));
     rlt::update(device, renderer);
     const float depth_reference = render_center_depth_static_camera(device, renderer);
 
@@ -1985,13 +1985,13 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_PRODUCER_SAMPLES){
     for(TI sample = 0; sample < DYNAMIC_MB_DEPTH_SPEC::MOTION_BLUR_SAMPLES; sample++){
         float pose[12];
         rlt::rendering::screw_interpolate(open, close, ((float)sample + 0.5f) / (float)DYNAMIC_MB_DEPTH_SPEC::MOTION_BLUR_SAMPLES, pose);
-        auto sample_slab = rlt::view(device, rlt::transforms_motion(device, renderer), sample);
+        auto sample_slab = rlt::view(device, renderer.transforms_motion, sample);
         auto sample_overlay = rlt::view(device, sample_slab, 0);
         auto sample_entry = rlt::view(device, sample_overlay, cube.first_slot);
         row_host._data = pose;
         rlt::copy(device, renderer.device, row_host, sample_entry);
     }
-    auto close_overlay = rlt::view(device, rlt::transforms(device, renderer), 0);
+    auto close_overlay = rlt::view(device, renderer.transforms, 0);
     auto close_slot_entry = rlt::view(device, close_overlay, cube.first_slot);
     row_host._data = close;
     rlt::copy(device, renderer.device, row_host, close_slot_entry);
@@ -2034,12 +2034,12 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_SEGMENTATION_CLOSE){
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
 
     const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
-    const auto cube = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, identity);
+    const auto cube = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, rlt::make_pose(identity));
     float open[12];
     const float identity_wxyz[4] = {1, 0, 0, 0};
     const float open_position[3] = {0, 3, 0};
     rlt::make_transform(open_position, identity_wxyz, open);
-    rlt::set_transform_pair(device, renderer, OverlayIndex{0}, cube, open, identity);
+    rlt::set_pose(device, renderer, OverlayIndex{0}, cube, rlt::make_pose(open), rlt::make_pose(identity));
     rlt::update(device, renderer);
 
     const T position[3] = {-8, 0, 0};
@@ -2145,7 +2145,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SPAWN_DESPAWN){
         const float position[3] = {0, (float)(spawn_i - 4), 0};
         const float orientation_wxyz[4] = {1, 0, 0, 0};
         rlt::make_transform(position, orientation_wxyz, transform);
-        placements[spawn_i] = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, transform);
+        placements[spawn_i] = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, rlt::make_pose(transform));
         EXPECT_EQ(placements[spawn_i].first_slot, (size_t)spawn_i); // deterministic first-fit
     }
     EXPECT_FALSE(rlt::can_spawn(device, renderer, OverlayIndex{0}, cube_asset)); // capacity exhausted
@@ -2166,7 +2166,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SPAWN_DESPAWN){
     const float position[3] = {0, -1, 0}; // same pose the despawned cube had
     const float orientation_wxyz[4] = {1, 0, 0, 0};
     rlt::make_transform(position, orientation_wxyz, transform);
-    const auto respawned = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, transform);
+    const auto respawned = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, rlt::make_pose(transform));
     EXPECT_EQ(respawned.first_slot, (size_t)3); // hole reused deterministically
     rlt::update(device, renderer);
     std::vector<uint32_t> refilled;
@@ -2214,7 +2214,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SECONDARY_RAYS){
     const float position[3] = {2, 0, 2}; // between the light and the floor, off-axis so the floor stays visible
     const float orientation_wxyz[4] = {1, 0, 0, 0};
     rlt::make_transform(position, orientation_wxyz, transform);
-    rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, transform);
+    rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, rlt::make_pose(transform));
     rlt::update(device, renderer);
 
     const T camera_position[3] = {-6, 0, 4};
@@ -2264,7 +2264,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_PROBES){
     const float position[3] = {-3, 0, 0}; // forward probe (looking -x, away from the anchor) hits the near face at x=-2
     const float orientation_wxyz[4] = {1, 0, 0, 0};
     rlt::make_transform(position, orientation_wxyz, transform);
-    rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, transform);
+    rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, rlt::make_pose(transform));
     rlt::update(device, renderer);
 
     const T camera_position[3] = {0, 0, 0};
@@ -2313,7 +2313,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_UPDATE_COST_SMOKE){
             const float position[3] = {(float)overlay, (float)spawn_i, 0};
             const float orientation_wxyz[4] = {1, 0, 0, 0};
             rlt::make_transform(position, orientation_wxyz, transform);
-            placements[overlay][spawn_i] = rlt::spawn(device, renderer, OverlayIndex{overlay}, cube_asset, transform);
+            placements[overlay][spawn_i] = rlt::spawn(device, renderer, OverlayIndex{overlay}, cube_asset, rlt::make_pose(transform));
         }
     }
     const auto start = std::chrono::steady_clock::now();
@@ -2324,7 +2324,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_UPDATE_COST_SMOKE){
             const float position[3] = {(float)overlay, (float)step_i * 0.01f, 0};
             const float orientation_wxyz[4] = {1, 0, 0, 0};
             rlt::make_transform(position, orientation_wxyz, transform);
-            rlt::set_transform(device, renderer, OverlayIndex{overlay}, placements[overlay][0], transform);
+            rlt::set_pose(device, renderer, OverlayIndex{overlay}, placements[overlay][0], rlt::make_pose(transform));
         }
         rlt::update(device, renderer);
     }
@@ -2341,7 +2341,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_UPDATE_COST_SMOKE){
             const float position[3] = {0, 0, 0.01f * (float)(step + 1)};
             const float orientation_wxyz[4] = {1, 0, 0, 0};
             rlt::make_transform(position, orientation_wxyz, transform);
-            rlt::set_transform(device, renderer, OverlayIndex{overlay}, placements[overlay][0], transform);
+            rlt::set_pose(device, renderer, OverlayIndex{overlay}, placements[overlay][0], rlt::make_pose(transform));
         }
         rlt::update_launch(device, renderer);
         rlt::render_launch(device, renderer);

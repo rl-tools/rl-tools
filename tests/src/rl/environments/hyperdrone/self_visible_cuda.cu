@@ -152,9 +152,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, OWN_DRONE_AND_ARTICU
 
     ASSERT_TRUE(world.entity_kinds.empty());
     ASSERT_EQ(shared.drone_bodies.size(), 1);
-    const auto& body = shared.drone_bodies[0];
-    EXPECT_EQ(body.rig.num_coordinates, 4);
-    EXPECT_GT(body.rig.num_parts, 1);
+    EXPECT_EQ(rlt::num_coordinates(device, shared.library.pool.assemblies[shared.drone_meshes[0].index]), 4);
+    EXPECT_GT(shared.drone_parts, 1);
 
     RNG_GPU rng;
     rlt::malloc(device_gpu, rng);
@@ -190,14 +189,22 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, OWN_DRONE_AND_ARTICU
         }
     }
 
-    // the rows the kernel wrote into the renderer equal the host rig evaluation of the same state
+    // the rows the kernel wrote into the renderer equal the host set_pose of the same state
     {
-        using DRONE_RIG_SPEC = typename decltype(body.rig)::SPEC;
         auto& renderer = rlt::get_renderer(device, world);
-        std::vector<float> rows(INSTANCES * MAX_SLOTS * 12);
+        const auto& body = shared.drone_bodies[0];
+        std::vector<float> rows(INSTANCES * MAX_SLOTS * 12), expected(rows.size()), motion;
         rlt::Tensor<typename decltype(renderer.transforms)::SPEC> alias;
         alias._data = rows.data();
-        rlt::copy(renderer.device, device, rlt::transforms(device, renderer), alias);
+        rlt::copy(renderer.device, device, renderer.transforms, alias);
+        rlt::rendering::raytracing::PoseSink<typename WORLD::RENDERER_SPEC> sink;
+        sink.transforms = expected.data();
+        if constexpr(WORLD::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+            motion.resize(WORLD::RENDERER_SPEC::MOTION_BLUR_SAMPLES * rows.size());
+            sink.transforms_motion = motion.data();
+        }
+        sink.parts = renderer.asset_parts.data();
+        const rlt::rendering::raytracing::OverlayPlacement placement{world.drone_slot_offset, world.drone_parts, renderer.assets[world.drone_meshes[body.mesh].index].first_part};
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             const typename WORLD::Parameters instance_parameters = rlt::get(device, parameters, instance_i);
             const typename WORLD::State state = rlt::get(device, states, instance_i);
@@ -205,14 +212,13 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, OWN_DRONE_AND_ARTICU
             rlt::rl::environments::hyperdrone::rig::make_body_transform(device, state.orientation, state.position, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, base);
             float coordinates_open[WORLD::DYNAMICS_ENV::ACTION_DIM], coordinates_close[WORLD::DYNAMICS_ENV::ACTION_DIM];
             rlt::rl::environments::hyperdrone::_drone_coordinates<DEVICE, WORLD_SPEC>(device, instance_parameters, (TI)0, state, coordinates_open, coordinates_close);
-            rlt::rendering::rig::Buffer<DRONE_RIG_SPEC> buffer;
-            float poses[DRONE_RIG_SPEC::MAX_PARTS][12];
             using rlt::rotor_scale;
-            const float scale = rotor_scale(device, body.rig, instance_parameters.agents[0].dynamics.dynamics.rotor_positions, (TI)WORLD::DYNAMICS_ENV::ACTION_DIM);
-            rlt::evaluate(device, body.rig, base, coordinates_close, buffer, &poses[0][0], scale);
-            for(TI part = 0; part < body.rig.num_parts; part++){
+            const float scale = rotor_scale(device, body.rotorcraft, instance_parameters.agents[0].dynamics.dynamics.rotor_positions, (TI)WORLD::DYNAMICS_ENV::ACTION_DIM);
+            rlt::set_pose(device, sink, rlt::rendering::raytracing::OverlayIndex{instance_i}, placement, rlt::make_pose(base, scale, coordinates_close));
+            for(TI part = 0; part < world.drone_parts; part++){
                 for(TI element = 0; element < 12; element++){
-                    EXPECT_NEAR(rows[(instance_i * MAX_SLOTS + world.drone_slot_offset + part) * 12 + element], poses[part][element], 1e-4) << "instance " << instance_i << " part " << part << " element " << element;
+                    const TI index = (instance_i * MAX_SLOTS + world.drone_slot_offset + part) * 12 + element;
+                    EXPECT_NEAR(rows[index], expected[index], 1e-4) << "instance " << instance_i << " part " << part << " element " << element;
                 }
             }
         }

@@ -52,17 +52,6 @@ target_include_directories(hyperdrone_env_stb SYSTEM INTERFACE ${stb_SOURCE_DIR}
 include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/hyperdrone_jit.cmake)
 hyperdrone_jit_find_nanobind()
 
-# the environment's drone rig instantiates the render core's RigModel (shared struct header,
-# type registered by the render core, which the Python wrapper loads first)
-nanobind_add_module(hyperdrone_env_core rotorcraft_bindings.cpp)
-target_include_directories(hyperdrone_env_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../common ${CMAKE_CURRENT_SOURCE_DIR}/../render)
-target_link_libraries(hyperdrone_env_core PRIVATE RLtools::RLtools hyperdrone_env_stb)
-set_target_properties(hyperdrone_env_core PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-if(HYPERDRONE_VARIANT STREQUAL "OPTIX")
-    find_package(CUDAToolkit REQUIRED)
-    target_link_libraries(hyperdrone_env_core PRIVATE CUDA::cudart)
-endif()
-
 function(hyperdrone_component_libraries DEFINES OUT_LIBRARIES)
     hyperdrone_jit_parse_defines("${DEFINES}" CONFIG)
     if(DEFINED CONFIG_HYPERDRONE_ENV_SPEC_HEADER)

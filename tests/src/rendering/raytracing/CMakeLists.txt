@@ -134,8 +134,8 @@ if(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "VULKAN")
     )
 endif()
 
-# overlay pose ownership contract: producer-style tensor writes must render identically to the
-# set_transform* verbs on every backend; self-contained (no golden data)
+# overlay pose ownership contract: pose-sink producer writes must render identically to the
+# set_pose verb on every backend; self-contained (no golden data)
 if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
     function(rl_tools_configure_overlay_producer_contract TARGET_NAME BACKEND_NAME)
         string(TOUPPER ${BACKEND_NAME} RL_TOOLS_OVERLAY_PRODUCER_BACKEND_UPPER)
@@ -223,6 +223,9 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
             TEST_PREFIX "${RL_TOOLS_OUTPUTS_BACKEND_SUFFIX}."
         )
     endif()
+    add_executable(test_rendering_raytracing_pose pose.cpp)
+    target_link_libraries(test_rendering_raytracing_pose PRIVATE RLtools::RLtools assimp::assimp rendering_raytracing_stb GTest::gtest_main)
+    gtest_discover_tests(test_rendering_raytracing_pose PROPERTIES TIMEOUT 20 LABELS "pose")
     add_executable(test_rendering_raytracing_empty_object_contract_generic empty_object_contract.cpp)
     target_link_libraries(test_rendering_raytracing_empty_object_contract_generic PRIVATE
         RLtools::RLtools assimp::assimp rendering_raytracing_stb GTest::gtest_main

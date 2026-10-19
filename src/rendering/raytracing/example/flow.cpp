@@ -95,7 +95,7 @@ int main(int argc, char** argv){
     // frame 0: spawn initialises the previous instant equal to the current one
     float transform[12];
     translation(CUBE_POSITION_PREVIOUS, transform);
-    const auto placement = rlt::spawn(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, cube, transform);
+    const auto placement = rlt::spawn(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, cube, rlt::make_pose(transform));
     set_camera(device, renderer, CAMERA_POSITION_PREVIOUS);
     rlt::update(device, renderer);
     rlt::render(device, renderer);
@@ -104,7 +104,7 @@ int main(int argc, char** argv){
     rlt::advance_flow(device, renderer);
     set_camera(device, renderer, CAMERA_POSITION_CURRENT);
     translation(CUBE_POSITION_CURRENT, transform);
-    rlt::set_transform(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, transform);
+    rlt::set_pose(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(transform));
     rlt::update(device, renderer);
     rlt::render(device, renderer);
 

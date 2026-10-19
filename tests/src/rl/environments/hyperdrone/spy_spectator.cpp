@@ -45,8 +45,7 @@ namespace {
         void SetUp() override {
             for(auto object: {triangle(0.8f, 0.1f, 0.1f), triangle(0.1f, 0.8f, 0.1f)}) {
                 rt::ObjectAssembly assembly;
-                assembly.objects.push_back(object);
-                assembly.parts.push_back({0, {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0}});
+                rl_tools::add(device, assembly, object, rl_tools::rendering::raytracing::detail::IDENTITY_TRANSFORM);
                 pool.assemblies.push_back(assembly);
             }
         }

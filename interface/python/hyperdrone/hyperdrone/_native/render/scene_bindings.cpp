@@ -11,13 +11,13 @@
 
 #include "verbosity.h"
 #include <rl_tools/operations/cpu_mux.h>
-#include <rl_tools/rendering/rig/operations_cpu.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_common.h>
+#include <rl_tools/rl/environments/hyperdrone/rig/operations_cpu.h>
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/datasets/procthor/catalog.h>
 
 #include "bindings.h"
-#include "rig_bindings.h"
+#include <nanobind/stl/optional.h>
 
 #include <cmath>
 #include <cstdint>
@@ -41,6 +41,53 @@ static DEVICE g_device;
 using rlt::segmentation_taxonomy;
 using rlt::assign_segmentation_class;
 using rlt::remap_segmentation_classes;
+
+static rlt::rendering::Joint::Type parse_joint_type(const std::string& name){
+    if(name == "fixed"){
+        return rlt::rendering::Joint::Type::FIXED;
+    }
+    if(name == "revolute"){
+        return rlt::rendering::Joint::Type::REVOLUTE;
+    }
+    if(name == "prismatic"){
+        return rlt::rendering::Joint::Type::PRISMATIC;
+    }
+    throw std::invalid_argument("hyperdrone: unknown joint type \"" + name + "\" (fixed, revolute, prismatic)");
+}
+
+static const char* joint_type_name(rlt::rendering::Joint::Type type){
+    switch(type){
+        case rlt::rendering::Joint::Type::FIXED: return "fixed";
+        case rlt::rendering::Joint::Type::REVOLUTE: return "revolute";
+        case rlt::rendering::Joint::Type::PRISMATIC: return "prismatic";
+    }
+    throw std::logic_error("hyperdrone: joint type without a name");
+}
+
+// a part by index or by its object's name (which must be unique)
+static size_t part_index(const rrt::ObjectAssembly& assembly, nb::handle part){
+    if(nb::isinstance<nb::str>(part)){
+        const std::string name = nb::cast<std::string>(part);
+        size_t found = assembly.parts.size();
+        for(size_t part_i = 0; part_i < assembly.parts.size(); part_i++){
+            if(assembly.objects[assembly.parts[part_i].object].name == name){
+                if(found != assembly.parts.size()){
+                    throw std::invalid_argument("hyperdrone: several parts are named \"" + name + "\"");
+                }
+                found = part_i;
+            }
+        }
+        if(found == assembly.parts.size()){
+            throw std::invalid_argument("hyperdrone: no part named \"" + name + "\"");
+        }
+        return found;
+    }
+    const size_t index = nb::cast<size_t>(part);
+    if(index >= assembly.parts.size()){
+        throw std::invalid_argument("hyperdrone: part index out of range");
+    }
+    return index;
+}
 
 // the Python-facing "Scene" is a Bundle: the composed scene plus its loader/computed
 // metadata (bounds, max ray length), which the renderer consumes at init
@@ -146,7 +193,7 @@ static rrt::Mesh make_mesh(FloatArray vertices, nb::ndarray<const int32_t, nb::c
     return mesh;
 }
 
-void register_rig_bindings(nb::module_& m);
+void register_rotorcraft_bindings(nb::module_& m);
 
 static void register_dataset_bindings(nb::module_& m){
     using SCENE = rlt::rendering::datasets::procthor::SceneReference;
@@ -192,7 +239,7 @@ NB_MODULE(hyperdrone_render_core, m){
     m.doc() = "Shared scene types and camera utilities for the RLtools raytracer";
     m.attr("AGENT_SEGMENTATION_CLASS") = rlt::rendering::segmentation::AGENT;
     m.def("_set_verbosity", &hyperdrone::set_verbosity);
-    register_rig_bindings(m);
+    register_rotorcraft_bindings(m);
     register_dataset_bindings(m);
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
     m.attr("HAS_CUDA") = true;
@@ -278,11 +325,32 @@ NB_MODULE(hyperdrone_render_core, m){
             assign_segmentation_class(g_device, assembly, index, segmentation_class);
         })
         .def("remap_segmentation_classes", &remap_labels<rrt::ObjectAssembly>, nb::arg("mapping"), nb::kw_only(), nb::arg("taxonomy") = "", nb::arg("classes") = std::map<uint32_t, std::string>{})
-        .def("add_part", [](rrt::ObjectAssembly& assembly, const rrt::Object& object, Transform transform){
+        .def("add_part", [](rrt::ObjectAssembly& assembly, const rrt::Object& object, Transform transform, std::optional<nb::object> parent){
             float values[12];
             extract_transform(transform, values);
-            return rlt::add(g_device, assembly, object, values);
-        }, nb::arg("object"), nb::arg("transform"), "Append a root part: geometry in the part frame, placed by transform within the assembly.")
+            const size_t parent_index = parent.has_value() ? part_index(assembly, *parent) : rrt::ObjectAssembly::Part::NO_PARENT;
+            const size_t index = rlt::add(g_device, assembly, object, values);
+            assembly.parts[index].parent = parent_index;
+            return index;
+        }, nb::arg("object"), nb::arg("transform"), nb::arg("parent").none() = nb::none(), "Append a part: geometry in the part frame, placed by transform within the assembly; its joint moves it (and its children) relative to parent, an earlier part (index or object name).")
+        .def("set_joint", [](rrt::ObjectAssembly& assembly, nb::object part, const std::string& type, Vec3 axis, Vec3 pivot, size_t coordinate){
+            rlt::rendering::Joint joint;
+            joint.type = parse_joint_type(type);
+            std::memcpy(joint.axis, axis.data(), sizeof(joint.axis));
+            std::memcpy(joint.pivot, pivot.data(), sizeof(joint.pivot));
+            joint.coordinate = coordinate;
+            const float norm = std::sqrt(axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
+            if(joint.type != rlt::rendering::Joint::Type::FIXED && (!rlt::rendering::is_finite(joint.axis, 3) || !rlt::rendering::is_finite(joint.pivot, 3) || !std::isfinite(norm) || norm <= 0)){
+                throw std::invalid_argument("hyperdrone: a joint needs a finite nonzero axis and a finite pivot");
+            }
+            assembly.parts[part_index(assembly, part)].joint = joint;
+        }, nb::arg("part"), nb::arg("type"), nb::kw_only(), nb::arg("axis") = Vec3{0, 0, 1}, nb::arg("pivot") = Vec3{0, 0, 0}, nb::arg("coordinate") = 0,
+           "Articulate a part (index or object name) relative to its parent in its own frame: \"revolute\" turns coordinates[coordinate] radians about axis through pivot, \"prismatic\" slides coordinates[coordinate] metres along axis, \"fixed\" (the default) holds it.")
+        .def("joint", [](const rrt::ObjectAssembly& assembly, nb::object part){
+            const auto& joint = assembly.parts[part_index(assembly, part)].joint;
+            return nb::make_tuple(joint_type_name(joint.type), make_owned_array(joint.axis, {3}), make_owned_array(joint.pivot, {3}), joint.coordinate);
+        }, nb::arg("part"), "(type, axis, pivot, coordinate) of a part (index or object name).")
+        .def_prop_ro("num_coordinates", [](const rrt::ObjectAssembly& assembly){ return rlt::num_coordinates(g_device, assembly); })
         .def("part", [](const rrt::ObjectAssembly& assembly, size_t index){
             const auto& part = assembly.parts.at(index);
             return nb::make_tuple(part.object, make_owned_array(part.transform, {3, 4}));
@@ -314,8 +382,8 @@ NB_MODULE(hyperdrone_render_core, m){
     nb::class_<rrt::AssetPool>(m, "AssetPool")
         .def(nb::init<>())
         .def("add_assembly", [](rrt::AssetPool& pool, const rrt::ObjectAssembly& assembly){
-            if(assembly.parts.empty()){
-                throw std::invalid_argument("hyperdrone: an asset assembly must contain at least one part");
+            if(!rlt::can_add(g_device, pool, assembly)){
+                throw std::invalid_argument("hyperdrone: an asset assembly needs at least one part, finite part frames, parents listed before their children and joint coordinates 0..num_coordinates-1 each driving a joint");
             }
             return rlt::add(g_device, pool, assembly).index;
         })
@@ -462,55 +530,27 @@ NB_MODULE(hyperdrone_render_core, m){
     }, nb::arg("a"), nb::arg("b"));
 }
 
-void register_rig_bindings(nb::module_& m){
-    using namespace hyperdrone::rig_bindings;
-    nb::class_<RigModel>(m, "RigModel")
-        .def(nb::init<IndexArray, const std::vector<std::string>&, FloatArray, FloatArray, IndexArray, FloatArray>(),
-             nb::arg("parents"), nb::arg("joints"), nb::arg("axes"), nb::arg("origins"), nb::arg("part_links"), nb::arg("offsets"))
-        .def_prop_ro("num_links", [](const RigModel& rig){ return rig.model.num_links; })
-        .def_prop_ro("num_parts", [](const RigModel& rig){ return rig.model.num_parts; })
-        .def_prop_ro("num_coordinates", [](const RigModel& rig){ return rig.model.num_coordinates; })
-        .def_prop_ro("joint_types", [](const RigModel& rig){
-            std::vector<std::string> joints;
-            for(size_t link_i = 0; link_i < rig.model.num_links; link_i++){
-                joints.push_back(joint_name(rig.model.links[link_i].joint));
+void register_rotorcraft_bindings(nb::module_& m){
+    m.def("rotorcraft", [](rrt::ObjectAssembly& assembly, std::optional<FloatArray> rotor_positions, std::optional<FloatArray> rotor_torque_directions){
+        if(rotor_positions.has_value() != rotor_torque_directions.has_value()){
+            throw std::invalid_argument("hyperdrone: rotor_positions and rotor_torque_directions come together");
+        }
+        rlt::rl::environments::hyperdrone::rig::Rotorcraft rotorcraft;
+        if(!rotor_positions.has_value()){
+            if(!rlt::init(g_device, rotorcraft, assembly)){
+                throw std::invalid_argument("hyperdrone: the assembly does not follow the body/prop_* convention: part 0 is \"body\", prop_* parts carry geometry");
             }
-            return joints;
-        })
-        .def_prop_ro("coordinate_offsets", [](const RigModel& rig){
-            std::vector<size_t> offsets;
-            for(size_t link_i = 0; link_i < rig.model.num_links; link_i++){
-                offsets.push_back(rig.model.links[link_i].coordinate);
+        }
+        else{
+            const auto& positions = *rotor_positions;
+            const auto& torques = *rotor_torque_directions;
+            if(positions.ndim() != 2 || positions.shape(1) != 3 || torques.ndim() != 2 || torques.shape(1) != 3 || positions.shape(0) != torques.shape(0)){
+                throw std::invalid_argument("hyperdrone: rotor_positions and rotor_torque_directions must both have shape (num_rotors, 3) and dtype float32");
             }
-            return offsets;
-        })
-        .def("evaluate", [](RigModel& rig, FloatArray base, FloatArray coordinates, OutputArray out){
-            const size_t batch = RigModel::batch_size(base);
-            RigModel::check_finite(base, "base poses");
-            rig.check_coordinates(coordinates, batch);
-            const bool valid_out = batch == 1 && base.ndim() == 2 ? (out.ndim() == 3 && out.shape(0) == rig.model.num_parts && out.shape(1) == 3 && out.shape(2) == 4)
-                                                                  : (out.ndim() == 4 && out.shape(0) == batch && out.shape(1) == rig.model.num_parts && out.shape(2) == 3 && out.shape(3) == 4);
-            if(!valid_out){
-                throw std::invalid_argument("hyperdrone: the pose output must have shape (num_parts, 3, 4), or (batch, num_parts, 3, 4) for batched bases");
+            if(!rlt::init(g_device, rotorcraft, assembly, reinterpret_cast<const float(*)[3]>(positions.data()), reinterpret_cast<const float(*)[3]>(torques.data()), positions.shape(0))){
+                throw std::invalid_argument("hyperdrone: the assembly does not follow the body/prop_* convention, or its prop hubs do not pair one-to-one with the rotors (nearest in the XY plane) with nonzero torque directions");
             }
-            nb::gil_scoped_release release;
-            for(size_t sample = 0; sample < batch; sample++){
-                rlt::evaluate(device(), rig.model, base.data() + sample * 12, coordinates.data() + sample * rig.model.num_coordinates, rig.buffer, out.data() + sample * rig.model.num_parts * 12);
-            }
-        }, nb::arg("base"), nb::arg("coordinates"), nb::arg("out"))
-        .def("sample", [](RigModel& rig, FloatArray base_open, FloatArray base_close, FloatArray coordinates_open, FloatArray coordinates_close, size_t num_samples, OutputArray samples, OutputArray close){
-            if(RigModel::batch_size(base_open) != 1 || RigModel::batch_size(base_close) != 1 || base_open.ndim() != 2 || base_close.ndim() != 2){
-                throw std::invalid_argument("hyperdrone: sample takes single (3, 4) base poses");
-            }
-            RigModel::check_finite(base_open, "base poses");
-            RigModel::check_finite(base_close, "base poses");
-            rig.check_coordinates(coordinates_open, 1);
-            rig.check_coordinates(coordinates_close, 1);
-            if(num_samples == 0 || samples.ndim() != 4 || samples.shape(0) != num_samples || samples.shape(1) != rig.model.num_parts || samples.shape(2) != 3 || samples.shape(3) != 4){
-                throw std::invalid_argument("hyperdrone: the sample output must have shape (num_samples, num_parts, 3, 4)");
-            }
-            check_rows(close, rig.model.num_parts, "the close output");
-            nb::gil_scoped_release release;
-            rlt::sample(device(), rig.model, base_open.data(), base_close.data(), coordinates_open.data(), coordinates_close.data(), num_samples, rig.buffer, samples.data(), rig.model.num_parts * 12, close.data());
-        }, nb::arg("base_open"), nb::arg("base_close"), nb::arg("coordinates_open"), nb::arg("coordinates_close"), nb::arg("num_samples"), nb::arg("samples"), nb::arg("close"));
+        }
+        return nb::make_tuple(rotorcraft.wheelbase, rotorcraft.scale, rotorcraft.rotor_position_deviation);
+    }, nb::arg("assembly"), nb::arg("rotor_positions").none(), nb::arg("rotor_torque_directions").none());
 }

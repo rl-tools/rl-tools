@@ -29,10 +29,10 @@ namespace rl_tools{
                 tasks::moving_gate::_sample_gate<DEVICE, TASK_SPEC>(device, annotations, instance_parameters, state, rng_state);
             }
         }
-        // the gate is a rigid entity: a zero-coordinate rig moved along the constant-twist screw
-        // between the shutter-open and shutter-close gate poses
+        // the gate is a rigid entity moved along the constant-twist screw between the shutter-open
+        // and shutter-close gate poses
         template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC>
-        __global__ void gate_rows_kernel(DEVICE device, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, typename World<TASK_SPEC>::ENTITY_RIG rig, typename TASK_SPEC::TI slot_offset, float* transforms, float* transforms_motion){
+        __global__ void gate_rows_kernel(DEVICE device, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, rendering::raytracing::PoseSink<typename TASK_SPEC::NEXT_WORLD::RENDERER_SPEC> sink, rendering::raytracing::OverlayPlacement placement){
             using T = typename TASK_SPEC::T;
             using TI = typename DEVICE::index_t;
             using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
@@ -41,18 +41,19 @@ namespace rl_tools{
             if(instance_i < INSTANCES){
                 const auto& instance_parameters = get_ref(device, parameters, instance_i);
                 const auto& state = get_ref(device, states, instance_i);
-                T phase_open = state.gate_phase;
+                float pose_close[12];
+                gate_pose(device, instance_parameters, state.gate_phase, pose_close);
                 if constexpr(NEXT_WORLD::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
                     constexpr T TWO_PI = (T)2 * math::PI<T>;
                     const T dt = instance_parameters.agents[0].dynamics.integration.dt;
-                    phase_open = state.gate_phase - TWO_PI * instance_parameters.gate_frequency * dt * instance_parameters.shutter_fraction;
+                    const T phase_open = state.gate_phase - TWO_PI * instance_parameters.gate_frequency * dt * instance_parameters.shutter_fraction;
+                    float pose_open[12];
+                    gate_pose(device, instance_parameters, phase_open, pose_open);
+                    set_pose(device, sink, rendering::raytracing::OverlayIndex{instance_i}, placement, make_pose(pose_open), make_pose(pose_close));
                 }
-                float pose_open[12], pose_close[12];
-                gate_pose(device, instance_parameters, phase_open, pose_open);
-                gate_pose(device, instance_parameters, state.gate_phase, pose_close);
-                const TI row = instance_i * NEXT_WORLD::RENDERER_CONFIG::MAX_OVERLAY_INSTANCES + slot_offset;
-                const float* no_coordinates = nullptr;
-                rl::environments::hyperdrone::cuda::entity_rows<DEVICE, typename NEXT_WORLD::RENDERER_SPEC>(device, rig, pose_open, pose_close, no_coordinates, no_coordinates, transforms, transforms_motion, row);
+                else{
+                    set_pose(device, sink, rendering::raytracing::OverlayIndex{instance_i}, placement, make_pose(pose_close));
+                }
             }
         }
         template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename NEXT_STATE_SPEC>
@@ -141,14 +142,9 @@ namespace rl_tools{
         devices::cuda::TAG<DEVICE, true> tag_device{};
         const auto& kind = world.entity_kinds[world.entity_kind_index];
         auto& renderer = get_renderer(device, world);
-        float* transforms_rows = data(transforms(device, renderer));
-        float* transforms_motion_rows = nullptr;
-        if constexpr (NEXT_WORLD::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
-            transforms_motion_rows = data(transforms_motion(device, renderer));
-        }
         constexpr TI BLOCKSIZE = 32;
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
-        rl::environments::hyperdrone::tasks::moving_gate::cuda::gate_rows_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, parameters, states, kind.rig, kind.slot_offset, transforms_rows, transforms_motion_rows);
+        rl::environments::hyperdrone::tasks::moving_gate::cuda::gate_rows_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, parameters, states, pose_sink(device, renderer), rl::environments::hyperdrone::_entity_placement(world, kind));
         check_status(device);
     }
 

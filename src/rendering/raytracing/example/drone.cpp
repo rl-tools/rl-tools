@@ -199,8 +199,8 @@ int main(int argc, char** argv) {
         std::cerr << "Failed to load drone assembly: " << options.drone_path << std::endl;
         return 1;
     }
-    rlt::rl::environments::hyperdrone::rig::Rotorcraft<TI> rig;
-    if (!rlt::init(device, rig, drone_assembly)) {
+    rlt::rl::environments::hyperdrone::rig::Rotorcraft rotorcraft;
+    if (!rlt::init(device, rotorcraft, drone_assembly)) {
         std::cerr << "Drone assembly must follow the body/prop_* part convention: " << options.drone_path << std::endl;
         return 1;
     }
@@ -214,8 +214,7 @@ int main(int argc, char** argv) {
     rlt::attach(device, renderer, ONBOARD_CAMERA, rlt::rendering::raytracing::OverlayIndex{0});
     rlt::attach(device, renderer, THIRD_PERSON_CAMERA, rlt::rendering::raytracing::OverlayIndex{0});
 
-    const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
-    const auto placement = rlt::spawn(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, drone_asset, identity);
+    const auto placement = rlt::spawn(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, drone_asset);
 
     lissajous::Parameters<T> trajectory = lissajous::default_parameters<T>;
     trajectory.A = 0.45;
@@ -253,8 +252,8 @@ int main(int argc, char** argv) {
             cameras[THIRD_PERSON_CAMERA] = rlt::make_camera_data(TRIPOD_POSITION, pose.position, up, THIRD_PERSON_FOV, aspect);
         }
     };
-    // native dynamic motion blur: shutter-open/close states per frame, the rig samples the
-    // per-part transforms and the renderer accumulates MOTION_BLUR_SAMPLES passes on the device
+    // native dynamic motion blur: shutter-open/close states per frame, set_pose samples the
+    // part transforms and the renderer accumulates MOTION_BLUR_SAMPLES passes on the device
     for (int frame_i = 0; frame_i < options.frames; frame_i++) {
         const T time_open = static_cast<T>(frame_i / options.fps);
         const T time_close = static_cast<T>((frame_i + SHUTTER_FRACTION) / options.fps);
@@ -269,7 +268,7 @@ int main(int argc, char** argv) {
             phases_open[prop_i] = PROP_RATE * time_open;
             phases_close[prop_i] = PROP_RATE * time_close;
         }
-        rlt::set_transform_pair(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, rig, pose_transform_open, pose_transform_close, phases_open, phases_close);
+        rlt::set_pose(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(pose_transform_open, 1, phases_open), rlt::make_pose(pose_transform_close, 1, phases_close));
 
         rlt::rendering::raytracing::Camera<T> cameras_open[NUM_CAMERAS], cameras_close[NUM_CAMERAS];
         make_cameras(pose_open, cameras_open);

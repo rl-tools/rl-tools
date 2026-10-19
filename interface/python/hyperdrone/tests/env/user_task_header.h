@@ -163,22 +163,21 @@ namespace rl_tools {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         const auto& kind = world.entity_kinds[world.entity_kind_index];
         const auto placement = rl::environments::hyperdrone::_entity_placement(world, kind);
-        const float* no_coordinates = nullptr;  // a rigid entity: its rig has no coordinates
         auto& renderer = get_renderer(device, world);
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             const auto& instance_parameters = get_ref(device, parameters, instance_i);
             const auto& state = get_ref(device, states, instance_i);
             float pose[12];
             hyperdrone_env_user::orbiter::orbiter_pose<DEVICE, TASK_SPEC>(device, instance_parameters, state.orbit_phase, pose);
-            if constexpr (NEXT_WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR) {
+            if constexpr (NEXT_WORLD::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
                 constexpr T TWO_PI = (T)2 * math::PI<T>;
                 const T dt = instance_parameters.agents[0].dynamics.integration.dt;
                 float pose_open[12];
                 T phase_open = state.orbit_phase - TWO_PI * TASK_SPEC::ORBIT_RATE * dt * instance_parameters.shutter_fraction;
                 hyperdrone_env_user::orbiter::orbiter_pose<DEVICE, TASK_SPEC>(device, instance_parameters, phase_open, pose_open);
-                set_transform_pair(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, kind.rig, pose_open, pose, no_coordinates, no_coordinates);
+                set_pose(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, make_pose(pose_open), make_pose(pose));
             } else {
-                set_transform(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, kind.rig, pose, no_coordinates);
+                set_pose(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, make_pose(pose));
             }
         }
     }

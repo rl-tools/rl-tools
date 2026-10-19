@@ -102,7 +102,7 @@ namespace rl_tools {
             spy_capture_cuda_check(cudaMemcpyAsync(&geometry->camera, data(cameras(device, renderer)) + local_camera, sizeof(geometry->camera), cudaMemcpyDeviceToDevice, producer_stream));
             if constexpr(WORLD::RENDERER_SPEC::ENABLE_OVERLAYS) {
                 spy_capture_cuda_check(cudaMemcpyAsync(geometry->structure, overlay_structure(device, renderer) + instance_i * GEOMETRY::SLOTS, sizeof(geometry->structure), cudaMemcpyDeviceToDevice, producer_stream));
-                spy_capture_cuda_check(cudaMemcpyAsync(geometry->transforms, data(transforms(device, renderer)) + instance_i * GEOMETRY::SLOTS * 12, sizeof(geometry->transforms), cudaMemcpyDeviceToDevice, producer_stream));
+                spy_capture_cuda_check(cudaMemcpyAsync(geometry->transforms, data(renderer.transforms) + instance_i * GEOMETRY::SLOTS * 12, sizeof(geometry->transforms), cudaMemcpyDeviceToDevice, producer_stream));
             }
         }
     }

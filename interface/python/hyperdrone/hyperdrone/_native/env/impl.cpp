@@ -290,15 +290,18 @@ namespace HYPERDRONE_MODULE_NAME {
                 if(drone.asset.empty() || !rlt::rendering::datasets::resolve_reference(impl.host(), drone.asset, path) || !rlt::load<typename SPEC::SHADING, WORLD::RENDERER_SPEC::HAS_RGB>(impl.host(), assembly, path)){
                     throw std::invalid_argument(name + ": failed to load the asset");
                 }
-                rlt::rl::environments::hyperdrone::DroneBody<SPEC> body;
+                rlt::rl::environments::hyperdrone::rig::Rotorcraft rotorcraft;
                 const auto& rotors = drone.parameters.dynamics.dynamics;
-                if(!rlt::init(impl.host(), body.rig, assembly, rotors.rotor_positions, rotors.rotor_torque_directions, (TI)WORLD::DYNAMICS_ENV::ACTION_DIM)){
+                if(!rlt::init(impl.host(), rotorcraft, assembly, rotors.rotor_positions, rotors.rotor_torque_directions, (TI)WORLD::DYNAMICS_ENV::ACTION_DIM)){
                     throw std::invalid_argument(name + ": the asset needs a body and one prop_* per rotor, each hub nearest a distinct rotor with a nonzero reaction torque");
                 }
-                if(drone_i > 0 && body.rig.num_parts != parts){
+                if(assembly.parts.size() > rlt::rl::environments::hyperdrone::MAX_DRONE_PARTS){
+                    throw std::invalid_argument(name + ": a drone asset has at most " + std::to_string(rlt::rl::environments::hyperdrone::MAX_DRONE_PARTS) + " parts");
+                }
+                if(drone_i > 0 && assembly.parts.size() != parts){
                     throw std::invalid_argument(name + ": all drone assets need the same part count, the body swaps in place at reset");
                 }
-                parts = body.rig.num_parts;
+                parts = assembly.parts.size();
             }
         }
         if(parts > SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE / WORLD::N_AGENTS){
@@ -516,8 +519,8 @@ namespace HYPERDRONE_MODULE_NAME {
                     }
                     if constexpr (WORLD::SPEC::SELF_VISIBLE){
                         const T wheelbase = rotor_wheelbase(impl->host(), agent.dynamics.dynamics.rotor_positions, (TI)WORLD::DYNAMICS_ENV::ACTION_DIM);
-                        const float scale = (float)(wheelbase / impl->env.shared.drone_bodies[agent.drone].rig.wheelbase);
-                        if(wheelbase <= 0 || !rlt::rendering::rig::detail::is_finite(scale) || scale <= 0){
+                        const float scale = (float)(wheelbase / impl->env.shared.drone_bodies[agent.drone].rotorcraft.wheelbase);
+                        if(wheelbase <= 0 || !rlt::rendering::is_finite(scale) || scale <= 0){
                             throw std::invalid_argument("hyperdrone: rotor_positions must define a finite positive wheelbase and visual scale");
                         }
                     }

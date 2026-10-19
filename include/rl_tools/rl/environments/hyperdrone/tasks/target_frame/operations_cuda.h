@@ -40,7 +40,7 @@ namespace rl_tools{
             }
         }
         template <typename DEVICE, typename TASK_SPEC, typename SETUPS_SPEC, typename BODIES_SPEC, typename STRUCTURE>
-        __global__ void bank_drone_rows_kernel(DEVICE device, Tensor<SETUPS_SPEC> setups, const Tensor<BODIES_SPEC> bodies, typename TASK_SPEC::TI slot_offset, typename TASK_SPEC::TI parts, float* transforms, float* transforms_motion, hyperdrone::cuda::DroneMeshes<typename TASK_SPEC::NEXT_WORLD::SPEC, STRUCTURE> meshes){
+        __global__ void bank_drone_rows_kernel(DEVICE device, Tensor<SETUPS_SPEC> setups, const Tensor<BODIES_SPEC> bodies, typename TASK_SPEC::TI slot_offset, typename TASK_SPEC::TI parts, rendering::raytracing::PoseSink<typename TASK_SPEC::NEXT_WORLD::RENDERER_SPEC> sink, hyperdrone::cuda::DroneMeshes<typename TASK_SPEC::NEXT_WORLD::SPEC, STRUCTURE> meshes){
             using T = typename TASK_SPEC::T;
             using TI = typename DEVICE::index_t;
             using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
@@ -53,10 +53,9 @@ namespace rl_tools{
                 float base[12];
                 rig::make_body_transform(device, orientation, position, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, base);
                 const float coordinates[NEXT_WORLD::DYNAMICS_ENV::ACTION_DIM] = {};
-                const TI row = setup_i * NEXT_WORLD::RENDERER_CONFIG::MAX_OVERLAY_INSTANCES + slot_offset;
                 const auto& body = get_ref(device, bodies, setup.agents[0].drone);
-                const float placement_scale = rotor_scale(device, body.rig, setup.agents[0].dynamics.dynamics.rotor_positions, NEXT_WORLD::DYNAMICS_ENV::ACTION_DIM);
-                hyperdrone::cuda::drone_entity_rows<DEVICE, typename NEXT_WORLD::SPEC>(device, body, base, base, coordinates, coordinates, transforms, transforms_motion, meshes, parts, row, placement_scale);
+                const auto pose = make_pose(base, rotor_scale(device, body.rotorcraft, setup.agents[0].dynamics.dynamics.rotor_positions, NEXT_WORLD::DYNAMICS_ENV::ACTION_DIM), coordinates);
+                hyperdrone::cuda::drone_entity_rows<DEVICE, typename NEXT_WORLD::SPEC>(device, sink, meshes, body.mesh, rendering::raytracing::OverlayIndex{setup_i}, slot_offset, parts, pose, pose);
             }
         }
         template <typename DEVICE, typename TASK_SPEC, typename SETUPS_SPEC>
@@ -201,13 +200,9 @@ namespace rl_tools{
             auto& renderer = get_renderer(device, world);
             if constexpr (BASE_SPEC::SELF_VISIBLE){
                 // the setup's drone at rest at the target pose, overwritten by the next frame's rows
-                float* transforms_motion_rows = nullptr;
-                if constexpr (TASK_SPEC::NEXT_WORLD::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
-                    transforms_motion_rows = data(transforms_motion(device, renderer));
-                }
                 constexpr TI BLOCKSIZE = 32;
                 constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(WORLD::INSTANCES, BLOCKSIZE);
-                cuda::bank_drone_rows_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, setups, world.drone_bodies, world.drone_slot_offset, world.drone_parts, data(transforms(device, renderer)), transforms_motion_rows, hyperdrone::cuda::drone_meshes(device, world, renderer));
+                cuda::bank_drone_rows_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, setups, world.drone_bodies, world.drone_slot_offset, world.drone_parts, pose_sink(device, renderer), hyperdrone::cuda::drone_meshes(device, world, renderer));
                 update_launch(device, renderer);
             }
             {

@@ -2,15 +2,14 @@
 #if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_UTILS_ASSERT_OPERATIONS_CUDA_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
 #define RL_TOOLS_UTILS_ASSERT_OPERATIONS_CUDA_H
-#include <cassert>
+#include <cstdlib>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::utils{
     template <typename DEV_SPEC, typename T, typename utils::typing::enable_if<!DEV_SPEC::KERNEL && !DEV_SPEC::TAG>::type* = nullptr>
     auto host_assert_exit(devices::CUDA<DEV_SPEC>& dev, bool condition, T message){
-        using DEVICE = devices::CUDA<DEV_SPEC>;
         if(!condition){
             log(dev, dev.logger, message);
-            assert(condition);
+            std::abort();
         }
         return condition;
     }

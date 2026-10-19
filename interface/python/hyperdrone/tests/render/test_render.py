@@ -358,20 +358,8 @@ def test_dynamic_motion_blur_object():
     camera = renderer.camera(position=(0.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=60.0)
     renderer.set_motion_blur_cameras(camera[None], camera[None])
     renderer.attach(0, 0)
-    placement = renderer.spawn(0, asset, render.make_transform(position=(4.0, 0.0, 0.0)))
-    renderer.set_transform_pair(placement, render.make_transform(position=(2.0, 0.0, 0.0)), render.make_transform(position=(4.0, 0.0, 0.0)))
-    renderer.update()
-    renderer.render()
-    assert abs(renderer.outputs[Depth()].read()[0, 0, 0] - 4.0) < 1e-5
-
-    # the whole-tensor form: per-sample world poses for every slot (the sample times are
-    # (s + 0.5) / 2, so x = 2.5 and 3.5) plus the shutter-close poses
-    samples = np.zeros((2, 1, 2, 3, 4), dtype=np.float32)
-    close = np.zeros((1, 2, 3, 4), dtype=np.float32)
-    samples[0, 0, placement.first_slot] = render.make_transform(position=(2.5, 0.0, 0.0))
-    samples[1, 0, placement.first_slot] = render.make_transform(position=(3.5, 0.0, 0.0))
-    close[0, placement.first_slot] = render.make_transform(position=(4.0, 0.0, 0.0))
-    renderer.set_all_motion_transforms(samples, close)
+    placement = renderer.spawn(0, asset, render.Pose(render.make_transform(position=(4.0, 0.0, 0.0))))
+    renderer.set_pose(placement, render.Pose(render.make_transform(position=(2.0, 0.0, 0.0))), render.Pose(render.make_transform(position=(4.0, 0.0, 0.0))))
     renderer.update()
     renderer.render()
     assert abs(renderer.outputs[Depth()].read()[0, 0, 0] - 4.0) < 1e-5
@@ -386,6 +374,8 @@ def test_overlay_pipeline(tmp_path):
     assembly_path = tmp_path / "overlay_assembly.glb"
     write_minimal_glb(assembly_path)
     assembly = render.load_assembly(assembly_path, fidelity="low")
+    assembly.set_joint(1, "prismatic", axis=(-3.0, 2.0, 0.0))
+    assert assembly.num_coordinates == 1
     assembly_asset = asset_pool.add_assembly(assembly)
     assert asset_pool.num_assets == 2
 
@@ -405,7 +395,7 @@ def test_overlay_pipeline(tmp_path):
     assert renderer.can_attach(0, 0)
     assert renderer.can_spawn(0, asset)
     renderer.attach(0, 0)
-    placement = renderer.spawn(0, asset, render.make_transform(position=(4.0, 0.75, 0.0)))
+    placement = renderer.spawn(0, asset, render.Pose(render.make_transform(position=(4.0, 0.75, 0.0))))
     assert (placement.first_slot, placement.num_parts) == (0, 1)
     renderer.update()
     renderer.render()
@@ -418,7 +408,7 @@ def test_overlay_pipeline(tmp_path):
     assert np.mean(renderer.outputs[RGB(format="rgba8")].read()[0][first_mask, 0]) > 100
     assert np.mean(renderer.outputs[Depth()].read()[0][first_mask]) < 5.0
 
-    renderer.set_transform(placement, render.make_transform(position=(4.0, -0.75, 0.0)))
+    renderer.set_pose(placement, render.Pose(render.make_transform(position=(4.0, -0.75, 0.0))))
     renderer.update()
     renderer.render_launch()
     renderer.render_sync()
@@ -441,11 +431,11 @@ def test_overlay_pipeline(tmp_path):
     renderer.render()
     assert not np.any(renderer.outputs[Segmentation()].read() == instance_id)
     assert renderer.can_spawn(0, asset)
-    replacement = renderer.spawn(0, asset, render.make_transform(position=(4.0, -0.75, 0.0)))
+    replacement = renderer.spawn(0, asset, render.Pose(render.make_transform(position=(4.0, -0.75, 0.0))))
     assert replacement.first_slot == placement.first_slot
     assert replacement != placement
     with pytest.raises(ValueError, match="stale"):
-        renderer.set_transform(placement, render.make_transform())
+        renderer.set_pose(placement, render.Pose(render.make_transform()))
     renderer.update()
     renderer.render()
     assert np.any(renderer.outputs[Segmentation()].read()[1] == instance_id)
@@ -453,14 +443,11 @@ def test_overlay_pipeline(tmp_path):
     assert not renderer.can_spawn(0, assembly_asset)
     renderer.despawn(replacement)
     assert renderer.can_spawn(0, assembly_asset)
-    assembly_placement = renderer.spawn(0, assembly_asset, render.make_transform())
+    assembly_placement = renderer.spawn(0, assembly_asset, render.Pose(render.make_transform()))
     assert (assembly_placement.first_slot, assembly_placement.num_parts) == (0, 2)
-    # per-part world poses: part 0 stays at its rest frame, part 1 moves into view
-    poses = np.stack([
-        np.asarray(assembly.part(0)[1], dtype=np.float32),
-        np.asarray(render.make_transform(position=(0.0, 2.0, 0.0)), dtype=np.float32),
-    ])
-    renderer.set_transforms(assembly_placement, poses)
+    # part 0 stays at its rest frame, the prismatic joint slides part 1 from its rest at x = 3
+    # into view at (0, 2, 0)
+    renderer.set_pose(assembly_placement, render.Pose(coordinates=[np.sqrt(13.0)]))
     renderer.update()
     renderer.render()
     segmentation = renderer.outputs[Segmentation()].read()
@@ -489,7 +476,7 @@ def test_semantic_segmentation_with_overlay():
     renderer.init(scene, asset_pool=asset_pool)
     look_forward(renderer)
     renderer.attach(0, 0)
-    renderer.spawn(0, asset, render.make_transform(position=(4.0, 0.0, 0.0)))
+    renderer.spawn(0, asset, render.Pose(render.make_transform(position=(4.0, 0.0, 0.0))))
     renderer.update()
     renderer.render()
     classes = renderer.outputs[Segmentation(labels="semantic")].read()
@@ -906,13 +893,13 @@ def test_loaded_semantics_survive_assembly_and_pool(labelled_glb):
                                num_overlays=1, max_overlay_instances=4, max_overlays_per_camera=1)
     renderer.init(scene, asset_pool=pool)
     renderer.attach(0, 0)
-    handle = renderer.spawn(0, asset, render.make_transform(position=(-1, 0, 0)))
+    handle = renderer.spawn(0, asset, render.Pose(render.make_transform(position=(-1, 0, 0))))
     camera = renderer.camera(position=(0, 1.5, 0), look_at=(2, 1.5, 0))
     renderer.set_cameras(camera[None])
     renderer.update()
     renderer.render()
     assert renderer.outputs[Segmentation(labels="semantic")].read()[0, 12, 12] == 21
-    renderer.set_transform(handle, render.make_transform(position=(-1, 2, 0)))
+    renderer.set_pose(handle, render.Pose(render.make_transform(position=(-1, 2, 0))))
     renderer.update()
     renderer.render()
     assert renderer.outputs[Segmentation(labels="semantic")].read()[0, 12, 12] == 162
@@ -960,7 +947,7 @@ def test_explicit_class_assignment_repairs_welded_labels(labelled_glb, target):
     renderer.init(scene, asset_pool=pool)
     if pool is not None:
         renderer.attach(0, 0)
-        renderer.spawn(0, asset, render.make_transform(position=(0, 0, 0)))
+        renderer.spawn(0, asset, render.Pose(render.make_transform(position=(0, 0, 0))))
         renderer.update()
     camera = renderer.camera(position=(0, 1.5, 0), look_at=(2, 1.5, 0))
     renderer.set_cameras(camera[None])
@@ -1007,13 +994,13 @@ def test_label_remapping_across_scene_and_pool(labelled_glb):
                                num_overlays=1, max_overlay_instances=4, max_overlays_per_camera=1)
     renderer.init(scene, asset_pool=pool)
     renderer.attach(0, 0)
-    handle = renderer.spawn(0, asset, render.make_transform(position=(-1, 0, 0)))
+    handle = renderer.spawn(0, asset, render.Pose(render.make_transform(position=(-1, 0, 0))))
     camera = renderer.camera(position=(0, 1.5, 0), look_at=(2, 1.5, 0))
     renderer.set_cameras(camera[None])
     renderer.update()
     renderer.render()
     assert renderer.outputs[Segmentation(labels="semantic")].read()[0, 12, 12] == 2147483648
-    renderer.set_transform(handle, render.make_transform(position=(-1, 2, 0)))
+    renderer.set_pose(handle, render.Pose(render.make_transform(position=(-1, 2, 0))))
     renderer.update()
     renderer.render()
     assert renderer.outputs[Segmentation(labels="semantic")].read()[0, 12, 12] == 4294967039
@@ -1053,12 +1040,12 @@ def test_overlay_handles_validate_complete_allocation():
     asset = pool.add_mesh(make_quad(0))
     renderer = render.Renderer(8, 8, cameras=(CameraSpec("camera", outputs=(Segmentation(), Probes(),)),), num_overlays=2, max_overlay_instances=2, max_overlays_per_camera=1)
     renderer.init(scene, asset_pool=pool)
-    first = renderer.spawn(0, asset, render.make_transform(position=(2, 0, 0)))
-    neighbor = renderer.spawn(0, asset, render.make_transform(position=(3, 0, 0)))
-    renderer.spawn(1, asset, render.make_transform(position=(4, 0, 0)))
+    first = renderer.spawn(0, asset, render.Pose(render.make_transform(position=(2, 0, 0))))
+    neighbor = renderer.spawn(0, asset, render.Pose(render.make_transform(position=(3, 0, 0))))
+    renderer.spawn(1, asset, render.Pose(render.make_transform(position=(4, 0, 0))))
     forged = (replace(first, num_parts=2), replace(first, first_slot=neighbor.first_slot), replace(first, overlay=1), replace(first, first_slot=2**64 - 1))
     for placement in forged:
-        for verb in (lambda: renderer.despawn(placement), lambda: renderer.set_transform(placement, render.make_transform()), lambda: renderer.set_transforms(placement, np.zeros((2, 3, 4), np.float32)), lambda: renderer.set_motion_transforms(placement, None, None)):
+        for verb in (lambda: renderer.despawn(placement), lambda: renderer.set_pose(placement, render.Pose(render.make_transform())), lambda: renderer.set_pose(placement, render.Pose(), render.Pose())):
             with pytest.raises(ValueError, match="allocation"):
                 verb()
     with pytest.raises(TypeError, match="OverlayPlacement"):
@@ -1067,18 +1054,17 @@ def test_overlay_handles_validate_complete_allocation():
     with pytest.raises(ValueError, match="another renderer"):
         other.despawn(first)
     renderer.despawn(first)
-    replacement = renderer.spawn(0, asset, render.make_transform())
+    replacement = renderer.spawn(0, asset, render.Pose(render.make_transform()))
     assert replacement.first_slot == first.first_slot
     assert replacement != first
     with pytest.raises(ValueError, match="stale"):
-        renderer.set_transform(first, render.make_transform())
+        renderer.set_pose(first, render.Pose(render.make_transform()))
     class UnreadableCuda:
         def __dlpack_device__(self):
             raise AssertionError("a rejected handle must not consume its tensor")
     with pytest.raises(ValueError, match="stale"):
-        renderer.set_transforms(first, UnreadableCuda())
-    assert not renderer._pending_inputs
-    renderer.set_transform(neighbor, render.make_transform())
+        renderer.set_pose(first, render.Pose(UnreadableCuda()))
+    renderer.set_pose(neighbor, render.Pose(render.make_transform()))
     for raw in ((2**64 - 1, 2, 0), (0, 0, 0), (2, 1, 0)):
         with pytest.raises(ValueError):
             renderer._renderer.despawn(0, raw)
@@ -1102,10 +1088,10 @@ def test_overlay_errors_leave_renderer_usable():
         renderer.attach(0, 1)
     for overlay, handle in ((2, asset), (0, asset + 1)):
         with pytest.raises(ValueError, match="out of range"):
-            renderer.spawn(overlay, handle, render.make_transform())
-    placement = renderer.spawn(0, asset, render.make_transform())
+            renderer.spawn(overlay, handle, render.Pose(render.make_transform()))
+    placement = renderer.spawn(0, asset, render.Pose(render.make_transform()))
     with pytest.raises(RuntimeError, match="capacity"):
-        renderer.spawn(0, asset, render.make_transform())
+        renderer.spawn(0, asset, render.Pose(render.make_transform()))
     renderer.despawn(placement)
     assert renderer.can_spawn(0, asset)
 

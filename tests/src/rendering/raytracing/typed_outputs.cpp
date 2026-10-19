@@ -253,11 +253,11 @@ namespace {
                 init(device, renderer, bundle, pool);
                 const float open[12] = {1, 0, 0, 1.5f, 0, 1, 0, -.8f, 0, 0, 1, 0};
                 const float close[12] = {1, 0, 0, 1.5f, 0, 1, 0, .8f, 0, 0, 1, 0};
-                const auto placement = spawn(device, renderer, rrt::OverlayIndex{0}, asset, open);
+                const auto placement = spawn(device, renderer, rrt::OverlayIndex{0}, asset, make_pose(open));
                 for(DEVICE::index_t camera = 0; camera < FULL_SPEC::NUM_CAMERAS; camera++) {
                     attach(device, renderer, camera, rrt::OverlayIndex{0});
                 }
-                set_transform_pair(device, renderer, rrt::OverlayIndex{0}, placement, open, close);
+                set_pose(device, renderer, rrt::OverlayIndex{0}, placement, make_pose(open), make_pose(close));
                 update(device, renderer);
             };
             prepare(full);
@@ -406,9 +406,9 @@ TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, DYNAMIC_MOTION_BLUR_FORWARD_OVERLAY_FLO
     init(device, renderer, bundle, pool);
     const float open[12] = {1, 0, 0, 1.5f, 0, 1, 0, 0, 0, 0, 1, 0};
     const float close[12] = {1, 0, 0, 1.5f, 0, 1, 0, .25f, 0, 0, 1, 0};
-    const auto placement = spawn(device, renderer, rrt::OverlayIndex{0}, asset, open);
+    const auto placement = spawn(device, renderer, rrt::OverlayIndex{0}, asset, make_pose(open));
     attach(device, renderer, 0, rrt::OverlayIndex{0});
-    set_transform_pair(device, renderer, rrt::OverlayIndex{0}, placement, open, close);
+    set_pose(device, renderer, rrt::OverlayIndex{0}, placement, make_pose(open), make_pose(close));
     update(device, renderer);
     const rrt::Camera<float> camera{{0, 0, 0}, {1, 1, -1}, {0, -2, 0}, {0, 0, 2}};
     golden::copy_in(device, renderer.device, &camera, cameras(device, renderer));
@@ -519,18 +519,18 @@ TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, SEMANTIC_PLACEMENT_CLASS) {
             EXPECT_EQ(classes[pixel], expected);
         }
     };
-    auto placement = spawn(device, renderer, overlay, asset, pose);
+    auto placement = spawn(device, renderer, overlay, asset, make_pose(pose));
     expect_class(3);
     despawn(device, renderer, overlay, placement);
-    placement = spawn(device, renderer, overlay, asset, pose, rendering::segmentation::AGENT);
+    placement = spawn(device, renderer, overlay, asset, make_pose(pose), rendering::segmentation::AGENT);
     expect_class(rendering::segmentation::AGENT);
     placement = replace(device, renderer, overlay, placement, replacement);
     expect_class(rendering::segmentation::AGENT);
     despawn(device, renderer, overlay, placement);
-    placement = spawn(device, renderer, overlay, replacement, pose, 9);
+    placement = spawn(device, renderer, overlay, replacement, make_pose(pose), 9);
     expect_class(9);
     despawn(device, renderer, overlay, placement);
-    spawn(device, renderer, overlay, replacement, pose);
+    spawn(device, renderer, overlay, replacement, make_pose(pose));
     expect_class(5);
     free(device, renderer);
 }
@@ -561,7 +561,7 @@ TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, INPUT_COPIES_LEAVE_OUTPUTS_ON_DEVICE) {
     set_inputs(device, renderer, 0);
     generate_probe_directions(device, renderer);
     const float pose[12] = {1, 0, 0, -1, 0, 1, 0, 0, 0, 0, 1, 0};
-    spawn(device, renderer, rrt::OverlayIndex{0}, asset, pose);
+    const auto placement = spawn(device, renderer, rrt::OverlayIndex{0}, asset, make_pose(pose));
     attach(device, renderer, DEVICE::index_t(0), rrt::OverlayIndex{0});
     update(device, renderer);
 
@@ -592,10 +592,10 @@ TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, INPUT_COPIES_LEAVE_OUTPUTS_ON_DEVICE) {
     golden::copy_in(device, renderer.device, camera_values.data(), cameras(device, renderer));
     expect_images_unread();
 
-    std::vector<float> poses;
-    golden::copy_out(renderer.device, device, transforms(device, renderer), poses);
-    poses[3] = -.5f;
-    golden::copy_in(device, renderer.device, poses.data(), transforms(device, renderer));
+    float moved[12];
+    std::copy(pose, pose + 12, moved);
+    moved[3] = -.5f;
+    set_pose(device, pose_sink(device, renderer), rrt::OverlayIndex{0}, placement, make_pose(moved));
     update(device, renderer);
     expect_images_unread();
     probe_launch(device, renderer);

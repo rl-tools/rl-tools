@@ -5,7 +5,7 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_OPERATIONS_GENERIC_H
 
 #include "rig.h"
-#include "../../../../rendering/rig/operations_generic.h"
+#include "../../../../rendering/types.h"
 #include "../../l2f/quaternion_helper.h"
 
 
@@ -15,14 +15,14 @@ namespace rl_tools {
     RL_TOOLS_FUNCTION_PLACEMENT T rotor_wheelbase(DEVICE& device, const T positions[][3], TI count){
         T maximum_squared = 0;
         for(TI rotor_i = 0; rotor_i < count; rotor_i++){
-            if(!rendering::rig::detail::is_finite(positions[rotor_i], 3)){
+            if(!rendering::is_finite(positions[rotor_i], 3)){
                 return 0;
             }
             for(TI other_i = 0; other_i < rotor_i; other_i++){
                 const T dx = positions[rotor_i][0] - positions[other_i][0];
                 const T dy = positions[rotor_i][1] - positions[other_i][1];
                 const T squared = dx * dx + dy * dy;
-                if(!rendering::rig::detail::is_finite(squared)){
+                if(!rendering::is_finite(squared)){
                     return 0;
                 }
                 maximum_squared = squared > maximum_squared ? squared : maximum_squared;
@@ -31,12 +31,13 @@ namespace rl_tools {
         return math::sqrt(device.math, maximum_squared);
     }
 
-    template <typename DEVICE, typename TI, TI MAX_PROPS, TI MAX_PARTS, typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT float rotor_scale(DEVICE& device, const rl::environments::hyperdrone::rig::Rotorcraft<TI, MAX_PROPS, MAX_PARTS>& rig, const T positions[][3], TI count){
+    // the placement scale that fits the rotorcraft onto a dynamics model's rotors
+    template <typename DEVICE, typename T, typename TI>
+    RL_TOOLS_FUNCTION_PLACEMENT float rotor_scale(DEVICE& device, const rl::environments::hyperdrone::rig::Rotorcraft& rotorcraft, const T positions[][3], TI count){
         const T wheelbase = rotor_wheelbase(device, positions, count);
-        utils::assert_exit(device, wheelbase > 0 && rendering::rig::detail::is_finite(rig.wheelbase) && rig.wheelbase > 0, "hyperdrone::rotor_scale: finite positive wheelbases required");
-        const float scale = (float)(wheelbase / (T)rig.wheelbase);
-        utils::assert_exit(device, rendering::rig::detail::is_finite(scale) && scale > 0, "hyperdrone::rotor_scale: finite positive scale required");
+        utils::assert_exit(device, wheelbase > 0 && rendering::is_finite(rotorcraft.wheelbase) && rotorcraft.wheelbase > 0, "hyperdrone::rotor_scale: finite positive wheelbases required");
+        const float scale = (float)(wheelbase / (T)rotorcraft.wheelbase);
+        utils::assert_exit(device, rendering::is_finite(scale) && scale > 0, "hyperdrone::rotor_scale: finite positive scale required");
         return scale;
     }
 }

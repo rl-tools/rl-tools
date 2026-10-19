@@ -4,6 +4,7 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_SCENE_H
 
 #include "types.h"
+#include "pose.h"
 #include "../scene.h"
 
 #include <cstdint>
@@ -25,17 +26,6 @@ namespace rl_tools {
         struct Placement{
             size_t first_instance; // parts are placed as consecutive instances
             size_t num_instances;
-        };
-
-        struct OverlayIndex{
-            size_t index;
-        };
-
-        // returned by spawn: the contiguous slot run holding one instantiated asset
-        struct OverlayPlacement{
-            size_t first_slot;
-            size_t num_parts;
-            size_t first_part; // into the renderer's flattened per-part tables (for rigid moves)
         };
     }
 }

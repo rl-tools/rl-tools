@@ -60,14 +60,15 @@ namespace rl_tools {
         // Load product of a split GLB: one part per selected glTF node (the scene roots by
         // default), each an Object in the node's local frame plus the node's placement within the
         // assembly frame. The part list stays flat (the Scene is a flat instance list); a part
-        // whose node sits inside another selected node records that part as its parent, which is
-        // what rig::init turns into a joint origin.
+        // whose node sits inside another selected node records that part as its parent (listed
+        // before it), which its joint moves it relative to.
         struct ObjectAssembly{
             struct Part{
                 static constexpr size_t NO_PARENT = ~(size_t)0;
                 size_t object;       // index into ObjectAssembly::objects
                 float transform[12]; // part frame relative to the assembly frame, 3x4 row-major [R|t]
                 size_t parent = NO_PARENT;
+                Joint joint;
             };
             std::vector<Object> objects;
             std::vector<Part> parts;

@@ -103,7 +103,7 @@ TEST(RL_TOOLS_PROBES_OVERLAY_SUITE, PROBES_SEE_ATTACHED_OVERLAYS_ONLY){
 
     // overlay attached to camera 0 only: its probe hits the box, camera 1 still sees the wall
     rlt::attach(device, renderer, (TI)0, rlt::rendering::raytracing::OverlayIndex{0});
-    const auto placement = rlt::spawn(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, asset, overlay_scenarios::pose(OVERLAY_X, 0.0f, 0.0f).data());
+    const auto placement = rlt::spawn(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, asset, rlt::make_pose(overlay_scenarios::pose(OVERLAY_X, 0.0f, 0.0f).data()));
     rlt::update(device, renderer);
     results = probe_forward(device, renderer);
     EXPECT_EQ(results[0].hit, 1);
@@ -112,7 +112,7 @@ TEST(RL_TOOLS_PROBES_OVERLAY_SUITE, PROBES_SEE_ATTACHED_OVERLAYS_ONLY){
     EXPECT_NEAR(results[1].distance, WALL_X, 1e-3);
 
     // overlay moved behind the wall: the closer scene hit wins again
-    rlt::set_transform(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, overlay_scenarios::pose(BEHIND_WALL_X, 0.0f, 0.0f).data());
+    rlt::set_pose(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(overlay_scenarios::pose(BEHIND_WALL_X, 0.0f, 0.0f).data()));
     rlt::update(device, renderer);
     results = probe_forward(device, renderer);
     EXPECT_EQ(results[0].hit, 1);

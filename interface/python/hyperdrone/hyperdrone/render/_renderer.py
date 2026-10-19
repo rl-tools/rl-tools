@@ -1,9 +1,8 @@
-from dataclasses import dataclass
+from dataclasses import KW_ONLY, dataclass
 from itertools import count
 
 import numpy as np
 
-from .._dlpack import DLPackBuffer as _DLPackBuffer
 from .._dlpack import is_cuda as _is_cuda
 from ._component import load_core, load_renderer
 from ._config import RendererConfig
@@ -61,11 +60,20 @@ def _as_transform(transform):
     return array
 
 
-def _as_rows(value, shape):
-    array = np.ascontiguousarray(_from_dlpack(value), dtype=np.float32)
-    if array.size != int(np.prod(shape)):
-        raise ValueError(f"transforms must have shape {shape}, got {array.shape}")
-    return array.reshape(shape)
+@dataclass(frozen=True, eq=False)
+class Pose:
+    """The state of a placement: base, its rigid (3, 4) pose (default identity); coordinates, the
+    asset's joint values in coordinate order (default all zero, see ObjectAssembly.set_joint);
+    scale, a uniform size factor applied after the base (motion blur interpolates the rigid base)."""
+    base: object = None
+    _: KW_ONLY
+    coordinates: object = None
+    scale: float = 1.0
+
+    def _native(self):
+        base = np.eye(4, dtype=np.float32)[:3] if self.base is None else _as_transform(self.base)
+        coordinates = None if self.coordinates is None else np.ascontiguousarray(_from_dlpack(self.coordinates), dtype=np.float32).reshape(-1)
+        return base, float(self.scale), coordinates
 
 
 class Renderer:
@@ -92,14 +100,13 @@ class Renderer:
         self.outputs = OutputCollection(self._renderer, cameras=self.config.cameras)
         self._scene = None
         self._asset_pool = None
-        self._pending_inputs = []
         self._pending_cameras = []
         self._live = {}
         self._generation = count()
         self._serial = next(_RENDERER_SERIALS)
 
     def __del__(self):
-        if getattr(self, "_pending_inputs", ()) or getattr(self, "_pending_cameras", ()):
+        if getattr(self, "_pending_cameras", ()):
             self._renderer.synchronize()
 
     @property
@@ -207,7 +214,6 @@ class Renderer:
 
     def render(self):
         self._renderer.render()
-        self._pending_inputs.clear()
         self._pending_cameras.clear()
 
     def render_launch(self):
@@ -215,7 +221,6 @@ class Renderer:
 
     def render_sync(self):
         self._renderer.render_sync()
-        self._pending_inputs.clear()
         self._pending_cameras.clear()
 
     def probe(self):
@@ -234,7 +239,6 @@ class Renderer:
 
     def synchronize(self):
         self._renderer.synchronize()
-        self._pending_inputs.clear()
         self._pending_cameras.clear()
 
     def update(self):
@@ -254,9 +258,11 @@ class Renderer:
     def can_spawn(self, overlay, asset):
         return self._renderer.can_spawn(overlay, asset)
 
-    def spawn(self, overlay, asset, transform, *, segmentation_class=None):
-        """Place an asset; segmentation_class labels every part instead of the asset's authored classes."""
-        native = self._renderer.spawn(overlay, asset, _as_transform(transform), segmentation_class)
+    def spawn(self, overlay, asset, pose=None, *, segmentation_class=None):
+        """Place an asset at pose (default: the neutral Pose) in both flow instants, so it has no
+        motion of its own until set_pose moves it; segmentation_class labels every part instead
+        of the asset's authored classes."""
+        native = self._renderer.spawn(overlay, asset, *(pose or Pose())._native(), segmentation_class)
         placement = OverlayPlacement(overlay=overlay, first_slot=native[0], num_parts=native[1], _generation=next(self._generation), _renderer=self._serial)
         self._live[(overlay, placement.first_slot)] = (placement, native)
         return placement
@@ -276,105 +282,22 @@ class Renderer:
         self._renderer.despawn(placement.overlay, native)
         del self._live[(placement.overlay, placement.first_slot)]
 
-    def set_transform(self, placement, transform, *, rig=None, coordinates=None):
-        """Move a placement rigidly: every part at transform composed with its asset rest frame.
-        With a rig, transform is its base pose and coordinates its joint state (default: the
-        neutral state), and the parts land at the rig's geometry-to-world poses."""
+    def set_pose(self, placement, pose, close=None):
+        """Move a placement: its parts land where the pose drives the asset's joints. With close,
+        pose is the shutter-open and close the shutter-close state (dynamic_motion_blur=True): the
+        base follows the constant-twist screw between them, scale and coordinates interpolate
+        (a revolute joint keeps every revolution in between); close is the steady state that
+        segmentation, probes and the next frame see, and all a renderer without dynamic motion
+        blur uses."""
         native = self._native(placement)
-        if rig is None:
-            if coordinates is not None:
-                raise ValueError("coordinates articulate a rig: pass rig=")
-            self._renderer.set_transform(placement.overlay, native, _as_transform(transform))
+        if close is None:
+            self._renderer.set_pose(placement.overlay, native, *pose._native())
             return
-        self.set_transforms(placement, rig.evaluate(transform, coordinates))
-
-    def set_transform_pair(self, placement, open_transform, close_transform, *, rig=None, coordinates_open=None, coordinates_close=None):
-        """Rigid shutter-open/close move, interpolated into the motion samples (dynamic_motion_blur=True).
-        With a rig, the transforms are its base poses and the coordinates its joint states at
-        the shutter ends (default: the neutral state): the base follows the constant-twist screw,
-        the coordinates interpolate before the kinematics, so a revolute joint keeps every
-        revolution in between."""
-        native = self._native(placement)
-        if rig is None:
-            if coordinates_open is not None or coordinates_close is not None:
-                raise ValueError("coordinates articulate a rig: pass rig=")
-            self._renderer.set_transform_pair(placement.overlay, native, _as_transform(open_transform), _as_transform(close_transform))
-            return
-        if coordinates_open is None:
-            coordinates_open = rig.default_coordinates
-        if coordinates_close is None:
-            coordinates_close = rig.default_coordinates
-        samples, close = rig.sample(open_transform, close_transform, coordinates_open, coordinates_close, self.motion_blur_samples)
-        self.set_motion_transforms(placement, samples, close)
+        self._renderer.set_pose_pair(placement.overlay, native, *pose._native(), *close._native())
 
     def _require_device_inputs(self, name):
         if not hasattr(self._renderer, name):
-            raise RuntimeError("hyperdrone: device-resident transform input requires the OptiX backend")
-
-    def set_transforms(self, placement, poses, *, stream=0):
-        """Per-part geometry-to-world poses, shape (num_parts, 3, 4): the output of Rig.evaluate
-        for the placement's assembly. CUDA tensors (OptiX) are copied device-to-device on the
-        render stream after awaiting stream (the producer's cudaStream_t handle, 0 = default)."""
-        native = self._native(placement)
-        if _is_cuda(poses):
-            self._require_device_inputs("set_transforms_device")
-            self._renderer.set_transforms_device(placement.overlay, native, poses, int(stream))
-            self._pending_inputs.append(poses)
-            return
-        self._renderer.set_transforms(placement.overlay, native, _as_rows(poses, (placement.num_parts, 3, 4)))
-
-    def set_motion_transforms(self, placement, samples, close, *, stream=0):
-        """Per-part motion for dynamic motion blur: samples (motion_blur_samples, num_parts, 3, 4)
-        at the shutter times (s + 0.5) / motion_blur_samples and the shutter-close poses
-        (num_parts, 3, 4) that segmentation, probes and the next frame see: the output of
-        Rig.sample. CUDA tensors are handed over like in set_transforms."""
-        native = self._native(placement)
-        if _is_cuda(samples) != _is_cuda(close):
-            raise ValueError("samples and close poses must live in the same memory")
-        if _is_cuda(samples):
-            self._require_device_inputs("set_motion_transforms_device")
-            self._renderer.set_motion_transforms_device(placement.overlay, native, samples, close, int(stream))
-            self._pending_inputs.extend((samples, close))
-            return
-        num_parts = placement.num_parts
-        self._renderer.set_motion_transforms(placement.overlay, native, _as_rows(samples, (self.motion_blur_samples, num_parts, 3, 4)), _as_rows(close, (num_parts, 3, 4)))
-
-    def set_all_transforms(self, poses, *, stream=0):
-        """Every slot at once, shape (num_overlays, max_overlay_instances, 3, 4): a batch of
-        identical assets spawned one per overlay is exactly this tensor. Rows of inactive slots
-        are ignored."""
-        shape = (self.config.num_overlays, self.config.max_overlay_instances, 3, 4)
-        if _is_cuda(poses):
-            self._require_device_inputs("set_all_transforms_device")
-            self._renderer.set_all_transforms_device(poses, int(stream))
-            self._pending_inputs.append(poses)
-            return
-        self._renderer.set_all_transforms(_as_rows(poses, shape))
-
-    def set_all_motion_transforms(self, samples, close, *, stream=0):
-        """Every slot's motion at once: samples (motion_blur_samples, num_overlays,
-        max_overlay_instances, 3, 4) and close (num_overlays, max_overlay_instances, 3, 4)."""
-        shape = (self.config.num_overlays, self.config.max_overlay_instances, 3, 4)
-        if _is_cuda(samples) != _is_cuda(close):
-            raise ValueError("samples and close poses must live in the same memory")
-        if _is_cuda(samples):
-            self._require_device_inputs("set_all_motion_transforms_device")
-            self._renderer.set_all_motion_transforms_device(samples, close, int(stream))
-            self._pending_inputs.extend((samples, close))
-            return
-        self._renderer.set_all_motion_transforms(_as_rows(samples, (self.motion_blur_samples,) + shape), _as_rows(close, shape))
-
-    def transforms_dlpack(self):
-        """Live geometry-to-world tensor (num_overlays, max_overlay_instances, 3, 4) as a
-        zero-copy DLPack producer for in-place writers (CUDA device memory on OptiX, CPU memory
-        elsewhere); update() consumes it. Call update() to publish pending host writes before
-        writing it, and order a CUDA producer against render_stream."""
-        return _DLPackBuffer(self, self._renderer.transforms_dlpack, self._renderer.buffer_device_type(), self._renderer.buffer_device_id())
-
-    def transforms_motion_dlpack(self):
-        """Live per-sample tensor (motion_blur_samples, num_overlays, max_overlay_instances, 3, 4);
-        see transforms_dlpack for the contract."""
-        return _DLPackBuffer(self, self._renderer.transforms_motion_dlpack, self._renderer.buffer_device_type(), self._renderer.buffer_device_id())
+            raise RuntimeError("hyperdrone: device-resident input requires the OptiX backend")
 
     @property
     def render_stream(self):

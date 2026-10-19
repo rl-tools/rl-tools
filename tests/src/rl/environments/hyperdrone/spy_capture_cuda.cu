@@ -82,7 +82,7 @@ namespace {
             const std::vector<uint32_t> expected(state.buffer.atlas, state.buffer.atlas + Config::ATLAS_WIDTH * Config::ATLAS_HEIGHT);
             ASSERT_EQ(cudaMemcpy(data(cameras(cpu, selected)) + 3, &source_camera, sizeof(source_camera), cudaMemcpyHostToDevice), cudaSuccess);
             ASSERT_EQ(cudaMemcpy(overlay_structure(cpu, selected) + 2, source_structure, sizeof(source_structure), cudaMemcpyHostToDevice), cudaSuccess);
-            ASSERT_EQ(cudaMemcpy(data(transforms(cpu, selected)) + 24, source_transforms, sizeof(source_transforms), cudaMemcpyHostToDevice), cudaSuccess);
+            ASSERT_EQ(cudaMemcpy(data(selected.transforms) + 24, source_transforms, sizeof(source_transforms), cudaMemcpyHostToDevice), cudaSuccess);
             if(cuda_history) {
                 capture_spy(device, state, environment, rt::backends::Optix{});
             }
@@ -92,7 +92,7 @@ namespace {
             const auto producer = cuda_history ? device.stream : stream(cpu, selected);
             ASSERT_EQ(cudaMemsetAsync(data(cameras(cpu, selected)) + 3, 0, sizeof(source_camera), producer), cudaSuccess);
             ASSERT_EQ(cudaMemsetAsync(overlay_structure(cpu, selected) + 2, 0, sizeof(source_structure), producer), cudaSuccess);
-            ASSERT_EQ(cudaMemsetAsync(data(transforms(cpu, selected)) + 24, 0, sizeof(source_transforms), producer), cudaSuccess);
+            ASSERT_EQ(cudaMemsetAsync(data(selected.transforms) + 24, 0, sizeof(source_transforms), producer), cudaSuccess);
             for(auto* history : device_histories) {
                 ASSERT_EQ(cudaMemsetAsync(history, 0, HISTORY_SIZE * sizeof(float), producer), cudaSuccess);
             }

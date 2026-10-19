@@ -102,11 +102,11 @@ int main(int argc, char** argv){
 
     float transform[12];
     yaw_transform(drone_a_position, 0, transform);
-    rlt::spawn(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, drone_assets[0], transform);
+    rlt::spawn(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, drone_assets[0], rlt::make_pose(transform));
     yaw_transform(drone_b_position, PI, transform);
-    rlt::spawn(device, renderer, rlt::rendering::raytracing::OverlayIndex{1}, drone_assets[1], transform);
+    rlt::spawn(device, renderer, rlt::rendering::raytracing::OverlayIndex{1}, drone_assets[1], rlt::make_pose(transform));
     yaw_transform(drone_shared_position, PI / 2, transform);
-    rlt::spawn(device, renderer, rlt::rendering::raytracing::OverlayIndex{2}, drone_assets[2], transform);
+    rlt::spawn(device, renderer, rlt::rendering::raytracing::OverlayIndex{2}, drone_assets[2], rlt::make_pose(transform));
 
     rlt::attach(device, renderer, 0, rlt::rendering::raytracing::OverlayIndex{0});
     rlt::attach(device, renderer, 0, rlt::rendering::raytracing::OverlayIndex{2});

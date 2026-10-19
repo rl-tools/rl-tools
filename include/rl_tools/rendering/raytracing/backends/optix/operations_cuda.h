@@ -341,14 +341,29 @@ namespace rl_tools {
     }
 
     namespace rendering::raytracing::backends::optix::detail{
+        // the asset parts device producers read through pose_sink
+        template <typename SPEC>
+        void upload_asset_parts(rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
+            if(renderer.asset_parts_resident != nullptr){
+                cudaFree(renderer.asset_parts_resident);
+            }
+            renderer.asset_parts_resident = nullptr;
+            if(renderer.asset_parts.empty()){
+                return;
+            }
+            const size_t bytes = renderer.asset_parts.size() * sizeof(rendering::raytracing::AssetPart);
+            cudaMalloc(&renderer.asset_parts_resident, bytes);
+            cudaMemcpy(renderer.asset_parts_resident, renderer.asset_parts.data(), bytes, cudaMemcpyHostToDevice);
+        }
+
         // everything renderer-private: framebuffers, cameras, ray gens, collision resources
         template <typename DEVICE, typename SPEC>
         void malloc_renderer(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, OWLContext context, OWLModule module){
         using TI = typename SPEC::TI;
 
         if constexpr (SPEC::ENABLE_OVERLAYS) {
-            // device-resident transform input (see transforms(device, renderer)): producers write
-            // it directly, update_launch consumes it on the render stream
+            // device-resident transform input: producers write it through pose_sink, update_launch
+            // consumes it on the render stream
             using TRANSFORMS_SPEC = typename decltype(renderer.transforms)::SPEC;
             float* transforms_device = nullptr;
             cudaMalloc(&transforms_device, TRANSFORMS_SPEC::SIZE_BYTES);
@@ -1171,6 +1186,7 @@ namespace rl_tools {
         }
         if constexpr (SPEC::ENABLE_OVERLAYS){
             rendering::raytracing::detail::register_pool_assets(device, renderer, pool, all_objects);
+            optix::detail::upload_asset_parts(renderer);
         }
 
         rendering::raytracing::backends::SceneState<rendering::raytracing::backends::Optix, SPEC> assets;
@@ -1221,6 +1237,7 @@ namespace rl_tools {
         }
         if constexpr (SPEC::ENABLE_OVERLAYS){
             rendering::raytracing::detail::register_pool_assets(device, renderer, library.pool, all_objects);
+            optix::detail::upload_asset_parts(renderer);
         }
         else{
             optix::detail::collect_all_objects(scene, library.pool, all_objects);
@@ -1576,6 +1593,10 @@ namespace rl_tools {
                 cudaFree(renderer.transforms._data);
                 renderer.transforms._data = nullptr;
             }
+            if(renderer.asset_parts_resident != nullptr){
+                cudaFree(renderer.asset_parts_resident);
+            }
+            renderer.asset_parts_resident = nullptr;
         }
         if constexpr (SPEC::HAS_FLOW_OVERLAYS){
             if(renderer.transforms_previous._data != nullptr){

@@ -293,7 +293,6 @@ namespace rl_tools {
 
             struct OverlaySlot {
                 TI object = 0;          // global object index (scene objects + pool objects)
-                float rest[12];         // part -> assembly frame captured at spawn; the whole-assembly verbs compose pose ∘ rest
                 bool active = false;
                 unsigned int segmentation_class = rendering::segmentation::INHERIT;
             };
@@ -301,17 +300,18 @@ namespace rl_tools {
                 OverlaySlot slots[SPEC::MAX_OVERLAY_INSTANCES];
                 bool dirty = false;     // active/object changed since the last update
             };
-            // pool assemblies flattened at init so spawn needs no pool access in the hot path
+            // pool assemblies flattened at init so spawn and set_pose need no pool access in the hot path
             struct AssetRecord {
-                TI first_part;          // into asset_part_objects/asset_part_transforms
+                TI first_part;          // into asset_parts
                 TI num_parts;
+                TI num_coordinates;
             };
             OverlayState overlays[SPEC::NUM_OVERLAYS];
-            // geometry-to-world transform per slot [o][s], consumed by update(): backend-native
-            // residency (device memory on OptiX), accessed via transforms(device, renderer).
-            // Producers write it in place; the host verbs write the staging mirror and mark their
-            // rows pending, and update() publishes exactly those rows — a row belongs to whoever
-            // wrote it last.
+            // geometry-to-world transform per slot [o][s], derived from the placements' poses and
+            // consumed by update(): backend-native residency (device memory on OptiX). Device
+            // producers write it through set_pose on pose_sink; the host set_pose writes the
+            // staging mirror and marks its rows pending, and update() publishes exactly those rows
+            // — a row belongs to whoever wrote it last.
             using TRANSFORMS_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES, 12>, true>;
             Tensor<TRANSFORMS_TENSOR_SPEC> transforms;
             std::vector<float> transforms_staging;
@@ -319,10 +319,11 @@ namespace rl_tools {
             TI attachments[SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA];
             bool attachments_dirty = false;
             // the flattened pool tables live on the renderer (not in backend state) because the
-            // backend-independent host verbs (spawn, set_transform) consume them
+            // backend-independent host verbs (spawn, set_pose) consume them; asset_parts_resident
+            // is pose_sink's copy on backends whose memory domain is not the host's
             std::vector<AssetRecord> assets;
-            std::vector<TI> asset_part_objects;      // global object index per part
-            std::vector<float> asset_part_transforms; // 12 per part, assembly-local
+            std::vector<AssetPart> asset_parts;
+            AssetPart* asset_parts_resident = nullptr;
         };
 
         template <typename T_SPEC, bool T_ENABLE_DYNAMIC_MOTION_BLUR>

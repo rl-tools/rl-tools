@@ -11,8 +11,7 @@ from .._outputs import FlowStatus
 from . import datasets
 from ._component import _backend, component, load_core
 from ._config import FIDELITY, RendererConfig
-from ._renderer import OverlayPlacement, Renderer
-from ._rig import Rig
+from ._renderer import OverlayPlacement, Pose, Renderer
 from ._sampling import ClearanceSampler
 from ._scene import (
     compose_transforms,
@@ -33,9 +32,9 @@ __all__ = [
     "Object",
     "ObjectAssembly",
     "OverlayPlacement",
+    "Pose",
     "Renderer",
     "RendererConfig",
-    "Rig",
     "Scene",
     "SceneLight",
     "compose_transforms",

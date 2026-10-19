@@ -68,7 +68,15 @@ namespace test_agent_parameters {
         std::vector<float> rows(WORLD::INSTANCES * SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE * 12);
         rlt::Tensor<typename decltype(renderer.transforms)::SPEC> alias;
         alias._data = rows.data();
-        rlt::copy(renderer.device, device, rlt::transforms(render_device, renderer), alias);
+        rlt::copy(renderer.device, device, renderer.transforms, alias);
+        std::vector<float> expected(rows.size()), motion;
+        rlt::rendering::raytracing::PoseSink<typename WORLD::RENDERER_SPEC> sink;
+        sink.transforms = expected.data();
+        if constexpr(WORLD::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+            motion.resize(WORLD::RENDERER_SPEC::MOTION_BLUR_SAMPLES * rows.size());
+            sink.transforms_motion = motion.data();
+        }
+        sink.parts = renderer.asset_parts.data();
         std::vector<rlt::rendering::Camera<typename WORLD::T>> cameras(WORLD::INSTANCES * WORLD::N_VIEWS);
         rlt::Tensor<typename decltype(renderer.cameras)::SPEC> camera_alias;
         camera_alias._data = cameras.data();
@@ -87,22 +95,20 @@ namespace test_agent_parameters {
                         }
                     }
                 }
-                using RIG_SPEC = typename decltype(body.rig)::SPEC;
                 float base[12];
                 rlt::rl::environments::hyperdrone::rig::make_body_transform(device, agent.orientation, agent.position, parameters.scene_translation, parameters.scene_yaw_cos, parameters.scene_yaw_sin, base);
                 float coordinates[WORLD::DYNAMICS_ENV::ACTION_DIM];
                 for(TI rotor_i = 0; rotor_i < WORLD::DYNAMICS_ENV::ACTION_DIM; rotor_i++){
                     coordinates[rotor_i] = agent.rotor_phase[rotor_i];
                 }
-                rlt::rendering::rig::Buffer<RIG_SPEC> buffer;
-                float poses[RIG_SPEC::MAX_PARTS][12];
                 using rlt::rotor_scale;
-                const float scale = rotor_scale(device, body.rig, parameters.agents[agent_i].dynamics.dynamics.rotor_positions, (TI)WORLD::DYNAMICS_ENV::ACTION_DIM);
-                rlt::evaluate(device, body.rig, base, coordinates, buffer, &poses[0][0], scale);
-                for(TI part_i = 0; part_i < body.rig.num_parts; part_i++){
+                const float scale = rotor_scale(device, body.rotorcraft, parameters.agents[agent_i].dynamics.dynamics.rotor_positions, (TI)WORLD::DYNAMICS_ENV::ACTION_DIM);
+                const rlt::rendering::raytracing::OverlayPlacement placement{world.drone_slot_offset + agent_i * world.drone_parts, world.drone_parts, renderer.assets[world.drone_meshes[body.mesh].index].first_part};
+                rlt::set_pose(device, sink, rlt::rendering::raytracing::OverlayIndex{instance_i}, placement, rlt::make_pose(base, scale, coordinates));
+                for(TI part_i = 0; part_i < world.drone_parts; part_i++){
                     const TI slot = instance_i * SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE + world.drone_slot_offset + agent_i * world.drone_parts + part_i;
                     for(TI element = 0; element < 12; element++){
-                        EXPECT_NEAR(rows[slot * 12 + element], poses[part_i][element], 1e-4) << "instance " << instance_i << " agent " << agent_i << " part " << part_i;
+                        EXPECT_NEAR(rows[slot * 12 + element], expected[slot * 12 + element], 1e-4) << "instance " << instance_i << " agent " << agent_i << " part " << part_i;
                     }
                 }
             }

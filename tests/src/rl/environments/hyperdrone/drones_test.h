@@ -145,7 +145,7 @@ namespace test_drones {
         const auto& renderer = world.slots[slot_i].renderer;
         const auto object = renderer.overlays[instance_i].slots[world.drone_slot_offset].object;
         for(TI mesh_i = 0; mesh_i < (TI)world.drone_meshes.size(); mesh_i++){
-            if(renderer.asset_part_objects[renderer.assets[world.drone_meshes[mesh_i].index].first_part] == object){
+            if(renderer.asset_parts[renderer.assets[world.drone_meshes[mesh_i].index].first_part].object == object){
                 return mesh_i;
             }
         }

@@ -171,14 +171,12 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, BODY_SWAP_PRESERVES_WRAPPER_AND
         rlt::add(device, assembly, quad("prop_1", -reach, reach), identity);
         rlt::add(device, assembly, quad("prop_2", reach, reach), identity);
         rlt::add(device, assembly, quad("prop_3", -reach, -reach), identity);
-        world.drone_meshes.push_back(rlt::add(device, shared.library.pool, assembly));
         rotor_torque_directions[0][2] = mesh_i == 0 ? (T)1 : (T)-1;
         bodies[mesh_i].mesh = mesh_i;
-        ASSERT_TRUE(rlt::init(device, bodies[mesh_i].rig, assembly, rotor_positions, rotor_torque_directions, (TI)4));
+        ASSERT_TRUE(rlt::init(device, bodies[mesh_i].rotorcraft, assembly, rotor_positions, rotor_torque_directions, (TI)4));
+        world.drone_meshes.push_back(rlt::add(device, shared.library.pool, assembly));
     }
-    BLUR_WORLD::EntityKind kind{wrapper, 0, {}};
-    ASSERT_TRUE(rlt::init(device, kind.rig, shared.library.pool.assemblies[wrapper.index]));
-    world.entity_kinds = {kind};
+    world.entity_kinds = {BLUR_WORLD::EntityKind{wrapper, 0, 1}};
     world.drone_slot_offset = 1;
     world.drone_parts = 5;
     world.slots.resize(1);
@@ -189,9 +187,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, BODY_SWAP_PRESERVES_WRAPPER_AND
     rlt::malloc(device, renderer);
     rlt::init(device, renderer, bundle, shared.library.pool);
     const rlt::rendering::raytracing::OverlayIndex overlay{0};
-    rlt::spawn(device, renderer, overlay, wrapper, identity);
+    rlt::spawn(device, renderer, overlay, wrapper);
     for(TI agent_i = 0; agent_i < BLUR_SPEC::N_AGENTS; agent_i++){
-        ASSERT_EQ(rlt::spawn(device, renderer, overlay, world.drone_meshes[0], identity).first_slot, 1 + agent_i * 5);
+        ASSERT_EQ(rlt::spawn(device, renderer, overlay, world.drone_meshes[0]).first_slot, 1 + agent_i * 5);
     }
     const auto wrapper_object = renderer.overlays[0].slots[0].object;
     BLUR_WORLD::Parameters parameters;
@@ -214,7 +212,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, BODY_SWAP_PRESERVES_WRAPPER_AND
             rlt::rl::environments::hyperdrone::rig::make_body_transform(device, state.orientation, state.position, parameters.scene_translation, parameters.scene_yaw_cos, parameters.scene_yaw_sin, base);
             float open[4], close[4];
             rlt::rl::environments::hyperdrone::_drone_coordinates<DEVICE, BLUR_SPEC>(device, parameters, agent_i, state, open, close);
-            rlt::rl::environments::hyperdrone::_drone_rows(device, world, renderer, (TI)0, agent_i, bodies[mesh_i], base, base, open, close, 1.0f);
+            const float scale = bodies[mesh_i].rotorcraft.scale;
+            rlt::rl::environments::hyperdrone::_drone_rows(device, world, renderer, (TI)0, agent_i, bodies[mesh_i], rlt::make_pose(base, scale, open), rlt::make_pose(base, scale, close));
         }
         EXPECT_EQ(renderer.overlays[0].dirty, mesh_i != held);
         held = mesh_i;
@@ -223,7 +222,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, BODY_SWAP_PRESERVES_WRAPPER_AND
         for(TI agent_i = 0; agent_i < BLUR_SPEC::N_AGENTS; agent_i++){
             const TI first_slot = 1 + agent_i * 5;
             for(TI part_i = 0; part_i < 5; part_i++){
-                EXPECT_EQ(renderer.overlays[0].slots[first_slot + part_i].object, renderer.asset_part_objects[record.first_part + part_i]);
+                EXPECT_EQ(renderer.overlays[0].slots[first_slot + part_i].object, renderer.asset_parts[record.first_part + part_i].object);
             }
             const TI prop_slot = first_slot + 1;
             const T scale = mesh_i == 0 ? 1.0f : 0.1f / 0.12f;
@@ -408,7 +407,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, TABLE_SHAPES){
         ASSERT_EQ(shared.drone_bodies.size(), table.drones.size());
         for(TI drone_i = 0; drone_i < (TI)table.drones.size(); drone_i++){
             EXPECT_EQ(shared.drone_bodies[drone_i].mesh, table.asset[drone_i]);
-            EXPECT_EQ(shared.drone_bodies[drone_i].rig.num_coordinates, 4);
+            EXPECT_EQ(rlt::num_coordinates(device, shared.library.pool.assemblies[shared.drone_meshes[shared.drone_bodies[drone_i].mesh].index]), 4);
             distinct = table.asset[drone_i] + 1 > distinct ? table.asset[drone_i] + 1 : distinct;
         }
         ASSERT_EQ(shared.drone_meshes.size(), distinct);
@@ -533,7 +532,6 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, RENDER_SWAPS_BODIES_PER_INSTANC
 }
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, CURRENT_WHEELBASE_SCALES_EACH_INSTANCE_WITH_SHARED_GEOMETRY){
-    using rlt::evaluate;
     using rlt::get_ref;
     using rlt::request_render;
     if(SCENE_PATH.empty()){
@@ -543,7 +541,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, CURRENT_WHEELBASE_SCALES_EACH_I
     harness.init({drone<REGISTRY::crazyflie>("crazyflie.glb", 60)});
     harness.reset();
     harness.arrange({0,0,0,0});
-    const auto original_rig = get_ref(harness.device, harness.world.drone_bodies, TI(0)).rig;
+    const auto original_rotorcraft = get_ref(harness.device, harness.world.drone_bodies, TI(0)).rotorcraft;
     const auto original_assembly = harness.shared.library.pool.assemblies.front();
     for(TI iteration = 0; iteration < 2; iteration++){
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
@@ -583,17 +581,16 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, CURRENT_WHEELBASE_SCALES_EACH_I
             EXPECT_EQ(assembly.objects[object_i].meshes[mesh_i].vertices, original_assembly.objects[object_i].meshes[mesh_i].vertices);
         }
     }
-    const auto& current_rig = get_ref(harness.device, harness.world.drone_bodies, TI(0)).rig;
-    using RIG = decltype(original_rig);
-    rlt::rendering::rig::Buffer<typename RIG::SPEC> buffer;
-    const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
-    const float phases[4] = {0.2f,0.4f,0.6f,0.8f};
-    float before[5][12], after[5][12];
-    evaluate(harness.device, original_rig, identity, phases, buffer, &before[0][0]);
-    evaluate(harness.device, current_rig, identity, phases, buffer, &after[0][0]);
-    for(TI part_i = 0; part_i < 5; part_i++){
-        for(TI element_i = 0; element_i < 12; element_i++){
-            EXPECT_EQ(after[part_i][element_i], before[part_i][element_i]);
+    const auto& current_rotorcraft = get_ref(harness.device, harness.world.drone_bodies, TI(0)).rotorcraft;
+    EXPECT_EQ(current_rotorcraft.wheelbase, original_rotorcraft.wheelbase);
+    EXPECT_EQ(current_rotorcraft.scale, original_rotorcraft.scale);
+    for(TI part_i = 0; part_i < assembly.parts.size(); part_i++){
+        const auto& joint = assembly.parts[part_i].joint;
+        const auto& original = original_assembly.parts[part_i].joint;
+        EXPECT_TRUE(joint.type == original.type && joint.coordinate == original.coordinate);
+        for(TI dim = 0; dim < 3; dim++){
+            EXPECT_EQ(joint.axis[dim], original.axis[dim]);
+            EXPECT_EQ(joint.pivot[dim], original.pivot[dim]);
         }
     }
     harness.free();

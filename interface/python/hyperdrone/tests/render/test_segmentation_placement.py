@@ -23,8 +23,8 @@ def test_placement_class_labels_every_part_without_changing_the_asset():
     look_forward(renderer)
     renderer.attach(0, 0)
     agent = render.AGENT_SEGMENTATION_CLASS
-    left = renderer.spawn(0, asset, render.make_transform(position=(3, 0.7, 0)), segmentation_class=agent)
-    right = renderer.spawn(0, asset, render.make_transform(position=(3, -0.7, 0)))
+    left = renderer.spawn(0, asset, render.Pose(render.make_transform(position=(3, 0.7, 0))), segmentation_class=agent)
+    right = renderer.spawn(0, asset, render.Pose(render.make_transform(position=(3, -0.7, 0))))
     renderer.update()
     renderer.render()
     instances = renderer.outputs[Segmentation()].read()
@@ -37,6 +37,6 @@ def test_placement_class_labels_every_part_without_changing_the_asset():
     np.testing.assert_array_equal(labels[instances == 0], 7)
     assert pool.object_segmentation_class(asset, 0) == 0
     with pytest.raises(ValueError, match="reserved"):
-        renderer.spawn(0, asset, render.make_transform(position=(3, 0, 0)), segmentation_class=0xFFFFFFFF)
+        renderer.spawn(0, asset, render.Pose(render.make_transform(position=(3, 0, 0))), segmentation_class=0xFFFFFFFF)
     with pytest.raises(ValueError):
         wall.assign_segmentation_class(agent, taxonomy="room", classes={0: "Unknown", agent: "Agent"})

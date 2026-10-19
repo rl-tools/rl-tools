@@ -107,10 +107,10 @@ namespace rl_tools{
         // rotation follows the shortest-arc slerp path and the translation follows the screw of
         // the relative motion, so a fixed rotation axis line stays fixed — a translation lerp
         // instead would cut the chord and displace an off-origin pivot (e.g. a spinning prop hub)
-        // at mid-shutter samples. The single interpolant behind set_transform_pair and the rig's
-        // base motion, so every consumer derives identical per-sample matrices from the same
-        // shutter pair. Exact for constant-velocity rigid motion below 180 degrees per shutter
-        // interval — faster motion must supply per-sample transforms directly.
+        // at mid-shutter samples. The single interpolant behind the shutter-pair set_pose, so
+        // every consumer derives identical per-sample matrices from the same shutter pair. Exact
+        // for constant-velocity rigid motion below 180 degrees per shutter interval; faster
+        // rotations (spinning props) are joints, whose coordinates interpolate linearly.
         RL_TOOLS_FUNCTION_PLACEMENT inline void screw_interpolate(const float a[12], const float b[12], float t, float out[12]){
             float qa[4], qb[4];
             quaternion_from_transform(a, qa);

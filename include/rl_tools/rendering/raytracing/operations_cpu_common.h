@@ -7,6 +7,7 @@
 #include "renderer.h"
 #include "../segmentation_cpu.h"
 #include "transforms_generic.h"
+#include "pose_generic.h"
 
 #include <vector>
 #include <limits>
@@ -47,6 +48,53 @@ namespace rl_tools {
     // backend-internal callers (init) resolve it before the definition is included
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer);
+
+    // one past the largest joint coordinate (0 for a rigid assembly)
+    template <typename DEVICE>
+    size_t num_coordinates(DEVICE& device, const rendering::ObjectAssembly& assembly){
+        size_t count = 0;
+        for(const auto& part : assembly.parts){
+            if(part.joint.type != rendering::Joint::Type::FIXED && part.joint.coordinate + 1 > count){
+                count = part.joint.coordinate + 1;
+            }
+        }
+        return count;
+    }
+
+    // what registering an assembly requires: parts with finite frames on existing objects,
+    // parents listed first, joints with finite nonzero axes and finite pivots, every coordinate
+    // below num_coordinates driving at least one joint
+    template <typename DEVICE>
+    bool can_add(DEVICE& device, const rendering::AssetPool&, const rendering::ObjectAssembly& assembly){
+        if(assembly.parts.empty()){
+            return false;
+        }
+        std::vector<bool> driven(num_coordinates(device, assembly), false);
+        for(size_t part_i = 0; part_i < assembly.parts.size(); part_i++){
+            const auto& part = assembly.parts[part_i];
+            if(part.object >= assembly.objects.size() || (part.parent != rendering::ObjectAssembly::Part::NO_PARENT && part.parent >= part_i) || !rendering::is_finite(part.transform, 12)){
+                return false;
+            }
+            const auto& joint = part.joint;
+            if(joint.type == rendering::Joint::Type::FIXED){
+                continue;
+            }
+            if(joint.type != rendering::Joint::Type::REVOLUTE && joint.type != rendering::Joint::Type::PRISMATIC){
+                return false;
+            }
+            const float norm = std::sqrt(joint.axis[0] * joint.axis[0] + joint.axis[1] * joint.axis[1] + joint.axis[2] * joint.axis[2]);
+            if(!rendering::is_finite(joint.axis, 3) || !rendering::is_finite(joint.pivot, 3) || !rendering::is_finite(norm) || norm <= 0){
+                return false;
+            }
+            driven[joint.coordinate] = true;
+        }
+        for(const bool coordinate_driven : driven){
+            if(!coordinate_driven){
+                return false;
+            }
+        }
+        return true;
+    }
 
     namespace rendering::raytracing::detail{
         template <typename DEVICE, typename SPEC, typename BACKEND>
@@ -101,37 +149,32 @@ namespace rl_tools {
         }
     }
 
-    // one slot's current pose; under dynamic blur the same pose in every motion sample (sharp)
-    template <typename SPEC, typename BACKEND>
-    void stage_transform(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, size_t slot, const float pose[12]){
-        constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
-        std::memcpy(renderer.transforms_staging.data() + slot * 12, pose, 12 * sizeof(float));
-        renderer.transforms_pending[slot] = true;
-        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
-            for(typename SPEC::TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
-                std::memcpy(renderer.transforms_motion_staging.data() + (sample * SLOTS + slot) * 12, pose, 12 * sizeof(float));
-            }
-            renderer.transforms_motion_pending[slot] = true;
-        }
-    }
-
-    // one slot's motion: MOTION_BLUR_SAMPLES poses sample_stride floats apart, and the
-    // shutter-close pose as the steady state
-    template <typename SPEC, typename BACKEND>
-    void stage_motion(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, size_t slot, const float* samples, size_t sample_stride, const float close[12]){
-        constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
-        std::memcpy(renderer.transforms_staging.data() + slot * 12, close, 12 * sizeof(float));
-        renderer.transforms_pending[slot] = true;
-        for(typename SPEC::TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
-            std::memcpy(renderer.transforms_motion_staging.data() + (sample * SLOTS + slot) * 12, samples + sample * sample_stride, 12 * sizeof(float));
-        }
-        renderer.transforms_motion_pending[slot] = true;
-    }
-
     template <typename SPEC, typename BACKEND>
     void stage_previous(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, size_t slot, const float pose[12]){
         std::memcpy(renderer.transforms_previous_staging.data() + slot * 12, pose, 12 * sizeof(float));
         renderer.transforms_previous_pending[slot] = true;
+    }
+
+    template <typename SPEC, typename BACKEND>
+    rendering::raytracing::PoseSink<SPEC> staging_sink(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        rendering::raytracing::PoseSink<SPEC> sink;
+        sink.transforms = renderer.transforms_staging.data();
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+            sink.transforms_motion = renderer.transforms_motion_staging.data();
+        }
+        sink.parts = renderer.asset_parts.data();
+        return sink;
+    }
+
+    template <typename SPEC, typename BACKEND>
+    void stage_pose(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement){
+        for(size_t part = 0; part < placement.num_parts; part++){
+            const size_t slot = overlay.index * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot + part;
+            renderer.transforms_pending[slot] = true;
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+                renderer.transforms_motion_pending[slot] = true;
+            }
+        }
     }
 
     // publish for backends whose resident tensors are host-addressable (after their in-flight
@@ -179,7 +222,7 @@ namespace rl_tools {
     }
 
     template <typename SPEC, typename BACKEND>
-    bool placement_valid(const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement){
+    bool placement_spawned(const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement){
         if(overlay.index >= SPEC::NUM_OVERLAYS || placement.num_parts == 0 || placement.first_slot >= SPEC::MAX_OVERLAY_INSTANCES || placement.num_parts > SPEC::MAX_OVERLAY_INSTANCES - placement.first_slot){
             return false;
         }
@@ -191,9 +234,23 @@ namespace rl_tools {
         return true;
     }
 
+    // spawned and holding the asset parts it names (replace hands out a new placement)
+    template <typename SPEC, typename BACKEND>
+    bool placement_valid(const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement){
+        if(!placement_spawned(renderer, overlay, placement) || placement.first_part > renderer.asset_parts.size() || placement.num_parts > renderer.asset_parts.size() - placement.first_part){
+            return false;
+        }
+        for(size_t part = 0; part < placement.num_parts; part++){
+            if(renderer.overlays[overlay.index].slots[placement.first_slot + part].object != renderer.asset_parts[placement.first_part + part].object){
+                return false;
+            }
+        }
+        return true;
+    }
+
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void assert_placement(DEVICE& device, const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement){
-        utils::assert_exit(device, placement_valid(renderer, overlay, placement), "overlay verb: placement out of range or not spawned");
+        utils::assert_exit(device, placement_valid(renderer, overlay, placement), "overlay verb: placement out of range, not spawned or replaced");
     }
 
     // per-slot flow delta table [2][SLOTS][12] from two transforms-layout slabs: slab 0 carries a
@@ -226,27 +283,56 @@ namespace rl_tools {
         }
     }
 
+    // an assembly's parts as the pose evaluation reads them (see AssetPart), objects offset by
+    // object_base; requires can_add
+    inline void flatten_parts(const rendering::ObjectAssembly& assembly, size_t object_base, std::vector<rendering::raytracing::AssetPart>& parts){
+        using rendering::raytracing::AssetPart;
+        const size_t first = parts.size();
+        for(size_t part_i = 0; part_i < assembly.parts.size(); part_i++){
+            const auto& part = assembly.parts[part_i];
+            AssetPart flat;
+            flat.object = object_base + part.object;
+            flat.joint = part.joint;
+            if(flat.joint.type != rendering::Joint::Type::FIXED){
+                const float* axis = flat.joint.axis;
+                const float norm = std::sqrt(axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
+                for(auto& component : flat.joint.axis){
+                    component /= norm;
+                }
+            }
+            if(part.parent != rendering::ObjectAssembly::Part::NO_PARENT){
+                const auto& parent = parts[first + part.parent];
+                flat.reference = assembly.parts[part.parent].joint.type != rendering::Joint::Type::FIXED ? part.parent : parent.reference;
+            }
+            if(flat.reference == AssetPart::NO_REFERENCE){
+                std::memcpy(flat.origin, part.transform, sizeof(flat.origin));
+            }
+            else{
+                float reference_inverse[12];
+                invert_transform(assembly.parts[flat.reference].transform, reference_inverse);
+                compose_transforms(reference_inverse, part.transform, flat.origin);
+            }
+            parts.push_back(flat);
+        }
+    }
+
     // flattens the asset pool for overlay spawns: appends pool objects to the combined object
-    // list and records per-part global object indices + local transforms on the renderer
+    // list and records the asset parts on the renderer
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void register_pool_assets(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const rendering::raytracing::AssetPool& pool, std::vector<const rendering::raytracing::Object*>& all_objects){
         using TI = typename SPEC::TI;
         renderer.assets.clear();
-        renderer.asset_part_objects.clear();
-        renderer.asset_part_transforms.clear();
+        renderer.asset_parts.clear();
         for(const auto& assembly : pool.assemblies){
+            utils::assert_exit(device, can_add(device, pool, assembly), "asset: invalid parts or joints (see can_add)");
             typename rendering::raytracing::Renderer<SPEC, BACKEND>::AssetRecord record;
-            record.first_part = (TI)renderer.asset_part_objects.size();
+            record.first_part = (TI)renderer.asset_parts.size();
             record.num_parts = (TI)assembly.parts.size();
-            utils::assert_exit(device, record.num_parts > 0, "asset must contain at least one part");
+            record.num_coordinates = (TI)num_coordinates(device, assembly);
             utils::assert_exit(device, record.num_parts <= SPEC::MAX_OVERLAY_INSTANCES, "asset has more parts than the overlay capacity");
-            const TI object_base = (TI)all_objects.size();
+            flatten_parts(assembly, all_objects.size(), renderer.asset_parts);
             for(const auto& object : assembly.objects){
                 all_objects.push_back(&object);
-            }
-            for(const auto& part : assembly.parts){
-                renderer.asset_part_objects.push_back(object_base + (TI)part.object);
-                renderer.asset_part_transforms.insert(renderer.asset_part_transforms.end(), part.transform, part.transform + 12);
             }
             renderer.assets.push_back(record);
         }
@@ -470,8 +556,7 @@ namespace rl_tools {
     template <typename DEVICE>
     rendering::raytracing::AssetHandle add(DEVICE& device, rendering::raytracing::AssetPool& pool, const rendering::raytracing::Object& object){
         rendering::raytracing::ObjectAssembly assembly;
-        assembly.objects.push_back(object);
-        assembly.parts.push_back({0, {1,0,0,0, 0,1,0,0, 0,0,1,0}});
+        add(device, assembly, object, rendering::raytracing::detail::IDENTITY_TRANSFORM);
         return add(device, pool, assembly);
     }
 
@@ -553,8 +638,42 @@ namespace rl_tools {
         }
     }
 
+    // moves a placement: its rows from the pose through the asset's joints. Only the current
+    // instant changes: the flow pair advances through advance_flow (or spawn)
     template <typename DEVICE, typename SPEC, typename BACKEND>
-    rendering::raytracing::OverlayPlacement spawn(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, rendering::raytracing::AssetHandle asset, const float transform[12], unsigned int segmentation_class = rendering::segmentation::INHERIT){
+    void set_pose(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const rendering::raytracing::Pose& pose){
+        static_assert(SPEC::ENABLE_OVERLAYS, "set_pose requires an overlay-enabled renderer specification");
+        rendering::raytracing::detail::assert_placement(device, renderer, overlay, placement);
+        set_pose(device, rendering::raytracing::detail::staging_sink(renderer), overlay, placement, pose);
+        rendering::raytracing::detail::stage_pose(renderer, overlay, placement);
+    }
+
+    // shutter-open/close states for dynamic motion blur, see the pose sink overload
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void set_pose(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const rendering::raytracing::Pose& open, const rendering::raytracing::Pose& close){
+        static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "set_pose with shutter-open/close states requires a dynamic-motion-blur renderer specification");
+        rendering::raytracing::detail::assert_placement(device, renderer, overlay, placement);
+        set_pose(device, rendering::raytracing::detail::staging_sink(renderer), overlay, placement, open, close);
+        rendering::raytracing::detail::stage_pose(renderer, overlay, placement);
+    }
+
+    // the resident inputs for device producers (set_pose on the sink inside their kernels), in the
+    // backend's memory domain; valid from init until free
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    rendering::raytracing::PoseSink<SPEC> pose_sink(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        static_assert(SPEC::ENABLE_OVERLAYS, "pose_sink requires an overlay-enabled renderer specification");
+        rendering::raytracing::PoseSink<SPEC> sink;
+        sink.transforms = data(renderer.transforms);
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+            sink.transforms_motion = data(renderer.transforms_motion);
+        }
+        sink.parts = renderer.asset_parts_resident != nullptr ? renderer.asset_parts_resident : renderer.asset_parts.data();
+        return sink;
+    }
+
+    // places an asset at pose in both flow instants: a fresh object has no motion of its own
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    rendering::raytracing::OverlayPlacement spawn(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, rendering::raytracing::AssetHandle asset, const rendering::raytracing::Pose& pose = {}, unsigned int segmentation_class = rendering::segmentation::INHERIT){
         static_assert(SPEC::ENABLE_OVERLAYS, "spawn requires an overlay-enabled renderer specification");
         using TI = typename SPEC::TI;
         if(overlay.index >= SPEC::NUM_OVERLAYS){
@@ -580,26 +699,26 @@ namespace rl_tools {
 
         for(TI part = 0; part < record.num_parts; part++){
             auto& slot = state.slots[first_slot + part];
-            slot.object = renderer.asset_part_objects[record.first_part + part];
-            std::memcpy(slot.rest, &renderer.asset_part_transforms[(record.first_part + part) * 12], sizeof(slot.rest));
+            slot.object = renderer.asset_parts[record.first_part + part].object;
             slot.active = true;
             slot.segmentation_class = segmentation_class;
-            const size_t row = (size_t)overlay.index * SPEC::MAX_OVERLAY_INSTANCES + first_slot + part;
-            float world[12];
-            rendering::compose_transforms(transform, slot.rest, world);
-            rendering::raytracing::detail::stage_transform(renderer, row, world);
-            if constexpr (SPEC::HAS_FLOW_OVERLAYS){
-                rendering::raytracing::detail::stage_previous(renderer, row, world); // a fresh object has no motion of its own: pure camera flow
-            }
         }
         state.dirty = true;
-        return {(size_t)first_slot, (size_t)record.num_parts, (size_t)record.first_part};
+        const rendering::raytracing::OverlayPlacement placement{(size_t)first_slot, (size_t)record.num_parts, (size_t)record.first_part};
+        set_pose(device, renderer, overlay, placement, pose);
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+            for(size_t part = 0; part < placement.num_parts; part++){
+                const size_t row = overlay.index * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot + part;
+                rendering::raytracing::detail::stage_previous(renderer, row, renderer.transforms_staging.data() + row * 12);
+            }
+        }
+        return placement;
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void despawn(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement){
         static_assert(SPEC::ENABLE_OVERLAYS, "despawn requires an overlay-enabled renderer specification");
-        rendering::raytracing::detail::assert_placement(device, renderer, overlay, placement);
+        utils::assert_exit(device, rendering::raytracing::detail::placement_spawned(renderer, overlay, placement), "overlay verb: placement out of range or not spawned");
         auto& state = renderer.overlays[overlay.index];
         for(size_t part = 0; part < placement.num_parts; part++){
             state.slots[placement.first_slot + part].active = false;
@@ -607,108 +726,26 @@ namespace rl_tools {
         state.dirty = true;
     }
 
-    // swaps the asset occupying a placement in place: the same slots and ids, the new asset's
-    // objects and rest frames (nothing changes when the placement already holds it); the asset
-    // must have the placement's part count
+    // swaps the asset occupying a slot run in place: the same slots and ids, the new asset's
+    // objects and joints for the next set_pose (nothing changes when the run already holds it);
+    // the asset must have the run's part count
     template <typename DEVICE, typename SPEC, typename BACKEND>
     rendering::raytracing::OverlayPlacement replace(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, rendering::raytracing::AssetHandle asset){
         static_assert(SPEC::ENABLE_OVERLAYS, "replace requires an overlay-enabled renderer specification");
-        rendering::raytracing::detail::assert_placement(device, renderer, overlay, placement);
+        utils::assert_exit(device, rendering::raytracing::detail::placement_spawned(renderer, overlay, placement), "overlay verb: placement out of range or not spawned");
         if(asset.index >= renderer.assets.size() || renderer.assets[asset.index].num_parts != placement.num_parts){
             utils::assert_exit(device, false, "replace: the asset must exist and have the placement's part count");
             return placement;
         }
         const auto& record = renderer.assets[asset.index];
         auto& state = renderer.overlays[overlay.index];
-        if(state.slots[placement.first_slot].object != renderer.asset_part_objects[record.first_part]){
+        if(state.slots[placement.first_slot].object != renderer.asset_parts[record.first_part].object){
             for(size_t part = 0; part < placement.num_parts; part++){
-                auto& slot = state.slots[placement.first_slot + part];
-                slot.object = renderer.asset_part_objects[record.first_part + part];
-                std::memcpy(slot.rest, &renderer.asset_part_transforms[(record.first_part + part) * 12], sizeof(slot.rest));
+                state.slots[placement.first_slot + part].object = renderer.asset_parts[record.first_part + part].object;
             }
             state.dirty = true;
         }
         return {placement.first_slot, placement.num_parts, (size_t)record.first_part};
-    }
-
-    // poses: placement.num_parts geometry-to-world transforms (12 floats each) in asset part
-    // order — the output of rig::evaluate for the placement's assembly. Only the current instant
-    // changes: the flow pair advances through advance_flow (or spawn)
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    void set_transforms(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const float* poses){
-        static_assert(SPEC::ENABLE_OVERLAYS, "set_transforms requires an overlay-enabled renderer specification");
-        rendering::raytracing::detail::assert_placement(device, renderer, overlay, placement);
-        for(size_t part = 0; part < placement.num_parts; part++){
-            rendering::raytracing::detail::stage_transform(renderer, overlay.index * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot + part, poses + part * 12);
-        }
-    }
-
-    // samples: [MOTION_BLUR_SAMPLES][placement.num_parts][12] poses at the shutter times
-    // (sample + 0.5) / MOTION_BLUR_SAMPLES the camera lerp uses; close: [placement.num_parts][12]
-    // shutter-close poses, the steady state segmentation, probes and the next frame see — the
-    // output of rig::sample for the placement's assembly
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    void set_motion_transforms(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const float* samples, const float* close){
-        static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "set_motion_transforms requires a dynamic-motion-blur renderer specification");
-        rendering::raytracing::detail::assert_placement(device, renderer, overlay, placement);
-        for(size_t part = 0; part < placement.num_parts; part++){
-            rendering::raytracing::detail::stage_motion(renderer, overlay.index * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot + part, samples + part * 12, placement.num_parts * 12, close + part * 12);
-        }
-    }
-
-    // rigid move of the whole assembly: every part at pose ∘ rest
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    void set_transform(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const float pose[12]){
-        static_assert(SPEC::ENABLE_OVERLAYS, "set_transform requires an overlay-enabled renderer specification");
-        rendering::raytracing::detail::assert_placement(device, renderer, overlay, placement);
-        const auto& state = renderer.overlays[overlay.index];
-        for(size_t part = 0; part < placement.num_parts; part++){
-            float world[12];
-            rendering::compose_transforms(pose, state.slots[placement.first_slot + part].rest, world);
-            rendering::raytracing::detail::stage_transform(renderer, overlay.index * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot + part, world);
-        }
-    }
-
-    // rigid move with shutter-open/close poses: constant-twist interpolation of the assembly pose
-    // into every motion sample, the close pose as the steady state
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    void set_transform_pair(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const float open[12], const float close[12]){
-        static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "set_transform_pair requires a dynamic-motion-blur renderer specification");
-        rendering::raytracing::detail::assert_placement(device, renderer, overlay, placement);
-        float poses[SPEC::MOTION_BLUR_SAMPLES][12];
-        for(size_t sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
-            rendering::screw_interpolate(open, close, ((float)sample + 0.5f) / (float)SPEC::MOTION_BLUR_SAMPLES, poses[sample]);
-        }
-        const auto& state = renderer.overlays[overlay.index];
-        for(size_t part = 0; part < placement.num_parts; part++){
-            const float* rest = state.slots[placement.first_slot + part].rest;
-            float samples[SPEC::MOTION_BLUR_SAMPLES][12], world_close[12];
-            for(size_t sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
-                rendering::compose_transforms(poses[sample], rest, samples[sample]);
-            }
-            rendering::compose_transforms(close, rest, world_close);
-            rendering::raytracing::detail::stage_motion(renderer, overlay.index * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot + part, &samples[0][0], 12, world_close);
-        }
-    }
-
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    auto& transforms(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        static_assert(SPEC::ENABLE_OVERLAYS, "transforms requires an overlay-enabled renderer specification");
-        return renderer.transforms;
-    }
-
-    // the previous instant's overlay poses (flow): producer input under the transforms()
-    // ownership contract, snapshotted from transforms by advance_flow
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    auto& transforms_previous(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        static_assert(SPEC::HAS_FLOW_OVERLAYS, "transforms_previous requires a flow renderer specification with overlays");
-        return renderer.transforms_previous;
-    }
-
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    auto& transforms_motion(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "transforms_motion requires a dynamic-motion-blur renderer specification");
-        return renderer.transforms_motion;
     }
 
     // camera input tensors, backend-native residency like transforms: device memory on OptiX,

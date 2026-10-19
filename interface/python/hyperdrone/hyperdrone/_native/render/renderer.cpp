@@ -67,6 +67,28 @@ using rl_tools::stream;
 using rl_tools::collision_stream;
 #endif
 
+namespace hyperdrone {
+    // a validated pose whose coordinates point into the caller's array for the duration of the call
+    inline rrt::Pose make_pose(const Transform& base, float scale, const std::optional<FloatArray>& coordinates, size_t num_coordinates){
+        rrt::Pose pose;
+        extract_transform(base, pose.base);
+        if(!rlt::rendering::is_finite(pose.base, 12) || !rlt::rendering::is_finite(scale) || scale <= 0){
+            throw std::invalid_argument("hyperdrone: a pose needs a finite base and a finite positive scale");
+        }
+        pose.scale = scale;
+        if(coordinates.has_value()){
+            if(coordinates->ndim() != 1 || coordinates->shape(0) != num_coordinates){
+                throw std::invalid_argument("hyperdrone: coordinates must have shape (" + std::to_string(num_coordinates) + ",), the asset's num_coordinates");
+            }
+            if(!rlt::rendering::is_finite(coordinates->data(), (unsigned)num_coordinates)){
+                throw std::invalid_argument("hyperdrone: coordinates must be finite");
+            }
+            pose.coordinates = coordinates->data();
+        }
+        return pose;
+    }
+}
+
 
 // Each configuration needs a distinct C++ type in nanobind's shared type registry.
 namespace HYPERDRONE_MODULE_NAME {
@@ -190,19 +212,6 @@ namespace HYPERDRONE_MODULE_NAME {
             check_cameras_dims(cameras.ndim(), dims);
         }
 
-        template <typename ARRAY>
-        void check_rows(const ARRAY& values, std::initializer_list<size_t> leading, const char* expected) const {
-            bool valid = values.ndim() == leading.size() + 2;
-            size_t dimension = 0;
-            for(size_t extent : leading){
-                valid = valid && dimension < values.ndim() && values.shape(dimension) == extent;
-                dimension++;
-            }
-            valid = valid && values.shape(dimension) == 3 && values.shape(dimension + 1) == 4;
-            if(!valid){
-                throw std::invalid_argument(std::string("hyperdrone: transforms must have shape ") + expected + " and dtype float32");
-            }
-        }
 
         void require_init() const {
             if(!initialized){
@@ -511,7 +520,7 @@ namespace HYPERDRONE_MODULE_NAME {
                 throw std::runtime_error("hyperdrone: this renderer was compiled without overlays");
             }
         }
-        rrt::OverlayPlacement spawn(size_t overlay, size_t asset, const float transform[12], unsigned int segmentation_class) {
+        rrt::OverlayPlacement spawn(size_t overlay, size_t asset, const rrt::Pose& pose, unsigned int segmentation_class) {
             if constexpr (SPEC::ENABLE_OVERLAYS){
                 require_init();
                 if(overlay >= SPEC::NUM_OVERLAYS || asset >= renderer.assets.size()){
@@ -523,11 +532,34 @@ namespace HYPERDRONE_MODULE_NAME {
                 if(!can_spawn(overlay, asset)){
                     throw std::runtime_error("hyperdrone: overlay capacity exceeded");
                 }
-                return rlt::spawn(device, renderer, rrt::OverlayIndex{overlay}, rrt::AssetHandle{asset}, transform, segmentation_class);
+                return rlt::spawn(device, renderer, rrt::OverlayIndex{overlay}, rrt::AssetHandle{asset}, pose, segmentation_class);
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer was compiled without overlays");
             }
+        }
+        size_t asset_coordinates(size_t asset) {
+            if constexpr (SPEC::ENABLE_OVERLAYS){
+                require_init();
+                if(asset >= renderer.assets.size()){
+                    throw std::invalid_argument("hyperdrone: asset index out of range");
+                }
+                return renderer.assets[asset].num_coordinates;
+            }
+            else {
+                throw std::runtime_error("hyperdrone: this renderer was compiled without overlays");
+            }
+        }
+        size_t placement_coordinates(size_t overlay, const rrt::OverlayPlacement& placement) {
+            if constexpr (SPEC::ENABLE_OVERLAYS){
+                const auto checked = checked_placement(overlay, placement);
+                for(const auto& record : renderer.assets){
+                    if(record.first_part == checked.first_part){
+                        return record.num_coordinates;
+                    }
+                }
+            }
+            throw std::invalid_argument("hyperdrone: placement out of range or not spawned");
         }
         void despawn(size_t overlay, const rrt::OverlayPlacement& placement) {
             if constexpr (SPEC::ENABLE_OVERLAYS){
@@ -548,165 +580,20 @@ namespace HYPERDRONE_MODULE_NAME {
             }
             return rrt::OverlayPlacement{placement.first_slot, placement.num_parts, placement.first_part};
         }
-        void set_transform(size_t overlay, const rrt::OverlayPlacement& placement, const float transform[12]) {
+        void set_pose(size_t overlay, const rrt::OverlayPlacement& placement, const rrt::Pose& pose) {
             if constexpr (SPEC::ENABLE_OVERLAYS){
-                rlt::set_transform(device, renderer, rrt::OverlayIndex{overlay}, checked_placement(overlay, placement), transform);
+                rlt::set_pose(device, renderer, rrt::OverlayIndex{overlay}, checked_placement(overlay, placement), pose);
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer was compiled without overlays");
             }
         }
-        void set_transform_pair(size_t overlay, const rrt::OverlayPlacement& placement, const float open[12], const float close[12]) {
+        void set_pose(size_t overlay, const rrt::OverlayPlacement& placement, const rrt::Pose& open, const rrt::Pose& close) {
             if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
-                rlt::set_transform_pair(device, renderer, rrt::OverlayIndex{overlay}, checked_placement(overlay, placement), open, close);
+                rlt::set_pose(device, renderer, rrt::OverlayIndex{overlay}, checked_placement(overlay, placement), open, close);
             }
             else if constexpr(RendererConfiguration::ENABLE_DYNAMIC_MOTION_BLUR){
-                set_transform(overlay, placement, close);
-            }
-            else {
-                throw std::runtime_error("hyperdrone: this renderer was compiled without dynamic motion blur (dynamic_motion_blur=False)");
-            }
-        }
-        void set_transforms(size_t overlay, const rrt::OverlayPlacement& placement, const float* poses) {
-            if constexpr (SPEC::ENABLE_OVERLAYS){
-                rlt::set_transforms(device, renderer, rrt::OverlayIndex{overlay}, checked_placement(overlay, placement), poses);
-            }
-            else {
-                throw std::runtime_error("hyperdrone: this renderer was compiled without overlays");
-            }
-        }
-        void set_motion_transforms(size_t overlay, const rrt::OverlayPlacement& placement, const float* samples, const float* close) {
-            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
-                rlt::set_motion_transforms(device, renderer, rrt::OverlayIndex{overlay}, checked_placement(overlay, placement), samples, close);
-            }
-            else if constexpr(RendererConfiguration::ENABLE_DYNAMIC_MOTION_BLUR){
-                set_transforms(overlay, placement, close);
-            }
-            else {
-                throw std::runtime_error("hyperdrone: this renderer was compiled without dynamic motion blur (dynamic_motion_blur=False)");
-            }
-        }
-        template <typename WRITE>
-        void for_each_active_slot(WRITE&& write){
-            for(size_t overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
-                for(size_t slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
-                    if(renderer.overlays[overlay].slots[slot].active){
-                        write(overlay, slot, overlay * SPEC::MAX_OVERLAY_INSTANCES + slot);
-                    }
-                }
-            }
-        }
-        void set_all_transforms(const float* poses) {
-            if constexpr (SPEC::ENABLE_OVERLAYS){
-                require_init();
-                for_each_active_slot([&](size_t overlay, size_t slot, size_t row){
-                    rlt::set_transforms(device, renderer, rrt::OverlayIndex{overlay}, rrt::OverlayPlacement{slot, 1, 0}, poses + row * 12);
-                });
-            }
-            else {
-                throw std::runtime_error("hyperdrone: this renderer was compiled without overlays");
-            }
-        }
-        void set_all_motion_transforms(const float* samples, const float* close) {
-            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
-                require_init();
-                constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
-                for_each_active_slot([&](size_t overlay, size_t slot, size_t row){
-                    float rows[SPEC::MOTION_BLUR_SAMPLES][12];
-                    for(size_t sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
-                        std::memcpy(rows[sample], samples + (sample * SLOTS + row) * 12, sizeof(rows[sample]));
-                    }
-                    rlt::set_motion_transforms(device, renderer, rrt::OverlayIndex{overlay}, rrt::OverlayPlacement{slot, 1, 0}, &rows[0][0], close + row * 12);
-                });
-            }
-            else if constexpr(RendererConfiguration::ENABLE_DYNAMIC_MOTION_BLUR){
-                set_all_transforms(close);
-            }
-            else {
-                throw std::runtime_error("hyperdrone: this renderer was compiled without dynamic motion blur (dynamic_motion_blur=False)");
-            }
-        }
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        // device-resident rows go device-to-device into the resident tensors on the render stream
-        // (sample_stride rows between the sample slabs of samples; null samples replicate poses);
-        // the rows leave the host's pending state, so a later update cannot overwrite them
-        void write_rows_device(size_t first_row, size_t count, const float* poses, const float* samples, size_t sample_stride, unsigned long long producer_stream){
-            constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
-            cudaStream_t render_stream = rlt::stream(device, renderer);
-            await_producer(producer_stream, render_stream);
-            cudaMemcpyAsync(rlt::data(rlt::transforms(device, renderer)) + first_row * 12, poses, count * 12 * sizeof(float), cudaMemcpyDeviceToDevice, render_stream);
-            for(size_t row = first_row; row < first_row + count; row++){
-                renderer.transforms_pending[row] = false;
-            }
-            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
-                for(size_t sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
-                    const float* source = samples == nullptr ? poses : samples + sample * sample_stride * 12;
-                    cudaMemcpyAsync(rlt::data(rlt::transforms_motion(device, renderer)) + (sample * SLOTS + first_row) * 12, source, count * 12 * sizeof(float), cudaMemcpyDeviceToDevice, render_stream);
-                }
-                for(size_t row = first_row; row < first_row + count; row++){
-                    renderer.transforms_motion_pending[row] = false;
-                }
-            }
-        }
-#endif
-        void set_transforms_device(size_t overlay, const rrt::OverlayPlacement& placement, const float* poses, unsigned long long producer_stream) {
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-            if constexpr (SPEC::ENABLE_OVERLAYS){
-                const auto p = checked_placement(overlay, placement);
-                write_rows_device(overlay * SPEC::MAX_OVERLAY_INSTANCES + p.first_slot, p.num_parts, poses, nullptr, 0, producer_stream);
-                return;
-            }
-#endif
-            (void)overlay; (void)placement; (void)poses; (void)producer_stream;
-            throw std::runtime_error("hyperdrone: device-resident transform input requires the OptiX backend and overlays");
-        }
-        void set_motion_transforms_device(size_t overlay, const rrt::OverlayPlacement& placement, const float* samples, const float* close, unsigned long long producer_stream) {
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-            if constexpr (RendererConfiguration::ENABLE_DYNAMIC_MOTION_BLUR){
-                const auto p = checked_placement(overlay, placement);
-                write_rows_device(overlay * SPEC::MAX_OVERLAY_INSTANCES + p.first_slot, p.num_parts, close, samples, p.num_parts, producer_stream);
-                return;
-            }
-#endif
-            (void)overlay; (void)placement; (void)samples; (void)close; (void)producer_stream;
-            throw std::runtime_error("hyperdrone: device-resident motion input requires the OptiX backend and dynamic_motion_blur=True");
-        }
-        void set_all_transforms_device(const float* poses, unsigned long long producer_stream) {
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-            if constexpr (SPEC::ENABLE_OVERLAYS){
-                require_init();
-                write_rows_device(0, (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES, poses, nullptr, 0, producer_stream);
-                return;
-            }
-#endif
-            (void)poses; (void)producer_stream;
-            throw std::runtime_error("hyperdrone: device-resident transform input requires the OptiX backend and overlays");
-        }
-        void set_all_motion_transforms_device(const float* samples, const float* close, unsigned long long producer_stream) {
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-            if constexpr (RendererConfiguration::ENABLE_DYNAMIC_MOTION_BLUR){
-                require_init();
-                constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
-                write_rows_device(0, SLOTS, close, samples, SLOTS, producer_stream);
-                return;
-            }
-#endif
-            (void)samples; (void)close; (void)producer_stream;
-            throw std::runtime_error("hyperdrone: device-resident motion input requires the OptiX backend and dynamic_motion_blur=True");
-        }
-        float* transforms_live() {
-            if constexpr (SPEC::ENABLE_OVERLAYS){
-                require_init();
-                return rlt::data(rlt::transforms(device, renderer));
-            }
-            else {
-                throw std::runtime_error("hyperdrone: this renderer was compiled without overlays");
-            }
-        }
-        float* transforms_motion_live() {
-            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
-                require_init();
-                return rlt::data(rlt::transforms_motion(device, renderer));
+                set_pose(overlay, placement, close);
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer was compiled without dynamic motion blur (dynamic_motion_blur=False)");
@@ -819,77 +706,27 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
         .def("attach", [](Renderer& self, size_t camera, size_t overlay){ self.attach(camera, overlay); })
         .def("detach", [](Renderer& self, size_t camera, size_t overlay){ self.detach(camera, overlay); })
         .def("can_spawn", [](Renderer& self, size_t overlay, size_t asset){ return self.can_spawn(overlay, asset); })
-        .def("spawn", [](Renderer& self, size_t overlay, size_t asset, Transform transform, std::optional<uint32_t> segmentation_class){
-            float values[12];
-            extract_transform(transform, values);
-            rrt::OverlayPlacement placement = self.spawn(overlay, asset, values, segmentation_class.value_or(rlt::rendering::segmentation::INHERIT));
+        .def("spawn", [](Renderer& self, size_t overlay, size_t asset, Transform base, float scale, std::optional<FloatArray> coordinates, std::optional<uint32_t> segmentation_class){
+            const auto pose = hyperdrone::make_pose(base, scale, coordinates, self.asset_coordinates(asset));
+            rrt::OverlayPlacement placement = self.spawn(overlay, asset, pose, segmentation_class.value_or(rlt::rendering::segmentation::INHERIT));
             return nb::make_tuple(placement.first_slot, placement.num_parts, placement.first_part);
-        }, nb::arg("overlay"), nb::arg("asset"), nb::arg("transform"), nb::arg("segmentation_class").none() = nb::none())
+        }, nb::arg("overlay"), nb::arg("asset"), nb::arg("base"), nb::arg("scale"), nb::arg("coordinates").none(), nb::arg("segmentation_class").none() = nb::none())
         .def("despawn", [](Renderer& self, size_t overlay, std::array<size_t, 3> placement){
             self.despawn(overlay, rrt::OverlayPlacement{placement[0], placement[1], placement[2]});
         }, nb::arg("overlay"), nb::arg("placement"))
-        .def("set_transform", [](Renderer& self, size_t overlay, std::array<size_t, 3> placement, Transform transform){
-            float values[12];
-            extract_transform(transform, values);
-            self.set_transform(overlay, rrt::OverlayPlacement{placement[0], placement[1], placement[2]}, values);
-        }, nb::arg("overlay"), nb::arg("placement"), nb::arg("transform"))
-        .def("set_transform_pair", [](Renderer& self, size_t overlay, std::array<size_t, 3> placement, Transform open, Transform close){
-            float open_values[12], close_values[12];
-            extract_transform(open, open_values);
-            extract_transform(close, close_values);
-            self.set_transform_pair(overlay, rrt::OverlayPlacement{placement[0], placement[1], placement[2]}, open_values, close_values);
-        }, nb::arg("overlay"), nb::arg("placement"), nb::arg("open"), nb::arg("close"))
-        .def("set_transforms", [](Renderer& self, size_t overlay, std::array<size_t, 3> placement, FloatArray poses){
-            self.check_rows(poses, {placement[1]}, "(num_parts, 3, 4)");
-            self.set_transforms(overlay, rrt::OverlayPlacement{placement[0], placement[1], placement[2]}, poses.data());
-        }, nb::arg("overlay"), nb::arg("placement"), nb::arg("poses"))
-        .def("set_motion_transforms", [](Renderer& self, size_t overlay, std::array<size_t, 3> placement, FloatArray samples, FloatArray close){
-            self.check_rows(samples, {SPEC::MOTION_BLUR_SAMPLES, placement[1]}, "(motion_blur_samples, num_parts, 3, 4)");
-            self.check_rows(close, {placement[1]}, "(num_parts, 3, 4)");
-            self.set_motion_transforms(overlay, rrt::OverlayPlacement{placement[0], placement[1], placement[2]}, samples.data(), close.data());
-        }, nb::arg("overlay"), nb::arg("placement"), nb::arg("samples"), nb::arg("close"))
-        .def("set_all_transforms", [](Renderer& self, FloatArray poses){
-            self.check_rows(poses, {SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES}, "(num_overlays, max_overlay_instances, 3, 4)");
-            self.set_all_transforms(poses.data());
-        }, nb::arg("poses"))
-        .def("set_all_motion_transforms", [](Renderer& self, FloatArray samples, FloatArray close){
-            self.check_rows(samples, {SPEC::MOTION_BLUR_SAMPLES, SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES}, "(motion_blur_samples, num_overlays, max_overlay_instances, 3, 4)");
-            self.check_rows(close, {SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES}, "(num_overlays, max_overlay_instances, 3, 4)");
-            self.set_all_motion_transforms(samples.data(), close.data());
-        }, nb::arg("samples"), nb::arg("close"))
-        .def("transforms_dlpack", [](Renderer& self){
-            float* pointer = self.transforms_live();
-            return nb::ndarray<>(pointer, {SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES, 3, 4}, nb::find(&self), {},
-                                 nb::dtype<float>(), self.buffer_device_type(), self.device_id);
-        })
-        .def("transforms_motion_dlpack", [](Renderer& self){
-            float* pointer = self.transforms_motion_live();
-            return nb::ndarray<>(pointer, {SPEC::MOTION_BLUR_SAMPLES, SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES, 3, 4}, nb::find(&self), {},
-                                 nb::dtype<float>(), self.buffer_device_type(), self.device_id);
-        })
+        .def("set_pose", [](Renderer& self, size_t overlay, std::array<size_t, 3> placement, Transform base, float scale, std::optional<FloatArray> coordinates){
+            const rrt::OverlayPlacement native{placement[0], placement[1], placement[2]};
+            self.set_pose(overlay, native, hyperdrone::make_pose(base, scale, coordinates, self.placement_coordinates(overlay, native)));
+        }, nb::arg("overlay"), nb::arg("placement"), nb::arg("base"), nb::arg("scale"), nb::arg("coordinates").none())
+        .def("set_pose_pair", [](Renderer& self, size_t overlay, std::array<size_t, 3> placement, Transform base_open, float scale_open, std::optional<FloatArray> coordinates_open, Transform base_close, float scale_close, std::optional<FloatArray> coordinates_close){
+            const rrt::OverlayPlacement native{placement[0], placement[1], placement[2]};
+            const size_t count = self.placement_coordinates(overlay, native);
+            self.set_pose(overlay, native, hyperdrone::make_pose(base_open, scale_open, coordinates_open, count), hyperdrone::make_pose(base_close, scale_close, coordinates_close, count));
+        }, nb::arg("overlay"), nb::arg("placement"), nb::arg("base_open"), nb::arg("scale_open"), nb::arg("coordinates_open").none(), nb::arg("base_close"), nb::arg("scale_close"), nb::arg("coordinates_close").none())
         .def("render_stream", [](Renderer& self){ return (uintptr_t)self.render_stream(); });
 
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-    using CudaFloatArray = nb::ndarray<const float, nb::c_contig, nb::device::cuda>;
     renderer_class
-        .def("set_transforms_device", [](Renderer& self, size_t overlay, std::array<size_t, 3> placement, CudaFloatArray poses, uintptr_t stream){
-            self.check_rows(poses, {placement[1]}, "(num_parts, 3, 4)");
-            self.set_transforms_device(overlay, rrt::OverlayPlacement{placement[0], placement[1], placement[2]}, poses.data(), stream);
-        }, nb::arg("overlay"), nb::arg("placement"), nb::arg("poses"), nb::arg("stream") = 0)
-        .def("set_motion_transforms_device", [](Renderer& self, size_t overlay, std::array<size_t, 3> placement, CudaFloatArray samples, CudaFloatArray close, uintptr_t stream){
-            self.check_rows(samples, {SPEC::MOTION_BLUR_SAMPLES, placement[1]}, "(motion_blur_samples, num_parts, 3, 4)");
-            self.check_rows(close, {placement[1]}, "(num_parts, 3, 4)");
-            self.set_motion_transforms_device(overlay, rrt::OverlayPlacement{placement[0], placement[1], placement[2]}, samples.data(), close.data(), stream);
-        }, nb::arg("overlay"), nb::arg("placement"), nb::arg("samples"), nb::arg("close"), nb::arg("stream") = 0)
-        .def("set_all_transforms_device", [](Renderer& self, CudaFloatArray poses, uintptr_t stream){
-            self.check_rows(poses, {SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES}, "(num_overlays, max_overlay_instances, 3, 4)");
-            self.set_all_transforms_device(poses.data(), stream);
-        }, nb::arg("poses"), nb::arg("stream") = 0)
-        .def("set_all_motion_transforms_device", [](Renderer& self, CudaFloatArray samples, CudaFloatArray close, uintptr_t stream){
-            self.check_rows(samples, {SPEC::MOTION_BLUR_SAMPLES, SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES}, "(motion_blur_samples, num_overlays, max_overlay_instances, 3, 4)");
-            self.check_rows(close, {SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES}, "(num_overlays, max_overlay_instances, 3, 4)");
-            self.set_all_motion_transforms_device(samples.data(), close.data(), stream);
-        }, nb::arg("samples"), nb::arg("close"), nb::arg("stream") = 0)
         .def("set_cameras_device", [](Renderer& self, nb::ndarray<const float, nb::c_contig, nb::device::cuda> cameras, uintptr_t stream){
             int64_t dims[3] = {0, 0, 0};
             for(size_t dimension = 0; dimension < cameras.ndim() && dimension < 3; dimension++){

@@ -138,9 +138,8 @@ TEST(RENDERING_RAYTRACING_EMPTY_OBJECT, EMPTY_POOL_ASSET_SPAWNS) {
     malloc(device, renderer);
     init(device, renderer, scene, pool);
     attach(device, renderer, TI{0}, rrt::OverlayIndex{0});
-    const float identity[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
-    const auto empty_placement = spawn(device, renderer, rrt::OverlayIndex{0}, empty, identity);
-    spawn(device, renderer, rrt::OverlayIndex{0}, marker, identity);
+    const auto empty_placement = spawn(device, renderer, rrt::OverlayIndex{0}, empty);
+    spawn(device, renderer, rrt::OverlayIndex{0}, marker);
     const auto with_empty = capture(device, renderer);
     despawn(device, renderer, rrt::OverlayIndex{0}, empty_placement);
     const auto without_empty = capture(device, renderer);

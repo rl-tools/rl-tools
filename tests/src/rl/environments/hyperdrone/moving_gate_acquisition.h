@@ -172,7 +172,7 @@ namespace test_moving_gate_acquisition {
                 append_tensor(host, renderer.device, output(device, renderer, rl_tools::rendering::raytracing::outputs::Depth<>{}), snapshot["depth"]);
                 const auto ids = append_tensor(host, renderer.device, output(device, renderer, rl_tools::rendering::raytracing::outputs::Segmentation<>{}), snapshot["segmentation"]);
                 append_tensor(host, renderer.device, output(device, renderer, rl_tools::rendering::raytracing::outputs::Normals<>{}), snapshot["normals"]);
-                append_poses(transforms(device, renderer), "transforms");
+                append_poses(renderer.transforms, "transforms");
                 append_tensor(host, device, observations, snapshot["observation"]);
                 append_tensor(host, device, world.history, snapshot["history"]);
                 const auto episode_start = append_tensor(host, device, world.episode_start, snapshot["episode_start"]);
@@ -182,7 +182,7 @@ namespace test_moving_gate_acquisition {
                 if constexpr (FLOW){
                     const auto flow = append_tensor(host, renderer.device, output(device, renderer, rl_tools::rendering::raytracing::outputs::Flow<>{}), snapshot["flow"]);
                     const auto status = append_tensor(host, renderer.device, output(device, renderer, rl_tools::rendering::raytracing::outputs::FlowStatus<>{}), snapshot["flow_status"]);
-                    append_poses(transforms_previous(device, renderer), "transforms_previous");
+                    append_poses(renderer.transforms_previous, "transforms_previous");
                     EXPECT_EQ(world.flow_scene_version, world.scene_version);
                     bool moving_gate_flow = false;
                     const size_t scene_instances = shared.library.scenes[world.slots[world.active_slot].scene_id].instances.size();

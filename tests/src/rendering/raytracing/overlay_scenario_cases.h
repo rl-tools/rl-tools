@@ -342,7 +342,7 @@ namespace overlay_scenarios {
                 }
                 attached[placement_definition.overlay] = true;
             }
-            const auto placement = rl_tools::spawn(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{placement_definition.overlay}, state.assets[placement_definition.asset], placement_definition.transform.data());
+            const auto placement = rl_tools::spawn(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{placement_definition.overlay}, state.assets[placement_definition.asset], rl_tools::make_pose(placement_definition.transform.data()));
             const auto id = static_cast<std::uint32_t>(state.bundle.scene.instances.size() + placement_definition.overlay * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot);
             if(id != placement_definition.expected_id){
                 throw std::logic_error("Overlay scenario instance ID changed");
@@ -361,7 +361,7 @@ namespace overlay_scenarios {
         const auto& scenario_definition = definition(state.scenario);
         for(const auto& move : scenario_definition.moves){
             const auto& placement_definition = scenario_definition.placements[move.placement];
-            rl_tools::set_transform(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{placement_definition.overlay}, state.placements[move.placement], move.transform.data());
+            rl_tools::set_pose(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{placement_definition.overlay}, state.placements[move.placement], rl_tools::make_pose(move.transform.data()));
         }
     }
 }

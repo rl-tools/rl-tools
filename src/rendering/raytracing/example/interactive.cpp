@@ -668,7 +668,7 @@ static int run(const InteractiveOptions& options) {
     rlt::attach(device, *env.renderer, (TI)0, rlt::rendering::raytracing::OverlayIndex{0});
     float flow_cube_pose[12];
     flow_cube_transform(flow_cube_centre, 0.0f, flow_cube_pose);
-    const auto flow_cube_placement = rlt::spawn(device, *env.renderer, rlt::rendering::raytracing::OverlayIndex{0}, flow_cube_asset, flow_cube_pose);
+    const auto flow_cube_placement = rlt::spawn(device, *env.renderer, rlt::rendering::raytracing::OverlayIndex{0}, flow_cube_asset, rlt::make_pose(flow_cube_pose));
     rlt::update(device, *env.renderer);
 #endif
 
@@ -781,7 +781,7 @@ static int run(const InteractiveOptions& options) {
         rlt::copy(device, env.renderer->device, camera_staging, rlt::cameras(device, *env.renderer));
 #if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_FLOW
         flow_cube_transform(flow_cube_centre, std::chrono::duration<float>(now - trace_start_time).count(), flow_cube_pose);
-        rlt::set_transform(device, *env.renderer, rlt::rendering::raytracing::OverlayIndex{0}, flow_cube_placement, flow_cube_pose);
+        rlt::set_pose(device, *env.renderer, rlt::rendering::raytracing::OverlayIndex{0}, flow_cube_placement, rlt::make_pose(flow_cube_pose));
         rlt::update(device, *env.renderer);
         rlt::render(device, *env.renderer);
         {

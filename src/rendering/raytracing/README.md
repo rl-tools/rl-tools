@@ -23,11 +23,9 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   live and (on CUDA) carries the producer stream — it does not select the render backend.
 - **State is a tensor behind an accessor.** Renderer inputs and outputs are backend-native
   `Tensor` members exposed by accessors — `cameras()`, `cameras_open()`/`cameras_close()`
-  (motion blur), `transforms()` (overlays: one geometry-to-world 3x4 per slot),
-  `transforms_motion()` (dynamic motion blur: per-sample overlay transforms, sample-major so
-  slab `s` shares the `transforms()` layout),
-  `cameras_previous()`/`transforms_previous()` (flow: the previous instant),
-  and `output(device, renderer, descriptor)`. Residency is a
+  (motion blur), `cameras_previous()` (flow: the previous instant), `pose_sink()` (overlays:
+  the resident per-slot geometry-to-world rows, per-sample under dynamic motion blur, written
+  only through `set_pose`) and `output(device, renderer, descriptor)`. Residency is a
   backend property: CUDA device memory on OptiX, host on generic and WebGPU (WebGPU settles
   outputs from staging at the sync boundary), shared/mapped on Metal. Vulkan uses mapped device-local outputs when they fit; otherwise, device-local outputs are copied into stable host tensors at synchronization and output-copy boundaries.
 - **Data moves via tensor copies and kernels.** No raw backend handles or `cudaStream_t` appear in
@@ -60,8 +58,8 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   `MISS`, `BEHIND`, `OUT_OF_FRAME`, `OCCLUDED`, `VALID`; vectors are zero for the first two
   and retain their geometric displacement for the others. Visibility uses the relative margin
   `FLOW_VISIBILITY_EPSILON`. `advance_flow` → move/write → `update` → `render` publishes the
-  two instants; explicit producers can instead write `cameras_previous()` and
-  `transforms_previous()`. Spawn initializes previous equal to current. Attachment changes,
+  two instants; explicit producers can instead write `cameras_previous()`. Spawn initializes
+  previous equal to current. Attachment changes,
   non-rigid motion, rolling shutter, and flow through motion-blur samples are not modeled.
 - **Determinism is a contract.** Fixed seed ⇒ identical results, no atomics. The global
   instance-id layout (scene instances `[0,S)`, overlay `o` slot `s` at `S + o*MAX + s`) is
@@ -73,33 +71,31 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   passes (OptiX rebuilds only for the first sample, which consumes device-written slot structures, and refits the transforms for the later samples and the shutter-close restore; camera lerped at the same `(i+0.5)/N` shutter times), accumulating linear radiance
   per pixel (each thread owns its pixel — no atomics), then restores the shutter-close overlay
   state (depth, segmentation and probes stay single-sample at shutter close, ids unchanged) and
-  resolves with the standard transfer curve + quantization. `set_transform_pair` expands a
-  rigid shutter-open/close pose into the samples by constant-twist screw interpolation
+  resolves with the standard transfer curve + quantization. `set_pose(…, open, close)` expands a
+  shutter-open/close pair into the samples: the base by constant-twist screw interpolation
   (`rendering::screw_interpolate`: exact for constant-velocity rigid motion below 180° per
-  shutter — an off-origin rotation axis such as a prop hub stays fixed); `set_motion_transforms`
-  takes per-part samples and the shutter-close poses directly. The single-pose verbs replicate
-  across samples, so a dynamic spec driven only by them renders pixel-identically to camera-only
-  blur. All passes are enqueue-only: one fenced submit on Vulkan, one command buffer on Metal,
+  shutter), scale and joint coordinates linearly before the kinematics (a revolute joint keeps
+  every revolution, a prop stays on its hub). The single-pose `set_pose` replicates across
+  samples, so a dynamic spec driven only by it renders pixel-identically to camera-only blur. All passes are enqueue-only: one fenced submit on Vulkan, one command buffer on Metal,
   stream-ordered on OptiX.
-- **Articulation is a producer** (`rendering/rig/`): a `rig::Model` is a fixed-capacity,
-  plain-value rigid-link tree (links declared parent before child; fixed, revolute, prismatic
-  and spherical joints; one `origin` per link and one `offset` per part) that `evaluate`s to
-  geometry-to-world poses in part order and `sample`s a shutter — coordinates interpolate before
-  the kinematics (a revolute joint keeps every revolution), the base follows the screw. The host
-  verbs are `set_transforms(device, renderer, overlay, placement, poses)` and
-  `set_motion_transforms(device, renderer, overlay, placement, samples, close)`; a device kernel
-  calls `sample` with the renderer's `transforms_motion()`/`transforms()` rows as its outputs.
-  `init(device, model, assembly)` builds the all-fixed rig of an asset's rest frames (nested
-  GLB parts recorded by the loader become joint origins), and the hyperdrone rotorcraft is one
-  such model built by its body/prop_* convention, its props matched to the dynamics rotors.
-- **GPU-resident dynamic motion blur** (OptiX): a sim kernel writes the per-sample world poses
-  into `transforms_motion()`, the shutter-close poses into `transforms()` and the camera pair in
-  place, all on the render stream; the steady-state step is kernel → update → render with no
+- **Articulation is asset data** (`rendering::Joint` on `ObjectAssembly::Part`): every part
+  moves relative to its parent part (listed first) through a fixed, revolute (about `axis`
+  through `pivot`, part frame) or prismatic joint driven by `coordinates[joint.coordinate]`; at
+  zero coordinates every part sits at its rest frame. `can_add` validates an assembly, and the
+  pool registration flattens it into `AssetPart`s (`pose.h`) that `set_pose` evaluates. A
+  placement's state is a `Pose`: a rigid base, a uniform scale applied after it and the
+  coordinates; `spawn(…, pose)` sets both flow instants, `set_pose(device, renderer, overlay,
+  placement, pose[, close])` is the one way to move a placement, and a device kernel calls the
+  same `set_pose` on `pose_sink(device, renderer)`, which addresses the resident rows and asset
+  parts. The hyperdrone rotorcraft (`rl/environments/hyperdrone/rig`) writes these joints from
+  its body/prop_* convention, its props matched to the dynamics rotors.
+- **GPU-resident dynamic motion blur** (OptiX): a sim kernel poses its placements through the
+  pose sink and writes the camera pair in place, all on the render stream; the steady-state step is kernel → update → render with no
   host data path — the host's per-frame role is enqueues only (kernel launches,
   `optixAccelBuild` enqueues — one per group of up to eight overlays, which share an acceleration structure and are separated by per-overlay visibility masks — and OWL's constant 48-byte launch-param upload per launch). Host
-  verbs and producers may share a renderer: a verb writes the host mirror and marks its rows
-  pending, `update` publishes exactly the pending rows (compacted into one scatter on OptiX),
-  and a producer owns every row the host has not marked. On generic/Vulkan/Metal the publish is
+  `set_pose` and device producers may share a renderer: the host verb writes the host mirror and
+  marks its rows pending, `update` publishes exactly the pending rows (compacted into one
+  scatter on OptiX), and a producer owns every row the host has not marked. On generic/Vulkan/Metal the publish is
   a memcpy into the host-resident tensors (residency is a backend property; Vulkan's and Metal's
   per-frame instance-descriptor composition is CPU-side by architecture). End-to-end example:
   `src/rendering/raytracing/example/drone_device.cu`.
@@ -203,7 +199,7 @@ rlt::probe_launch(device, renderer);
 // consumers read data(output(device, renderer, descriptor)) in place
 ```
 
-The host-verb form of the same step (`advance_flow` → `set_transform`/camera upload → `update` → `render`) is `src/rendering/raytracing/example/flow.cpp`.
+The host-verb form of the same step (`advance_flow` → `set_pose`/camera upload → `update` → `render`) is `src/rendering/raytracing/example/flow.cpp`.
 
 ## Backends
 

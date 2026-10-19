@@ -14,14 +14,10 @@ __all__ = [
     "HyperDrone",
     "ObservationLayout",
     "ImageObservation",
-    "Rotorcraft",
 ]
 
 
 def __getattr__(name):
     if name == "MultiEnvironment":
         raise ImportError("MultiEnvironment is deprecated; use 'from hyperdrone import HyperDrone' instead.")
-    if name == "Rotorcraft":
-        from ._rotorcraft import Rotorcraft
-        return Rotorcraft
     raise AttributeError(f"module 'hyperdrone.env' has no attribute {name}")
