@@ -96,7 +96,7 @@ namespace test_agent_parameters {
                     }
                 }
                 float base[12];
-                rlt::rl::environments::hyperdrone::rig::make_body_transform(device, agent.orientation, agent.position, parameters.scene_translation, parameters.scene_yaw_cos, parameters.scene_yaw_sin, base);
+                rlt::rl::environments::hyperdrone::make_body_transform(device, agent.orientation, agent.position, parameters.scene_translation, parameters.scene_yaw_cos, parameters.scene_yaw_sin, base);
                 float joint_coordinates[WORLD::DYNAMICS_ENV::ACTION_DIM];
                 rlt::coordinates(device, body.rotorcraft, agent.rotor_phase, joint_coordinates);
                 using rlt::rotor_scale;

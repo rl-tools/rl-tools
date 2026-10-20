@@ -66,15 +66,15 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
 endif()
 
 if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
-    add_executable(test_rl_environments_hyperdrone_rig rig.cpp)
-    target_link_libraries(test_rl_environments_hyperdrone_rig
+    add_executable(test_rl_environments_hyperdrone_rotorcraft rotorcraft.cpp)
+    target_link_libraries(test_rl_environments_hyperdrone_rotorcraft
         PRIVATE
             RLtools::RLtools
             RLtools::Test
             rendering_raytracing_backend
             rendering_raytracing_stb
     )
-    gtest_discover_tests(test_rl_environments_hyperdrone_rig)
+    gtest_discover_tests(test_rl_environments_hyperdrone_rotorcraft)
     add_executable(test_rl_environments_hyperdrone_world world.cpp)
     target_link_libraries(test_rl_environments_hyperdrone_world
         PRIVATE
@@ -214,8 +214,8 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
     target_link_libraries(test_rl_environments_hyperdrone_user_task_header PRIVATE RLtools::RLtools RLtools::Test rendering_raytracing_backend rendering_raytracing_stb)
     gtest_discover_tests(test_rl_environments_hyperdrone_user_task_header)
     if(RL_TOOLS_BACKEND_ENABLE_CUDA AND TARGET owl::owl)
-        add_executable(test_rl_environments_hyperdrone_rig_cuda rig_cuda.cu)
-        target_link_libraries(test_rl_environments_hyperdrone_rig_cuda
+        add_executable(test_rl_environments_hyperdrone_rotorcraft_cuda rotorcraft_cuda.cu)
+        target_link_libraries(test_rl_environments_hyperdrone_rotorcraft_cuda
             PRIVATE
                 RLtools::RLtools
                 RLtools::Test
@@ -224,11 +224,11 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
                 assimp::assimp
                 rendering_raytracing_stb
         )
-        set_target_properties(test_rl_environments_hyperdrone_rig_cuda PROPERTIES
+        set_target_properties(test_rl_environments_hyperdrone_rotorcraft_cuda PROPERTIES
             CUDA_STANDARD 17
             CUDA_STANDARD_REQUIRED ON
         )
-        gtest_discover_tests(test_rl_environments_hyperdrone_rig_cuda)
+        gtest_discover_tests(test_rl_environments_hyperdrone_rotorcraft_cuda)
         add_executable(test_rl_environments_hyperdrone_world_cuda world_cuda.cu)
         target_link_libraries(test_rl_environments_hyperdrone_world_cuda
             PRIVATE

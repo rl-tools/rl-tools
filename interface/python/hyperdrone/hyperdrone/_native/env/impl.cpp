@@ -290,9 +290,9 @@ namespace HYPERDRONE_MODULE_NAME {
                 if(drone.asset.empty() || !rlt::rendering::datasets::resolve_reference(impl.host(), drone.asset, path) || !rlt::load<typename SPEC::SHADING, WORLD::RENDERER_SPEC::HAS_RGB>(impl.host(), assembly, path)){
                     throw std::invalid_argument(name + ": failed to load the asset");
                 }
-                rlt::rl::environments::hyperdrone::rig::Rotorcraft rotorcraft;
+                rlt::rl::environments::hyperdrone::Rotorcraft rotorcraft;
                 const auto& rotors = drone.parameters.dynamics.dynamics;
-                if(!rlt::init(impl.host(), rotorcraft, assembly, rotors.rotor_positions, rotors.rotor_torque_directions, (TI)WORLD::DYNAMICS_ENV::ACTION_DIM)){
+                if(!rlt::articulate(impl.host(), assembly) || !rlt::init(impl.host(), rotorcraft, assembly, rotors.rotor_positions, rotors.rotor_torque_directions, (TI)WORLD::DYNAMICS_ENV::ACTION_DIM)){
                     throw std::invalid_argument(name + ": the asset needs a body and one prop_* per rotor, each hub nearest a distinct rotor with a nonzero reaction torque");
                 }
                 if(assembly.parts.size() > rlt::rl::environments::hyperdrone::MAX_DRONE_PARTS){

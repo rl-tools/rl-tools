@@ -62,14 +62,15 @@ namespace rl_tools {
     }
 
     // what registering an assembly requires: parts with finite frames on existing objects,
-    // parents listed first, joints with finite nonzero axes and finite pivots, every coordinate
-    // below num_coordinates driving at least one joint
+    // parents listed first, joints with finite nonzero axes and finite pivots, coordinates below
+    // Joint::MAX_COORDINATES and every one below num_coordinates driving at least one joint
     template <typename DEVICE>
     bool can_add(DEVICE& device, const rendering::AssetPool&, const rendering::ObjectAssembly& assembly){
         if(assembly.parts.empty()){
             return false;
         }
-        std::vector<bool> driven(num_coordinates(device, assembly), false);
+        bool driven[rendering::Joint::MAX_COORDINATES] = {};
+        size_t count = 0;
         for(size_t part_i = 0; part_i < assembly.parts.size(); part_i++){
             const auto& part = assembly.parts[part_i];
             if(part.object >= assembly.objects.size() || (part.parent != rendering::ObjectAssembly::Part::NO_PARENT && part.parent >= part_i) || !rendering::is_finite(part.transform, 12)){
@@ -83,13 +84,14 @@ namespace rl_tools {
                 return false;
             }
             const float norm = std::sqrt(joint.axis[0] * joint.axis[0] + joint.axis[1] * joint.axis[1] + joint.axis[2] * joint.axis[2]);
-            if(!rendering::is_finite(joint.axis, 3) || !rendering::is_finite(joint.pivot, 3) || !rendering::is_finite(norm) || norm <= 0){
+            if(joint.coordinate >= rendering::Joint::MAX_COORDINATES || !rendering::is_finite(joint.axis, 3) || !rendering::is_finite(joint.pivot, 3) || !rendering::is_finite(norm) || norm <= 0){
                 return false;
             }
             driven[joint.coordinate] = true;
+            count = joint.coordinate + 1 > count ? joint.coordinate + 1 : count;
         }
-        for(const bool coordinate_driven : driven){
-            if(!coordinate_driven){
+        for(size_t coordinate = 0; coordinate < count; coordinate++){
+            if(!driven[coordinate]){
                 return false;
             }
         }
@@ -254,6 +256,17 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void assert_placement(DEVICE& device, const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement){
         utils::assert_exit(device, placement_valid(renderer, overlay, placement), "overlay verb: placement out of range, not spawned or replaced");
+    }
+
+    // joint coordinates move a placement only through its asset's joints, which bind when the
+    // assembly enters the pool
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void assert_coordinates(DEVICE& device, const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const rendering::raytracing::OverlayPlacement& placement, bool coordinates){
+        bool articulated = false;
+        for(size_t part = 0; part < placement.num_parts; part++){
+            articulated = articulated || renderer.asset_parts[placement.first_part + part].joint.type != rendering::Joint::Type::FIXED;
+        }
+        utils::assert_exit(device, !coordinates || articulated, "set_pose: joint coordinates for a placement whose asset has no joints");
     }
 
     // per-slot flow delta table [2][SLOTS][12] from two transforms-layout slabs: slab 0 carries a
@@ -648,6 +661,7 @@ namespace rl_tools {
     void set_pose(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const rendering::raytracing::Pose& pose, const float* coordinates = nullptr){
         static_assert(SPEC::ENABLE_OVERLAYS, "set_pose requires an overlay-enabled renderer specification");
         rendering::raytracing::detail::assert_placement(device, renderer, overlay, placement);
+        rendering::raytracing::detail::assert_coordinates(device, renderer, placement, coordinates != nullptr);
         set_pose(device, rendering::raytracing::detail::staging_sink(renderer), overlay, placement, pose, coordinates);
         rendering::raytracing::detail::stage_pose(renderer, overlay, placement);
     }
@@ -657,6 +671,7 @@ namespace rl_tools {
     void set_pose(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const rendering::raytracing::Pose& open, const rendering::raytracing::Pose& close, const float* coordinates_open = nullptr, const float* coordinates_close = nullptr){
         static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "set_pose with shutter-open/close states requires a dynamic-motion-blur renderer specification");
         rendering::raytracing::detail::assert_placement(device, renderer, overlay, placement);
+        rendering::raytracing::detail::assert_coordinates(device, renderer, placement, coordinates_open != nullptr || coordinates_close != nullptr);
         set_pose(device, rendering::raytracing::detail::staging_sink(renderer), overlay, placement, open, close, coordinates_open, coordinates_close);
         rendering::raytracing::detail::stage_pose(renderer, overlay, placement);
     }

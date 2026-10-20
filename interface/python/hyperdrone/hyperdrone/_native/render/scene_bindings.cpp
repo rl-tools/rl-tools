@@ -12,7 +12,7 @@
 #include "verbosity.h"
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_common.h>
-#include <rl_tools/rl/environments/hyperdrone/rig/operations_cpu.h>
+#include <rl_tools/rl/environments/hyperdrone/rotorcraft/operations_cpu.h>
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/datasets/procthor/catalog.h>
 
@@ -535,14 +535,19 @@ NB_MODULE(hyperdrone_render_core, m){
 }
 
 void register_rotorcraft_bindings(nb::module_& m){
-    m.def("rotorcraft", [](rrt::ObjectAssembly& assembly, std::optional<FloatArray> rotor_positions, std::optional<FloatArray> rotor_torque_directions){
+    m.def("articulate", [](rrt::ObjectAssembly& assembly){
+        if(!rlt::articulate(g_device, assembly)){
+            throw std::invalid_argument("hyperdrone: the assembly does not follow the body/prop_* convention: part 0 is \"body\", prop_* parts carry geometry");
+        }
+    }, nb::arg("assembly"));
+    m.def("rotorcraft", [](const rrt::ObjectAssembly& assembly, std::optional<FloatArray> rotor_positions, std::optional<FloatArray> rotor_torque_directions){
         if(rotor_positions.has_value() != rotor_torque_directions.has_value()){
             throw std::invalid_argument("hyperdrone: rotor_positions and rotor_torque_directions come together");
         }
-        rlt::rl::environments::hyperdrone::rig::Rotorcraft rotorcraft;
+        rlt::rl::environments::hyperdrone::Rotorcraft rotorcraft;
         if(!rotor_positions.has_value()){
             if(!rlt::init(g_device, rotorcraft, assembly)){
-                throw std::invalid_argument("hyperdrone: the assembly does not follow the body/prop_* convention: part 0 is \"body\", prop_* parts carry geometry");
+                throw std::invalid_argument("hyperdrone: the assembly carries no rotorcraft joints; call hyperdrone.articulate(assembly) first");
             }
         }
         else{
@@ -552,7 +557,7 @@ void register_rotorcraft_bindings(nb::module_& m){
                 throw std::invalid_argument("hyperdrone: rotor_positions and rotor_torque_directions must both have shape (num_rotors, 3) and dtype float32");
             }
             if(!rlt::init(g_device, rotorcraft, assembly, reinterpret_cast<const float(*)[3]>(positions.data()), reinterpret_cast<const float(*)[3]>(torques.data()), positions.shape(0))){
-                throw std::invalid_argument("hyperdrone: the assembly does not follow the body/prop_* convention, or its prop hubs do not pair one-to-one with the rotors (nearest in the XY plane) with nonzero torque directions");
+                throw std::invalid_argument("hyperdrone: the assembly carries no rotorcraft joints (call hyperdrone.articulate(assembly) first), or its prop hubs do not pair one-to-one with the rotors (nearest in the XY plane) with nonzero torque directions");
             }
         }
         return nb::make_tuple(rotorcraft.wheelbase, rotorcraft.scale, rotorcraft.rotor_position_deviation, std::vector<size_t>(rotorcraft.prop_rotor, rotorcraft.prop_rotor + rotorcraft.num_props), std::vector<float>(rotorcraft.prop_spin, rotorcraft.prop_spin + rotorcraft.num_props));

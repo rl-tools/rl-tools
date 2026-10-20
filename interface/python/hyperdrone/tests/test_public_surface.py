@@ -8,7 +8,7 @@ import inspect
 import pytest
 
 SURFACE = {
-    "hyperdrone": ["HyperDrone", "Rotorcraft", "set_verbosity", "verbosity"],
+    "hyperdrone": ["HyperDrone", "Rotorcraft", "articulate", "set_verbosity", "verbosity"],
     "hyperdrone.camera": ["CameraSpec", "RGB", "Depth", "Segmentation", "Normals", "Flow", "FlowStatus", "Probes", "ImageObservation", "OutputDescriptor"],
     "hyperdrone.render": [
         "AGENT_SEGMENTATION_CLASS",
@@ -20,6 +20,7 @@ SURFACE = {
         "Object",
         "ObjectAssembly",
         "OverlayPlacement",
+        "PlacementBatch",
         "Pose",
         "Renderer",
         "RendererConfig",
@@ -89,6 +90,7 @@ SIGNATURES = {
     "hyperdrone.render.Renderer.set_motion_blur_cameras": ("cameras_open", "cameras_close"),
     "hyperdrone.render.Renderer.spawn": ("overlay", "asset", "pose"),
     "hyperdrone.render.Renderer.set_pose": ("placement", "pose", "close"),
+    "hyperdrone.render.Renderer.placement_batch": ("placements",),
     **{f"hyperdrone.render.Renderer.{name}": () for name in ("render", "probe")},
     "hyperdrone.dynamics.Sim": ("num_drones",),
     "hyperdrone.dynamics.Sim.reset": ("mask",),
@@ -103,6 +105,7 @@ SIGNATURES = {
     "hyperdrone.env.HyperDrone.set_instance_parameters": ("overrides", "mask"),
     **{f"hyperdrone.env.HyperDrone.{name}": () for name in ("observe", "observe_privileged", "observe_imu", "rewards", "terminated", "render", "probe", "spy")},
     "hyperdrone.Rotorcraft": ("assembly",),
+    "hyperdrone.articulate": ("assembly",),
 }
 
 

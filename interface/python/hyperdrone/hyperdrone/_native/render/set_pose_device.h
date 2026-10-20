@@ -5,15 +5,17 @@
 
 namespace HYPERDRONE_MODULE_NAME {
     // one placement per row b: placements[b] = {overlay, first_slot, num_parts, first_part},
-    // bases[b][12], scales[b] (nullptr: 1) and coordinates[b][num_coordinates] (nullptr: the rest
-    // state); the close set is the shutter-close state when pair is set
+    // bases[b][12], scales[b] (nullptr: scale) and coordinates[b][num_coordinates] (nullptr: the
+    // rest state); the close set is the shutter-close state when pair is set
     struct PoseBatch {
         const size_t* placements = nullptr;
         const float* bases = nullptr;
         const float* scales = nullptr;
+        float scale = 1;
         const float* coordinates = nullptr;
         const float* bases_close = nullptr;
         const float* scales_close = nullptr;
+        float scale_close = 1;
         const float* coordinates_close = nullptr;
         size_t count = 0;
         size_t num_coordinates = 0;

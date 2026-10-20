@@ -1,10 +1,10 @@
 #include "../../../../version.h"
 #include "../../../../rl_tools.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_OPERATIONS_GENERIC_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT_OPERATIONS_GENERIC_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_OPERATIONS_GENERIC_H
+#define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT_OPERATIONS_GENERIC_H
 
-#include "rig.h"
+#include "rotorcraft.h"
 #include "../../../../rendering/types.h"
 #include "../../l2f/quaternion_helper.h"
 
@@ -33,7 +33,7 @@ namespace rl_tools {
 
     // the placement scale that fits the rotorcraft onto a dynamics model's rotors
     template <typename DEVICE, typename T, typename TI>
-    RL_TOOLS_FUNCTION_PLACEMENT float rotor_scale(DEVICE& device, const rl::environments::hyperdrone::rig::Rotorcraft& rotorcraft, const T positions[][3], TI count){
+    RL_TOOLS_FUNCTION_PLACEMENT float rotor_scale(DEVICE& device, const rl::environments::hyperdrone::Rotorcraft& rotorcraft, const T positions[][3], TI count){
         const T wheelbase = rotor_wheelbase(device, positions, count);
         utils::assert_exit(device, wheelbase > 0 && rendering::is_finite(rotorcraft.wheelbase) && rotorcraft.wheelbase > 0, "hyperdrone::rotor_scale: finite positive wheelbases required");
         const float scale = (float)(wheelbase / (T)rotorcraft.wheelbase);
@@ -43,13 +43,13 @@ namespace rl_tools {
 
     // the assembly's joint coordinates at the rotor phases: prop p turns prop_spin[p] * rotor_phases[prop_rotor[p]]
     template <typename DEVICE, typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT void coordinates(DEVICE& device, const rl::environments::hyperdrone::rig::Rotorcraft& rotorcraft, const T* rotor_phases, float* out){
+    RL_TOOLS_FUNCTION_PLACEMENT void coordinates(DEVICE& device, const rl::environments::hyperdrone::Rotorcraft& rotorcraft, const T* rotor_phases, float* out){
         for(size_t prop_i = 0; prop_i < rotorcraft.num_props; prop_i++){
             out[prop_i] = rotorcraft.prop_spin[prop_i] * (float)rotor_phases[rotorcraft.prop_rotor[prop_i]];
         }
     }
 }
-namespace rl_tools::rl::environments::hyperdrone::rig {
+namespace rl_tools::rl::environments::hyperdrone {
     template <typename DEVICE, typename T>
     RL_TOOLS_FUNCTION_PLACEMENT void make_body_transform(DEVICE&, const T orientation[4], const T position[3], const T scene_translation[3], T scene_yaw_cos, T scene_yaw_sin, float out[12]){
         T R[3][3];

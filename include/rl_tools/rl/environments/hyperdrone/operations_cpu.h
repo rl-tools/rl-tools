@@ -5,7 +5,7 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_OPERATIONS_CPU_H
 
 #include "world.h"
-#include "rig/operations_cpu.h"
+#include "rotorcraft/operations_cpu.h"
 #include "controllers/direct/operations_cpu.h"
 #include "pose.h"
 
@@ -154,23 +154,24 @@ namespace rl_tools {
                 utils::assert_exit(device, rendering::datasets::resolve_reference(render_device, drone.asset, path), "hyperdrone::SharedContext: failed to resolve the drone asset");
                 utils::assert_exit(device, rendering::datasets::content_hash(render_device, path, content_hash), "hyperdrone::SharedContext: failed to hash the drone asset");
                 drone.asset = path;
-                rendering::raytracing::ObjectAssembly assembly;
-                const bool loaded = load<typename SPEC::SHADING, rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_RGB>(render_device, assembly, path);
-                utils::assert_exit(device, loaded, "hyperdrone::SharedContext: failed to load the drone asset");
                 rl::environments::hyperdrone::DroneBody<SPEC> body;
-                const auto& rotors = drone.parameters.dynamics.dynamics;
-                const bool articulated = init(render_device, body.rotorcraft, assembly, rotors.rotor_positions, rotors.rotor_torque_directions, (TI)DYNAMICS_ENV::ACTION_DIM);
-                utils::assert_exit(device, articulated, "hyperdrone::SharedContext: a drone asset needs a body and one prop_* per rotor, each hub nearest a distinct rotor with a nonzero reaction torque");
-                utils::assert_exit(device, assembly.parts.size() <= rl::environments::hyperdrone::MAX_DRONE_PARTS, "hyperdrone::SharedContext: a drone asset has more than MAX_DRONE_PARTS parts");
-                utils::assert_exit(device, shared.drone_bodies.empty() || assembly.parts.size() == shared.drone_parts, "hyperdrone::SharedContext: all drone assets need the same part count");
                 while (body.mesh < (TI)content_hashes.size() && content_hashes[body.mesh] != content_hash) {
                     body.mesh++;
                 }
                 if (body.mesh == (TI)content_hashes.size()) {
+                    rendering::raytracing::ObjectAssembly assembly;
+                    const bool loaded = load<typename SPEC::SHADING, rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_RGB>(render_device, assembly, path);
+                    utils::assert_exit(device, loaded, "hyperdrone::SharedContext: failed to load the drone asset");
+                    utils::assert_exit(device, articulate(render_device, assembly), "hyperdrone::SharedContext: a drone asset needs a body part and prop_* parts with geometry");
+                    utils::assert_exit(device, assembly.parts.size() <= rl::environments::hyperdrone::MAX_DRONE_PARTS, "hyperdrone::SharedContext: a drone asset has more than MAX_DRONE_PARTS parts");
+                    utils::assert_exit(device, shared.drone_meshes.empty() || assembly.parts.size() == shared.drone_parts, "hyperdrone::SharedContext: all drone assets need the same part count");
                     shared.drone_meshes.push_back(add(render_device, shared.library.pool, assembly));
+                    shared.drone_parts = (TI)assembly.parts.size();
                     content_hashes.push_back(content_hash);
                 }
-                shared.drone_parts = (TI)assembly.parts.size();
+                const auto& rotors = drone.parameters.dynamics.dynamics;
+                const bool fitted = init(render_device, body.rotorcraft, shared.library.pool.assemblies[shared.drone_meshes[body.mesh].index], rotors.rotor_positions, rotors.rotor_torque_directions, (TI)DYNAMICS_ENV::ACTION_DIM);
+                utils::assert_exit(device, fitted, "hyperdrone::SharedContext: a drone asset needs one prop_* per rotor, each hub nearest a distinct rotor with a nonzero reaction torque");
                 shared.drone_bodies.push_back(body);
             }
         }
@@ -464,7 +465,7 @@ namespace rl_tools {
         // (the open phase trails the close phase by the spin during the shutter fraction; zero
         // without a rotor-phase state) mapped onto the props by the entry's rotorcraft
         template <typename DEVICE, typename SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT void _drone_coordinates(DEVICE& device, const Parameters<SPEC>& parameters, typename SPEC::TI agent_i, const typename World<SPEC>::DYNAMICS_ENV::State& agent_state, const rig::Rotorcraft& rotorcraft, float open[World<SPEC>::DYNAMICS_ENV::ACTION_DIM], float close[World<SPEC>::DYNAMICS_ENV::ACTION_DIM]) {
+        RL_TOOLS_FUNCTION_PLACEMENT void _drone_coordinates(DEVICE& device, const Parameters<SPEC>& parameters, typename SPEC::TI agent_i, const typename World<SPEC>::DYNAMICS_ENV::State& agent_state, const Rotorcraft& rotorcraft, float open[World<SPEC>::DYNAMICS_ENV::ACTION_DIM], float close[World<SPEC>::DYNAMICS_ENV::ACTION_DIM]) {
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             using WORLD = World<SPEC>;
@@ -811,7 +812,7 @@ namespace rl_tools {
                     const auto& body = get_ref(device, world.drone_bodies, drone);
                     const auto& agent_state = rl::environments::hyperdrone::_agent_state<SPEC>(get_ref(device, states, instance_i), agent_i);
                     float base[12];
-                    rl::environments::hyperdrone::rig::make_body_transform(device, agent_state.orientation, agent_state.position, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, base);
+                    rl::environments::hyperdrone::make_body_transform(device, agent_state.orientation, agent_state.position, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, base);
                     float coordinates_open[WORLD::DYNAMICS_ENV::ACTION_DIM], coordinates_close[WORLD::DYNAMICS_ENV::ACTION_DIM];
                     rl::environments::hyperdrone::_drone_coordinates<DEVICE, SPEC>(device, instance_parameters, agent_i, agent_state, body.rotorcraft, coordinates_open, coordinates_close);
                     // the body is posed at shutter close; only the props blur

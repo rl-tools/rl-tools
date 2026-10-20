@@ -10,18 +10,23 @@ def _rotors(value, what):
     return array
 
 
+def articulate(assembly):
+    """Write the joints of a body/prop_* drone asset: part 0 is the body; prop p, the p-th prop_*
+    part, spins about +z through its hub, the centre of its geometry, as coordinate p; every other
+    part is fixed. Joints bind when the assembly enters the pool, so articulate before add_assembly."""
+    load_core().articulate(assembly)
+
+
 class Rotorcraft:
-    """A body/prop_* assembly articulated as a rotorcraft: constructing it writes the joints onto
-    assembly (part 0 is the body; prop p, the p-th prop_* part, spins about +z through its hub,
-    the centre of its geometry, as coordinate p; every other part is fixed) and keeps the
-    convention that drives them: prop p turns prop_spin[p] * phase[prop_rotor[p]], which
-    coordinates(rotor_phases) evaluates. Without rotors prop p follows rotor p spinning per
-    Quad-X (front-right CCW) and scale is 1. With a dynamics model's rotor_positions and
-    rotor_torque_directions, both (num_rotors, 3) as in sim.parameters["dynamics"]["dynamics"],
-    each hub pairs with its nearest rotor and spins against its reaction torque, scale fits the
-    assembly onto the rotors' wheelbase (pass it as Pose.scale), and rotor_position_deviation is
-    the largest hub error as a fraction of the wheelbase (warned above 10%). Phases are radians;
-    integrate sim.rotor_rpm() * 2 * pi / 60 over the time step to advance them."""
+    """The convention that drives an articulated body/prop_* assembly (see articulate), read from
+    its joints: prop p turns prop_spin[p] * phase[prop_rotor[p]], which coordinates(rotor_phases)
+    evaluates. Without rotors prop p follows rotor p spinning per Quad-X (front-right CCW) and
+    scale is 1. With a dynamics model's rotor_positions and rotor_torque_directions, both
+    (num_rotors, 3) as in sim.parameters["dynamics"]["dynamics"], each hub pairs with its nearest
+    rotor and spins against its reaction torque, scale fits the assembly onto the rotors'
+    wheelbase (pass it as Pose.scale), and rotor_position_deviation is the largest hub error as a
+    fraction of the wheelbase (warned above 10%). Phases are radians; integrate
+    sim.rotor_rpm() * 2 * pi / 60 over the time step to advance them."""
 
     def __init__(self, assembly, *, rotor_positions=None, rotor_torque_directions=None):
         if (rotor_positions is None) != (rotor_torque_directions is None):

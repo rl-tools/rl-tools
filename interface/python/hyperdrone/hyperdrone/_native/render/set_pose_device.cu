@@ -11,11 +11,11 @@ namespace HYPERDRONE_MODULE_NAME {
         const size_t* row = batch.placements + b * 4;
         const rrt::OverlayIndex overlay{row[0]};
         const rrt::OverlayPlacement placement{row[1], row[2], row[3]};
-        const auto pose = rlt::make_pose(batch.bases + b * 12, batch.scales != nullptr ? batch.scales[b] : 1.0f);
+        const auto pose = rlt::make_pose(batch.bases + b * 12, batch.scales != nullptr ? batch.scales[b] : batch.scale);
         const float* coordinates = batch.coordinates != nullptr ? batch.coordinates + b * batch.num_coordinates : nullptr;
         if constexpr (RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
             if(batch.pair){
-                const auto close = rlt::make_pose(batch.bases_close + b * 12, batch.scales_close != nullptr ? batch.scales_close[b] : 1.0f);
+                const auto close = rlt::make_pose(batch.bases_close + b * 12, batch.scales_close != nullptr ? batch.scales_close[b] : batch.scale_close);
                 const float* coordinates_close = batch.coordinates_close != nullptr ? batch.coordinates_close + b * batch.num_coordinates : nullptr;
                 rlt::set_pose(device, sink, overlay, placement, pose, close, coordinates, coordinates_close);
                 return;

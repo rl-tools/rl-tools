@@ -1,5 +1,6 @@
 from hyperdrone.camera import CameraSpec, RGB, Depth, Segmentation
 import json
+import pickle
 import struct
 
 import numpy as np
@@ -119,16 +120,21 @@ def test_batched_host_set_pose_matches_the_single_verb():
     renderer.set_pose(first, render.Pose(bases[0], scale=scales[0]), coordinates=coordinates[0])
     renderer.set_pose(second, render.Pose(bases[1], scale=scales[1]), coordinates=coordinates[1])
     expected = frame(renderer)
-    renderer.set_pose([first, second], render.Pose())
+    batch = renderer.placement_batch([first, second])
+    assert len(batch) == 2 and batch.placements == (first, second)
+    renderer.set_pose(batch, render.Pose())
     assert not np.array_equal(frame(renderer), expected)
-    renderer.set_pose([first, second], render.Pose(bases, scale=scales), coordinates=coordinates)
+    renderer.set_pose(batch, render.Pose(bases, scale=scales), coordinates=coordinates)
     np.testing.assert_array_equal(frame(renderer), expected)
     with pytest.raises(ValueError, match="for the 2 placements"):
-        renderer.set_pose([first, second], render.Pose(bases[:1]))
+        renderer.set_pose(batch, render.Pose(bases[:1]))
     with pytest.raises(ValueError, match="for the 2 placements"):
-        renderer.set_pose([first, second], render.Pose(bases), coordinates=coordinates[:1])
+        renderer.set_pose(batch, render.Pose(bases), coordinates=coordinates[:1])
     with pytest.raises(ValueError, match="coordinates_close"):
-        renderer.set_pose([first, second], render.Pose(bases), coordinates_close=coordinates)
+        renderer.set_pose(batch, render.Pose(bases), coordinates_close=coordinates)
+    with pytest.raises(ValueError, match="finite"):
+        renderer.set_pose(batch, render.Pose(bases, scale=np.array([1.0, 0.0], np.float32)))
+    np.testing.assert_array_equal(frame(renderer), expected)
 
 
 def test_batched_host_shutter_pair_matches_the_single_verb():
@@ -137,27 +143,53 @@ def test_batched_host_shutter_pair_matches_the_single_verb():
     renderer.set_pose(first, render.Pose(opened[0]), render.Pose(bases[0], scale=scales[0]), coordinates=-coordinates[0], coordinates_close=coordinates[0])
     renderer.set_pose(second, render.Pose(opened[1]), render.Pose(bases[1], scale=scales[1]), coordinates=-coordinates[1], coordinates_close=coordinates[1])
     expected = frame(renderer)
-    renderer.set_pose([first, second], render.Pose())
-    renderer.set_pose([first, second], render.Pose(opened), render.Pose(bases, scale=scales), coordinates=-coordinates, coordinates_close=coordinates)
+    batch = renderer.placement_batch([first, second])
+    renderer.set_pose(batch, render.Pose())
+    renderer.set_pose(batch, render.Pose(opened), render.Pose(bases, scale=scales), coordinates=-coordinates, coordinates_close=coordinates)
     np.testing.assert_array_equal(frame(renderer), expected)
+    with pytest.raises(ValueError, match="both be given"):
+        renderer.set_pose(batch, render.Pose(opened), render.Pose(bases), coordinates_close=coordinates)
+
+
+def test_placement_batches_go_stale_with_a_despawned_member():
+    renderer, (first, second), bases, scales, coordinates = two_placements()
+    batch = renderer.placement_batch([first])
+    renderer.despawn(second)
+    renderer.set_pose(batch, render.Pose(bases[:1]), coordinates=coordinates[:1])
+    renderer.despawn(first)
+    with pytest.raises(ValueError, match="despawned"):
+        renderer.set_pose(batch, render.Pose(bases[:1]))
+    with pytest.raises(ValueError, match="stale"):
+        renderer.placement_batch([first])
+    other, (third, _), _, _, _ = two_placements()
+    with pytest.raises(ValueError, match="another renderer"):
+        other.set_pose(batch, render.Pose(bases[:1]))
+    with pytest.raises(TypeError, match="pickled"):
+        pickle.dumps(other.placement_batch([third]))
 
 
 @pytest.mark.skipif(render._backend() != "optix", reason="device pose input requires the OptiX backend")
 def test_batched_device_set_pose_matches_the_host_batch():
     import hyperdrone
     renderer, (first, second), bases, scales, coordinates = two_placements()
-    renderer.set_pose([first, second], render.Pose(bases, scale=scales), coordinates=coordinates)
+    batch = renderer.placement_batch([first, second])
+    renderer.set_pose(batch, render.Pose(bases, scale=scales), coordinates=coordinates)
     expected = frame(renderer)
-    renderer.set_pose([first, second], render.Pose())
+    renderer.set_pose(batch, render.Pose())
     uploads = [hyperdrone._cuda.upload(array[None]) for array in (bases, scales, coordinates)]
-    renderer.set_pose([first, second], render.Pose(uploads[0].view(0), scale=uploads[1].view(0)), coordinates=uploads[2].view(0))
+    renderer.set_pose(batch, render.Pose(uploads[0].view(0), scale=uploads[1].view(0)), coordinates=uploads[2].view(0))
     np.testing.assert_array_equal(frame(renderer), expected)
+    renderer.set_pose(batch, render.Pose(bases, scale=1.2), coordinates=coordinates)
+    scaled = frame(renderer)
+    renderer.set_pose(batch, render.Pose())
+    renderer.set_pose(batch, render.Pose(uploads[0].view(0), scale=1.2), coordinates=uploads[2].view(0))
+    np.testing.assert_array_equal(frame(renderer), scaled)
     with pytest.raises(ValueError, match="CUDA tensor like the other inputs"):
-        renderer.set_pose([first, second], render.Pose(uploads[0].view(0)), coordinates=coordinates)
-    with pytest.raises(ValueError, match="must be 1 or a CUDA array"):
-        renderer.set_pose([first, second], render.Pose(uploads[0].view(0), scale=2.0))
+        renderer.set_pose(batch, render.Pose(uploads[0].view(0)), coordinates=coordinates)
     with pytest.raises(ValueError, match="num_coordinates columns"):
-        renderer.set_pose([first, second], render.Pose(uploads[0].view(0)), coordinates=hyperdrone._cuda.upload(np.zeros((1, 2, 0), np.float32)).view(0))
+        renderer.set_pose(batch, render.Pose(uploads[0].view(0)), coordinates=hyperdrone._cuda.upload(np.zeros((1, 2, 0), np.float32)).view(0))
+    with pytest.raises(ValueError, match="placement_batch"):
+        renderer.set_pose(first, render.Pose(uploads[0].view(0)))
 
 
 @pytest.mark.skipif(render._backend() != "optix", reason="device pose input requires the OptiX backend")
@@ -165,12 +197,47 @@ def test_batched_device_shutter_pair_matches_the_host_batch():
     import hyperdrone
     renderer, (first, second), bases, scales, coordinates = two_placements(motion=True)
     opened = bases + np.array([[0, 0, 0, -0.3], [0, 0, 0, 0], [0, 0, 0, 0]], np.float32)
-    renderer.set_pose([first, second], render.Pose(opened), render.Pose(bases, scale=scales), coordinates=-coordinates, coordinates_close=coordinates)
+    batch = renderer.placement_batch([first, second])
+    renderer.set_pose(batch, render.Pose(opened), render.Pose(bases, scale=scales), coordinates=-coordinates, coordinates_close=coordinates)
     expected = frame(renderer)
-    renderer.set_pose([first, second], render.Pose())
+    renderer.set_pose(batch, render.Pose())
     uploads = [hyperdrone._cuda.upload(array[None]) for array in (opened, bases, scales, -coordinates, coordinates)]
-    renderer.set_pose([first, second], render.Pose(uploads[0].view(0)), render.Pose(uploads[1].view(0), scale=uploads[2].view(0)), coordinates=uploads[3].view(0), coordinates_close=uploads[4].view(0))
+    renderer.set_pose(batch, render.Pose(uploads[0].view(0)), render.Pose(uploads[1].view(0), scale=uploads[2].view(0)), coordinates=uploads[3].view(0), coordinates_close=uploads[4].view(0))
     np.testing.assert_array_equal(frame(renderer), expected)
+
+
+@pytest.mark.skipif(render._backend() != "optix", reason="device pose input requires the OptiX backend")
+def test_device_inputs_are_released_without_a_sync():
+    import time
+    import hyperdrone
+    renderer, (first, second), bases, scales, coordinates = two_placements()
+    batch = renderer.placement_batch([first, second])
+    uploads = hyperdrone._cuda.upload(np.stack([bases + 0.01 * index for index in range(8)]))
+    for index in range(1000):
+        renderer.set_pose(batch, render.Pose(uploads.view(index % 8)))
+        renderer.update_launch()
+        renderer.render_launch()
+    # the queue never outgrows the launch queue, and drains once the GPU catches up
+    assert len(renderer._inputs_in_flight) < 1000
+    deadline = time.monotonic() + 10
+    while renderer._inputs_in_flight and time.monotonic() < deadline:
+        time.sleep(0.01)
+        renderer._release()
+    assert not renderer._inputs_in_flight
+    renderer.render_sync()
+
+
+def test_launch_verbs_match_the_waiting_verbs():
+    renderer, (first, second), bases, scales, coordinates = two_placements()
+    renderer.set_pose(first, render.Pose(bases[0]), coordinates=coordinates[0])
+    expected = frame(renderer)
+    renderer.set_pose(first, render.Pose())
+    renderer.update()
+    renderer.render()
+    renderer.set_pose(first, render.Pose(bases[0]), coordinates=coordinates[0])
+    renderer.update_launch()
+    renderer.render()
+    np.testing.assert_array_equal(renderer.outputs[RGB(format="rgba8")].read(), expected)
 
 
 def test_spawn_takes_coordinates():
@@ -196,15 +263,16 @@ def test_batches_move_each_placement_once_and_pad_mixed_assets():
     still = renderer.spawn(0, rigid_handle)
     bases = np.stack([pose(1.5, 0.5), pose(1.5, -0.5)])
     with pytest.raises(ValueError, match="each placement once"):
-        renderer.set_pose([moving, moving], render.Pose(bases))
+        renderer.placement_batch([moving, moving])
     renderer.set_pose(moving, render.Pose(bases[0]), coordinates=[0.4])
     renderer.set_pose(still, render.Pose(bases[1]))
     expected = frame(renderer)
-    renderer.set_pose([moving, still], render.Pose())
-    renderer.set_pose([moving, still], render.Pose(bases), coordinates=np.array([[0.4], [0.0]], np.float32))
+    batch = renderer.placement_batch([moving, still])
+    renderer.set_pose(batch, render.Pose())
+    renderer.set_pose(batch, render.Pose(bases), coordinates=np.array([[0.4], [0.0]], np.float32))
     np.testing.assert_array_equal(frame(renderer), expected)
     with pytest.raises(ValueError, match="num_coordinates columns"):
-        renderer.set_pose([moving, still], render.Pose(bases), coordinates=np.zeros((2, 0), np.float32))
+        renderer.set_pose(batch, render.Pose(bases), coordinates=np.zeros((2, 0), np.float32))
 
 
 @pytest.mark.skipif(render._backend() != "optix", reason="device pose input requires the OptiX backend")
@@ -213,7 +281,7 @@ def test_device_shutter_pair_needs_dynamic_motion_blur():
     renderer, (first, second), bases, scales, coordinates = two_placements()
     upload = hyperdrone._cuda.upload(bases[None]).view(0)
     with pytest.raises(RuntimeError, match="dynamic motion blur"):
-        renderer.set_pose([first, second], render.Pose(upload), render.Pose(upload))
+        renderer.set_pose(renderer.placement_batch([first, second]), render.Pose(upload), render.Pose(upload))
 
 
 def test_pose_validation():

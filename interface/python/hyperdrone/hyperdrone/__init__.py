@@ -1,7 +1,8 @@
 """hyperdrone — drone simulation stack for RLtools.
 
-hyperdrone.HyperDrone is the RL environment, re-exported from hyperdrone.env; hyperdrone.Rotorcraft
-articulates a body/prop_* drone asset for the renderer.
+hyperdrone.HyperDrone is the RL environment, re-exported from hyperdrone.env; hyperdrone.articulate
+writes the joints of a body/prop_* drone asset for the renderer and hyperdrone.Rotorcraft maps rotor
+phases onto them.
 
 Subpackages:
   hyperdrone.render   — raytracing renderer (self-contained, no drone dynamics)
@@ -16,7 +17,7 @@ set_verbosity(level) selects the native log level (error|warning|info|debug, def
 """
 import importlib
 
-__all__ = ["HyperDrone", "Rotorcraft", "set_verbosity", "verbosity"]
+__all__ = ["HyperDrone", "Rotorcraft", "articulate", "set_verbosity", "verbosity"]
 
 __version__ = "0.1.7"
 
@@ -53,10 +54,10 @@ def __getattr__(name):
         return importlib.import_module(f".{name}", __name__)
     if name == "HyperDrone":
         return importlib.import_module(".env", __name__).HyperDrone
-    if name == "Rotorcraft":
-        return importlib.import_module("._rotorcraft", __name__).Rotorcraft
+    if name in ("Rotorcraft", "articulate"):
+        return getattr(importlib.import_module("._rotorcraft", __name__), name)
     raise AttributeError(f"module 'hyperdrone' has no attribute {name}")
 
 
 def __dir__():
-    return sorted(list(globals()) + list(_SUBPACKAGES) + ["HyperDrone", "Rotorcraft"])
+    return sorted(list(globals()) + list(_SUBPACKAGES) + ["HyperDrone", "Rotorcraft", "articulate"])

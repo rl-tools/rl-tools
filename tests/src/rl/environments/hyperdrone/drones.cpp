@@ -142,7 +142,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, ROTOR_COORDINATES_WITH_MOTION_B
         state.rotor_phase[rotor_i] = (T)0.3 * (T)(rotor_i + 1);
         state.rpm[rotor_i] = (T)60 * (T)(rotor_i + 1);
     }
-    rlt::rl::environments::hyperdrone::rig::Rotorcraft identity;
+    rlt::rl::environments::hyperdrone::Rotorcraft identity;
     identity.num_props = 4;
     for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
         identity.prop_rotor[rotor_i] = rotor_i;
@@ -179,6 +179,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, BODY_SWAP_PRESERVES_WRAPPER_AND
         rlt::add(device, assembly, quad("prop_3", -reach, -reach), identity);
         rotor_torque_directions[0][2] = mesh_i == 0 ? (T)1 : (T)-1;
         bodies[mesh_i].mesh = mesh_i;
+        ASSERT_TRUE(rlt::articulate(device, assembly));
         ASSERT_TRUE(rlt::init(device, bodies[mesh_i].rotorcraft, assembly, rotor_positions, rotor_torque_directions, (TI)4));
         world.drone_meshes.push_back(rlt::add(device, shared.library.pool, assembly));
     }
@@ -215,7 +216,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, BODY_SWAP_PRESERVES_WRAPPER_AND
         for(TI agent_i = 0; agent_i < BLUR_SPEC::N_AGENTS; agent_i++){
             state.position[0] = (T)agent_i;
             float base[12];
-            rlt::rl::environments::hyperdrone::rig::make_body_transform(device, state.orientation, state.position, parameters.scene_translation, parameters.scene_yaw_cos, parameters.scene_yaw_sin, base);
+            rlt::rl::environments::hyperdrone::make_body_transform(device, state.orientation, state.position, parameters.scene_translation, parameters.scene_yaw_cos, parameters.scene_yaw_sin, base);
             float open[4], close[4];
             rlt::rl::environments::hyperdrone::_drone_coordinates<DEVICE, BLUR_SPEC>(device, parameters, agent_i, state, bodies[mesh_i].rotorcraft, open, close);
             const float scale = bodies[mesh_i].rotorcraft.scale;

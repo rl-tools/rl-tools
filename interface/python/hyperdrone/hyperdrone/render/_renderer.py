@@ -1,3 +1,4 @@
+from collections import deque
 from dataclasses import KW_ONLY, dataclass
 from itertools import count
 
@@ -23,6 +24,25 @@ class OverlayPlacement:
 
     def __reduce_ex__(self, protocol):
         raise TypeError("hyperdrone: OverlayPlacement handles belong to one renderer and cannot be pickled")
+
+
+class PlacementBatch:
+    """Distinct placements of one renderer, checked once by Renderer.placement_batch, for set_pose
+    to move together; it goes stale when one of them is despawned."""
+
+    __slots__ = ("placements", "_native", "_renderer", "_despawns")
+
+    def __init__(self, placements, native, renderer, despawns):
+        self.placements = placements
+        self._native = native
+        self._renderer = renderer
+        self._despawns = despawns
+
+    def __len__(self):
+        return len(self.placements)
+
+    def __reduce_ex__(self, protocol):
+        raise TypeError("hyperdrone: a PlacementBatch belongs to one renderer and cannot be pickled")
 
 
 def _from_dlpack(value):
@@ -78,24 +98,21 @@ def _as_coordinates(coordinates):
     return None if coordinates is None else np.ascontiguousarray(_from_dlpack(coordinates), dtype=np.float32).reshape(-1)
 
 
-def _as_batch(bases, scale, coordinates, count):
-    bases = np.broadcast_to(np.eye(4, dtype=np.float32)[:3], (count, 3, 4)) if bases is None else np.ascontiguousarray(_from_dlpack(bases), dtype=np.float32)
-    if bases.shape not in ((count, 3, 4), (count, 12)):
-        raise ValueError(f"hyperdrone: bases must have shape ({count}, 3, 4) or ({count}, 12) for the {count} placements")
-    scales = np.broadcast_to(np.asarray(scale, dtype=np.float32), (count,))
-    if coordinates is not None:
+def _batch_state(base, scale, coordinates, count, device):
+    if device:
+        if base is None:
+            raise ValueError("hyperdrone: a device batch needs CUDA bases")
+        bases = base
+    else:
+        bases = np.broadcast_to(np.eye(4, dtype=np.float32)[:3], (count, 3, 4)) if base is None else _from_dlpack(base)
+        bases = np.ascontiguousarray(bases, dtype=np.float32)
+    if np.isscalar(scale):
+        scales, scale = None, float(scale)
+    else:
+        scales, scale = (scale if device else np.ascontiguousarray(_from_dlpack(scale), dtype=np.float32)), 1.0
+    if coordinates is not None and not device:
         coordinates = np.ascontiguousarray(_from_dlpack(coordinates), dtype=np.float32)
-        if coordinates.ndim != 2 or coordinates.shape[0] != count:
-            raise ValueError(f"hyperdrone: coordinates must have shape ({count}, C) for the {count} placements")
-    return bases.reshape(count, 12), scales, coordinates
-
-
-def _device_scales(scale, what):
-    if _is_cuda(scale):
-        return scale
-    if np.isscalar(scale) and float(scale) == 1.0:
-        return None
-    raise ValueError(f"hyperdrone: {what} must be 1 or a CUDA array of shape (B,) in a device batch")
+    return bases, scales, scale, coordinates
 
 
 class Renderer:
@@ -122,15 +139,24 @@ class Renderer:
         self.outputs = OutputCollection(self._renderer, cameras=self.config.cameras)
         self._scene = None
         self._asset_pool = None
-        self._pending_inputs = []
-        self._pending_cameras = []
+        # borrowed device inputs per call, oldest first, until the render stream is done with them
+        self._inputs_in_flight = deque()
         self._live = {}
         self._generation = count()
+        self._despawns = 0
         self._serial = next(_RENDERER_SERIALS)
 
     def __del__(self):
-        if getattr(self, "_pending_inputs", ()) or getattr(self, "_pending_cameras", ()):
+        if getattr(self, "_inputs_in_flight", ()):
             self._renderer.synchronize()
+
+    def _retain(self, *inputs):
+        self._inputs_in_flight.append(inputs)
+        self._release()
+
+    def _release(self):
+        for _ in range(self._renderer.release_inputs()):
+            self._inputs_in_flight.popleft()
 
     @property
     def width(self):
@@ -188,13 +214,12 @@ class Renderer:
         Each float32 (N, 12) row concatenates position, dir_00, dir_du and dir_dv.
         Pixel centre (x, y) casts normalize(dir_00 + u * dir_du + v * dir_dv),
         with u=(x+0.5)/width and v=(y+0.5)/height, in world-FLU coordinates.
-        Inputs stay retained until the
-        render or probe operation consuming their copy has synchronized."""
+        CUDA inputs stay referenced until the render stream has copied them."""
         if _is_cuda(cameras):
             if not hasattr(self._renderer, "set_cameras_device"):
                 raise RuntimeError("hyperdrone: device-resident camera input requires the OptiX backend")
             self._renderer.set_cameras_device(cameras, int(stream))
-            self._pending_cameras.append(cameras)
+            self._retain(cameras)
             return
         self._renderer.set_cameras(_as_cameras(cameras, self.num_cameras))
 
@@ -204,7 +229,7 @@ class Renderer:
         if _is_cuda(cameras_open):
             self._require_device_inputs("set_motion_blur_cameras_device")
             self._renderer.set_motion_blur_cameras_device(cameras_open, cameras_close, int(stream))
-            self._pending_cameras.extend((cameras_open, cameras_close))
+            self._retain(cameras_open, cameras_close)
             return
         self._renderer.set_motion_blur_cameras(
             _as_cameras(cameras_open, self.num_cameras),
@@ -235,24 +260,25 @@ class Renderer:
         """
         self._renderer.advance_flow()
 
+    def advance_flow_launch(self):
+        """advance_flow without waiting for it: queued on the render stream (OptiX)."""
+        self._renderer.advance_flow_launch()
+
     def render(self):
         self._renderer.render()
-        self._pending_inputs.clear()
-        self._pending_cameras.clear()
+        self._release()
 
     def render_launch(self):
         self._renderer.render_launch()
 
     def render_sync(self):
         self._renderer.render_sync()
-        self._pending_inputs.clear()
-        self._pending_cameras.clear()
+        self._release()
 
     def probe(self):
         self._require_probes()
         self._renderer.probe()
-        self._pending_inputs.clear()
-        self._pending_cameras.clear()
+        self._release()
 
     def probe_launch(self):
         self._require_probes()
@@ -261,18 +287,20 @@ class Renderer:
     def probe_sync(self):
         self._require_probes()
         self._renderer.probe_sync()
-        self._pending_inputs.clear()
-        self._pending_cameras.clear()
+        self._release()
 
     def synchronize(self):
         self._renderer.synchronize()
-        self._pending_inputs.clear()
-        self._pending_cameras.clear()
+        self._release()
 
     def update(self):
         """Publish pending overlay changes (attach/detach/spawn/despawn and the transform
         verbs) and rebuild the overlay acceleration structures."""
         self._renderer.update()
+
+    def update_launch(self):
+        """update without waiting for it: queued on the render stream (OptiX)."""
+        self._renderer.update_launch()
 
     def can_attach(self, camera, overlay):
         return self._renderer.can_attach(camera, overlay)
@@ -310,6 +338,13 @@ class Renderer:
         native = self._native(placement)
         self._renderer.despawn(placement.overlay, native)
         del self._live[(placement.overlay, placement.first_slot)]
+        self._despawns += 1
+
+    def placement_batch(self, placements):
+        """Check distinct live placements once, for set_pose to move them together."""
+        placements = tuple(placements)
+        table = [(placement.overlay, *self._native(placement)) for placement in placements]
+        return PlacementBatch(placements, self._renderer.placement_batch(table), self._serial, self._despawns)
 
     def set_pose(self, placement, pose, close=None, *, coordinates=None, coordinates_close=None, stream=0):
         """Move a placement: its parts land where the pose and coordinates (the asset's joint
@@ -320,55 +355,48 @@ class Renderer:
         keeps every revolution in between); the close state is what segmentation, probes and the
         next frame see, and all a renderer without dynamic motion blur uses.
 
-        A sequence of B distinct placements moves them as a batch: pose.base is (B, 3, 4) or
-        (B, 12), pose.scale a float or (B,), coordinates (B, C) with C at least every placement's
-        num_coordinates, and likewise for close. Contiguous float32 CUDA tensors (DLPack, OptiX
-        backend) run one kernel on the render stream after awaiting stream, the producer's
-        cudaStream_t handle, and stay referenced until the frame is rendered; host arrays loop
-        the single-placement verb."""
+        A PlacementBatch of B placements moves them all: pose.base is (B, 3, 4) or (B, 12),
+        pose.scale a float or (B,), coordinates (B, C) with C at least every member's
+        num_coordinates, and likewise for close. On OptiX, CUDA tensors run one kernel on the
+        render stream after awaiting stream, the producer's cudaStream_t handle, and stay
+        referenced until the kernel has read them."""
         if close is None and coordinates_close is not None:
             raise ValueError("hyperdrone: coordinates_close belongs to the shutter-close state, pass close")
-        if isinstance(placement, OverlayPlacement):
-            native = self._native(placement)
-            if close is None:
-                self._renderer.set_pose(placement.overlay, native, *pose._native(), _as_coordinates(coordinates))
-                return
-            self._renderer.set_pose_pair(placement.overlay, native, *pose._native(), *close._native(), _as_coordinates(coordinates), _as_coordinates(coordinates_close))
+        inputs = (pose.base, pose.scale, coordinates) + ((close.base, close.scale, coordinates_close) if close is not None else ())
+        if isinstance(placement, PlacementBatch):
+            self._set_pose_batch(placement, pose, close, coordinates, coordinates_close, inputs, stream)
             return
-        placements = list(placement)
-        natives = [self._native(entry) for entry in placements]
-        count = len(placements)
-        if len({(entry.overlay, entry.first_slot) for entry in placements}) != count:
-            raise ValueError("hyperdrone: a batch moves each placement once")
-        inputs = [pose.base, pose.scale, coordinates] + ([close.base, close.scale, coordinates_close] if close is not None else [])
+        native = self._native(placement)
         if any(_is_cuda(value) for value in inputs):
-            self._require_device_inputs("set_pose_device")
+            raise ValueError("hyperdrone: a single placement takes host arrays; move CUDA poses through a placement_batch")
+        if close is None:
+            self._renderer.set_pose(placement.overlay, native, *pose._native(), _as_coordinates(coordinates))
+            return
+        self._renderer.set_pose_pair(placement.overlay, native, *pose._native(), *close._native(), _as_coordinates(coordinates), _as_coordinates(coordinates_close))
+
+    def _set_pose_batch(self, batch, pose, close, coordinates, coordinates_close, inputs, stream):
+        if batch._renderer != self._serial:
+            raise ValueError("hyperdrone: the placement batch belongs to another renderer")
+        if batch._despawns != self._despawns:
+            for placement in batch.placements:
+                entry = self._live.get((placement.overlay, placement.first_slot))
+                if entry is None or entry[0] != placement:
+                    raise ValueError("hyperdrone: a member of this placement batch was despawned; build a new batch")
+            batch._despawns = self._despawns
+        count = len(batch)
+        device = any(_is_cuda(value) for value in inputs)
+        if device:
+            self._require_device_inputs("set_pose_batch_device")
             for value, what in zip(inputs, ("base", "scale", "coordinates", "close.base", "close.scale", "coordinates_close")):
                 if value is not None and not np.isscalar(value) and not _is_cuda(value):
                     raise ValueError(f"hyperdrone: {what} must be a CUDA tensor like the other inputs of this device batch")
-            scales = _device_scales(pose.scale, "scale")
-            scales_close = None if close is None else _device_scales(close.scale, "close.scale")
-            table = [(entry.overlay, *native) for entry, native in zip(placements, natives)]
-            self._renderer.set_pose_device(table, pose.base, scales, coordinates, None if close is None else close.base, scales_close, coordinates_close, int(stream))
-            self._pending_inputs.extend(value for value in inputs if value is not None)
+        opened = _batch_state(pose.base, pose.scale, coordinates, count, device)
+        closed = _batch_state(close.base, close.scale, coordinates_close, count, device) if close is not None else (None, None, 1.0, None)
+        if device:
+            self._renderer.set_pose_batch_device(batch._native, *opened, *closed, int(stream))
+            self._retain(*(value for value in inputs if value is not None and not np.isscalar(value)))
             return
-        bases, scales, batch_coordinates = _as_batch(pose.base, pose.scale, coordinates, count)
-        widths = [self._renderer.placement_coordinates(entry.overlay, native) for entry, native in zip(placements, natives)]
-
-        def row(table, index):
-            if table is None:
-                return None
-            if table.shape[1] < widths[index]:
-                raise ValueError("hyperdrone: coordinates need at least num_coordinates columns for every placement of the batch")
-            return table[index, :widths[index]]
-
-        if close is None:
-            for index, (entry, native) in enumerate(zip(placements, natives)):
-                self._renderer.set_pose(entry.overlay, native, bases[index], float(scales[index]), row(batch_coordinates, index))
-            return
-        bases_close, scales_close, batch_coordinates_close = _as_batch(close.base, close.scale, coordinates_close, count)
-        for index, (entry, native) in enumerate(zip(placements, natives)):
-            self._renderer.set_pose_pair(entry.overlay, native, bases[index], float(scales[index]), bases_close[index], float(scales_close[index]), row(batch_coordinates, index), row(batch_coordinates_close, index))
+        self._renderer.set_pose_batch(batch._native, *opened, *closed)
 
     def _require_device_inputs(self, name):
         if not hasattr(self._renderer, name):

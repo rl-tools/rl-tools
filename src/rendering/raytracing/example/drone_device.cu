@@ -10,7 +10,7 @@
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/raytracing/save_cpu.h>
 #include <rl_tools/rl/environments/l2f/multirotor.h>
-#include <rl_tools/rl/environments/hyperdrone/rig/operations_cpu.h>
+#include <rl_tools/rl/environments/hyperdrone/rotorcraft/operations_cpu.h>
 
 #include <cmath>
 #include <cstdio>
@@ -198,7 +198,7 @@ struct DroneKernelParams {
     T center[3];
     T aspect;
     rlt::rendering::raytracing::OverlayPlacement placement;
-    rlt::rl::environments::hyperdrone::rig::Rotorcraft rotorcraft;
+    rlt::rl::environments::hyperdrone::Rotorcraft rotorcraft;
 };
 
 // single drone -> single thread: the whole per-frame state (pose pair, camera pair) is produced
@@ -216,12 +216,13 @@ __global__ void drone_frame_kernel(T_DEVICE device, DroneKernelParams params, T 
     float body_open[12], body_close[12];
     pose_to_transform(pose_open, body_open);
     pose_to_transform(pose_close, body_close);
-    float phases_open[4], phases_close[4];
-    for (TI rotor_i = 0; rotor_i < 4; rotor_i++) {
+    constexpr TI MAX_PROPS = rlt::rl::environments::hyperdrone::Rotorcraft::MAX_PROPS;
+    float phases_open[MAX_PROPS], phases_close[MAX_PROPS];
+    for (TI rotor_i = 0; rotor_i < params.rotorcraft.num_props; rotor_i++) {
         phases_open[rotor_i] = PROP_RATE * time_open;
         phases_close[rotor_i] = PROP_RATE * time_close;
     }
-    float coordinates_open[4], coordinates_close[4];
+    float coordinates_open[MAX_PROPS], coordinates_close[MAX_PROPS];
     rlt::coordinates(device, params.rotorcraft, phases_open, coordinates_open);
     rlt::coordinates(device, params.rotorcraft, phases_close, coordinates_close);
     rlt::set_pose(device, sink, rlt::rendering::raytracing::OverlayIndex{0}, params.placement, rlt::make_pose(body_open), rlt::make_pose(body_close), coordinates_open, coordinates_close);
@@ -264,8 +265,8 @@ int main(int argc, char** argv) {
         std::cerr << "Failed to load drone assembly: " << options.drone_path << std::endl;
         return 1;
     }
-    rlt::rl::environments::hyperdrone::rig::Rotorcraft rotorcraft;
-    if (!rlt::init(device, rotorcraft, drone_assembly)) {
+    rlt::rl::environments::hyperdrone::Rotorcraft rotorcraft;
+    if (!rlt::articulate(device, drone_assembly) || !rlt::init(device, rotorcraft, drone_assembly)) {
         std::cerr << "Drone assembly must follow the body/prop_* part convention: " << options.drone_path << std::endl;
         return 1;
     }

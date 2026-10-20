@@ -467,7 +467,7 @@ static int run(const char* scene_path, const char* policy_path, int max_frames, 
     const auto& rotorcraft = state.environment.shared.drone_bodies[0].rotorcraft;
     EM_ASM({
         Module.rlt_motor_layout($0, $1, $2);
-    }, rotorcraft.rotor_position_deviation, rotorcraft.wheelbase * rotorcraft.scale, rl::environments::hyperdrone::rig::ROTOR_POSITION_WARNING_THRESHOLD);
+    }, rotorcraft.rotor_position_deviation, rotorcraft.wheelbase * rotorcraft.scale, rl::environments::hyperdrone::Rotorcraft::ROTOR_POSITION_WARNING_THRESHOLD);
     if(placement.contains("position")) {
         for(web::TI dim = 0; dim < 3; dim++) {
             state.spawn.position[dim] = placement.at("position").at(dim).get<web::T>();

@@ -141,7 +141,7 @@ namespace rl_tools{
                 const auto& instance_parameters = get_ref(device, parameters, instance_i);
                 const auto& agent_state = _agent_state<SPEC>(get_ref(device, states, instance_i), agent_i);
                 float base[12];
-                rig::make_body_transform(device, agent_state.orientation, agent_state.position, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, base);
+                make_body_transform(device, agent_state.orientation, agent_state.position, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, base);
                 const auto& body = get_ref(device, bodies, instance_parameters.agents[agent_i].drone);
                 float coordinates_open[WORLD::DYNAMICS_ENV::ACTION_DIM], coordinates_close[WORLD::DYNAMICS_ENV::ACTION_DIM];
                 _drone_coordinates<DEVICE, SPEC>(device, instance_parameters, agent_i, agent_state, body.rotorcraft, coordinates_open, coordinates_close);

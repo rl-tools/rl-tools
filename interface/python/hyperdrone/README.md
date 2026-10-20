@@ -140,7 +140,7 @@ Inputs accept any DLPack producer. CUDA-resident camera input (OptiX):
 `set_cameras` dispatches on `__dlpack_device__`, so a CUDA tensor — a torch GPU tensor,
 a CuPy/JAX CUDA array, or `Sim.camera_bases_dlpack(aspect=renderer.aspect)` — is handed
 over device-to-device on the render stream, fully async; `stream=` takes the producer's
-cudaStream_t handle for event-ordered hand-off. The renderer retains asynchronous inputs until the corresponding render/probe synchronization; do not mutate their contents until that work finishes.
+cudaStream_t handle for event-ordered hand-off. The renderer keeps CUDA inputs referenced until the render stream has read them, without waiting for a synchronization; do not mutate their contents before then.
 
 ## Dynamics
 
@@ -541,8 +541,9 @@ A placement's rigid state is a `render.Pose(base, scale=1.0)`: a `(3, 4)` base a
 
 ```python
 drone = render.load_assembly(path)
-rotorcraft = hyperdrone.Rotorcraft(drone, rotor_positions=rotors, rotor_torque_directions=torques)
+hyperdrone.articulate(drone)
 asset = pool.add_assembly(drone)
+rotorcraft = hyperdrone.Rotorcraft(drone, rotor_positions=rotors, rotor_torque_directions=torques)
 ...
 placement = renderer.spawn(0, asset)
 renderer.set_pose(placement, render.Pose(body, scale=rotorcraft.scale), coordinates=rotorcraft.coordinates(phases))
@@ -554,9 +555,25 @@ renderer.render()
 
 The two-pose form is the shutter (`dynamic_motion_blur=True`): the base follows the constant-twist screw between the states and the scale and coordinates interpolate before the kinematics, so a revolute joint keeps every revolution; the close state is what segmentation, probes and the next frame see, and all a renderer without dynamic motion blur uses.
 
-A sequence of distinct placements moves as a batch: `pose.base` of shape `(B, 3, 4)` or `(B, 12)`, `pose.scale` a float or `(B,)`, `coordinates` `(B, C)` with `C` at least every placement's `num_coordinates` (each placement reads its own first columns), and likewise for the close state. On the OptiX backend CUDA tensors (any DLPack producer) run one kernel on the render stream after awaiting `stream=`, the producer's `cudaStream_t` handle, so a simulation that keeps its poses on the device feeds the renderer with no host data path per frame; host arrays loop the single-placement verb.
+`renderer.placement_batch(placements)` checks distinct placements once and returns a `PlacementBatch` that `set_pose` moves as a whole: `pose.base` of shape `(B, 3, 4)` or `(B, 12)`, `pose.scale` a float or `(B,)`, `coordinates` `(B, C)` with `C` at least every member's `num_coordinates` (each reads its own first columns), and likewise for the close state. Despawning a member makes the batch stale. Host arrays run the single-placement verb per member in one native call; see below for CUDA tensors.
 
-`hyperdrone.Rotorcraft(assembly, rotor_positions=None, rotor_torque_directions=None)` articulates a body/prop_* drone asset in place, as the environment does for `drone_asset=`: prop p, the p-th `prop_*` part, spins about +z through its hub (the centre of its geometry) as coordinate p, every other part is fixed, and the asset carries nothing else. The convention that drives the props lives on the rotorcraft: `prop_rotor[p]` is the rotor driving prop p, `prop_spin[p]` its direction, and `rotorcraft.coordinates(rotor_phases)` maps a `(num_rotors,)` or batched `(..., num_rotors)` array of rotor phases (radians) onto the joints. Without rotors prop p follows rotor p spinning per Quad-X (front-right CCW) and `scale` is 1. Given a dynamics model's rotor layout (`sim.parameters["dynamics"]["dynamics"]`), each hub pairs with its nearest rotor and spins against its reaction torque, so `sim.rotor_rpm()` supplies the speeds whose integral over the step advances the phases; `scale` fits the asset onto the rotors' wheelbase and `rotor_position_deviation` is the largest hub error as a fraction of the wheelbase (warned above 10%). `python -m hyperdrone.examples.articulation` renders a spinning hinge and a sliding block with motion blur; `hyperdrone/examples/Renderer.ipynb` flies the x500 with spinning props.
+`hyperdrone.articulate(assembly)` writes the joints of a body/prop_* drone asset, as the environment does for `drone_asset=`: prop p, the p-th `prop_*` part, spins about +z through its hub (the centre of its geometry) as coordinate p, every other part is fixed, and the asset carries nothing else. Articulate before `add_assembly`, which binds the joints. `hyperdrone.Rotorcraft(assembly, rotor_positions=None, rotor_torque_directions=None)` reads them and keeps the convention that drives the props: `prop_rotor[p]` is the rotor driving prop p, `prop_spin[p]` its direction, and `rotorcraft.coordinates(rotor_phases)` maps a `(num_rotors,)` or batched `(..., num_rotors)` array of rotor phases (radians) onto the joints. Without rotors prop p follows rotor p spinning per Quad-X (front-right CCW) and `scale` is 1. Given a dynamics model's rotor layout (`sim.parameters["dynamics"]["dynamics"]`), each hub pairs with its nearest rotor and spins against its reaction torque, so `sim.rotor_rpm()` supplies the speeds whose integral over the step advances the phases; `scale` fits the asset onto the rotors' wheelbase and `rotor_position_deviation` is the largest hub error as a fraction of the wheelbase (warned above 10%). `python -m hyperdrone.examples.articulation` renders a spinning hinge and a sliding block with motion blur; `hyperdrone/examples/Renderer.ipynb` flies the x500 with spinning props.
+
+### Bulk posing on the GPU
+
+On the OptiX backend a placement batch takes CUDA tensors (any DLPack producer): `set_pose` runs one kernel on the render stream after awaiting `stream=`, the producer's `cudaStream_t` handle, with constant host work per call. `update_launch()` and `advance_flow_launch()` queue their work without waiting, so a simulation that keeps its poses on the device drives the renderer with no host data path and no synchronization per frame:
+
+```python
+batch = renderer.placement_batch(placements)
+for step in range(steps):
+    # the producer writes bases (B, 12) and coordinates (B, C) on producer_stream
+    renderer.set_pose(batch, render.Pose(bases, scale=scale), coordinates=coordinates, stream=producer_stream)
+    renderer.update_launch()
+    renderer.render_launch()
+    renderer.outputs[RGB(format="rgba8")].read(out=frames, stream=consumer_stream)
+```
+
+Read outputs in such a loop with `read(out=..., stream=...)`, which copies on the render stream: an exported block makes its consumer wait for the render, but the next `render_launch` does not wait for the consumer.
 
 ## Stability
 

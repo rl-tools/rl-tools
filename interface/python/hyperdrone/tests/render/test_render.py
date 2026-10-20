@@ -1139,17 +1139,17 @@ def test_device_cameras_are_retained_and_order_probes():
     with pytest.raises(ValueError, match="same memory"):
         renderer.set_motion_blur_cameras(cuda_open, closing)
     renderer.set_motion_blur_cameras(cuda_open, cuda_close, stream=np.int64(0))
-    assert renderer._pending_cameras == [cuda_open, cuda_close]
+    assert list(renderer._inputs_in_flight) in ([(cuda_open, cuda_close)], [])
     renderer.render()
-    assert not renderer._pending_cameras
+    assert not renderer._inputs_in_flight
     np.testing.assert_array_equal(renderer.outputs[Depth()].read(), expected)
     for _ in range(8):
         renderer.set_cameras(opening)
         renderer.render_launch()
         renderer.set_cameras(cuda_close)
-        assert renderer._pending_cameras == [cuda_close]
+        assert list(renderer._inputs_in_flight) in ([(cuda_close,)], [])
         renderer.probe()
-        assert not renderer._pending_cameras
+        assert not renderer._inputs_in_flight
         actual_distances, actual_hits = renderer.outputs[Probes()].read().values()
         np.testing.assert_array_equal(actual_distances, distances)
         np.testing.assert_array_equal(actual_hits, hits)

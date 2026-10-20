@@ -8,7 +8,7 @@
 #include "../observation.h"
 #include "../l2f/multirotor.h"
 #include "pose.h"
-#include "rig/rig.h"
+#include "rotorcraft/rotorcraft.h"
 #include "controllers/direct/direct.h"
 #include "../../../rendering/raytracing/renderer.h"
 #include "../../../rendering/datasets/procthor/procthor.h"
@@ -276,7 +276,7 @@ namespace rl_tools::rl::environments::hyperdrone {
     template <typename T_SPEC>
     struct DroneBody {
         using TI = typename T_SPEC::TI;
-        rig::Rotorcraft rotorcraft;
+        Rotorcraft rotorcraft;
         TI mesh = 0;
     };
 

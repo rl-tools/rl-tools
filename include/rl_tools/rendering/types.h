@@ -60,6 +60,7 @@ namespace rl_tools {
         // pivot, prismatic slides coordinates[coordinate] metres along axis; at zero coordinates
         // every part sits at its rest frame
         struct Joint {
+            static constexpr size_t MAX_COORDINATES = 256;
             enum class Type { FIXED, REVOLUTE, PRISMATIC };
             Type type = Type::FIXED;
             float axis[3] = {0, 0, 1};

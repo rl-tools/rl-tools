@@ -209,7 +209,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, OWN_DRONE_AND_ARTICU
             const typename WORLD::Parameters instance_parameters = rlt::get(device, parameters, instance_i);
             const typename WORLD::State state = rlt::get(device, states, instance_i);
             float base[12];
-            rlt::rl::environments::hyperdrone::rig::make_body_transform(device, state.orientation, state.position, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, base);
+            rlt::rl::environments::hyperdrone::make_body_transform(device, state.orientation, state.position, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, base);
             float coordinates_open[WORLD::DYNAMICS_ENV::ACTION_DIM], coordinates_close[WORLD::DYNAMICS_ENV::ACTION_DIM];
             rlt::rl::environments::hyperdrone::_drone_coordinates<DEVICE, WORLD_SPEC>(device, instance_parameters, (TI)0, state, body.rotorcraft, coordinates_open, coordinates_close);
             using rlt::rotor_scale;

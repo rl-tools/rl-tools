@@ -4,7 +4,7 @@
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/raytracing/save_cpu.h>
 #include <rl_tools/rl/environments/l2f/multirotor.h>
-#include <rl_tools/rl/environments/hyperdrone/rig/operations_cpu.h>
+#include <rl_tools/rl/environments/hyperdrone/rotorcraft/operations_cpu.h>
 
 #include <algorithm>
 #include <cmath>
@@ -199,8 +199,8 @@ int main(int argc, char** argv) {
         std::cerr << "Failed to load drone assembly: " << options.drone_path << std::endl;
         return 1;
     }
-    rlt::rl::environments::hyperdrone::rig::Rotorcraft rotorcraft;
-    if (!rlt::init(device, rotorcraft, drone_assembly)) {
+    rlt::rl::environments::hyperdrone::Rotorcraft rotorcraft;
+    if (!rlt::articulate(device, drone_assembly) || !rlt::init(device, rotorcraft, drone_assembly)) {
         std::cerr << "Drone assembly must follow the body/prop_* part convention: " << options.drone_path << std::endl;
         return 1;
     }
@@ -263,12 +263,13 @@ int main(int argc, char** argv) {
         float pose_transform_open[12], pose_transform_close[12];
         pose_to_transform(pose_open, pose_transform_open);
         pose_to_transform(pose_close, pose_transform_close);
-        T phases_open[4], phases_close[4];
-        for (TI rotor_i = 0; rotor_i < 4; rotor_i++) {
+        constexpr TI MAX_PROPS = rlt::rl::environments::hyperdrone::Rotorcraft::MAX_PROPS;
+        T phases_open[MAX_PROPS], phases_close[MAX_PROPS];
+        for (TI rotor_i = 0; rotor_i < rotorcraft.num_props; rotor_i++) {
             phases_open[rotor_i] = PROP_RATE * time_open;
             phases_close[rotor_i] = PROP_RATE * time_close;
         }
-        float coordinates_open[4], coordinates_close[4];
+        float coordinates_open[MAX_PROPS], coordinates_close[MAX_PROPS];
         rlt::coordinates(device, rotorcraft, phases_open, coordinates_open);
         rlt::coordinates(device, rotorcraft, phases_close, coordinates_close);
         rlt::set_pose(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(pose_transform_open), rlt::make_pose(pose_transform_close), coordinates_open, coordinates_close);

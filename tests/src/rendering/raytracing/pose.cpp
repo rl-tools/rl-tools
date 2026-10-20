@@ -339,6 +339,11 @@ TEST(RENDERING_RAYTRACING_POSE, CAN_ADD_VALIDATES_PARTS_AND_JOINTS){
     auto gap = chain(device);
     gap.parts[0].joint.coordinate = 2;
     EXPECT_FALSE(can_add(device, pool, gap));
+    for(const size_t coordinate : {(size_t)rl_tools::rendering::Joint::MAX_COORDINATES, std::numeric_limits<size_t>::max()}){
+        auto out_of_range = chain(device);
+        out_of_range.parts[0].joint.coordinate = coordinate;
+        EXPECT_FALSE(can_add(device, pool, out_of_range));
+    }
     auto zero_axis = chain(device);
     zero_axis.parts[1].joint.axis[1] = 0;
     EXPECT_FALSE(can_add(device, pool, zero_axis));

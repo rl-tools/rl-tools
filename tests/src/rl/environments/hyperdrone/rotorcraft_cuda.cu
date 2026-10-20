@@ -8,7 +8,7 @@
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rl/environments/l2f/operations_generic.h>
 #include <rl_tools/rl/environments/hyperdrone/pose.h>
-#include <rl_tools/rl/environments/hyperdrone/rig/operations_cpu.h>
+#include <rl_tools/rl/environments/hyperdrone/rotorcraft/operations_cpu.h>
 #include <metra/metra.h>
 
 #include "../../../utils/utils.h"
@@ -118,7 +118,7 @@ __global__ void produce_transforms_kernel(T_DEVICE device, KernelParams params, 
     rlt::set_pose(device, sink, rlt::rendering::raytracing::OverlayIndex{0}, params.placement, rlt::make_pose(params.body_open), rlt::make_pose(params.body_close), params.phase_open, params.phase_close);
 }
 
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT_CUDA, HOST_DEVICE_RENDER_PARITY){
     if(SCENE_PATH.empty()){
         GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
     }
@@ -136,7 +136,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
     rlt::rendering::raytracing::ObjectAssembly drone_assembly;
     ASSERT_TRUE((rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, drone_assembly, DRONE_PATH)));
 
-    rlt::rl::environments::hyperdrone::rig::Rotorcraft rotorcraft;
+    ASSERT_TRUE(rlt::articulate(device, drone_assembly));
+    rlt::rl::environments::hyperdrone::Rotorcraft rotorcraft;
     ASSERT_TRUE(rlt::init(device, rotorcraft, drone_assembly));
     ASSERT_EQ(rlt::num_coordinates(device, drone_assembly), 4);
 
@@ -175,8 +176,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
     const T scene_translation[3] = {-5.0, -5.2, 1.55};
     KernelParams params{};
     params.placement = placement;
-    rlt::rl::environments::hyperdrone::rig::make_body_transform(device, prev_state.orientation, prev_state.position, scene_translation, (T)1, (T)0, params.body_open);
-    rlt::rl::environments::hyperdrone::rig::make_body_transform(device, state.orientation, state.position, scene_translation, (T)1, (T)0, params.body_close);
+    rlt::rl::environments::hyperdrone::make_body_transform(device, prev_state.orientation, prev_state.position, scene_translation, (T)1, (T)0, params.body_open);
+    rlt::rl::environments::hyperdrone::make_body_transform(device, state.orientation, state.position, scene_translation, (T)1, (T)0, params.body_close);
     for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
         params.phase_open[rotor_i] = prev_state.rotor_phase[rotor_i];
         params.phase_close[rotor_i] = state.rotor_phase[rotor_i];
@@ -262,7 +263,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
     {
         KernelParams static_params = params;
         const T identity_orientation[4] = {1, 0, 0, 0};
-        rlt::rl::environments::hyperdrone::rig::make_body_transform(device, identity_orientation, state.position, scene_translation, (T)1, (T)0, static_params.body_close);
+        rlt::rl::environments::hyperdrone::make_body_transform(device, identity_orientation, state.position, scene_translation, (T)1, (T)0, static_params.body_close);
         for(TI element_i = 0; element_i < 12; element_i++){
             static_params.body_open[element_i] = static_params.body_close[element_i];
         }
@@ -345,7 +346,7 @@ namespace general_pose_test {
 
 // a revolute arm about an off-origin pivot, a prismatic slider riding it and a fixed cap riding
 // the slider, evaluated by the device kernel and the host
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, GENERAL_KINEMATICS_HOST_DEVICE_PARITY){
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT_CUDA, GENERAL_KINEMATICS_HOST_DEVICE_PARITY){
     using namespace general_pose_test;
     int device_count = 0;
     if(cudaGetDeviceCount(&device_count) != cudaSuccess || device_count == 0){

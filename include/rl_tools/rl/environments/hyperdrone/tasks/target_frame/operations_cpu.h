@@ -124,7 +124,7 @@ namespace rl_tools {
                     T orientation[4], position[3];
                     make_target_body_pose(device, setup.agents[0].cameras[WORLD::TARGET_CAMERA], setup.target_roll, setup.target_pitch, orientation, position);
                     float base[12];
-                    rig::make_body_transform(device, orientation, position, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, base);
+                    make_body_transform(device, orientation, position, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, base);
                     const auto& body = get_ref(device, world.drone_bodies, setup.agents[0].drone);
                     const auto pose = make_pose(base, rotor_scale(device, body.rotorcraft, setup.agents[0].dynamics.dynamics.rotor_positions, (TI)NEXT_WORLD::DYNAMICS_ENV::ACTION_DIM));
                     hyperdrone::_drone_rows(device, world, renderer, setup_i, (TI)0, body, pose, nullptr, nullptr);

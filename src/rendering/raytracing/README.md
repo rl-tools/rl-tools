@@ -92,9 +92,10 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   renderer, overlay, placement, pose[, close], coordinates[, coordinates_close])` is the one
   way to move a placement, and a device kernel calls the same `set_pose` on `pose_sink(device,
   renderer)`, which addresses the resident rows and asset parts. The hyperdrone rotorcraft
-  (`rl/environments/hyperdrone/rig`) writes the prop joints from its body/prop_* convention
-  and keeps the rotor-to-prop mapping and spin itself, so one asset serves every rotor layout;
-  `coordinates(device, rotorcraft, rotor_phases, out)` maps the phases onto the joints.
+  (`rl/environments/hyperdrone/rotorcraft`): `articulate` writes the prop joints from the
+  body/prop_* convention before the pool add, and `init` reads them into the rotor-to-prop
+  mapping and spin, so one asset serves every rotor layout; `coordinates(device, rotorcraft,
+  rotor_phases, out)` maps the phases onto the joints.
 - **GPU-resident dynamic motion blur** (OptiX): a sim kernel poses its placements through the
   pose sink and writes the camera pair in place, all on the render stream; the steady-state step is kernel → update → render with no
   host data path — the host's per-frame role is enqueues only (kernel launches,

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from hyperdrone import Rotorcraft, render
+from hyperdrone import Rotorcraft, articulate, render
 from hyperdrone.camera import CameraSpec, Segmentation
 
 
@@ -37,6 +37,10 @@ def expect_joint(asset, part, pivot, coordinate):
 
 def test_rotorcraft_convention():
     asset = two_prop_assembly()
+    with pytest.raises(ValueError, match="articulate"):
+        Rotorcraft(asset)
+    assert asset.num_coordinates == 0
+    articulate(asset)
     rotorcraft = Rotorcraft(asset)
     assert rotorcraft.scale == 1 and rotorcraft.rotor_position_deviation == 0
     assert asset.joint("body")[0] == "fixed" and asset.num_coordinates == 2
@@ -50,12 +54,13 @@ def test_rotorcraft_convention():
     unconventional = render.ObjectAssembly()
     unconventional.add_part(quad_xy(1, 0, 0.5, "prop_0"), pose())
     with pytest.raises(ValueError, match="body/prop_"):
-        Rotorcraft(unconventional)
+        articulate(unconventional)
     assert unconventional.joint(0)[0] == "fixed"
 
 
 def test_rotorcraft_matches_rotors():
     asset = two_prop_assembly()
+    articulate(asset)
     rotor_positions = [[-0.2, 0.2, 0], [0.2, 0.2, 0]]
     rotor_torque_directions = [[0, 0, 1], [0, 0, -1]]
     rotorcraft = Rotorcraft(asset, rotor_positions=rotor_positions, rotor_torque_directions=rotor_torque_directions)
@@ -80,7 +85,7 @@ def test_rotorcraft_matches_rotors():
 
 def test_rotorcraft_spins_props_in_the_renderer():
     asset = two_prop_assembly()
-    Rotorcraft(asset)
+    articulate(asset)
     pool = render.AssetPool()
     handle = pool.add_assembly(asset)
     scene = render.Scene()
@@ -115,6 +120,8 @@ def test_rotorcraft_x500():
         pytest.skip(f"x500 asset unavailable: {error}")
     drone = render.load_assembly(path, fidelity="low")
     convention = render.load_assembly(path, fidelity="low")
+    articulate(drone)
+    articulate(convention)
     # the x500 registry entry: rotors 0..3 at front-right, rear-right, rear-left, front-left
     arm = 0.176776695296636
     rotor_positions = [[arm, -arm, 0], [-arm, -arm, 0], [-arm, arm, 0], [arm, arm, 0]]
