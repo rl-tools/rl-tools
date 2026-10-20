@@ -184,10 +184,23 @@ TEST(RENDERING_RAYTRACING_POSE, JOINTS_COMPOSE_THROUGH_THE_PART_TREE){
     const auto placement = spawn(harness.device, harness.renderer, rrt::OverlayIndex{0}, rrt::AssetHandle{0});
     const Matrix4 base = translation(4, -1, .5) * rotation_z(0.3);
     const float coordinates[2] = {0.75f, 1.2f};
-    set_pose(harness.device, harness.renderer, rrt::OverlayIndex{0}, placement, make_pose(rows(base).data(), 1.5f, coordinates));
+    set_pose(harness.device, harness.renderer, rrt::OverlayIndex{0}, placement, make_pose(rows(base).data(), 1.5f), coordinates);
     const auto expected = expected_chain(base, 1.5, coordinates);
     for(TI part = 0; part < 4; part++){
         expect_row_near(harness.row(placement, part), expected[part], 1e-5);
+    }
+}
+
+TEST(RENDERING_RAYTRACING_POSE, SPAWN_TAKES_COORDINATES){
+    DEVICE device;
+    Harness<STATIC_SPEC> harness({chain(device)});
+    const float coordinates[2] = {0.75f, 1.2f};
+    const auto base = rows(translation(4, -1, .5) * rotation_z(0.3));
+    const auto spawned = spawn(harness.device, harness.renderer, rrt::OverlayIndex{0}, rrt::AssetHandle{0}, make_pose(base.data(), 1.5f), coordinates);
+    const auto posed = spawn(harness.device, harness.renderer, rrt::OverlayIndex{0}, rrt::AssetHandle{0});
+    set_pose(harness.device, harness.renderer, rrt::OverlayIndex{0}, posed, make_pose(base.data(), 1.5f), coordinates);
+    for(TI part = 0; part < 4; part++){
+        EXPECT_EQ(std::memcmp(harness.row(spawned, part), harness.row(posed, part), 12 * sizeof(float)), 0) << "part " << part;
     }
 }
 
@@ -214,7 +227,7 @@ TEST(RENDERING_RAYTRACING_POSE, SHUTTER_PAIR_INTERPOLATES_BASE_AND_KEEPS_REVOLUT
     const auto open_base = rows(translation(1, 0, 0) * rotation_z(0.2));
     const auto close_base = rows(translation(3, 1, 0) * rotation_z(0.6));
     const float open_coordinates[2] = {0, 0}, close_coordinates[2] = {0.5f, (float)(4 * std::acos(-1.0))};
-    set_pose(harness.device, harness.renderer, rrt::OverlayIndex{0}, placement, make_pose(open_base.data(), 1, open_coordinates), make_pose(close_base.data(), 2, close_coordinates));
+    set_pose(harness.device, harness.renderer, rrt::OverlayIndex{0}, placement, make_pose(open_base.data()), make_pose(close_base.data(), 2), open_coordinates, close_coordinates);
     for(TI sample = 0; sample < MOTION_SPEC::MOTION_BLUR_SAMPLES; sample++){
         const float t = ((float)sample + 0.5f) / (float)MOTION_SPEC::MOTION_BLUR_SAMPLES;
         float base[12];
@@ -236,7 +249,7 @@ TEST(RENDERING_RAYTRACING_POSE, STATIC_POSE_FILLS_EVERY_MOTION_SAMPLE){
     Harness<MOTION_SPEC> harness({chain(device)});
     const auto placement = spawn(harness.device, harness.renderer, rrt::OverlayIndex{0}, rrt::AssetHandle{0});
     const float coordinates[2] = {0.3f, -0.8f};
-    set_pose(harness.device, harness.renderer, rrt::OverlayIndex{0}, placement, make_pose(rows(translation(2, 0, 1)).data(), 1, coordinates));
+    set_pose(harness.device, harness.renderer, rrt::OverlayIndex{0}, placement, make_pose(rows(translation(2, 0, 1)).data()), coordinates);
     for(TI sample = 0; sample < MOTION_SPEC::MOTION_BLUR_SAMPLES; sample++){
         for(TI part = 0; part < 4; part++){
             EXPECT_EQ(std::memcmp(harness.sample_row(placement, sample, part), harness.row(placement, part), 12 * sizeof(float)), 0);
@@ -255,6 +268,62 @@ TEST(RENDERING_RAYTRACING_POSE, REPLACE_HANDS_OUT_THE_NEW_ASSETS_PLACEMENT){
     EXPECT_EQ(replaced.first_slot, placement.first_slot);
     EXPECT_FALSE(rrt::detail::placement_valid(harness.renderer, rrt::OverlayIndex{0}, placement));
     EXPECT_TRUE(rrt::detail::placement_valid(harness.renderer, rrt::OverlayIndex{0}, replaced));
+}
+
+TEST(RENDERING_RAYTRACING_POSE, OVERLAY_SNAPSHOT_MOVES_AN_OVERLAY_BETWEEN_RENDERERS){
+    DEVICE device;
+    Harness<MOTION_SPEC> source({chain(device)});
+    Harness<MOTION_SPEC> target({chain(device)});
+    const auto placement = spawn(source.device, source.renderer, rrt::OverlayIndex{0}, rrt::AssetHandle{0}, make_pose(rows(translation(1, 2, 3)).data()), nullptr, rendering::segmentation::AGENT);
+    const float coordinates[2] = {0.4f, -0.3f};
+    set_pose(source.device, source.renderer, rrt::OverlayIndex{0}, placement, make_pose(rows(translation(4, -1, .5) * rotation_z(0.3)).data(), 1.5f), coordinates);
+    update(source.device, source.renderer);
+    rrt::OverlaySnapshot<MOTION_SPEC> snapshot;
+    copy(source.device, source.renderer, rrt::OverlayIndex{0}, snapshot);
+    constexpr size_t ROW_BYTES = MOTION_SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float);
+    for(TI slot = 0; slot < MOTION_SPEC::MAX_OVERLAY_INSTANCES; slot++){
+        const auto& host = source.renderer.overlays[0].slots[slot];
+        EXPECT_EQ(snapshot.slots[slot].active, host.active ? 1u : 0u);
+        EXPECT_EQ(snapshot.slots[slot].object, host.object);
+        EXPECT_EQ(snapshot.slots[slot].segmentation_class, host.segmentation_class);
+    }
+    EXPECT_EQ(std::memcmp(snapshot.rows, data(source.renderer.transforms), ROW_BYTES), 0);
+    copy(target.device, snapshot, target.renderer, rrt::OverlayIndex{0});
+    EXPECT_TRUE(target.renderer.overlays[0].dirty);
+    update(target.device, target.renderer);
+    EXPECT_EQ(std::memcmp(data(target.renderer.transforms), data(source.renderer.transforms), ROW_BYTES), 0);
+    for(TI sample = 0; sample < MOTION_SPEC::MOTION_BLUR_SAMPLES; sample++){
+        EXPECT_EQ(std::memcmp(data(target.renderer.transforms_motion) + sample * MOTION_SPEC::MAX_OVERLAY_INSTANCES * 12, snapshot.rows, ROW_BYTES), 0);
+    }
+    for(TI slot = 0; slot < MOTION_SPEC::MAX_OVERLAY_INSTANCES; slot++){
+        const auto& restored = target.renderer.overlays[0].slots[slot];
+        const auto& original = source.renderer.overlays[0].slots[slot];
+        EXPECT_EQ(restored.active, original.active);
+        EXPECT_EQ(restored.object, original.object);
+        EXPECT_EQ(restored.segmentation_class, original.segmentation_class);
+    }
+}
+
+namespace {
+    struct FlowSinkSpec {
+        static constexpr TI NUM_OVERLAYS = 2, MAX_OVERLAY_INSTANCES = 3;
+        static constexpr bool HAS_FLOW_OVERLAYS = true;
+    };
+}
+
+TEST(RENDERING_RAYTRACING_POSE, ADVANCE_FLOW_OF_ONE_OVERLAY_ON_THE_SINK){
+    DEVICE device;
+    std::vector<float> current(2 * 3 * 12), previous(current.size(), -1.0f);
+    for(size_t element = 0; element < current.size(); element++){
+        current[element] = (float)element;
+    }
+    rrt::PoseSink<FlowSinkSpec> sink;
+    sink.transforms = current.data();
+    sink.transforms_previous = previous.data();
+    advance_flow(device, sink, rrt::OverlayIndex{1});
+    for(size_t element = 0; element < current.size(); element++){
+        EXPECT_EQ(previous[element], element < 36 ? -1.0f : current[element]) << "element " << element;
+    }
 }
 
 TEST(RENDERING_RAYTRACING_POSE, CAN_ADD_VALIDATES_PARTS_AND_JOINTS){

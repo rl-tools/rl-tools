@@ -69,24 +69,24 @@ namespace rl_tools {
         }
     }
 
-    RL_TOOLS_FUNCTION_PLACEMENT inline rendering::raytracing::Pose make_pose(const float base[12], float scale = 1, const float* coordinates = nullptr){
+    RL_TOOLS_FUNCTION_PLACEMENT inline rendering::raytracing::Pose make_pose(const float base[12], float scale = 1){
         rendering::raytracing::Pose pose;
         for(unsigned element = 0; element < 12; element++){
             pose.base[element] = base[element];
         }
         pose.scale = scale;
-        pose.coordinates = coordinates;
         return pose;
     }
 
     // the device verb behind the host set_pose: one placement's rows (and, under dynamic motion
-    // blur, the same rows in every motion sample) written into a pose sink
+    // blur, the same rows in every motion sample) written into a pose sink. coordinates are the
+    // asset's joint values in coordinate order, borrowed for the call; nullptr is the rest state
     template <typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void set_pose(DEVICE& device, const rendering::raytracing::PoseSink<SPEC>& sink, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const rendering::raytracing::Pose& pose){
+    RL_TOOLS_FUNCTION_PLACEMENT void set_pose(DEVICE& device, const rendering::raytracing::PoseSink<SPEC>& sink, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const rendering::raytracing::Pose& pose, const float* coordinates = nullptr){
         constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
         const size_t row = overlay.index * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot;
         float* close = sink.transforms + row * 12;
-        rendering::raytracing::detail::pose_rows(device, sink.parts + placement.first_part, placement.num_parts, pose.base, pose.scale, nullptr, pose.coordinates, false, 1.0f, close);
+        rendering::raytracing::detail::pose_rows(device, sink.parts + placement.first_part, placement.num_parts, pose.base, pose.scale, nullptr, coordinates, false, 1.0f, close);
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
             for(size_t sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
                 float* samples = sink.transforms_motion + (sample * SLOTS + row) * 12;
@@ -101,18 +101,29 @@ namespace rl_tools {
     // next frame see; sample s at (s + 0.5) / MOTION_BLUR_SAMPLES follows the constant-twist screw
     // between the bases with scale and coordinates interpolated
     template <typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void set_pose(DEVICE& device, const rendering::raytracing::PoseSink<SPEC>& sink, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const rendering::raytracing::Pose& open, const rendering::raytracing::Pose& close){
+    RL_TOOLS_FUNCTION_PLACEMENT void set_pose(DEVICE& device, const rendering::raytracing::PoseSink<SPEC>& sink, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const rendering::raytracing::Pose& open, const rendering::raytracing::Pose& close, const float* coordinates_open = nullptr, const float* coordinates_close = nullptr){
         static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "set_pose with shutter-open/close states requires a dynamic-motion-blur renderer specification");
         constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
         const size_t row = overlay.index * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot;
         const rendering::raytracing::AssetPart* parts = sink.parts + placement.first_part;
-        rendering::raytracing::detail::pose_rows(device, parts, placement.num_parts, close.base, close.scale, nullptr, close.coordinates, false, 1.0f, sink.transforms + row * 12);
+        rendering::raytracing::detail::pose_rows(device, parts, placement.num_parts, close.base, close.scale, nullptr, coordinates_close, false, 1.0f, sink.transforms + row * 12);
         for(size_t sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
             const float t = ((float)sample + 0.5f) / (float)SPEC::MOTION_BLUR_SAMPLES;
             float base[12];
             rendering::screw_interpolate(open.base, close.base, t, base);
             const float scale = open.scale + t * (close.scale - open.scale);
-            rendering::raytracing::detail::pose_rows(device, parts, placement.num_parts, base, scale, open.coordinates, close.coordinates, true, t, sink.transforms_motion + (sample * SLOTS + row) * 12);
+            rendering::raytracing::detail::pose_rows(device, parts, placement.num_parts, base, scale, coordinates_open, coordinates_close, true, t, sink.transforms_motion + (sample * SLOTS + row) * 12);
+        }
+    }
+
+    // flow: the previous instant of one overlay becomes its current instant (an episode reset: no
+    // motion of its own in the next frame); the device overload of advance_flow
+    template <typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void advance_flow(DEVICE& device, const rendering::raytracing::PoseSink<SPEC>& sink, rendering::raytracing::OverlayIndex overlay){
+        static_assert(SPEC::HAS_FLOW_OVERLAYS, "advance_flow of an overlay requires a flow renderer specification with overlays");
+        const size_t first = overlay.index * SPEC::MAX_OVERLAY_INSTANCES * 12;
+        for(size_t element = 0; element < SPEC::MAX_OVERLAY_INSTANCES * 12; element++){
+            sink.transforms_previous[first + element] = sink.transforms[first + element];
         }
     }
 }

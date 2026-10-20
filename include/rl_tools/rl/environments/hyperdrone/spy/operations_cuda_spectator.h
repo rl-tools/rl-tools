@@ -7,7 +7,6 @@
 #include "spectator.h"
 #include "../../../../rendering/raytracing/backends/optix/operations_cuda.h"
 
-#include <cstring>
 #include <stdexcept>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -24,8 +23,6 @@ namespace rl_tools::rl::environments::hyperdrone::spy {
         devices::CPU<SpectatorCudaDeviceSpecification> device;
         rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix> renderer;
         rendering::raytracing::Camera<typename CONFIG::T>* camera = nullptr;
-        rendering::raytracing::backends::optix::OverlaySlotStructure* structure = nullptr;
-        float* transforms = nullptr;
         uint32_t* pixels = nullptr;
     };
 }
@@ -51,10 +48,6 @@ namespace rl_tools {
         spy_spectator_cuda_check(cudaStreamCreateWithFlags(&device.stream, cudaStreamNonBlocking));
         spy_spectator_cuda_check(cudaMallocHost(&buffer.camera, sizeof(*buffer.camera)));
         spy_spectator_cuda_check(cudaMallocHost(&buffer.pixels, SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT * sizeof(*buffer.pixels)));
-        if constexpr(SPEC::ENABLE_OVERLAYS) {
-            spy_spectator_cuda_check(cudaMallocHost(&buffer.transforms, SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(*buffer.transforms)));
-            spy_spectator_cuda_check(cudaMallocHost(&buffer.structure, SPEC::MAX_OVERLAY_INSTANCES * sizeof(*buffer.structure)));
-        }
     }
 
     template <typename DEVICE, typename CONFIG>
@@ -67,35 +60,22 @@ namespace rl_tools {
         }
         cudaFreeHost(buffer.camera);
         cudaFreeHost(buffer.pixels);
-        cudaFreeHost(buffer.transforms);
-        cudaFreeHost(buffer.structure);
         if(device.stream != nullptr) {
             cudaStreamDestroy(device.stream);
             device.stream = nullptr;
         }
         buffer.camera = nullptr;
         buffer.pixels = nullptr;
-        buffer.transforms = nullptr;
-        buffer.structure = nullptr;
     }
 
     template <typename DEVICE, typename CONFIG>
-    void render_spy_spectator(DEVICE& device, rl::environments::hyperdrone::spy::SpectatorBuffer<CONFIG, rendering::raytracing::backends::Optix>& buffer, const rl::environments::hyperdrone::spy::SpectatorJob<typename CONFIG::T>& job, rl::environments::hyperdrone::spy::SpectatorImage& result) {
+    void render_spy_spectator(DEVICE& device, rl::environments::hyperdrone::spy::SpectatorBuffer<CONFIG, rendering::raytracing::backends::Optix>& buffer, const rl::environments::hyperdrone::spy::SpectatorJob<rendering::raytracing::Specification<CONFIG>>& job, rl::environments::hyperdrone::spy::SpectatorImage& result) {
         using SPEC = typename rl::environments::hyperdrone::spy::SpectatorBuffer<CONFIG, rendering::raytracing::backends::Optix>::SPEC;
         auto& renderer = buffer.renderer;
         *buffer.camera = job.camera;
         spy_spectator_cuda_check(cudaMemcpyAsync(data(cameras(device, renderer)), buffer.camera, sizeof(*buffer.camera), cudaMemcpyHostToDevice, device.stream));
         if constexpr(SPEC::ENABLE_OVERLAYS) {
-            for(size_t slot_i = 0; slot_i < SPEC::MAX_OVERLAY_INSTANCES; slot_i++) {
-                const auto& source = job.overlay[slot_i];
-                buffer.structure[slot_i].active = source.active ? 1u : 0u;
-                buffer.structure[slot_i].object = source.object;
-                buffer.structure[slot_i].segmentation_class = rendering::segmentation::INHERIT;
-                std::memcpy(buffer.transforms + slot_i * 12, source.transform, 12 * sizeof(float));
-            }
-            spy_spectator_cuda_check(cudaMemcpyAsync(data(renderer.transforms), buffer.transforms, SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), cudaMemcpyHostToDevice, device.stream));
-            spy_spectator_cuda_check(cudaMemcpyAsync(overlay_structure(device, renderer), buffer.structure, SPEC::MAX_OVERLAY_INSTANCES * sizeof(*buffer.structure), cudaMemcpyHostToDevice, device.stream));
-            renderer.overlays[0].dirty = false;
+            copy(device, job.overlay, renderer, rendering::raytracing::OverlayIndex{0});
             update_launch(device, renderer);
         }
         render_launch(device, renderer);

@@ -88,9 +88,13 @@ function(hyperdrone_component_libraries DEFINES OUT_LIBRARIES)
     endif()
 endfunction()
 
+set(render_sources renderer.cpp)
+if(HYPERDRONE_VARIANT STREQUAL "OPTIX")
+    list(APPEND render_sources set_pose_device.cu)
+endif()
 hyperdrone_jit_add_configs(
     COMPONENT render
     PYTHON_MODULE
-    SOURCES renderer.cpp
+    SOURCES ${render_sources}
     LINK RLtools::RLtools hyperdrone_render_stb hyperdrone_render_tooling
 )

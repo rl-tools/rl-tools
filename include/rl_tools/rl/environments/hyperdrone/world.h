@@ -271,8 +271,8 @@ namespace rl_tools::rl::environments::hyperdrone {
     inline constexpr size_t MAX_DRONE_PARTS = 8;
 
     // how a table entry is rendered (SELF_VISIBLE): its mesh (an index into
-    // SharedContext::drone_meshes, articulated against the entry's nominal rotors, so coordinate i
-    // is the phase of rotor i whatever the assembly's prop order) and that rotorcraft
+    // SharedContext::drone_meshes) and the rotorcraft fitted to the entry's nominal rotors, which
+    // maps the rotor phases onto the mesh's prop joints
     template <typename T_SPEC>
     struct DroneBody {
         using TI = typename T_SPEC::TI;
@@ -299,8 +299,8 @@ namespace rl_tools::rl::environments::hyperdrone {
         rendering::datasets::annotations::Cache annotation_cache;
         std::vector<Drone<SPEC>> drones;  // registered before the first World init
         TI num_drones = 0;  // 0 until built
-        // SELF_VISIBLE: one pooled mesh per distinct assembly content and joints, all with
-        // drone_parts parts (a swap then keeps every slot, see replace), and one body per entry
+        // SELF_VISIBLE: one pooled mesh per distinct assembly content, all with drone_parts parts
+        // (a swap then keeps every slot, see replace), and one body per entry
         std::vector<rendering::raytracing::AssetHandle> drone_meshes;
         TI drone_parts = 0;
         std::vector<DroneBody<SPEC>> drone_bodies;

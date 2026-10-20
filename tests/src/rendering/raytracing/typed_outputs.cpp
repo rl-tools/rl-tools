@@ -522,12 +522,12 @@ TEST(RENDERING_RAYTRACING_TYPED_OUTPUTS, SEMANTIC_PLACEMENT_CLASS) {
     auto placement = spawn(device, renderer, overlay, asset, make_pose(pose));
     expect_class(3);
     despawn(device, renderer, overlay, placement);
-    placement = spawn(device, renderer, overlay, asset, make_pose(pose), rendering::segmentation::AGENT);
+    placement = spawn(device, renderer, overlay, asset, make_pose(pose), nullptr, rendering::segmentation::AGENT);
     expect_class(rendering::segmentation::AGENT);
     placement = replace(device, renderer, overlay, placement, replacement);
     expect_class(rendering::segmentation::AGENT);
     despawn(device, renderer, overlay, placement);
-    placement = spawn(device, renderer, overlay, replacement, make_pose(pose), 9);
+    placement = spawn(device, renderer, overlay, replacement, make_pose(pose), nullptr, 9);
     expect_class(9);
     despawn(device, renderer, overlay, placement);
     spawn(device, renderer, overlay, replacement, make_pose(pose));

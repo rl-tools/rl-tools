@@ -5,6 +5,7 @@
 
 #include "../../../../rl_tools.h"
 #include "../../../segmentation.h"
+#include "../../pose.h"
 
 #include <cuda_runtime.h>
 
@@ -19,11 +20,7 @@ namespace rl_tools::rendering::raytracing::backends::optix{
     RL_TOOLS_FUNCTION_PLACEMENT constexpr unsigned int overlay_visibility_mask(unsigned int overlay){
         return 1u << (overlay % OVERLAYS_PER_ACCEL);
     }
-    struct OverlaySlotStructure{
-        unsigned int active;
-        unsigned int object;
-        unsigned int segmentation_class;
-    };
+    using OverlaySlotStructure = rendering::raytracing::OverlaySlotStructure;
     static_assert(sizeof(OverlaySlotStructure) == 12, "OverlaySlotStructure layout must match the fill kernel");
     struct OverlayObjectEntry{
         unsigned long long traversable;

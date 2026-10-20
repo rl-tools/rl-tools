@@ -198,6 +198,7 @@ struct DroneKernelParams {
     T center[3];
     T aspect;
     rlt::rendering::raytracing::OverlayPlacement placement;
+    rlt::rl::environments::hyperdrone::rig::Rotorcraft rotorcraft;
 };
 
 // single drone -> single thread: the whole per-frame state (pose pair, camera pair) is produced
@@ -216,11 +217,14 @@ __global__ void drone_frame_kernel(T_DEVICE device, DroneKernelParams params, T 
     pose_to_transform(pose_open, body_open);
     pose_to_transform(pose_close, body_close);
     float phases_open[4], phases_close[4];
-    for (TI prop_i = 0; prop_i < 4; prop_i++) {
-        phases_open[prop_i] = PROP_RATE * time_open;
-        phases_close[prop_i] = PROP_RATE * time_close;
+    for (TI rotor_i = 0; rotor_i < 4; rotor_i++) {
+        phases_open[rotor_i] = PROP_RATE * time_open;
+        phases_close[rotor_i] = PROP_RATE * time_close;
     }
-    rlt::set_pose(device, sink, rlt::rendering::raytracing::OverlayIndex{0}, params.placement, rlt::make_pose(body_open, 1, phases_open), rlt::make_pose(body_close, 1, phases_close));
+    float coordinates_open[4], coordinates_close[4];
+    rlt::coordinates(device, params.rotorcraft, phases_open, coordinates_open);
+    rlt::coordinates(device, params.rotorcraft, phases_close, coordinates_close);
+    rlt::set_pose(device, sink, rlt::rendering::raytracing::OverlayIndex{0}, params.placement, rlt::make_pose(body_open), rlt::make_pose(body_close), coordinates_open, coordinates_close);
 
     make_cameras(pose_open, params.aspect, cameras_open);
     make_cameras(pose_close, params.aspect, cameras_close);
@@ -287,6 +291,7 @@ int main(int argc, char** argv) {
     }
     kernel_params.aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
     kernel_params.placement = placement;
+    kernel_params.rotorcraft = rotorcraft;
 
     // publish the spawn (slot structure + attachments) and clear the pending host rows: from
     // here on the loop is producer-only, so update_launch never uploads anything

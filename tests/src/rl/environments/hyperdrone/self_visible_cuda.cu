@@ -211,10 +211,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, OWN_DRONE_AND_ARTICU
             float base[12];
             rlt::rl::environments::hyperdrone::rig::make_body_transform(device, state.orientation, state.position, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, base);
             float coordinates_open[WORLD::DYNAMICS_ENV::ACTION_DIM], coordinates_close[WORLD::DYNAMICS_ENV::ACTION_DIM];
-            rlt::rl::environments::hyperdrone::_drone_coordinates<DEVICE, WORLD_SPEC>(device, instance_parameters, (TI)0, state, coordinates_open, coordinates_close);
+            rlt::rl::environments::hyperdrone::_drone_coordinates<DEVICE, WORLD_SPEC>(device, instance_parameters, (TI)0, state, body.rotorcraft, coordinates_open, coordinates_close);
             using rlt::rotor_scale;
             const float scale = rotor_scale(device, body.rotorcraft, instance_parameters.agents[0].dynamics.dynamics.rotor_positions, (TI)WORLD::DYNAMICS_ENV::ACTION_DIM);
-            rlt::set_pose(device, sink, rlt::rendering::raytracing::OverlayIndex{instance_i}, placement, rlt::make_pose(base, scale, coordinates_close));
+            rlt::set_pose(device, sink, rlt::rendering::raytracing::OverlayIndex{instance_i}, placement, rlt::make_pose(base, scale), coordinates_close);
             for(TI part = 0; part < world.drone_parts; part++){
                 for(TI element = 0; element < 12; element++){
                     const TI index = (instance_i * MAX_SLOTS + world.drone_slot_offset + part) * 12 + element;

@@ -447,7 +447,7 @@ def test_overlay_pipeline(tmp_path):
     assert (assembly_placement.first_slot, assembly_placement.num_parts) == (0, 2)
     # part 0 stays at its rest frame, the prismatic joint slides part 1 from its rest at x = 3
     # into view at (0, 2, 0)
-    renderer.set_pose(assembly_placement, render.Pose(coordinates=[np.sqrt(13.0)]))
+    renderer.set_pose(assembly_placement, render.Pose(), coordinates=[np.sqrt(13.0)])
     renderer.update()
     renderer.render()
     segmentation = renderer.outputs[Segmentation()].read()

@@ -7,7 +7,6 @@
 #include "spectator.h"
 #include "../../../../rendering/raytracing/operations_cpu_mux.h"
 
-#include <algorithm>
 #include <stdexcept>
 #include <utility>
 
@@ -30,21 +29,14 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename CONFIG, typename BACKEND>
-    void render_spy_spectator(DEVICE& device, rl::environments::hyperdrone::spy::SpectatorBuffer<CONFIG, BACKEND>& buffer, const rl::environments::hyperdrone::spy::SpectatorJob<typename CONFIG::T>& job, rl::environments::hyperdrone::spy::SpectatorImage& result) {
+    void render_spy_spectator(DEVICE& device, rl::environments::hyperdrone::spy::SpectatorBuffer<CONFIG, BACKEND>& buffer, const rl::environments::hyperdrone::spy::SpectatorJob<rendering::raytracing::Specification<CONFIG>>& job, rl::environments::hyperdrone::spy::SpectatorImage& result) {
         using SPEC = typename rl::environments::hyperdrone::spy::SpectatorBuffer<CONFIG, BACKEND>::SPEC;
         auto& renderer = buffer.renderer;
         Tensor<typename decltype(renderer.cameras)::SPEC> camera_alias;
         camera_alias._data = const_cast<rendering::raytracing::Camera<typename CONFIG::T>*>(&job.camera);
         copy(device, renderer.device, camera_alias, cameras(device, renderer));
         if constexpr(SPEC::ENABLE_OVERLAYS) {
-            for(size_t slot_i = 0; slot_i < SPEC::MAX_OVERLAY_INSTANCES; slot_i++) {
-                const auto& source = job.overlay[slot_i];
-                auto& destination = renderer.overlays[0].slots[slot_i];
-                destination.active = source.active;
-                destination.object = source.object;
-                std::copy(source.transform, source.transform + 12, data(renderer.transforms) + slot_i * 12);
-            }
-            renderer.overlays[0].dirty = true;
+            copy(device, job.overlay, renderer, rendering::raytracing::OverlayIndex{0});
             update(device, renderer);
         }
         render(device, renderer);
@@ -68,7 +60,7 @@ namespace rl_tools {
         using BUFFER = spy::SpectatorBuffer<CONFIG>;
         using SPEC = typename BUFFER::SPEC;
         BUFFER buffer{};
-        spy::SpectatorJob<typename CONFIG::T> job;
+        spy::SpectatorJob<SPEC> job;
         spy::SpectatorImage result;
         const rendering::raytracing::Scene* current_scene = nullptr;
         const rendering::raytracing::AssetPool* current_pool = nullptr;
@@ -84,7 +76,7 @@ namespace rl_tools {
                     std::swap(job, spectator.request);
                     spectator.requested = false;
                 }
-                if(job.scene == nullptr || job.pool == nullptr || job.overlay.size() != SPEC::MAX_OVERLAY_INSTANCES) {
+                if(job.scene == nullptr || job.pool == nullptr) {
                     throw std::invalid_argument("HyperDrone spy: invalid spectator scene snapshot");
                 }
                 if(current_scene != job.scene || current_pool != job.pool) {
@@ -135,7 +127,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename CONFIG>
-    bool submit_spy_spectator(DEVICE&, rl::environments::hyperdrone::spy::Spectator<CONFIG>& spectator, rl::environments::hyperdrone::spy::SpectatorJob<typename CONFIG::T>& job) {
+    bool submit_spy_spectator(DEVICE&, rl::environments::hyperdrone::spy::Spectator<CONFIG>& spectator, rl::environments::hyperdrone::spy::SpectatorJob<rendering::raytracing::Specification<CONFIG>>& job) {
         std::unique_lock<std::mutex> lock(spectator.mutex, std::try_to_lock);
         if(!lock.owns_lock()) {
             return false;

@@ -105,9 +105,9 @@ namespace {
             EXPECT_EQ(std::vector<uint32_t>(state.buffer.atlas, state.buffer.atlas + expected.size()), expected);
             EXPECT_EQ(std::memcmp(&state.buffer.geometry.camera, &source_camera, sizeof(source_camera)), 0);
             for(size_t slot = 0; slot < 2; slot++) {
-                EXPECT_EQ(state.buffer.geometry.slots[slot].active, source_structure[slot].active != 0);
-                EXPECT_EQ(state.buffer.geometry.slots[slot].object, source_structure[slot].object);
-                EXPECT_EQ(std::memcmp(state.buffer.geometry.slots[slot].transform, source_transforms + slot * 12, 12 * sizeof(float)), 0);
+                EXPECT_EQ(state.buffer.geometry.overlay.slots[slot].active, source_structure[slot].active);
+                EXPECT_EQ(state.buffer.geometry.overlay.slots[slot].object, source_structure[slot].object);
+                EXPECT_EQ(std::memcmp(state.buffer.geometry.overlay.rows + slot * 12, source_transforms + slot * 12, 12 * sizeof(float)), 0);
             }
             ASSERT_EQ(cudaStreamSynchronize(producer), cudaSuccess);
             state.buffer.frames[0].valid = false;

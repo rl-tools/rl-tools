@@ -115,7 +115,7 @@ __global__ void produce_transforms_kernel(T_DEVICE device, KernelParams params, 
     if(blockIdx.x != 0 || threadIdx.x != 0){
         return;
     }
-    rlt::set_pose(device, sink, rlt::rendering::raytracing::OverlayIndex{0}, params.placement, rlt::make_pose(params.body_open, 1, params.phase_open), rlt::make_pose(params.body_close, 1, params.phase_close));
+    rlt::set_pose(device, sink, rlt::rendering::raytracing::OverlayIndex{0}, params.placement, rlt::make_pose(params.body_open), rlt::make_pose(params.body_close), params.phase_open, params.phase_close);
 }
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
@@ -210,7 +210,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
     std::vector<uint32_t> frame_device_path(NUM_CAMERAS * CAM_PIXELS);
 
     // host path: verbs
-    rlt::set_pose(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(params.body_open, 1, params.phase_open), rlt::make_pose(params.body_close, 1, params.phase_close));
+    rlt::set_pose(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(params.body_open), rlt::make_pose(params.body_close), params.phase_open, params.phase_close);
     rlt::update(device, renderer);
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
@@ -270,7 +270,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
             static_params.phase_open[rotor_i] = 0;
             static_params.phase_close[rotor_i] = 0;
         }
-        rlt::set_pose(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(static_params.body_open, 1, static_params.phase_open), rlt::make_pose(static_params.body_close, 1, static_params.phase_close));
+        rlt::set_pose(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(static_params.body_open), rlt::make_pose(static_params.body_close), static_params.phase_open, static_params.phase_close);
         rlt::update(device, renderer);
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
@@ -339,7 +339,7 @@ namespace general_pose_test {
         if(threadIdx.x != 0 || blockIdx.x != 0){
             return;
         }
-        rlt::set_pose(device, sink, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(base_open, 1, open), rlt::make_pose(base_close, 1.5f, close));
+        rlt::set_pose(device, sink, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(base_open), rlt::make_pose(base_close, 1.5f), open, close);
     }
 }
 
@@ -416,7 +416,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, GENERAL_KINEMATICS_HOST_DEVIC
     host_sink.transforms = expected.data();
     host_sink.transforms_motion = expected.data() + SLOTS * 12;
     host_sink.parts = parts.data();
-    rlt::set_pose(host, host_sink, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(base_open, 1, open), rlt::make_pose(base_close, 1.5f, close));
+    rlt::set_pose(host, host_sink, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(base_open), rlt::make_pose(base_close, 1.5f), open, close);
     float worst = 0;
     for(TI i = 0; i < ROWS; i++){
         const float error = std::abs(expected[i] - actual[i]);

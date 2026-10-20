@@ -531,7 +531,7 @@ Objects, scenes, assemblies and pools expose `remap_segmentation_classes(mapping
 
 Every part of an `ObjectAssembly` moves relative to its parent part (`add_part(object, transform, parent=...)`, or the enclosing node that `load_assembly(path, part_nodes=[...])` records; an enclosing node comes first) through its joint, by default `fixed`. `assembly.set_joint(part, "revolute", axis=..., pivot=..., coordinate=i)` turns the part (index or object name) and its children `coordinates[i]` radians about `axis` through `pivot`, both in the part frame; `"prismatic"` slides them `coordinates[i]` metres along `axis`. At zero coordinates every part sits at its rest frame. Joints are bound when the assembly enters the pool, which requires every coordinate below `assembly.num_coordinates` to drive a joint (several joints may share one).
 
-A placement's state is a `render.Pose(base, coordinates=None, scale=1.0)`: a rigid `(3, 4)` base, the asset's coordinates (default zero) and a uniform scale applied after the base. `spawn(overlay, asset, pose)` places an asset at a pose in both flow instants; `set_pose` is the one way to move it:
+A placement's rigid state is a `render.Pose(base, scale=1.0)`: a `(3, 4)` base and a uniform scale applied after it; the asset's joint coordinates (default the rest state) travel beside it as a `spawn` or `set_pose` argument. `spawn(overlay, asset, pose, coordinates=...)` places an asset in both flow instants; `set_pose` is the one way to move it:
 
 ```python
 drone = render.load_assembly(path)
@@ -539,16 +539,18 @@ rotorcraft = hyperdrone.Rotorcraft(drone, rotor_positions=rotors, rotor_torque_d
 asset = pool.add_assembly(drone)
 ...
 placement = renderer.spawn(0, asset)
-renderer.set_pose(placement, render.Pose(body, coordinates=phases, scale=rotorcraft.scale))
-renderer.set_pose(placement, render.Pose(body_open, coordinates=phases_open, scale=rotorcraft.scale),
-                  render.Pose(body_close, coordinates=phases_close, scale=rotorcraft.scale))
+renderer.set_pose(placement, render.Pose(body, scale=rotorcraft.scale), coordinates=rotorcraft.coordinates(phases))
+renderer.set_pose(placement, render.Pose(body_open, scale=rotorcraft.scale), render.Pose(body_close, scale=rotorcraft.scale),
+                  coordinates=rotorcraft.coordinates(phases_open), coordinates_close=rotorcraft.coordinates(phases_close))
 renderer.update()
 renderer.render()
 ```
 
 The two-pose form is the shutter (`dynamic_motion_blur=True`): the base follows the constant-twist screw between the states and the scale and coordinates interpolate before the kinematics, so a revolute joint keeps every revolution; the close state is what segmentation, probes and the next frame see, and all a renderer without dynamic motion blur uses.
 
-`hyperdrone.Rotorcraft(assembly, rotor_positions=None, rotor_torque_directions=None)` articulates a body/prop_* drone asset in place, as the environment does for `drone_asset=`: every `prop_*` part spins about its hub (the centre of its geometry), every other part is fixed. Without rotors coordinate i is the phase of the i-th prop spinning per Quad-X (front-right CCW) and `scale` is 1. Given a dynamics model's rotor layout (`sim.parameters["dynamics"]["dynamics"]`), each hub pairs with its nearest rotor: coordinate i is the phase of rotor i spinning against its reaction torque, so `sim.rotor_rpm()` supplies the speeds whose integral over the step advances the coordinates; `scale` fits the asset onto the rotors' wheelbase and `rotor_position_deviation` is the largest hub error as a fraction of the wheelbase (warned above 10%). `python -m hyperdrone.examples.articulation` renders a spinning hinge and a sliding block with motion blur; `hyperdrone/examples/Renderer.ipynb` flies the x500 with spinning props.
+A sequence of distinct placements moves as a batch: `pose.base` of shape `(B, 3, 4)` or `(B, 12)`, `pose.scale` a float or `(B,)`, `coordinates` `(B, C)` with `C` at least every placement's `num_coordinates` (each placement reads its own first columns), and likewise for the close state. On the OptiX backend CUDA tensors (any DLPack producer) run one kernel on the render stream after awaiting `stream=`, the producer's `cudaStream_t` handle, so a simulation that keeps its poses on the device feeds the renderer with no host data path per frame; host arrays loop the single-placement verb.
+
+`hyperdrone.Rotorcraft(assembly, rotor_positions=None, rotor_torque_directions=None)` articulates a body/prop_* drone asset in place, as the environment does for `drone_asset=`: prop p, the p-th `prop_*` part, spins about +z through its hub (the centre of its geometry) as coordinate p, every other part is fixed, and the asset carries nothing else. The convention that drives the props lives on the rotorcraft: `prop_rotor[p]` is the rotor driving prop p, `prop_spin[p]` its direction, and `rotorcraft.coordinates(rotor_phases)` maps a `(num_rotors,)` or batched `(..., num_rotors)` array of rotor phases (radians) onto the joints. Without rotors prop p follows rotor p spinning per Quad-X (front-right CCW) and `scale` is 1. Given a dynamics model's rotor layout (`sim.parameters["dynamics"]["dynamics"]`), each hub pairs with its nearest rotor and spins against its reaction torque, so `sim.rotor_rpm()` supplies the speeds whose integral over the step advances the phases; `scale` fits the asset onto the rotors' wheelbase and `rotor_position_deviation` is the largest hub error as a fraction of the wheelbase (warned above 10%). `python -m hyperdrone.examples.articulation` renders a spinning hinge and a sliding block with motion blur; `hyperdrone/examples/Renderer.ipynb` flies the x500 with spinning props.
 
 ## Stability
 

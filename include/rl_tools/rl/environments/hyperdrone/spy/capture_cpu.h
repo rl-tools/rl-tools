@@ -97,14 +97,7 @@ namespace rl_tools {
             auto& renderer = world.slots[world.active_slot].renderer;
             state.buffer.geometry.camera = data(cameras(device, renderer))[camera];
             if constexpr(WORLD::RENDERER_SPEC::ENABLE_OVERLAYS) {
-                for(size_t slot = 0; slot < WORLD::RENDERER_SPEC::MAX_OVERLAY_INSTANCES; slot++) {
-                    auto& destination = state.buffer.geometry.slots[slot];
-                    const auto& source = renderer.overlays[instance].slots[slot];
-                    destination.object = source.object;
-                    destination.active = source.active;
-                    const float* transform = data(renderer.transforms) + (instance * WORLD::RENDERER_SPEC::MAX_OVERLAY_INSTANCES + slot) * 12;
-                    std::copy_n(transform, 12, destination.transform);
-                }
+                copy(device, renderer, rendering::raytracing::OverlayIndex{instance}, state.buffer.geometry.overlay);
             }
         }
     }

@@ -62,18 +62,40 @@ def _as_transform(transform):
 
 @dataclass(frozen=True, eq=False)
 class Pose:
-    """The state of a placement: base, its rigid (3, 4) pose (default identity); coordinates, the
-    asset's joint values in coordinate order (default all zero, see ObjectAssembly.set_joint);
-    scale, a uniform size factor applied after the base (motion blur interpolates the rigid base)."""
+    """The rigid state of a placement: base, its (3, 4) pose (default identity), and scale, a
+    uniform size factor applied after the base (motion blur interpolates the rigid base). The
+    asset's joint coordinates travel beside it as a set_pose argument."""
     base: object = None
     _: KW_ONLY
-    coordinates: object = None
     scale: float = 1.0
 
     def _native(self):
         base = np.eye(4, dtype=np.float32)[:3] if self.base is None else _as_transform(self.base)
-        coordinates = None if self.coordinates is None else np.ascontiguousarray(_from_dlpack(self.coordinates), dtype=np.float32).reshape(-1)
-        return base, float(self.scale), coordinates
+        return base, float(self.scale)
+
+
+def _as_coordinates(coordinates):
+    return None if coordinates is None else np.ascontiguousarray(_from_dlpack(coordinates), dtype=np.float32).reshape(-1)
+
+
+def _as_batch(bases, scale, coordinates, count):
+    bases = np.broadcast_to(np.eye(4, dtype=np.float32)[:3], (count, 3, 4)) if bases is None else np.ascontiguousarray(_from_dlpack(bases), dtype=np.float32)
+    if bases.shape not in ((count, 3, 4), (count, 12)):
+        raise ValueError(f"hyperdrone: bases must have shape ({count}, 3, 4) or ({count}, 12) for the {count} placements")
+    scales = np.broadcast_to(np.asarray(scale, dtype=np.float32), (count,))
+    if coordinates is not None:
+        coordinates = np.ascontiguousarray(_from_dlpack(coordinates), dtype=np.float32)
+        if coordinates.ndim != 2 or coordinates.shape[0] != count:
+            raise ValueError(f"hyperdrone: coordinates must have shape ({count}, C) for the {count} placements")
+    return bases.reshape(count, 12), scales, coordinates
+
+
+def _device_scales(scale, what):
+    if _is_cuda(scale):
+        return scale
+    if np.isscalar(scale) and float(scale) == 1.0:
+        return None
+    raise ValueError(f"hyperdrone: {what} must be 1 or a CUDA array of shape (B,) in a device batch")
 
 
 class Renderer:
@@ -100,13 +122,14 @@ class Renderer:
         self.outputs = OutputCollection(self._renderer, cameras=self.config.cameras)
         self._scene = None
         self._asset_pool = None
+        self._pending_inputs = []
         self._pending_cameras = []
         self._live = {}
         self._generation = count()
         self._serial = next(_RENDERER_SERIALS)
 
     def __del__(self):
-        if getattr(self, "_pending_cameras", ()):
+        if getattr(self, "_pending_inputs", ()) or getattr(self, "_pending_cameras", ()):
             self._renderer.synchronize()
 
     @property
@@ -214,6 +237,7 @@ class Renderer:
 
     def render(self):
         self._renderer.render()
+        self._pending_inputs.clear()
         self._pending_cameras.clear()
 
     def render_launch(self):
@@ -221,11 +245,13 @@ class Renderer:
 
     def render_sync(self):
         self._renderer.render_sync()
+        self._pending_inputs.clear()
         self._pending_cameras.clear()
 
     def probe(self):
         self._require_probes()
         self._renderer.probe()
+        self._pending_inputs.clear()
         self._pending_cameras.clear()
 
     def probe_launch(self):
@@ -235,10 +261,12 @@ class Renderer:
     def probe_sync(self):
         self._require_probes()
         self._renderer.probe_sync()
+        self._pending_inputs.clear()
         self._pending_cameras.clear()
 
     def synchronize(self):
         self._renderer.synchronize()
+        self._pending_inputs.clear()
         self._pending_cameras.clear()
 
     def update(self):
@@ -258,11 +286,12 @@ class Renderer:
     def can_spawn(self, overlay, asset):
         return self._renderer.can_spawn(overlay, asset)
 
-    def spawn(self, overlay, asset, pose=None, *, segmentation_class=None):
-        """Place an asset at pose (default: the neutral Pose) in both flow instants, so it has no
-        motion of its own until set_pose moves it; segmentation_class labels every part instead
-        of the asset's authored classes."""
-        native = self._renderer.spawn(overlay, asset, *(pose or Pose())._native(), segmentation_class)
+    def spawn(self, overlay, asset, pose=None, *, coordinates=None, segmentation_class=None):
+        """Place an asset at pose (default: the neutral Pose) with its joints at coordinates
+        (default the rest state), in both flow instants, so it has no motion of its own until
+        set_pose moves it; segmentation_class labels every part instead of the asset's authored
+        classes."""
+        native = self._renderer.spawn(overlay, asset, *(pose or Pose())._native(), _as_coordinates(coordinates), segmentation_class)
         placement = OverlayPlacement(overlay=overlay, first_slot=native[0], num_parts=native[1], _generation=next(self._generation), _renderer=self._serial)
         self._live[(overlay, placement.first_slot)] = (placement, native)
         return placement
@@ -282,18 +311,64 @@ class Renderer:
         self._renderer.despawn(placement.overlay, native)
         del self._live[(placement.overlay, placement.first_slot)]
 
-    def set_pose(self, placement, pose, close=None):
-        """Move a placement: its parts land where the pose drives the asset's joints. With close,
-        pose is the shutter-open and close the shutter-close state (dynamic_motion_blur=True): the
-        base follows the constant-twist screw between them, scale and coordinates interpolate
-        (a revolute joint keeps every revolution in between); close is the steady state that
-        segmentation, probes and the next frame see, and all a renderer without dynamic motion
-        blur uses."""
-        native = self._native(placement)
-        if close is None:
-            self._renderer.set_pose(placement.overlay, native, *pose._native())
+    def set_pose(self, placement, pose, close=None, *, coordinates=None, coordinates_close=None, stream=0):
+        """Move a placement: its parts land where the pose and coordinates (the asset's joint
+        values in coordinate order, see ObjectAssembly.set_joint; default the rest state) drive
+        the asset's joints. With close, pose and coordinates are the shutter-open state and close
+        and coordinates_close the shutter-close state (dynamic_motion_blur=True): the base follows
+        the constant-twist screw between them, scale and coordinates interpolate (a revolute joint
+        keeps every revolution in between); the close state is what segmentation, probes and the
+        next frame see, and all a renderer without dynamic motion blur uses.
+
+        A sequence of B distinct placements moves them as a batch: pose.base is (B, 3, 4) or
+        (B, 12), pose.scale a float or (B,), coordinates (B, C) with C at least every placement's
+        num_coordinates, and likewise for close. Contiguous float32 CUDA tensors (DLPack, OptiX
+        backend) run one kernel on the render stream after awaiting stream, the producer's
+        cudaStream_t handle, and stay referenced until the frame is rendered; host arrays loop
+        the single-placement verb."""
+        if close is None and coordinates_close is not None:
+            raise ValueError("hyperdrone: coordinates_close belongs to the shutter-close state, pass close")
+        if isinstance(placement, OverlayPlacement):
+            native = self._native(placement)
+            if close is None:
+                self._renderer.set_pose(placement.overlay, native, *pose._native(), _as_coordinates(coordinates))
+                return
+            self._renderer.set_pose_pair(placement.overlay, native, *pose._native(), *close._native(), _as_coordinates(coordinates), _as_coordinates(coordinates_close))
             return
-        self._renderer.set_pose_pair(placement.overlay, native, *pose._native(), *close._native())
+        placements = list(placement)
+        natives = [self._native(entry) for entry in placements]
+        count = len(placements)
+        if len({(entry.overlay, entry.first_slot) for entry in placements}) != count:
+            raise ValueError("hyperdrone: a batch moves each placement once")
+        inputs = [pose.base, pose.scale, coordinates] + ([close.base, close.scale, coordinates_close] if close is not None else [])
+        if any(_is_cuda(value) for value in inputs):
+            self._require_device_inputs("set_pose_device")
+            for value, what in zip(inputs, ("base", "scale", "coordinates", "close.base", "close.scale", "coordinates_close")):
+                if value is not None and not np.isscalar(value) and not _is_cuda(value):
+                    raise ValueError(f"hyperdrone: {what} must be a CUDA tensor like the other inputs of this device batch")
+            scales = _device_scales(pose.scale, "scale")
+            scales_close = None if close is None else _device_scales(close.scale, "close.scale")
+            table = [(entry.overlay, *native) for entry, native in zip(placements, natives)]
+            self._renderer.set_pose_device(table, pose.base, scales, coordinates, None if close is None else close.base, scales_close, coordinates_close, int(stream))
+            self._pending_inputs.extend(value for value in inputs if value is not None)
+            return
+        bases, scales, batch_coordinates = _as_batch(pose.base, pose.scale, coordinates, count)
+        widths = [self._renderer.placement_coordinates(entry.overlay, native) for entry, native in zip(placements, natives)]
+
+        def row(table, index):
+            if table is None:
+                return None
+            if table.shape[1] < widths[index]:
+                raise ValueError("hyperdrone: coordinates need at least num_coordinates columns for every placement of the batch")
+            return table[index, :widths[index]]
+
+        if close is None:
+            for index, (entry, native) in enumerate(zip(placements, natives)):
+                self._renderer.set_pose(entry.overlay, native, bases[index], float(scales[index]), row(batch_coordinates, index))
+            return
+        bases_close, scales_close, batch_coordinates_close = _as_batch(close.base, close.scale, coordinates_close, count)
+        for index, (entry, native) in enumerate(zip(placements, natives)):
+            self._renderer.set_pose_pair(entry.overlay, native, bases[index], float(scales[index]), bases_close[index], float(scales_close[index]), row(batch_coordinates, index), row(batch_coordinates_close, index))
 
     def _require_device_inputs(self, name):
         if not hasattr(self._renderer, name):

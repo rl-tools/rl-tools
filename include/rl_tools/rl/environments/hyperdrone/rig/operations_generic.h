@@ -40,6 +40,14 @@ namespace rl_tools {
         utils::assert_exit(device, rendering::is_finite(scale) && scale > 0, "hyperdrone::rotor_scale: finite positive scale required");
         return scale;
     }
+
+    // the assembly's joint coordinates at the rotor phases: prop p turns prop_spin[p] * rotor_phases[prop_rotor[p]]
+    template <typename DEVICE, typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT void coordinates(DEVICE& device, const rl::environments::hyperdrone::rig::Rotorcraft& rotorcraft, const T* rotor_phases, float* out){
+        for(size_t prop_i = 0; prop_i < rotorcraft.num_props; prop_i++){
+            out[prop_i] = rotorcraft.prop_spin[prop_i] * (float)rotor_phases[rotorcraft.prop_rotor[prop_i]];
+        }
+    }
 }
 namespace rl_tools::rl::environments::hyperdrone::rig {
     template <typename DEVICE, typename T>

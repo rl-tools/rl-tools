@@ -54,8 +54,8 @@ namespace {
             stop_spy_spectator(device, spectator);
         }
 
-        spy::SpectatorJob<float> job(bool active = true, uint32_t object = 0) {
-            spy::SpectatorJob<float> result;
+        spy::SpectatorJob<rt::Specification<Config>> job(bool active = true, uint32_t object = 0) {
+            spy::SpectatorJob<rt::Specification<Config>> result;
             result.scene = &scene;
             result.pool = &pool;
             result.metadata.max_ray_length = 20;
@@ -63,7 +63,11 @@ namespace {
             const float forward[3] = {1, 0, 0};
             const float up[3] = {0, 0, 1};
             result.camera = make_camera_data(position, forward, up, 80.0f, static_cast<float>(Config::CAM_WIDTH) / Config::CAM_HEIGHT);
-            result.overlay.push_back({object, active, {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0}});
+            result.overlay.slots[0] = {active ? 1u : 0u, object, rendering::segmentation::INHERIT};
+            const float identity[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+            for(size_t element = 0; element < 12; element++) {
+                result.overlay.rows[element] = identity[element];
+            }
             result.member = 17;
             result.instance = 9;
             result.scene_version = 23;
@@ -71,7 +75,7 @@ namespace {
             return result;
         }
 
-        void submit_job(spy::SpectatorJob<float> request) {
+        void submit_job(spy::SpectatorJob<rt::Specification<Config>> request) {
             const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
             while(!submit_spy_spectator(device, spectator, request)) {
                 if(std::chrono::steady_clock::now() >= deadline) {
@@ -93,7 +97,7 @@ namespace {
             return result;
         }
 
-        spy::SpectatorImage render_job(spy::SpectatorJob<float> request) {
+        spy::SpectatorImage render_job(spy::SpectatorJob<rt::Specification<Config>> request) {
             submit_job(std::move(request));
             return await_result();
         }
@@ -111,7 +115,7 @@ namespace {
         EXPECT_GT(red.pixels[center] & 0xffu, (red.pixels[center] >> 8) & 0xffu);
         EXPECT_GT((green.pixels[center] >> 8) & 0xffu, green.pixels[center] & 0xffu);
         auto translated = job(true, 1);
-        translated.overlay[0].transform[7] = 10;
+        translated.overlay.rows[7] = 10;
         EXPECT_EQ(render_job(translated).pixels, background.pixels);
         EXPECT_EQ(render_job(job(false, 1)).pixels, background.pixels);
         EXPECT_EQ(render_job(job(true, 0)).pixels, red.pixels);
@@ -129,7 +133,7 @@ namespace {
         const auto switched_red = render_job(switched);
         EXPECT_EQ(switched_red.scene_version, switched.scene_version);
         EXPECT_EQ(switched_red.pixels, red.pixels);
-        switched.overlay[0].object = 2;
+        switched.overlay.slots[0].object = 2;
         EXPECT_EQ(render_job(switched).pixels, green.pixels);
         EXPECT_EQ(render_job(job(true, 0)).pixels, red.pixels);
         stop_spy_spectator(device, spectator);

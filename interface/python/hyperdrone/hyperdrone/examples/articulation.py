@@ -42,7 +42,7 @@ def main():
         time_open, time_close = frame / 30, (frame + 0.75) / 30
         coordinates_open = [12 * time_open, 0.3 * np.sin(4 * time_open)]
         coordinates_close = [12 * time_close, 0.3 * np.sin(4 * time_close)]
-        renderer.set_pose(placement, render.Pose(base, coordinates=coordinates_open), render.Pose(base, coordinates=coordinates_close))
+        renderer.set_pose(placement, render.Pose(base), render.Pose(base), coordinates=coordinates_open, coordinates_close=coordinates_close)
         renderer.update()
         renderer.render()
         frames.append(renderer.outputs[RGB("rgba8")].read()[0, ..., :3])

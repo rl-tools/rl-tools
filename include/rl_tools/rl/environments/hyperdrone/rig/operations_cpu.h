@@ -38,7 +38,8 @@ namespace rl_tools {
             float hub[3];   // hub in the assembly frame
         };
 
-        // validates the body/prop_* convention (the first part is "body", a prop_* part has geometry)
+        // validates the body/prop_* convention (the first part is "body", a prop_* part has geometry,
+        // at most Rotorcraft::MAX_PROPS props)
         inline bool collect_props(const rendering::ObjectAssembly& assembly, std::vector<Prop>& props){
             props.clear();
             if(assembly.parts.empty() || assembly.objects[assembly.parts[0].object].name != "body"){
@@ -66,7 +67,7 @@ namespace rl_tools {
                     return false;
                 }
             }
-            return true;
+            return props.size() <= Rotorcraft::MAX_PROPS;
         }
 
         template <typename DEVICE>
@@ -78,9 +79,8 @@ namespace rl_tools {
             return rotor_wheelbase(device, reinterpret_cast<const float(*)[3]>(hubs.data()), props.size());
         }
 
-        // prop p turns about its hub along the part's z with the sign spin[p] as coordinate
-        // coordinate_of_prop[p]; every other part is fixed
-        inline void articulate(rendering::ObjectAssembly& assembly, const std::vector<Prop>& props, const size_t* coordinate_of_prop, const float* spin){
+        // prop p turns about +z through its hub as coordinate p; every other part is fixed
+        inline void articulate(rendering::ObjectAssembly& assembly, const std::vector<Prop>& props){
             for(auto& part : assembly.parts){
                 part.joint = rendering::Joint{};
             }
@@ -89,38 +89,38 @@ namespace rl_tools {
                 joint.type = rendering::Joint::Type::REVOLUTE;
                 joint.axis[0] = 0;
                 joint.axis[1] = 0;
-                joint.axis[2] = spin[prop_i];
+                joint.axis[2] = 1;
                 for(unsigned dim = 0; dim < 3; dim++){
                     joint.pivot[dim] = props[prop_i].pivot[dim];
                 }
-                joint.coordinate = coordinate_of_prop[prop_i];
+                joint.coordinate = prop_i;
             }
         }
     }
 
-    // writes the rotorcraft joints onto a body/prop_* assembly by the Quad-X convention; false on
-    // convention violations (fail-fast for rigged-drone datasets), leaving the assembly unchanged
+    // writes the prop joints onto a body/prop_* assembly and the Quad-X convention onto the
+    // rotorcraft; false on convention violations (fail-fast for rigged-drone datasets), leaving
+    // the assembly unchanged
     template <typename DEVICE>
     bool init(DEVICE& device, rl::environments::hyperdrone::rig::Rotorcraft& rotorcraft, rendering::ObjectAssembly& assembly){
         std::vector<rl::environments::hyperdrone::rig::detail::Prop> props;
         if(!rl::environments::hyperdrone::rig::detail::collect_props(assembly, props)){
             return false;
         }
-        std::vector<size_t> coordinate_of_prop(props.size());
-        std::vector<float> spin(props.size());
-        for(size_t prop_i = 0; prop_i < props.size(); prop_i++){
-            coordinate_of_prop[prop_i] = prop_i;
-            spin[prop_i] = props[prop_i].hub[0] * props[prop_i].hub[1] < 0 ? 1.0f : -1.0f;
-        }
-        rl::environments::hyperdrone::rig::detail::articulate(assembly, props, coordinate_of_prop.data(), spin.data());
+        rl::environments::hyperdrone::rig::detail::articulate(assembly, props);
         rotorcraft = {};
         rotorcraft.wheelbase = rl::environments::hyperdrone::rig::detail::hub_wheelbase(device, props);
+        rotorcraft.num_props = props.size();
+        for(size_t prop_i = 0; prop_i < props.size(); prop_i++){
+            rotorcraft.prop_rotor[prop_i] = prop_i;
+            rotorcraft.prop_spin[prop_i] = props[prop_i].hub[0] * props[prop_i].hub[1] < 0 ? 1.0f : -1.0f;
+        }
         return true;
     }
 
-    // the same convention fitted to a dynamics model's rotors: each hub pairs with the nearest rotor
-    // in the XY plane after normalizing both layouts by their wheelbase (a bijection, else false),
-    // coordinate i is the phase of rotor i and the prop spins against the rotor's reaction torque
+    // the same joints with the convention fitted to a dynamics model's rotors: each hub pairs with
+    // the nearest rotor in the XY plane after normalizing both layouts by their wheelbase (a
+    // bijection, else false) and the prop spins against the rotor's reaction torque
     template <typename DEVICE, typename T, typename TI>
     bool init(DEVICE& device, rl::environments::hyperdrone::rig::Rotorcraft& rotorcraft, rendering::ObjectAssembly& assembly, const T rotor_positions[][3], const T rotor_torque_directions[][3], TI num_rotors){
         std::vector<rl::environments::hyperdrone::rig::detail::Prop> props;
@@ -136,8 +136,8 @@ namespace rl_tools {
         if(!rendering::is_finite(scale) || scale <= 0){
             return false;
         }
-        std::vector<size_t> coordinate_of_prop(props.size());
-        std::vector<float> spin(props.size());
+        rl::environments::hyperdrone::rig::Rotorcraft fitted{};
+        fitted.num_props = props.size();
         std::vector<bool> matched(num_rotors, false);
         T maximum_distance_squared = 0;
         for(size_t prop_i = 0; prop_i < props.size(); prop_i++){
@@ -158,10 +158,11 @@ namespace rl_tools {
             }
             matched[nearest] = true;
             maximum_distance_squared = nearest_distance > maximum_distance_squared ? nearest_distance : maximum_distance_squared;
-            coordinate_of_prop[prop_i] = (size_t)nearest;
-            spin[prop_i] = torque > 0 ? -1.0f : 1.0f;
+            fitted.prop_rotor[prop_i] = (size_t)nearest;
+            fitted.prop_spin[prop_i] = torque > 0 ? -1.0f : 1.0f;
         }
-        rl::environments::hyperdrone::rig::detail::articulate(assembly, props, coordinate_of_prop.data(), spin.data());
+        rl::environments::hyperdrone::rig::detail::articulate(assembly, props);
+        rotorcraft = fitted;
         rotorcraft.wheelbase = asset_wheelbase;
         rotorcraft.scale = scale;
         rotorcraft.rotor_position_deviation = (float)math::sqrt(device.math, maximum_distance_squared);

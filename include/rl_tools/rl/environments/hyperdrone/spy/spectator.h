@@ -28,14 +28,12 @@ namespace rl_tools::rl::environments::hyperdrone::spy {
         static constexpr TI MAX_OVERLAYS_PER_CAMERA = NUM_OVERLAYS;
     };
 
-    struct OverlaySlot {
-        uint32_t object = 0;
-        bool active = false;
-        float transform[12] = {};
-    };
-
-    template <typename T>
+    // one frame of a training renderer as the spectator re-renders it: the scene and pool it was
+    // built from, the camera and the overlay's snapshot
+    template <typename T_SPEC>
     struct SpectatorJob {
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
         const rendering::raytracing::Scene* scene = nullptr;
         const rendering::raytracing::AssetPool* pool = nullptr;
         rendering::SceneMetadata<T> metadata;
@@ -43,7 +41,7 @@ namespace rl_tools::rl::environments::hyperdrone::spy {
         size_t instance = 0;
         size_t scene_version = 0;
         rendering::raytracing::Camera<T> camera{};
-        std::vector<OverlaySlot> overlay;
+        rendering::raytracing::OverlaySnapshot<SPEC> overlay{};
         double captured_at = 0;
     };
 
@@ -61,7 +59,7 @@ namespace rl_tools::rl::environments::hyperdrone::spy {
         std::thread worker;
         std::mutex mutex;
         std::condition_variable wake;
-        SpectatorJob<typename CONFIG::T> request;
+        SpectatorJob<rendering::raytracing::Specification<CONFIG>> request;
         SpectatorImage result;
         std::exception_ptr error;
         bool stopping = false;

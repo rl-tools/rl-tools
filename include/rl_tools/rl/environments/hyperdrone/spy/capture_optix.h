@@ -8,7 +8,6 @@
 #include "../../../../rendering/raytracing/backends/optix/operations_cuda.h"
 
 #include <algorithm>
-#include <cstring>
 #include <stdexcept>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -22,14 +21,6 @@ namespace rl_tools::rl::environments::hyperdrone::spy {
         cudaEvent_t packed = nullptr;
         cudaEvent_t ready = nullptr;
         bool capturing = false;
-    };
-
-    template <typename CONFIG>
-    struct OptixGeometry {
-        static constexpr size_t SLOTS = Geometry<CONFIG>::SLOTS;
-        rendering::raytracing::Camera<typename CONFIG::T> camera;
-        rendering::raytracing::backends::optix::OverlaySlotStructure structure[SLOTS > 0 ? SLOTS : 1];
-        float transforms[SLOTS > 0 ? SLOTS : 1][12];
     };
 }
 
@@ -50,8 +41,8 @@ namespace rl_tools {
         spy_capture_cuda_check(cudaMalloc(&capture->device_atlas, atlas_bytes));
         std::fill_n(state.buffer.atlas, CONFIG::ATLAS_WIDTH * CONFIG::ATLAS_HEIGHT, 0xff202020);
         spy_capture_cuda_check(cudaMemcpy(capture->device_atlas, state.buffer.atlas, atlas_bytes, cudaMemcpyHostToDevice));
-        spy_capture_cuda_check(cudaMalloc(&capture->device_geometry, sizeof(spy::OptixGeometry<CONFIG>)));
-        spy_capture_cuda_check(cudaMallocHost(&capture->host_geometry, sizeof(spy::OptixGeometry<CONFIG>)));
+        spy_capture_cuda_check(cudaMalloc(&capture->device_geometry, sizeof(spy::Geometry<CONFIG>)));
+        spy_capture_cuda_check(cudaMallocHost(&capture->host_geometry, sizeof(spy::Geometry<CONFIG>)));
         spy_capture_cuda_check(cudaStreamCreateWithFlags(&capture->copy_stream, cudaStreamNonBlocking));
         spy_capture_cuda_check(cudaEventCreateWithFlags(&capture->packed, cudaEventDisableTiming));
         spy_capture_cuda_check(cudaEventCreateWithFlags(&capture->ready, cudaEventDisableTiming));
@@ -87,7 +78,7 @@ namespace rl_tools {
     template <typename DEVICE, typename CONFIG>
     void capture_spy_geometry(DEVICE& device, rl::environments::hyperdrone::spy::State<CONFIG>& state, typename CONFIG::ENVIRONMENT& env, cudaStream_t producer_stream) {
         using WORLD = typename CONFIG::WORLD;
-        using GEOMETRY = rl::environments::hyperdrone::spy::OptixGeometry<CONFIG>;
+        using GEOMETRY = rl::environments::hyperdrone::spy::Geometry<CONFIG>;
         auto& capture = *state.buffer.capture.state;
         capture.producer_stream = producer_stream;
         capture.capturing = true;
@@ -101,8 +92,10 @@ namespace rl_tools {
             auto* geometry = static_cast<GEOMETRY*>(capture.device_geometry);
             spy_capture_cuda_check(cudaMemcpyAsync(&geometry->camera, data(cameras(device, renderer)) + local_camera, sizeof(geometry->camera), cudaMemcpyDeviceToDevice, producer_stream));
             if constexpr(WORLD::RENDERER_SPEC::ENABLE_OVERLAYS) {
-                spy_capture_cuda_check(cudaMemcpyAsync(geometry->structure, overlay_structure(device, renderer) + instance_i * GEOMETRY::SLOTS, sizeof(geometry->structure), cudaMemcpyDeviceToDevice, producer_stream));
-                spy_capture_cuda_check(cudaMemcpyAsync(geometry->transforms, data(renderer.transforms) + instance_i * GEOMETRY::SLOTS * 12, sizeof(geometry->transforms), cudaMemcpyDeviceToDevice, producer_stream));
+                // the overlay snapshot read on the producer stream: the structure table and the rows through the sink
+                constexpr size_t SLOTS = WORLD::RENDERER_SPEC::MAX_OVERLAY_INSTANCES;
+                spy_capture_cuda_check(cudaMemcpyAsync(geometry->overlay.slots, overlay_structure(device, renderer) + instance_i * SLOTS, SLOTS * sizeof(rendering::raytracing::OverlaySlotStructure), cudaMemcpyDeviceToDevice, producer_stream));
+                spy_capture_cuda_check(cudaMemcpyAsync(geometry->overlay.rows, pose_sink(device, renderer).transforms + instance_i * SLOTS * 12, SLOTS * 12 * sizeof(float), cudaMemcpyDeviceToDevice, producer_stream));
             }
         }
     }
@@ -117,7 +110,7 @@ namespace rl_tools {
             spy_capture_cuda_check(cudaMemcpyAsync(state.buffer.atlas, capture.device_atlas, atlas_bytes, cudaMemcpyDeviceToHost, capture.copy_stream));
         }
         if(state.buffer.selected_valid) {
-            spy_capture_cuda_check(cudaMemcpyAsync(capture.host_geometry, capture.device_geometry, sizeof(rl::environments::hyperdrone::spy::OptixGeometry<CONFIG>), cudaMemcpyDeviceToHost, capture.copy_stream));
+            spy_capture_cuda_check(cudaMemcpyAsync(capture.host_geometry, capture.device_geometry, sizeof(rl::environments::hyperdrone::spy::Geometry<CONFIG>), cudaMemcpyDeviceToHost, capture.copy_stream));
         }
         spy_capture_cuda_check(cudaEventRecord(capture.ready, capture.copy_stream));
         state.buffer.pending = true;
@@ -132,16 +125,7 @@ namespace rl_tools {
         }
         spy_capture_cuda_check(status);
         if(state.buffer.selected_valid) {
-            const auto& geometry = *static_cast<const rl::environments::hyperdrone::spy::OptixGeometry<CONFIG>*>(capture.host_geometry);
-            state.buffer.geometry.camera = geometry.camera;
-            if constexpr(CONFIG::WORLD::RENDERER_SPEC::ENABLE_OVERLAYS) {
-                for(size_t slot_i = 0; slot_i < geometry.SLOTS; slot_i++) {
-                    auto& destination = state.buffer.geometry.slots[slot_i];
-                    destination.active = geometry.structure[slot_i].active != 0;
-                    destination.object = geometry.structure[slot_i].object;
-                    std::memcpy(destination.transform, geometry.transforms[slot_i], sizeof(destination.transform));
-                }
-            }
+            state.buffer.geometry = *static_cast<const rl::environments::hyperdrone::spy::Geometry<CONFIG>*>(capture.host_geometry);
         }
         capture.capturing = false;
         return true;

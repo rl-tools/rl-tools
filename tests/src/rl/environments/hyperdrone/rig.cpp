@@ -91,7 +91,7 @@ namespace {
     };
     Rows pose(DEVICE& device, const ASSEMBLY& assembly, const float base[12], float scale, const float* coordinates){
         Rows rows(assembly);
-        rlt::set_pose(device, rows.sink(), rlt::rendering::raytracing::OverlayIndex{0}, rows.placement(), rlt::make_pose(base, scale, coordinates));
+        rlt::set_pose(device, rows.sink(), rlt::rendering::raytracing::OverlayIndex{0}, rows.placement(), rlt::make_pose(base, scale), coordinates);
         return rows;
     }
 
@@ -135,6 +135,11 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, AUTHORED_TRANSFORMS_AND_WHEELBASE_
     const float pivot[3] = {0.015f,-0.025f,0};
     for(TI rotor = 0; rotor < 4; rotor++){
         EXPECT_EQ(fitted_assembly.parts[rotor + 1].joint.coordinate, rotor);
+        EXPECT_EQ(fitted_assembly.parts[rotor + 1].joint.axis[2], 1);
+        EXPECT_EQ(physical.prop_rotor[rotor], rotor);
+        EXPECT_EQ(fitted.prop_rotor[rotor], rotor);
+        EXPECT_EQ(fitted.prop_spin[rotor], torques[rotor][2] > 0 ? -1.0f : 1.0f);
+        EXPECT_EQ(physical.prop_spin[rotor], fitted.prop_spin[rotor]);
         float hub[3];
         rlt::rendering::transform_point(rows.part(rotor + 1), pivot, hub);
         EXPECT_NEAR(hub[0], rotors[rotor][0], 1e-6f);
@@ -168,7 +173,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, ROTOR_SCALE_PRESERVES_BODY_POSE_AN
         const float scale = rotor_scale(device, rotorcraft, current_rotors, TI(4));
         EXPECT_NEAR(scale, factor * 0.5f, 1e-6f);
         Rows rows(assembly);
-        rlt::set_pose(device, rows.sink(), rlt::rendering::raytracing::OverlayIndex{0}, rows.placement(), rlt::make_pose(base_open, scale, phases_open), rlt::make_pose(base_close, scale, phases_close));
+        rlt::set_pose(device, rows.sink(), rlt::rendering::raytracing::OverlayIndex{0}, rows.placement(), rlt::make_pose(base_open, scale), rlt::make_pose(base_close, scale), phases_open, phases_close);
         for(TI sample_i = 0; sample_i <= 4; sample_i++){
             const float* transforms = sample_i == 4 ? rows.part(0) : rows.sample(sample_i, 0);
             float base[12];
@@ -236,7 +241,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, MOTOR_LAYOUT_WARNING_AFTER_WHEELBA
                 EXPECT_NE(warning.find(threshold_message.str()), std::string::npos);
             }
             for(TI rotor = 0; rotor < 4; rotor++){
-                EXPECT_EQ(fitted.parts[permutation[rotor] + 1].joint.coordinate, rotor);
+                EXPECT_EQ(fitted.parts[permutation[rotor] + 1].joint.coordinate, permutation[rotor]);
+                EXPECT_EQ(rotorcraft.prop_rotor[permutation[rotor]], rotor);
             }
             ASSERT_TRUE(init(device, rotorcraft, fitted));
             EXPECT_EQ(rotorcraft.rotor_position_deviation, 0);
@@ -297,20 +303,22 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, INIT_X500){
     ASSERT_TRUE(rlt::init(device, rotorcraft, assembly));
     EXPECT_EQ(rlt::num_coordinates(device, assembly), 4);
     EXPECT_TRUE(assembly.parts[0].joint.type == rlt::rendering::Joint::Type::FIXED);
+    EXPECT_EQ(rotorcraft.num_props, 4);
     T direction_sum = 0;
-    TI coordinate = 0;
     for(TI part_i = 1; part_i < assembly.parts.size(); part_i++){
         const auto& joint = assembly.parts[part_i].joint;
+        const TI prop = part_i - 1;
         EXPECT_TRUE(joint.type == rlt::rendering::Joint::Type::REVOLUTE);
-        EXPECT_EQ(joint.coordinate, coordinate++);
-        EXPECT_TRUE(joint.axis[2] == (T)1 || joint.axis[2] == (T)-1);
+        EXPECT_EQ(joint.coordinate, prop);
+        EXPECT_EQ(joint.axis[2], (T)1);
+        EXPECT_EQ(rotorcraft.prop_rotor[prop], prop);
         // Quad-X: hubs sit off both body axes, front-right (+x, -y) spins CCW (+z)
         float hub[3];
         hub_in_assembly(assembly, part_i, hub);
         EXPECT_GT(std::abs(hub[0]), (T)1e-4);
         EXPECT_GT(std::abs(hub[1]), (T)1e-4);
-        EXPECT_EQ(joint.axis[2], hub[0] * hub[1] < 0 ? (T)1 : (T)-1);
-        direction_sum += joint.axis[2];
+        EXPECT_EQ(rotorcraft.prop_spin[prop], hub[0] * hub[1] < 0 ? (T)1 : (T)-1);
+        direction_sum += rotorcraft.prop_spin[prop];
     }
     EXPECT_EQ(direction_sum, (T)0);
 }
@@ -332,18 +340,23 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, MATCH_X500_ROTORS){
     EXPECT_TRUE(assembly.parts[0].joint.type == rlt::rendering::Joint::Type::FIXED);
     for(TI part_i = 1; part_i < 5; part_i++){
         const TI rotor_i = expected_rotor_of_part[part_i];
+        const TI prop = part_i - 1;
         const auto& joint = assembly.parts[part_i].joint;
-        EXPECT_EQ(joint.coordinate, rotor_i);
+        EXPECT_EQ(joint.coordinate, prop);
+        EXPECT_EQ(joint.axis[2], (T)1);
+        EXPECT_EQ(rotorcraft.prop_rotor[prop], rotor_i);
         float hub[3];
         hub_in_assembly(assembly, part_i, hub);
         EXPECT_GT(hub[0] * dynamics.rotor_positions[rotor_i][0], 0);
         EXPECT_GT(hub[1] * dynamics.rotor_positions[rotor_i][1], 0);
-        EXPECT_EQ(joint.axis[2], -dynamics.rotor_torque_directions[rotor_i][2]);
+        EXPECT_EQ(rotorcraft.prop_spin[prop], -dynamics.rotor_torque_directions[rotor_i][2]);
     }
-    // the convention-only rotorcraft agrees on the spin of every prop
-    ASSERT_TRUE(rlt::init(device, rotorcraft, heuristic));
+    // the joints are the asset's own and the convention-only rotorcraft agrees on every spin
+    ROTORCRAFT quad_x;
+    ASSERT_TRUE(rlt::init(device, quad_x, heuristic));
     for(TI part_i = 1; part_i < 5; part_i++){
-        EXPECT_EQ(heuristic.parts[part_i].joint.axis[2], assembly.parts[part_i].joint.axis[2]);
+        EXPECT_EQ(heuristic.parts[part_i].joint.coordinate, assembly.parts[part_i].joint.coordinate);
+        EXPECT_EQ(quad_x.prop_spin[part_i - 1], rotorcraft.prop_spin[part_i - 1]);
     }
 }
 
@@ -354,12 +367,14 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, SPIN_ABOUT_PIVOT){
     ASSERT_TRUE(rlt::init(device, rotorcraft, assembly));
     ASSERT_EQ(rlt::num_coordinates(device, assembly), 2);
     // Quad-X: (+x, +y) is front-left and spins CW, (-x, +y) rear-left spins CCW
-    EXPECT_EQ(assembly.parts[1].joint.axis[2], (T)-1);
-    EXPECT_EQ(assembly.parts[2].joint.axis[2], (T)1);
+    EXPECT_EQ(rotorcraft.prop_spin[0], (T)-1);
+    EXPECT_EQ(rotorcraft.prop_spin[1], (T)1);
 
     const float base[12] = {1,0,0,2, 0,1,0,0, 0,0,1,1};
     const float phases[2] = {(float)M_PI / 2, (float)M_PI / 2};
-    const auto rows = pose(device, assembly, base, 1, phases);
+    float joint_coordinates[2];
+    rlt::coordinates(device, rotorcraft, phases, joint_coordinates);
+    const auto rows = pose(device, assembly, base, 1, joint_coordinates);
     for(int element = 0; element < 12; element++){
         EXPECT_FLOAT_EQ(rows.part(0)[element], base[element]);
     }
@@ -395,14 +410,18 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, MATCH_ROTORS){
     ROTORCRAFT rotorcraft;
     ASSERT_TRUE(rlt::init(device, rotorcraft, assembly, rotor_positions, rotor_torque_directions, (TI)2));
     ASSERT_EQ(rlt::num_coordinates(device, assembly), 2);
-    EXPECT_EQ(assembly.parts[1].joint.coordinate, 1);
-    EXPECT_EQ(assembly.parts[2].joint.coordinate, 0);
-    EXPECT_EQ(assembly.parts[1].joint.axis[2], (T)1);
-    EXPECT_EQ(assembly.parts[2].joint.axis[2], (T)-1);
-    // coordinate i is rotor i: a quarter turn of rotor 1 moves prop_0, not prop_1
+    EXPECT_EQ(assembly.parts[1].joint.coordinate, 0);
+    EXPECT_EQ(assembly.parts[2].joint.coordinate, 1);
+    EXPECT_EQ(rotorcraft.prop_rotor[0], 1);
+    EXPECT_EQ(rotorcraft.prop_rotor[1], 0);
+    EXPECT_EQ(rotorcraft.prop_spin[0], (T)1);
+    EXPECT_EQ(rotorcraft.prop_spin[1], (T)-1);
+    // prop_0 follows rotor 1: a quarter turn of rotor 1 moves prop_0, not prop_1
     const float base[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
     const float phases[2] = {0, (float)M_PI / 2};
-    const auto rows = pose(device, assembly, base, 1, phases);
+    float joint_coordinates[2];
+    rlt::coordinates(device, rotorcraft, phases, joint_coordinates);
+    const auto rows = pose(device, assembly, base, 1, joint_coordinates);
     const float tip[3] = {-0.05f, 0.1f, 0};
     float tip_world[3];
     rlt::rendering::transform_point(rows.part(2), tip, tip_world);

@@ -84,7 +84,7 @@ namespace rl_tools {
         const T look[3] = {view.position[0] + math::cos(host.math, view.yaw) * math::cos(host.math, view.pitch), view.position[1] + math::sin(host.math, view.yaw) * math::cos(host.math, view.pitch), view.position[2] + math::sin(host.math, view.pitch)};
         const T up[3] = {0, 0, 1};
         job.camera = make_camera_data(view.position, look, up, T(80), T(CONFIG::SPECTATOR_CONFIG::CAM_WIDTH) / T(CONFIG::SPECTATOR_CONFIG::CAM_HEIGHT));
-        job.overlay.assign(buffer.geometry.slots, buffer.geometry.slots + WORLD::RENDERER_SPEC::MAX_OVERLAY_INSTANCES);
+        job.overlay = buffer.geometry.overlay;
         submit_spy_spectator(device, state.spectator, job);
     }
 
@@ -124,7 +124,6 @@ namespace rl_tools {
                 throw std::invalid_argument("HyperDrone spy atlas needs at least one pixel per camera");
             }
             state.views.resize(CONFIG::ENVIRONMENT::N_WORLDS * CONFIG::WORLD::INSTANCES);
-            state.buffer.job.overlay.reserve(CONFIG::WORLD::RENDERER_SPEC::MAX_OVERLAY_INSTANCES);
             malloc_spy_capture(device, state, typename CONFIG::BACKEND{});
         }
         catch(...) {

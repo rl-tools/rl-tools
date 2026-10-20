@@ -551,6 +551,6 @@ void register_rotorcraft_bindings(nb::module_& m){
                 throw std::invalid_argument("hyperdrone: the assembly does not follow the body/prop_* convention, or its prop hubs do not pair one-to-one with the rotors (nearest in the XY plane) with nonzero torque directions");
             }
         }
-        return nb::make_tuple(rotorcraft.wheelbase, rotorcraft.scale, rotorcraft.rotor_position_deviation);
+        return nb::make_tuple(rotorcraft.wheelbase, rotorcraft.scale, rotorcraft.rotor_position_deviation, std::vector<size_t>(rotorcraft.prop_rotor, rotorcraft.prop_rotor + rotorcraft.num_props), std::vector<float>(rotorcraft.prop_spin, rotorcraft.prop_spin + rotorcraft.num_props));
     }, nb::arg("assembly"), nb::arg("rotor_positions").none(), nb::arg("rotor_torque_directions").none());
 }

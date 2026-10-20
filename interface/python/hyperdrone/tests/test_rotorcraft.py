@@ -28,10 +28,10 @@ def two_prop_assembly():
     return asset
 
 
-def expect_joint(asset, part, axis_z, pivot, coordinate):
+def expect_joint(asset, part, pivot, coordinate):
     joint, axis, actual_pivot, actual_coordinate = asset.joint(part)
     assert joint == "revolute" and actual_coordinate == coordinate
-    np.testing.assert_array_equal(axis, [0, 0, axis_z])
+    np.testing.assert_array_equal(axis, [0, 0, 1])
     np.testing.assert_allclose(actual_pivot, pivot, atol=1e-7)
 
 
@@ -40,9 +40,13 @@ def test_rotorcraft_convention():
     rotorcraft = Rotorcraft(asset)
     assert rotorcraft.scale == 1 and rotorcraft.rotor_position_deviation == 0
     assert asset.joint("body")[0] == "fixed" and asset.num_coordinates == 2
-    # Quad-X: the front-left prop turns CW, the rear-left prop CCW, each about its hub
-    expect_joint(asset, "prop_0", -1, [0.1, 0.1, 0], 0)
-    expect_joint(asset, "prop_1", 1, [-0.1, 0.1, 0], 1)
+    expect_joint(asset, "prop_0", [0.1, 0.1, 0], 0)
+    expect_joint(asset, "prop_1", [-0.1, 0.1, 0], 1)
+    # Quad-X: the front-left prop turns CW, the rear-left prop CCW
+    np.testing.assert_array_equal(rotorcraft.prop_rotor, [0, 1])
+    np.testing.assert_array_equal(rotorcraft.prop_spin, [-1, 1])
+    np.testing.assert_array_equal(rotorcraft.coordinates([0.5, 0.25]), [-0.5, 0.25])
+    np.testing.assert_array_equal(rotorcraft.coordinates([[0.5, 0.25], [1, 2]]), [[-0.5, 0.25], [-1, 2]])
     unconventional = render.ObjectAssembly()
     unconventional.add_part(quad_xy(1, 0, 0.5, "prop_0"), pose())
     with pytest.raises(ValueError, match="body/prop_"):
@@ -56,9 +60,12 @@ def test_rotorcraft_matches_rotors():
     rotor_torque_directions = [[0, 0, 1], [0, 0, -1]]
     rotorcraft = Rotorcraft(asset, rotor_positions=rotor_positions, rotor_torque_directions=rotor_torque_directions)
     assert rotorcraft.scale == pytest.approx(2) and rotorcraft.rotor_position_deviation == pytest.approx(0, abs=1e-6)
-    # coordinate i is rotor i: rotor 1 sits over prop_0 and its -z reaction torque means a CCW spin
-    expect_joint(asset, "prop_0", 1, [0.1, 0.1, 0], 1)
-    expect_joint(asset, "prop_1", -1, [-0.1, 0.1, 0], 0)
+    # the joints are the asset's own; rotor 1 sits over prop_0 and its -z reaction torque means a CCW spin
+    expect_joint(asset, "prop_0", [0.1, 0.1, 0], 0)
+    expect_joint(asset, "prop_1", [-0.1, 0.1, 0], 1)
+    np.testing.assert_array_equal(rotorcraft.prop_rotor, [1, 0])
+    np.testing.assert_array_equal(rotorcraft.prop_spin, [1, -1])
+    np.testing.assert_array_equal(rotorcraft.coordinates([0.5, 0.25]), [0.25, -0.5])
     with pytest.raises(ValueError, match="together"):
         Rotorcraft(asset, rotor_positions=rotor_positions)
     with pytest.raises(ValueError, match="one-to-one"):
@@ -87,7 +94,7 @@ def test_rotorcraft_spins_props_in_the_renderer():
     placement = renderer.spawn(0, handle, render.Pose(facing))
     ids = []
     for coordinates in ([0, 0], [np.pi / 4, 0], [0, np.pi / 4]):
-        renderer.set_pose(placement, render.Pose(facing, coordinates=coordinates))
+        renderer.set_pose(placement, render.Pose(facing), coordinates=coordinates)
         renderer.update()
         renderer.render()
         ids.append(renderer.outputs[Segmentation()].read()[0].copy())
@@ -113,15 +120,22 @@ def test_rotorcraft_x500():
     rotor_positions = [[arm, -arm, 0], [-arm, -arm, 0], [-arm, arm, 0], [arm, arm, 0]]
     rotor_torque_directions = [[0, 0, -1], [0, 0, 1], [0, 0, -1], [0, 0, 1]]
     rotorcraft = Rotorcraft(drone, rotor_positions=rotor_positions, rotor_torque_directions=rotor_torque_directions)
-    Rotorcraft(convention)
+    quad_x = Rotorcraft(convention)
     assert drone.num_coordinates == 4
     assert rotorcraft.rotor_position_deviation < 0.1
+    props = [part for part in range(drone.num_parts) if drone.object_name(drone.part(part)[0]).startswith("prop_")]
     for rotor, (x, y, _) in enumerate(rotor_positions):
         name = f"prop_{[0, 3, 1, 2][rotor]}"
         joint, axis, pivot, coordinate = drone.joint(name)
-        assert joint == "revolute" and coordinate == rotor
-        # the prop turns against the rotor's reaction torque, as the Quad-X convention has it
-        assert axis[2] == -rotor_torque_directions[rotor][2] == convention.joint(name)[1][2]
         index = next(part for part in range(drone.num_parts) if drone.object_name(drone.part(part)[0]) == name)
+        prop = props.index(index)
+        assert joint == "revolute" and coordinate == prop and axis[2] == 1
+        quad_x_joint, quad_x_axis, quad_x_pivot, quad_x_coordinate = convention.joint(name)
+        assert quad_x_joint == joint and quad_x_coordinate == coordinate
+        np.testing.assert_array_equal(quad_x_axis, axis)
+        np.testing.assert_array_equal(quad_x_pivot, pivot)
+        assert rotorcraft.prop_rotor[prop] == rotor
+        # the prop turns against the rotor's reaction torque, as the Quad-X convention has it
+        assert rotorcraft.prop_spin[prop] == -rotor_torque_directions[rotor][2] == quad_x.prop_spin[prop]
         hub = drone.part(index)[1] @ [*pivot, 1]
         assert np.sign(hub[0]) == np.sign(x) and np.sign(hub[1]) == np.sign(y)

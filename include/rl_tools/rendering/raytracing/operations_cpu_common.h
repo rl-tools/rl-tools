@@ -162,6 +162,9 @@ namespace rl_tools {
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
             sink.transforms_motion = renderer.transforms_motion_staging.data();
         }
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+            sink.transforms_previous = renderer.transforms_previous_staging.data();
+        }
         sink.parts = renderer.asset_parts.data();
         return sink;
     }
@@ -638,27 +641,28 @@ namespace rl_tools {
         }
     }
 
-    // moves a placement: its rows from the pose through the asset's joints. Only the current
-    // instant changes: the flow pair advances through advance_flow (or spawn)
+    // moves a placement: its rows from the pose and the joint coordinates (nullptr: the rest
+    // state) through the asset's joints. Only the current instant changes: the flow pair advances
+    // through advance_flow (or spawn)
     template <typename DEVICE, typename SPEC, typename BACKEND>
-    void set_pose(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const rendering::raytracing::Pose& pose){
+    void set_pose(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const rendering::raytracing::Pose& pose, const float* coordinates = nullptr){
         static_assert(SPEC::ENABLE_OVERLAYS, "set_pose requires an overlay-enabled renderer specification");
         rendering::raytracing::detail::assert_placement(device, renderer, overlay, placement);
-        set_pose(device, rendering::raytracing::detail::staging_sink(renderer), overlay, placement, pose);
+        set_pose(device, rendering::raytracing::detail::staging_sink(renderer), overlay, placement, pose, coordinates);
         rendering::raytracing::detail::stage_pose(renderer, overlay, placement);
     }
 
     // shutter-open/close states for dynamic motion blur, see the pose sink overload
     template <typename DEVICE, typename SPEC, typename BACKEND>
-    void set_pose(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const rendering::raytracing::Pose& open, const rendering::raytracing::Pose& close){
+    void set_pose(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const rendering::raytracing::Pose& open, const rendering::raytracing::Pose& close, const float* coordinates_open = nullptr, const float* coordinates_close = nullptr){
         static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "set_pose with shutter-open/close states requires a dynamic-motion-blur renderer specification");
         rendering::raytracing::detail::assert_placement(device, renderer, overlay, placement);
-        set_pose(device, rendering::raytracing::detail::staging_sink(renderer), overlay, placement, open, close);
+        set_pose(device, rendering::raytracing::detail::staging_sink(renderer), overlay, placement, open, close, coordinates_open, coordinates_close);
         rendering::raytracing::detail::stage_pose(renderer, overlay, placement);
     }
 
-    // the resident inputs for device producers (set_pose on the sink inside their kernels), in the
-    // backend's memory domain; valid from init until free
+    // the resident rows for device producers (set_pose and advance_flow on the sink inside their
+    // kernels) and for readers, in the backend's memory domain; valid from init until free
     template <typename DEVICE, typename SPEC, typename BACKEND>
     rendering::raytracing::PoseSink<SPEC> pose_sink(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "pose_sink requires an overlay-enabled renderer specification");
@@ -667,13 +671,30 @@ namespace rl_tools {
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
             sink.transforms_motion = data(renderer.transforms_motion);
         }
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+            sink.transforms_previous = data(renderer.transforms_previous);
+        }
         sink.parts = renderer.asset_parts_resident != nullptr ? renderer.asset_parts_resident : renderer.asset_parts.data();
         return sink;
     }
 
-    // places an asset at pose in both flow instants: a fresh object has no motion of its own
+    // flow: the overlay's previous instant becomes the current instant as the host last wrote it
+    // (an episode reset: no motion of its own in the next frame); its rows go pending for the
+    // next update like set_pose's
     template <typename DEVICE, typename SPEC, typename BACKEND>
-    rendering::raytracing::OverlayPlacement spawn(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, rendering::raytracing::AssetHandle asset, const rendering::raytracing::Pose& pose = {}, unsigned int segmentation_class = rendering::segmentation::INHERIT){
+    void advance_flow(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay){
+        static_assert(SPEC::HAS_FLOW_OVERLAYS, "advance_flow of an overlay requires a flow renderer specification with overlays");
+        utils::assert_exit(device, overlay.index < SPEC::NUM_OVERLAYS, "advance_flow: overlay index out of range");
+        advance_flow(device, rendering::raytracing::detail::staging_sink(renderer), overlay);
+        for(size_t slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
+            renderer.transforms_previous_pending[overlay.index * SPEC::MAX_OVERLAY_INSTANCES + slot] = true;
+        }
+    }
+
+    // places an asset at pose and coordinates (nullptr: the rest state) in both flow instants: a
+    // fresh object has no motion of its own
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    rendering::raytracing::OverlayPlacement spawn(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, rendering::raytracing::AssetHandle asset, const rendering::raytracing::Pose& pose = {}, const float* coordinates = nullptr, unsigned int segmentation_class = rendering::segmentation::INHERIT){
         static_assert(SPEC::ENABLE_OVERLAYS, "spawn requires an overlay-enabled renderer specification");
         using TI = typename SPEC::TI;
         if(overlay.index >= SPEC::NUM_OVERLAYS){
@@ -705,7 +726,7 @@ namespace rl_tools {
         }
         state.dirty = true;
         const rendering::raytracing::OverlayPlacement placement{(size_t)first_slot, (size_t)record.num_parts, (size_t)record.first_part};
-        set_pose(device, renderer, overlay, placement, pose);
+        set_pose(device, renderer, overlay, placement, pose, coordinates);
         if constexpr (SPEC::HAS_FLOW_OVERLAYS){
             for(size_t part = 0; part < placement.num_parts; part++){
                 const size_t row = overlay.index * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot + part;
@@ -746,6 +767,53 @@ namespace rl_tools {
             state.dirty = true;
         }
         return {placement.first_slot, placement.num_parts, (size_t)record.first_part};
+    }
+
+    // the overlay's state as the renderer holds it: the slots from the host state, the rows from
+    // the resident tensor (what the last update published, or what a device producer wrote since).
+    // A snapshot is meaningful only between renderers built from the same scene and pool, whose
+    // global object ids agree, at equal capacity
+    template <typename DEVICE, typename SPEC, typename BACKEND, typename SNAPSHOT_SPEC>
+    void copy(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, rendering::raytracing::OverlaySnapshot<SNAPSHOT_SPEC>& snapshot){
+        static_assert(SPEC::ENABLE_OVERLAYS, "copy of an overlay requires an overlay-enabled renderer specification");
+        static_assert(SNAPSHOT_SPEC::MAX_OVERLAY_INSTANCES == SPEC::MAX_OVERLAY_INSTANCES, "copy: the snapshot needs the renderer's overlay capacity");
+        utils::assert_exit(device, overlay.index < SPEC::NUM_OVERLAYS, "copy: overlay index out of range");
+        const auto& state = renderer.overlays[overlay.index];
+        for(size_t slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
+            snapshot.slots[slot] = {state.slots[slot].active ? 1u : 0u, (unsigned int)state.slots[slot].object, state.slots[slot].segmentation_class};
+        }
+        std::memcpy(snapshot.rows, data(renderer.transforms) + overlay.index * SPEC::MAX_OVERLAY_INSTANCES * 12, SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float));
+    }
+
+    // restores an overlay from a snapshot of a renderer built from the same scene and pool: its
+    // slots into the host state (the next update rebuilds the structure) and its rows through the
+    // host mirror, pending for that update; under dynamic motion blur every sample takes the rows,
+    // a snapshot being a sharp instant
+    template <typename DEVICE, typename SPEC, typename BACKEND, typename SNAPSHOT_SPEC>
+    void copy(DEVICE& device, const rendering::raytracing::OverlaySnapshot<SNAPSHOT_SPEC>& snapshot, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay){
+        static_assert(SPEC::ENABLE_OVERLAYS, "copy of an overlay requires an overlay-enabled renderer specification");
+        static_assert(SNAPSHOT_SPEC::MAX_OVERLAY_INSTANCES == SPEC::MAX_OVERLAY_INSTANCES, "copy: the snapshot needs the renderer's overlay capacity");
+        using TI = typename SPEC::TI;
+        constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
+        utils::assert_exit(device, overlay.index < SPEC::NUM_OVERLAYS, "copy: overlay index out of range");
+        auto& state = renderer.overlays[overlay.index];
+        const size_t base = overlay.index * SPEC::MAX_OVERLAY_INSTANCES;
+        for(size_t slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
+            state.slots[slot].active = snapshot.slots[slot].active != 0;
+            state.slots[slot].object = (TI)snapshot.slots[slot].object;
+            state.slots[slot].segmentation_class = snapshot.slots[slot].segmentation_class;
+            renderer.transforms_pending[base + slot] = true;
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+                renderer.transforms_motion_pending[base + slot] = true;
+            }
+        }
+        state.dirty = true;
+        std::memcpy(renderer.transforms_staging.data() + base * 12, snapshot.rows, SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float));
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+            for(size_t sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+                std::memcpy(renderer.transforms_motion_staging.data() + (sample * SLOTS + base) * 12, snapshot.rows, SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float));
+            }
+        }
     }
 
     // camera input tensors, backend-native residency like transforms: device memory on OptiX,

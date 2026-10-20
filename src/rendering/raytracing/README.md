@@ -24,8 +24,10 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
 - **State is a tensor behind an accessor.** Renderer inputs and outputs are backend-native
   `Tensor` members exposed by accessors — `cameras()`, `cameras_open()`/`cameras_close()`
   (motion blur), `cameras_previous()` (flow: the previous instant), `pose_sink()` (overlays:
-  the resident per-slot geometry-to-world rows, per-sample under dynamic motion blur, written
-  only through `set_pose`) and `output(device, renderer, descriptor)`. Residency is a
+  the resident per-slot geometry-to-world rows, per-sample under dynamic motion blur and the
+  previous instant under flow, written through `set_pose` and `advance_flow`; an overlay moves
+  whole between renderers built from the same scene and pool as an `OverlaySnapshot` through
+  `copy`) and `output(device, renderer, descriptor)`. Residency is a
   backend property: CUDA device memory on OptiX, host on generic and WebGPU (WebGPU settles
   outputs from staging at the sync boundary), shared/mapped on Metal. Vulkan uses mapped device-local outputs when they fit; otherwise, device-local outputs are copied into stable host tensors at synchronization and output-copy boundaries.
 - **Data moves via tensor copies and kernels.** No raw backend handles or `cudaStream_t` appear in
@@ -58,8 +60,9 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   `MISS`, `BEHIND`, `OUT_OF_FRAME`, `OCCLUDED`, `VALID`; vectors are zero for the first two
   and retain their geometric displacement for the others. Visibility uses the relative margin
   `FLOW_VISIBILITY_EPSILON`. `advance_flow` → move/write → `update` → `render` publishes the
-  two instants; explicit producers can instead write `cameras_previous()`. Spawn initializes
-  previous equal to current. Attachment changes,
+  two instants; explicit producers can instead write `cameras_previous()` and call
+  `advance_flow(device, sink, overlay)` on the pose sink. Spawn initializes previous equal to
+  current. Attachment changes,
   non-rigid motion, rolling shutter, and flow through motion-blur samples are not modeled.
 - **Determinism is a contract.** Fixed seed ⇒ identical results, no atomics. The global
   instance-id layout (scene instances `[0,S)`, overlay `o` slot `s` at `S + o*MAX + s`) is
@@ -67,7 +70,7 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   When composing the scene and attached overlays, equal-distance hits retain the earlier result: scene first, then attachment-slot order. This does not define tie-breaking among primitives inside one acceleration structure.
 - **Dynamic motion blur** (`ENABLE_DYNAMIC_MOTION_BLUR`, requires motion blur + overlays):
   `render_launch` internally runs `MOTION_BLUR_SAMPLES` sequential passes, rebuilding the
-  overlay acceleration structures from the per-sample `transforms_motion()` slabs between
+  overlay acceleration structures from the pose sink's per-sample motion slabs between
   passes (OptiX rebuilds only for the first sample, which consumes device-written slot structures, and refits the transforms for the later samples and the shutter-close restore; camera lerped at the same `(i+0.5)/N` shutter times), accumulating linear radiance
   per pixel (each thread owns its pixel — no atomics), then restores the shutter-close overlay
   state (depth, segmentation and probes stay single-sample at shutter close, ids unchanged) and
@@ -83,19 +86,25 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   through `pivot`, part frame) or prismatic joint driven by `coordinates[joint.coordinate]`; at
   zero coordinates every part sits at its rest frame. `can_add` validates an assembly, and the
   pool registration flattens it into `AssetPart`s (`pose.h`) that `set_pose` evaluates. A
-  placement's state is a `Pose`: a rigid base, a uniform scale applied after it and the
-  coordinates; `spawn(…, pose)` sets both flow instants, `set_pose(device, renderer, overlay,
-  placement, pose[, close])` is the one way to move a placement, and a device kernel calls the
-  same `set_pose` on `pose_sink(device, renderer)`, which addresses the resident rows and asset
-  parts. The hyperdrone rotorcraft (`rl/environments/hyperdrone/rig`) writes these joints from
-  its body/prop_* convention, its props matched to the dynamics rotors.
+  placement's rigid state is a `Pose`, a base and a uniform scale applied after it, and its
+  joint coordinates travel beside it as a verb argument borrowed for the call (`nullptr`: the
+  rest state); `spawn(…, pose[, coordinates])` places it in both flow instants, `set_pose(device,
+  renderer, overlay, placement, pose[, close], coordinates[, coordinates_close])` is the one
+  way to move a placement, and a device kernel calls the same `set_pose` on `pose_sink(device,
+  renderer)`, which addresses the resident rows and asset parts. The hyperdrone rotorcraft
+  (`rl/environments/hyperdrone/rig`) writes the prop joints from its body/prop_* convention
+  and keeps the rotor-to-prop mapping and spin itself, so one asset serves every rotor layout;
+  `coordinates(device, rotorcraft, rotor_phases, out)` maps the phases onto the joints.
 - **GPU-resident dynamic motion blur** (OptiX): a sim kernel poses its placements through the
   pose sink and writes the camera pair in place, all on the render stream; the steady-state step is kernel → update → render with no
   host data path — the host's per-frame role is enqueues only (kernel launches,
   `optixAccelBuild` enqueues — one per group of up to eight overlays, which share an acceleration structure and are separated by per-overlay visibility masks — and OWL's constant 48-byte launch-param upload per launch). Host
   `set_pose` and device producers may share a renderer: the host verb writes the host mirror and
   marks its rows pending, `update` publishes exactly the pending rows (compacted into one
-  scatter on OptiX), and a producer owns every row the host has not marked. On generic/Vulkan/Metal the publish is
+  scatter on OptiX), and a producer owns every row the host has not marked; a `copy` of an
+  `OverlaySnapshot` into a renderer takes over its rows the same way and, on OptiX, leaves the
+  host placement state untouched, so that overlay is no longer editable through the placement
+  verbs (the spy's spectator restores captured overlays with it). On generic/Vulkan/Metal the publish is
   a memcpy into the host-resident tensors (residency is a backend property; Vulkan's and Metal's
   per-frame instance-descriptor composition is CPU-side by architecture). End-to-end example:
   `src/rendering/raytracing/example/drone_device.cu`.

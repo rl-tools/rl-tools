@@ -264,11 +264,14 @@ int main(int argc, char** argv) {
         pose_to_transform(pose_open, pose_transform_open);
         pose_to_transform(pose_close, pose_transform_close);
         T phases_open[4], phases_close[4];
-        for (TI prop_i = 0; prop_i < 4; prop_i++) {
-            phases_open[prop_i] = PROP_RATE * time_open;
-            phases_close[prop_i] = PROP_RATE * time_close;
+        for (TI rotor_i = 0; rotor_i < 4; rotor_i++) {
+            phases_open[rotor_i] = PROP_RATE * time_open;
+            phases_close[rotor_i] = PROP_RATE * time_close;
         }
-        rlt::set_pose(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(pose_transform_open, 1, phases_open), rlt::make_pose(pose_transform_close, 1, phases_close));
+        float coordinates_open[4], coordinates_close[4];
+        rlt::coordinates(device, rotorcraft, phases_open, coordinates_open);
+        rlt::coordinates(device, rotorcraft, phases_close, coordinates_close);
+        rlt::set_pose(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(pose_transform_open), rlt::make_pose(pose_transform_close), coordinates_open, coordinates_close);
 
         rlt::rendering::raytracing::Camera<T> cameras_open[NUM_CAMERAS], cameras_close[NUM_CAMERAS];
         make_cameras(pose_open, cameras_open);

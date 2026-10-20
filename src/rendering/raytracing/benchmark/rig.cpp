@@ -82,7 +82,7 @@ int main(){
             base[11] = (float(robot / 4) - 1.5f) * 0.8f;
             const float open[2] = {float(frame) * 0.2f, 0.1f};
             const float close[2] = {float(frame) * 0.2f + 7.f, 0.15f};
-            rlt::set_pose(device, renderer, rlt::rendering::raytracing::OverlayIndex{robot}, placements[robot], rlt::make_pose(base, 1, open), rlt::make_pose(base, 1, close));
+            rlt::set_pose(device, renderer, rlt::rendering::raytracing::OverlayIndex{robot}, placements[robot], rlt::make_pose(base), rlt::make_pose(base), open, close);
         }
         const auto posed = Clock::now();
         rlt::update(device, renderer);

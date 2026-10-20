@@ -142,8 +142,14 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, ROTOR_COORDINATES_WITH_MOTION_B
         state.rotor_phase[rotor_i] = (T)0.3 * (T)(rotor_i + 1);
         state.rpm[rotor_i] = (T)60 * (T)(rotor_i + 1);
     }
+    rlt::rl::environments::hyperdrone::rig::Rotorcraft identity;
+    identity.num_props = 4;
+    for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
+        identity.prop_rotor[rotor_i] = rotor_i;
+        identity.prop_spin[rotor_i] = 1;
+    }
     float open[4], close[4];
-    rlt::rl::environments::hyperdrone::_drone_coordinates<DEVICE, BLUR_SPEC>(device, parameters, (TI)0, state, open, close);
+    rlt::rl::environments::hyperdrone::_drone_coordinates<DEVICE, BLUR_SPEC>(device, parameters, (TI)0, state, identity, open, close);
     for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
         EXPECT_EQ(close[rotor_i], state.rotor_phase[rotor_i]);
         const T swept = (T)(rotor_i + 1) * (T)2 * rlt::math::PI<T> * parameters.agents[0].dynamics.integration.dt * parameters.shutter_fraction;
@@ -211,9 +217,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, BODY_SWAP_PRESERVES_WRAPPER_AND
             float base[12];
             rlt::rl::environments::hyperdrone::rig::make_body_transform(device, state.orientation, state.position, parameters.scene_translation, parameters.scene_yaw_cos, parameters.scene_yaw_sin, base);
             float open[4], close[4];
-            rlt::rl::environments::hyperdrone::_drone_coordinates<DEVICE, BLUR_SPEC>(device, parameters, agent_i, state, open, close);
+            rlt::rl::environments::hyperdrone::_drone_coordinates<DEVICE, BLUR_SPEC>(device, parameters, agent_i, state, bodies[mesh_i].rotorcraft, open, close);
             const float scale = bodies[mesh_i].rotorcraft.scale;
-            rlt::rl::environments::hyperdrone::_drone_rows(device, world, renderer, (TI)0, agent_i, bodies[mesh_i], rlt::make_pose(base, scale, open), rlt::make_pose(base, scale, close));
+            rlt::rl::environments::hyperdrone::_drone_rows(device, world, renderer, (TI)0, agent_i, bodies[mesh_i], rlt::make_pose(base, scale), open, close);
         }
         EXPECT_EQ(renderer.overlays[0].dirty, mesh_i != held);
         held = mesh_i;

@@ -119,7 +119,6 @@ namespace rl_tools {
             auto& renderer = get_renderer(device, world);
             if constexpr (BASE_SPEC::SELF_VISIBLE) {
                 // the setup's drone at rest at the target pose, overwritten by the next frame's rows
-                const float coordinates[NEXT_WORLD::DYNAMICS_ENV::ACTION_DIM] = {};
                 for (TI setup_i = 0; setup_i < WORLD::INSTANCES; setup_i++) {
                     const auto& setup = get_ref(device, setups, setup_i);
                     T orientation[4], position[3];
@@ -127,8 +126,8 @@ namespace rl_tools {
                     float base[12];
                     rig::make_body_transform(device, orientation, position, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, base);
                     const auto& body = get_ref(device, world.drone_bodies, setup.agents[0].drone);
-                    const auto pose = make_pose(base, rotor_scale(device, body.rotorcraft, setup.agents[0].dynamics.dynamics.rotor_positions, (TI)NEXT_WORLD::DYNAMICS_ENV::ACTION_DIM), coordinates);
-                    hyperdrone::_drone_rows(device, world, renderer, setup_i, (TI)0, body, pose, pose);
+                    const auto pose = make_pose(base, rotor_scale(device, body.rotorcraft, setup.agents[0].dynamics.dynamics.rotor_positions, (TI)NEXT_WORLD::DYNAMICS_ENV::ACTION_DIM));
+                    hyperdrone::_drone_rows(device, world, renderer, setup_i, (TI)0, body, pose, nullptr, nullptr);
                 }
                 update(device, renderer);
             }

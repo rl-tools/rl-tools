@@ -52,10 +52,9 @@ namespace rl_tools{
                 make_target_body_pose(device, setup.agents[0].cameras[World<TASK_SPEC>::TARGET_CAMERA], setup.target_roll, setup.target_pitch, orientation, position);
                 float base[12];
                 rig::make_body_transform(device, orientation, position, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, base);
-                const float coordinates[NEXT_WORLD::DYNAMICS_ENV::ACTION_DIM] = {};
                 const auto& body = get_ref(device, bodies, setup.agents[0].drone);
-                const auto pose = make_pose(base, rotor_scale(device, body.rotorcraft, setup.agents[0].dynamics.dynamics.rotor_positions, NEXT_WORLD::DYNAMICS_ENV::ACTION_DIM), coordinates);
-                hyperdrone::cuda::drone_entity_rows<DEVICE, typename NEXT_WORLD::SPEC>(device, sink, meshes, body.mesh, rendering::raytracing::OverlayIndex{setup_i}, slot_offset, parts, pose, pose);
+                const auto pose = make_pose(base, rotor_scale(device, body.rotorcraft, setup.agents[0].dynamics.dynamics.rotor_positions, NEXT_WORLD::DYNAMICS_ENV::ACTION_DIM));
+                hyperdrone::cuda::drone_entity_rows<DEVICE, typename NEXT_WORLD::SPEC>(device, sink, meshes, body.mesh, rendering::raytracing::OverlayIndex{setup_i}, slot_offset, parts, pose, nullptr, nullptr);
             }
         }
         template <typename DEVICE, typename TASK_SPEC, typename SETUPS_SPEC>

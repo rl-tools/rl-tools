@@ -58,11 +58,14 @@ namespace rl_tools::rl::environments::hyperdrone {
             State* state = nullptr;
         };
 
+        // the selected camera and its instance's overlay, captured from the training renderer in
+        // the spectator's snapshot type (the capacities agree by SpectatorConfig)
         template <typename CONFIG>
         struct Geometry {
-            static constexpr size_t SLOTS = CONFIG::WORLD::RENDERER_SPEC::MAX_OVERLAY_INSTANCES;
+            using SPECTATOR_SPEC = rendering::raytracing::Specification<typename CONFIG::SPECTATOR_CONFIG>;
+            static_assert(SPECTATOR_SPEC::MAX_OVERLAY_INSTANCES == CONFIG::WORLD::RENDERER_SPEC::MAX_OVERLAY_INSTANCES);
             rendering::raytracing::Camera<typename CONFIG::T> camera{};
-            OverlaySlot slots[SLOTS > 0 ? SLOTS : 1]{};
+            rendering::raytracing::OverlaySnapshot<SPECTATOR_SPEC> overlay{};
         };
 
         template <typename CONFIG>
@@ -73,7 +76,7 @@ namespace rl_tools::rl::environments::hyperdrone {
             Geometry<CONFIG> geometry{};
             CaptureStorage<typename CONFIG::BACKEND> capture;
             std::array<Frame, CONFIG::ENVIRONMENT::N_WORLDS> frames{};
-            SpectatorJob<typename CONFIG::T> job;
+            SpectatorJob<rendering::raytracing::Specification<typename CONFIG::SPECTATOR_CONFIG>> job;
             SpectatorImage image;
             size_t selected_camera = 0;
             bool selected_valid = false;

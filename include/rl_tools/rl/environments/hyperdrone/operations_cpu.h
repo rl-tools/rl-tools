@@ -131,8 +131,8 @@ namespace rl_tools {
         return (TI)world.entity_kinds.size() - 1;
     }
 
-    // builds the drone table once from the registered entries; SELF_VISIBLE articulates each
-    // entry's assembly against its nominal rotors and pools one mesh per distinct content and joints
+    // builds the drone table once from the registered entries; SELF_VISIBLE fits each entry's
+    // rotorcraft to its nominal rotors and pools one mesh per distinct assembly content
     template <typename DEVICE, typename SPEC>
     void init(DEVICE& device, rl::environments::hyperdrone::SharedContext<SPEC>& shared) {
         using TI = typename SPEC::TI;
@@ -148,16 +148,6 @@ namespace rl_tools {
         }
         if constexpr (SPEC::SELF_VISIBLE) {
             std::vector<std::string> content_hashes;
-            const auto same_joints = [](const rendering::ObjectAssembly& a, const rendering::ObjectAssembly& b) {
-                for (size_t part_i = 0; part_i < a.parts.size(); part_i++) {
-                    const auto& x = a.parts[part_i].joint;
-                    const auto& y = b.parts[part_i].joint;
-                    if (x.type != y.type || x.coordinate != y.coordinate || std::memcmp(x.axis, y.axis, sizeof(x.axis)) != 0 || std::memcmp(x.pivot, y.pivot, sizeof(x.pivot)) != 0) {
-                        return false;
-                    }
-                }
-                return true;
-            };
             for (auto& drone : shared.drones) {
                 std::string path, content_hash;
                 utils::assert_exit(device, !drone.asset.empty(), "hyperdrone::SharedContext: every drone needs an asset when SELF_VISIBLE");
@@ -173,7 +163,7 @@ namespace rl_tools {
                 utils::assert_exit(device, articulated, "hyperdrone::SharedContext: a drone asset needs a body and one prop_* per rotor, each hub nearest a distinct rotor with a nonzero reaction torque");
                 utils::assert_exit(device, assembly.parts.size() <= rl::environments::hyperdrone::MAX_DRONE_PARTS, "hyperdrone::SharedContext: a drone asset has more than MAX_DRONE_PARTS parts");
                 utils::assert_exit(device, shared.drone_bodies.empty() || assembly.parts.size() == shared.drone_parts, "hyperdrone::SharedContext: all drone assets need the same part count");
-                while (body.mesh < (TI)content_hashes.size() && (content_hashes[body.mesh] != content_hash || !same_joints(shared.library.pool.assemblies[shared.drone_meshes[body.mesh].index], assembly))) {
+                while (body.mesh < (TI)content_hashes.size() && content_hashes[body.mesh] != content_hash) {
                     body.mesh++;
                 }
                 if (body.mesh == (TI)content_hashes.size()) {
@@ -283,7 +273,7 @@ namespace rl_tools {
                     }
                     if constexpr (SPEC::SELF_VISIBLE) {
                         for (TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++) {
-                            const auto placement = spawn(render_device, slot.renderer, overlay, world.drone_meshes[0], rendering::raytracing::Pose{}, rendering::segmentation::AGENT);
+                            const auto placement = spawn(render_device, slot.renderer, overlay, world.drone_meshes[0], rendering::raytracing::Pose{}, nullptr, rendering::segmentation::AGENT);
                             utils::assert_exit(device, placement.first_slot == world.drone_slot_offset + agent_i * world.drone_parts, "hyperdrone::World: drone placement deviates from the drone region");
                         }
                     }
@@ -470,42 +460,46 @@ namespace rl_tools {
                 return state.agent_states[agent_i];
             }
         }
-        // the drone rig's coordinates (prop phases, one per rotor) of one agent at shutter open and
-        // close: the open phase trails the close phase by the spin during the shutter fraction;
-        // zero without a rotor-phase state
+        // the drone's joint coordinates of one agent at shutter open and close: the rotor phases
+        // (the open phase trails the close phase by the spin during the shutter fraction; zero
+        // without a rotor-phase state) mapped onto the props by the entry's rotorcraft
         template <typename DEVICE, typename SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT void _drone_coordinates(DEVICE& device, const Parameters<SPEC>& parameters, typename SPEC::TI agent_i, const typename World<SPEC>::DYNAMICS_ENV::State& agent_state, float open[World<SPEC>::DYNAMICS_ENV::ACTION_DIM], float close[World<SPEC>::DYNAMICS_ENV::ACTION_DIM]) {
+        RL_TOOLS_FUNCTION_PLACEMENT void _drone_coordinates(DEVICE& device, const Parameters<SPEC>& parameters, typename SPEC::TI agent_i, const typename World<SPEC>::DYNAMICS_ENV::State& agent_state, const rig::Rotorcraft& rotorcraft, float open[World<SPEC>::DYNAMICS_ENV::ACTION_DIM], float close[World<SPEC>::DYNAMICS_ENV::ACTION_DIM]) {
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             using WORLD = World<SPEC>;
             constexpr TI ROTORS = WORLD::DYNAMICS_ENV::ACTION_DIM;
+            float phases_open[ROTORS], phases_close[ROTORS];
             for (TI rotor_i = 0; rotor_i < ROTORS; rotor_i++) {
-                close[rotor_i] = 0;
+                phases_close[rotor_i] = 0;
                 if constexpr (world::HasRotorPhase<typename WORLD::DYNAMICS_ENV::State>::VALUE) {
-                    close[rotor_i] = (float)agent_state.rotor_phase[rotor_i];
+                    phases_close[rotor_i] = (float)agent_state.rotor_phase[rotor_i];
                 }
-                open[rotor_i] = close[rotor_i];
+                phases_open[rotor_i] = phases_close[rotor_i];
                 if constexpr (world::HasRotorPhase<typename WORLD::DYNAMICS_ENV::State>::VALUE && WORLD::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
                     const T dt = parameters.agents[agent_i].dynamics.integration.dt;
-                    open[rotor_i] = (float)((T)agent_state.rotor_phase[rotor_i] - rotor_angular_velocity_from_command(device, parameters.agents[agent_i].dynamics, agent_state.rpm[rotor_i]) * dt * parameters.shutter_fraction);
+                    phases_open[rotor_i] = (float)((T)agent_state.rotor_phase[rotor_i] - rotor_angular_velocity_from_command(device, parameters.agents[agent_i].dynamics, agent_state.rpm[rotor_i]) * dt * parameters.shutter_fraction);
                 }
             }
+            coordinates(device, rotorcraft, phases_open, open);
+            coordinates(device, rotorcraft, phases_close, close);
         }
         template <typename SPEC>
         rendering::raytracing::OverlayPlacement _entity_placement(const World<SPEC>& world, const typename World<SPEC>::EntityKind& kind) {
             return {kind.slot_offset, kind.num_parts, world.slots[world.active_slot].renderer.assets[kind.asset.index].first_part};
         }
         // the host counterpart of the device drone rows: swaps the agent's region to the mesh of
-        // the instance's drone entry (a no-op when it already holds it) and poses it
+        // the instance's drone entry (a no-op when it already holds it) and poses it; the body
+        // sits at the shutter-close pose, the props sweep from the open to the close coordinates
         template <typename DEVICE, typename SPEC, typename RENDERER>
-        void _drone_rows(DEVICE& device, const World<SPEC>& world, RENDERER& renderer, typename SPEC::TI instance_i, typename SPEC::TI agent_i, const DroneBody<SPEC>& body, const rendering::raytracing::Pose& open, const rendering::raytracing::Pose& close) {
+        void _drone_rows(DEVICE& device, const World<SPEC>& world, RENDERER& renderer, typename SPEC::TI instance_i, typename SPEC::TI agent_i, const DroneBody<SPEC>& body, const rendering::raytracing::Pose& pose, const float* coordinates_open, const float* coordinates_close) {
             const rendering::raytracing::OverlayIndex overlay{instance_i};
             const rendering::raytracing::OverlayPlacement region{world.drone_slot_offset + agent_i * world.drone_parts, world.drone_parts, 0};
             const auto placement = replace(device, renderer, overlay, region, world.drone_meshes[body.mesh]);
             if constexpr (World<SPEC>::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
-                set_pose(device, renderer, overlay, placement, open, close);
+                set_pose(device, renderer, overlay, placement, pose, pose, coordinates_open, coordinates_close);
             } else {
-                set_pose(device, renderer, overlay, placement, close);
+                set_pose(device, renderer, overlay, placement, pose, coordinates_close);
             }
         }
         // scene-under-drone: the dynamics state stays near the origin; the sampled indoor
@@ -819,10 +813,10 @@ namespace rl_tools {
                     float base[12];
                     rl::environments::hyperdrone::rig::make_body_transform(device, agent_state.orientation, agent_state.position, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, base);
                     float coordinates_open[WORLD::DYNAMICS_ENV::ACTION_DIM], coordinates_close[WORLD::DYNAMICS_ENV::ACTION_DIM];
-                    rl::environments::hyperdrone::_drone_coordinates<DEVICE, SPEC>(device, instance_parameters, agent_i, agent_state, coordinates_open, coordinates_close);
+                    rl::environments::hyperdrone::_drone_coordinates<DEVICE, SPEC>(device, instance_parameters, agent_i, agent_state, body.rotorcraft, coordinates_open, coordinates_close);
                     // the body is posed at shutter close; only the props blur
                     const float scale = rotor_scale(device, body.rotorcraft, instance_parameters.agents[agent_i].dynamics.dynamics.rotor_positions, (TI)WORLD::DYNAMICS_ENV::ACTION_DIM);
-                    rl::environments::hyperdrone::_drone_rows(device, world, renderer, instance_i, agent_i, body, make_pose(base, scale, coordinates_open), make_pose(base, scale, coordinates_close));
+                    rl::environments::hyperdrone::_drone_rows(device, world, renderer, instance_i, agent_i, body, make_pose(base, scale), coordinates_open, coordinates_close);
                 }
             }
         }
@@ -847,10 +841,7 @@ namespace rl_tools {
                         set(device, world.camera_staging_previous, get(device, world.camera_staging_close, camera_i), camera_i);
                     }
                     if constexpr (WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){
-                        for(TI slot = 0; slot < SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE; slot++){
-                            const TI row = instance_i * SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE + slot;
-                            rendering::raytracing::detail::stage_previous(renderer, row, renderer.transforms_staging.data() + row * 12);
-                        }
+                        advance_flow(device, renderer, rendering::raytracing::OverlayIndex{instance_i});
                     }
                 }
             }
