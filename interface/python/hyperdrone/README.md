@@ -115,6 +115,12 @@ objects or assemblies leaves the parent environment alone. Ambient affects `high
 and `veryhigh`, approximating indirect illumination without light bounces. Override
 imported settings with `scene.set_environment(...)` before `renderer.init(scene)`.
 
+Lights have a `radius`: metres for `SceneLight.point` / `spot`, an angular radius in radians for
+`SceneLight.directional`, default `0.1` (also for GLB lights, which glTF leaves sizeless). It
+widens `high` / `veryhigh` specular highlights by the light's apparent size, so smooth surfaces
+show the light's reflection instead of unboundedly bright sub-pixel glints; `radius=0` gives
+ideal point lights.
+
 `render()` acquires the declared image outputs; `render_launch()` and `render_sync()` split submission from waiting. Reads never create a capture or advance temporal state. Declare `Probes()` on the cameras that need collision probes, set `num_probes` per selected camera, call `generate_probe_directions()`, and execute `probe()` separately. `renderer.outputs[Probes()].distance.read()` returns float32 distances; `.hit.read()` returns native int32 hit flags. Probe 0 follows the camera's principal axis; remaining directions form a fixed Fibonacci set in camera FLU coordinates.
 
 ### Output buffers and DLPack
@@ -426,12 +432,12 @@ venv → vendored-tree render).
 
 `scripts/benchmark_camera_outputs.py` compares fixed full and compact rigs on a procedural scene, checks identical shared outputs and renamed-config cache reuse, and reports output bytes, render/read timings, and Python allocation peaks. It logs to metra when `METRA_URL` is set; allocation peaks exclude native buffers, and reads use CPU destinations.
 
-`render.datasets.Train200()` exposes the header-pinned 200-scene ProcTHOR training subset (scene IDs 0–199). Catalog access loads the native core without resolving assets; use `dataset["ProcTHOR-Train-1"].reference` with `render.load_scene`, or `dataset.references[:4]` with `HyperDrone`. The RLtools commit identifies the catalog's membership, order, and hashes. This collection's Train-1 artifact differs from the scene pinned by `examples.data.procthor_scene_path()` and the rendering goldens.
+`render.datasets.procthor.Train200()` exposes the header-pinned 200-scene ProcTHOR training subset (scene IDs 0–199). Catalog access loads the native core without resolving assets; use `dataset["ProcTHOR-Train-1"].reference` with `render.load_scene`, or `dataset.references[:4]` with `HyperDrone`. The RLtools commit identifies the catalog's membership, order, and hashes. This collection's Train-1 artifact differs from the scene pinned by `examples.data.procthor_scene_path()` and the rendering goldens.
 
 ```python
 from hyperdrone import render
 
-dataset = render.datasets.Train200()
+dataset = render.datasets.procthor.Train200()
 scene = render.load_scene(dataset["ProcTHOR-Train-1"].reference)
 ```
 

@@ -7,7 +7,7 @@ from hyperdrone import render
 
 def test_catalog_identity_without_asset_resolution(monkeypatch, tmp_path):
     monkeypatch.setenv("CONTA_ROOT", str(tmp_path / "missing_store"))
-    dataset = render.datasets.Train200()
+    dataset = render.datasets.procthor.Train200()
     assert dataset.name == "procthor_train_200"
     assert dataset.source == "ai2thor-hab/ProcTHOR"
     assert dataset.split == "train"
@@ -20,7 +20,7 @@ def test_catalog_identity_without_asset_resolution(monkeypatch, tmp_path):
 
 
 def test_scene_lookup_and_immutable_catalog():
-    dataset = render.datasets.Train200()
+    dataset = render.datasets.procthor.Train200()
     assert dataset["ProcTHOR-Train-1"].reference == "conta:07b9d8e44f3891573b6292f8cc47bf7725a43b89"
     assert dataset[-1].id == "ProcTHOR-Train-199"
     assert dataset[-200].id == "ProcTHOR-Train-0"

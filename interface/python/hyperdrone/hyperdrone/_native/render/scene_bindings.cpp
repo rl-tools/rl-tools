@@ -248,22 +248,24 @@ NB_MODULE(hyperdrone_render_core, m){
     m.attr("HAS_CUDA") = false;
 #endif
     nb::class_<rrt::SceneLight>(m, "SceneLight")
-        .def_static("directional", [](Vec3 direction, Vec3 color){
+        .def_static("directional", [](Vec3 direction, Vec3 color, float radius){
             rrt::SceneLight light{};
             light.type = 0;
             for(int i = 0; i < 3; i++){ light.direction[i] = direction[i]; light.color[i] = color[i]; }
+            light.radius = radius;
             return light;
-        }, nb::arg("direction"), nb::arg("color"))
-        .def_static("point", [](Vec3 position, Vec3 color, Vec3 attenuation){
+        }, nb::arg("direction"), nb::arg("color"), nb::kw_only(), nb::arg("radius") = rrt::SceneLight{}.radius, "radius: angular radius (rad)")
+        .def_static("point", [](Vec3 position, Vec3 color, Vec3 attenuation, float radius){
             rrt::SceneLight light{};
             light.type = 1;
             for(int i = 0; i < 3; i++){ light.position[i] = position[i]; light.color[i] = color[i]; }
             light.attenuation_constant = attenuation[0];
             light.attenuation_linear = attenuation[1];
             light.attenuation_quadratic = attenuation[2];
+            light.radius = radius;
             return light;
-        }, nb::arg("position"), nb::arg("color"), nb::kw_only(), nb::arg("attenuation") = Vec3{1.0f, 0.0f, 0.0f})
-        .def_static("spot", [](Vec3 position, Vec3 direction, Vec3 color, float cos_inner_cone, float cos_outer_cone, Vec3 attenuation){
+        }, nb::arg("position"), nb::arg("color"), nb::kw_only(), nb::arg("attenuation") = Vec3{1.0f, 0.0f, 0.0f}, nb::arg("radius") = rrt::SceneLight{}.radius, "radius: sphere radius (m)")
+        .def_static("spot", [](Vec3 position, Vec3 direction, Vec3 color, float cos_inner_cone, float cos_outer_cone, Vec3 attenuation, float radius){
             rrt::SceneLight light{};
             light.type = 2;
             for(int i = 0; i < 3; i++){ light.position[i] = position[i]; light.direction[i] = direction[i]; light.color[i] = color[i]; }
@@ -272,9 +274,11 @@ NB_MODULE(hyperdrone_render_core, m){
             light.attenuation_constant = attenuation[0];
             light.attenuation_linear = attenuation[1];
             light.attenuation_quadratic = attenuation[2];
+            light.radius = radius;
             return light;
-        }, nb::arg("position"), nb::arg("direction"), nb::arg("color"), nb::kw_only(), nb::arg("cos_inner_cone"), nb::arg("cos_outer_cone"), nb::arg("attenuation") = Vec3{1.0f, 0.0f, 0.0f})
-        .def_prop_ro("type", [](const rrt::SceneLight& light){ return light.type; });
+        }, nb::arg("position"), nb::arg("direction"), nb::arg("color"), nb::kw_only(), nb::arg("cos_inner_cone"), nb::arg("cos_outer_cone"), nb::arg("attenuation") = Vec3{1.0f, 0.0f, 0.0f}, nb::arg("radius") = rrt::SceneLight{}.radius, "radius: sphere radius (m)")
+        .def_prop_ro("type", [](const rrt::SceneLight& light){ return light.type; })
+        .def_prop_ro("radius", [](const rrt::SceneLight& light){ return light.radius; });
 
     nb::class_<rrt::Mesh>(m, "Mesh")
         .def("__init__", [](rrt::Mesh* mesh, FloatArray vertices, nb::ndarray<const int32_t, nb::c_contig, nb::device::cpu> indices,

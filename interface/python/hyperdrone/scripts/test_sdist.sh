@@ -23,7 +23,7 @@ from hyperdrone import _jit as jit, render
 
 root = jit.source_root()
 assert "_vendor" in str(root), f"expected the vendored tree, resolved {root}"
-dataset = render.datasets.Train200()
+dataset = render.datasets.procthor.Train200()
 assert len(dataset) == 200
 assert dataset["ProcTHOR-Train-1"].reference == "conta:07b9d8e44f3891573b6292f8cc47bf7725a43b89"
 scene = render.Scene()

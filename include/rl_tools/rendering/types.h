@@ -77,6 +77,9 @@ namespace rl_tools {
             float attenuation_quadratic;
             float cos_inner_cone;
             float cos_outer_cone;
+            // point/spot: sphere radius (m), directional: angular radius (rad); glTF lights carry no size, and without one a
+            // smooth surface turns them into unboundedly bright sub-pixel glints
+            float radius = 0.1f;
         };
 
         struct CollisionResult {

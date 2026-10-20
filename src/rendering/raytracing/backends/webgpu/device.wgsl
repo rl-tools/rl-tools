@@ -258,6 +258,7 @@ struct SceneLight{
     attenuation_quadratic: f32,
     cos_inner_cone: f32,
     cos_outer_cone: f32,
+    radius: f32,
 }
 
 // exactly 8 storage buffers (browsers tier maxStorageBuffersPerShaderStage to the spec default
@@ -323,7 +324,7 @@ fn camera_close(cam_idx: i32) -> Camera{ return load_camera(u32(cam_idx)); }
 fn camera_open(cam_idx: i32) -> Camera{ return load_camera(params.num_cameras + u32(cam_idx)); }
 
 fn load_scene_light(light_i: u32) -> SceneLight{
-    let base = params.scene_lights_offset + light_i * 15u;
+    let base = params.scene_lights_offset + light_i * 16u;
     var light: SceneLight;
     light.light_type = bitcast<i32>(geometry_u32(base));
     light.position = array<f32, 3>(geometry_f32(base + 1u), geometry_f32(base + 2u), geometry_f32(base + 3u));
@@ -334,6 +335,7 @@ fn load_scene_light(light_i: u32) -> SceneLight{
     light.attenuation_quadratic = geometry_f32(base + 12u);
     light.cos_inner_cone = geometry_f32(base + 13u);
     light.cos_outer_cone = geometry_f32(base + 14u);
+    light.radius = geometry_f32(base + 15u);
     return light;
 }
 
@@ -921,7 +923,6 @@ fn shade_pbr_local(region: u32, hit: Hit, ray_origin: vec3<f32>, ray_dir: vec3<f
 
         roughness = max(roughness, 0.04);
         let roughness_alpha = roughness * roughness;
-        let alpha2 = roughness_alpha * roughness_alpha;
         let k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
 
         let V = -ray_dir;
@@ -935,6 +936,7 @@ fn shade_pbr_local(region: u32, hit: Hit, ray_origin: vec3<f32>, ray_dir: vec3<f
             var L: vec3<f32>;
             var attenuation = 1.0;
             var light_distance = 1e20;
+            var light_size = light.radius;
 
             if(light.light_type == 0){
                 L = to_vec3(light.direction);
@@ -943,6 +945,7 @@ fn shade_pbr_local(region: u32, hit: Hit, ray_origin: vec3<f32>, ray_dir: vec3<f
                 let to_light = to_vec3(light.position) - hit_point;
                 let dist = length(to_light);
                 light_distance = max(dist - 1e-3, 0.0);
+                light_size = min(light.radius / max(dist, 1e-6), 1.0);
                 L = to_light * (1.0 / max(dist, 1e-6));
                 attenuation = 1.0 / (light.attenuation_constant + light.attenuation_linear * dist + light.attenuation_quadratic * dist * dist);
                 if(light.light_type == 2){
@@ -968,8 +971,11 @@ fn shade_pbr_local(region: u32, hit: Hit, ray_origin: vec3<f32>, ray_dir: vec3<f
             let NdotH = max(dot(N, H), 0.0);
             let VdotH = max(dot(V, H), 0.0);
 
-            let denom_D = NdotH * NdotH * (alpha2 - 1.0) + 1.0;
-            let D = alpha2 / (PI * denom_D * denom_D);
+            // a light's angular size widens its highlight (the half vector moves half as far as the light direction)
+            let light_alpha = min(roughness_alpha + 0.5 * light_size, 1.0);
+            let light_alpha2 = light_alpha * light_alpha;
+            let denom_D = NdotH * NdotH * (light_alpha2 - 1.0) + 1.0;
+            let D = light_alpha2 / (PI * denom_D * denom_D);
 
             let G1_V = NdotV / (NdotV * (1.0 - k) + k);
             let G1_L = NdotL / (NdotL * (1.0 - k) + k);

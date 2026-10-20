@@ -228,6 +228,7 @@ struct SceneLight{
     float attenuation_quadratic;
     float cos_inner_cone;
     float cos_outer_cone;
+    float radius;
 };
 
 layout(std430, set = 0, binding = 5) readonly buffer SceneLightsBuffer{ SceneLight scene_lights[]; };
@@ -582,7 +583,6 @@ vec3 shade_pbr_local(Hit hit, vec3 ray_origin, vec3 ray_dir, uvec2 pixel_id, int
 
         roughness = max(roughness, 0.04);
         float roughness_alpha = roughness * roughness;
-        float alpha2 = roughness_alpha * roughness_alpha;
         float k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
 
         vec3 V = -ray_dir;
@@ -595,6 +595,7 @@ vec3 shade_pbr_local(Hit hit, vec3 ray_origin, vec3 ray_dir, uvec2 pixel_id, int
             vec3 L;
             float attenuation = 1.0;
             float light_distance = 1e20;
+            float light_size = scene_lights[li].radius;
 
             if(scene_lights[li].type == 0){
                 L = vec3(scene_lights[li].direction[0], scene_lights[li].direction[1], scene_lights[li].direction[2]);
@@ -603,6 +604,7 @@ vec3 shade_pbr_local(Hit hit, vec3 ray_origin, vec3 ray_dir, uvec2 pixel_id, int
                 vec3 to_light = vec3(scene_lights[li].position[0], scene_lights[li].position[1], scene_lights[li].position[2]) - hit_point;
                 float dist = length(to_light);
                 light_distance = max(dist - 1e-3, 0.0);
+                light_size = min(scene_lights[li].radius / max(dist, 1e-6), 1.0);
                 L = to_light * (1.0 / max(dist, 1e-6));
                 attenuation = 1.0 / (scene_lights[li].attenuation_constant + scene_lights[li].attenuation_linear * dist + scene_lights[li].attenuation_quadratic * dist * dist);
                 if(scene_lights[li].type == 2){
@@ -628,8 +630,11 @@ vec3 shade_pbr_local(Hit hit, vec3 ray_origin, vec3 ray_dir, uvec2 pixel_id, int
             float NdotH = max(dot(N, H), 0.0);
             float VdotH = max(dot(V, H), 0.0);
 
-            float denom_D = NdotH * NdotH * (alpha2 - 1.0) + 1.0;
-            float D = alpha2 / (3.14159265 * denom_D * denom_D);
+            // a light's angular size widens its highlight (the half vector moves half as far as the light direction)
+            float light_alpha = min(roughness_alpha + 0.5 * light_size, 1.0);
+            float light_alpha2 = light_alpha * light_alpha;
+            float denom_D = NdotH * NdotH * (light_alpha2 - 1.0) + 1.0;
+            float D = light_alpha2 / (3.14159265 * denom_D * denom_D);
 
             float G1_V = NdotV / (NdotV * (1.0 - k) + k);
             float G1_L = NdotL / (NdotL * (1.0 - k) + k);

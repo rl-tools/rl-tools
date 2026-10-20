@@ -7,7 +7,7 @@ import numpy as np
 
 from hyperdrone import render
 from hyperdrone.camera import CameraSpec, Depth, RGB
-dataset = render.datasets.Train200()
+dataset = render.datasets.procthor.Train200()
 scene_reference = dataset["ProcTHOR-Train-1"].reference
 
 POSITION = np.array([-0.97, -4.42, 1.5])

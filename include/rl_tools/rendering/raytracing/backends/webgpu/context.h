@@ -55,7 +55,7 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
 
     using BVHNode = generic::BVHNode<float, uint32_t>;
     static_assert(sizeof(BVHNode) == 32, "BVHNode layout must match the WGSL declaration in device.wgsl");
-    static_assert(sizeof(rendering::raytracing::SceneLight) == 60, "SceneLight layout must match load_scene_light in device.wgsl");
+    static_assert(sizeof(rendering::raytracing::SceneLight) == 64, "SceneLight layout must match load_scene_light in device.wgsl");
     static_assert(sizeof(rendering::raytracing::Camera<float>) == 48, "Camera layout must match load_camera in device.wgsl");
     static_assert(sizeof(rendering::raytracing::CollisionResult) == 8, "CollisionResult must span two OUTPUTS words");
 
@@ -82,7 +82,7 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         uint32_t tlas_primitive_offset;  // u32 elements into SCENE_GEOMETRY
         uint32_t srgb_lut_offset;        // 256 f32 elements into SCENE_GEOMETRY: sRGB texel -> linear
         uint32_t mesh_records_offset;    // 30 words per record, into SCENE_GEOMETRY
-        uint32_t scene_lights_offset;    // 15 words per light, into SCENE_GEOMETRY
+        uint32_t scene_lights_offset;    // 16 words per light, into SCENE_GEOMETRY
         uint32_t instance_classes_offset;
         uint32_t overlay_node_offset;    // BVHNode elements into BVH_NODES
         uint32_t attachments_offset;     // u32 elements into FRAME_INPUTS
