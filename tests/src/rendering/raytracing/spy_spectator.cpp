@@ -200,7 +200,7 @@ namespace {
             std::copy_n(rt::detail::IDENTITY_TRANSFORM, 12, request.overlays[slot].rows);
             request.overlays[slot].rows[7] = slot == 0 ? -1.25f : 1.25f;
         }
-        malloc(device, buffer, spy_spectator_device_id(device, rt::backends::Default{}));
+        malloc(buffer.device, buffer, spy_spectator_device_id(device, rt::backends::Default{}));
         malloc(buffer.device, buffer.renderer);
         init(buffer.device, buffer.renderer, scene, pool, request.metadata);
         render_spy_spectator(buffer.device, buffer, request, image);

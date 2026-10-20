@@ -35,6 +35,12 @@ class NativeRenderer:
     def update(self):
         self.calls.append("publish")
 
+    def synchronize(self):
+        pass
+
+    def release_inputs(self):
+        return 0
+
 
 @pytest.fixture
 def renderer():

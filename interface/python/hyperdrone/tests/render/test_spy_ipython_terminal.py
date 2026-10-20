@@ -40,6 +40,12 @@ class NativeRenderer:
     def update(self):
         self.published += 1
 
+    def synchronize(self):
+        pass
+
+    def release_inputs(self):
+        return 0
+
 native = NativeRenderer()
 renderer = Renderer.__new__(Renderer)
 renderer._renderer = native
