@@ -33,7 +33,8 @@ SURFACE = {
         "make_camera",
         "make_transform",
     ],
-    "hyperdrone.render.datasets": ["Train200"],
+    "hyperdrone.render.datasets": ["procthor"],
+    "hyperdrone.render.datasets.procthor": ["Train200"],
     "hyperdrone.dynamics": [
         "IDENTITY_MOUNT",
         "MODELS",
