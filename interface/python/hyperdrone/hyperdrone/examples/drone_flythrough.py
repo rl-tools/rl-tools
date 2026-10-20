@@ -71,7 +71,7 @@ renderer = render.Renderer(width=arguments.width, height=arguments.height,
 renderer.init(scene)
 
 # manual composition of the two peers: sim.step -> camera_bases -> set_cameras -> render,
-# device-resident on OptiX + CUDA (the RL environment path is hyperdrone.env.HyperDrone)
+# device-resident on OptiX + CUDA (the RL environment path is hyperdrone.HyperDrone)
 device_handoff = renderer.backend == "optix" and sim.device == "cuda"
 
 

@@ -9,7 +9,7 @@ VALID_ANTI_ALIASING_GRIDS = (1, 2, 3, 4)
 
 
 @dataclass(frozen=True, kw_only=True)
-class RendererConfig:
+class Config:
     width: int
     height: int
     cameras: tuple[CameraSpec, ...] = (CameraSpec("camera", outputs=(RGB(format="rgba8"),)),)
@@ -24,6 +24,9 @@ class RendererConfig:
     dynamic_motion_blur: bool = False
 
     def __post_init__(self):
+        if isinstance(self.fidelity, str):
+            object.__setattr__(self, "fidelity", self.fidelity.lower())
+        object.__setattr__(self, "dynamic_motion_blur", bool(self.dynamic_motion_blur))
         object.__setattr__(self, "cameras", validate_cameras(self.cameras))
         for name in ("width", "height", "batch_size", "motion_blur_samples", "anti_aliasing_grid"):
             value = getattr(self, name)

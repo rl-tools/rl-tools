@@ -14,7 +14,7 @@ IMAGE_OUTPUTS = (RGB("float32"), RGB(format="rgba8"), Depth(), Depth(format="rgb
 
 def test_camera_config_canonicalization():
     cameras = (CameraSpec("front", outputs=(RGB("float32"), Depth())), CameraSpec("rear", outputs=(Depth(),)))
-    config = render.RendererConfig(width=8, height=8, cameras=cameras, batch_size=4)
+    config = render.Config(width=8, height=8, cameras=cameras, batch_size=4)
     renamed = (CameraSpec("policy", outputs=(Depth(), RGB("float32"))), CameraSpec("display", outputs=(Depth(),)))
     assert config.key() == replace(config, cameras=renamed).key()
     assert config.num_cameras == 8

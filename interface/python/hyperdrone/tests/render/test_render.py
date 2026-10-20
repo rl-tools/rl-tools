@@ -485,7 +485,7 @@ def test_semantic_segmentation_with_overlay():
 
 
 def test_jit_cache_reuse():
-    config = render.RendererConfig(
+    config = render.Config(
         width=16, height=16, batch_size=1, num_probes=1, fidelity="low", cameras=(CameraSpec("camera", outputs=(Depth(), Probes(),)),),
         motion_blur_samples=1, anti_aliasing_grid=1, num_overlays=0,
         max_overlay_instances=0, max_overlays_per_camera=0,
@@ -495,8 +495,10 @@ def test_jit_cache_reuse():
     renderer = render.Renderer(width=16, height=16, batch_size=1, cameras=(CameraSpec("camera", outputs=(Depth(), Probes(),)),), fidelity="low")
     assert library.exists()
     modification_time = library.stat().st_mtime
-    renderer_again = render.Renderer(**{name: getattr(config, name) for name in config.__dataclass_fields__})
+    renderer_again = render.Renderer(config=config)
     assert renderer_again.config == config
+    with pytest.raises(ValueError, match="either config="):
+        render.Renderer(16, 16, config=config)
     assert library.stat().st_mtime == modification_time
 
 

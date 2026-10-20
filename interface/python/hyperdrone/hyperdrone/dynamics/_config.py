@@ -29,7 +29,7 @@ STATE_COMPONENTS = {
 
 
 @dataclass(frozen=True, kw_only=True)
-class SimConfig:
+class Config:
     num_drones: int
     control: str = "motor"
     actuation: str = "rotors"

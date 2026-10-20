@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from hyperdrone import examples
-from hyperdrone.env import EnvConfig, HyperDrone
+from hyperdrone import Config, HyperDrone
 from hyperdrone._jit import cache_root, source_root
 
 WRITEFILE = "%%writefile my_task.h\n"
@@ -34,7 +34,7 @@ def test_orbiter_task(orbiter_header):
     scene, asset = data / "ProcTHOR-Train-1.glb", data / "x500.glb"
     if not scene.exists() or not asset.exists():
         pytest.skip(f"no ProcTHOR scene or x500 asset in {data}")
-    lazy, explicit = (HyperDrone([scene], config=EnvConfig(spec_header=str(orbiter_header)), seed=0, drone_asset=asset, assets={"orbiter": asset}) for _ in range(2))
+    lazy, explicit = (HyperDrone([scene], config=Config(spec_header=str(orbiter_header)), seed=0, drone_asset=asset, assets={"orbiter": asset}) for _ in range(2))
     try:
         assert lazy.device == "cpu"
         reset_all = np.ones(lazy.total_instances, dtype=bool)

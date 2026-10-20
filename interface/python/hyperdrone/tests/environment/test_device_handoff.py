@@ -3,7 +3,7 @@ device-to-device (no host synchronization in the loop) and produce frames
 pixel-identical to the host camera path.
 
 Runs in a subprocess: it needs the cuda dynamics variant, and one process can hold only
-one variant — the rest of the env suite uses cpu.
+one variant — the rest of the environment suite uses cpu.
 """
 import subprocess
 import sys

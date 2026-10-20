@@ -1,11 +1,11 @@
 // exercised by test_spec_header_escape_hatch: a user-pinned World specification reached
-// through EnvConfig(spec_header=...) — the header includes what it needs and defines
-// hyperdrone_env_user::WORLD
+// through Config(spec_header=...) — the header includes what it needs and defines
+// hyperdrone_user::WORLD
 #pragma once
 #include <rl_tools/rl/environments/hyperdrone/presets.h>
 #include <cstddef>
 
-namespace hyperdrone_env_user {
+namespace hyperdrone_user {
     using T = float;
     using TI = std::size_t;
     struct SPEC: rl_tools::rl::environments::hyperdrone::presets::X500FPV<T, TI> {

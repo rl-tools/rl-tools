@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from hyperdrone import _cuda as cuda, render
-from hyperdrone.env import EnvConfig, HyperDrone
+from hyperdrone import Config, HyperDrone
 from hyperdrone._jit import source_root
 
 pytestmark = pytest.mark.skipif(
@@ -15,8 +15,8 @@ pytestmark = pytest.mark.skipif(
     reason="the device-resident environment needs the OptiX backend",
 )
 
-CONFIG = EnvConfig(num_worlds=2, instances_per_world=2, width=16, height=16, fidelity="low", device="cuda")
-HOST_WORLD_CONFIG = EnvConfig(num_worlds=1, instances_per_world=2, width=16, height=16, fidelity="low", device="cpu")
+CONFIG = Config(num_worlds=2, instances_per_world=2, width=16, height=16, fidelity="low", device="cuda")
+HOST_WORLD_CONFIG = Config(num_worlds=1, instances_per_world=2, width=16, height=16, fidelity="low", device="cpu")
 
 
 @pytest.fixture(scope="module")

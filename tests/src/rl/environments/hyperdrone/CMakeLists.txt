@@ -161,25 +161,25 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_on_policy_runner_batched)
     # golden-rollout generator for the Python binding (run deliberately from the repo root)
-    set(HYPERDRONE_PYTHON_ENV_NATIVE ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../interface/python/hyperdrone/hyperdrone/_native/env)
-    add_executable(test_rl_environments_hyperdrone_python_golden python_golden.cpp ${HYPERDRONE_PYTHON_ENV_NATIVE}/impl.cpp)
+    set(HYPERDRONE_PYTHON_ENVIRONMENT_NATIVE ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../interface/python/hyperdrone/hyperdrone/_native/environment)
+    add_executable(test_rl_environments_hyperdrone_python_golden python_golden.cpp ${HYPERDRONE_PYTHON_ENVIRONMENT_NATIVE}/impl.cpp)
     target_compile_definitions(test_rl_environments_hyperdrone_python_golden PRIVATE
-        HYPERDRONE_ENV_NUM_WORLDS=1
-        HYPERDRONE_ENV_INSTANCES=2
-        HYPERDRONE_ENV_CAM_WIDTH=16
-        HYPERDRONE_ENV_CAM_HEIGHT=16
-        HYPERDRONE_ENV_SHADING=0
-        HYPERDRONE_ENV_MB_SAMPLES=1
-        HYPERDRONE_ENV_PRESET=0
-        HYPERDRONE_ENV_CONTROL=0
-        HYPERDRONE_ENV_ACTUATION=0
-        HYPERDRONE_ENV_TASK=0
-        HYPERDRONE_ENV_N_AGENTS=1
-        HYPERDRONE_ENV_N_CAMERA_AGENTS=1
-        HYPERDRONE_ENV_DEVICE_CUDA=0
+        HYPERDRONE_ENVIRONMENT_NUM_WORLDS=1
+        HYPERDRONE_ENVIRONMENT_INSTANCES=2
+        HYPERDRONE_ENVIRONMENT_CAM_WIDTH=16
+        HYPERDRONE_ENVIRONMENT_CAM_HEIGHT=16
+        HYPERDRONE_ENVIRONMENT_SHADING=0
+        HYPERDRONE_ENVIRONMENT_MB_SAMPLES=1
+        HYPERDRONE_ENVIRONMENT_PRESET=0
+        HYPERDRONE_ENVIRONMENT_CONTROL=0
+        HYPERDRONE_ENVIRONMENT_ACTUATION=0
+        HYPERDRONE_ENVIRONMENT_TASK=0
+        HYPERDRONE_ENVIRONMENT_N_AGENTS=1
+        HYPERDRONE_ENVIRONMENT_N_CAMERA_AGENTS=1
+        HYPERDRONE_ENVIRONMENT_DEVICE_CUDA=0
         HYPERDRONE_CAMERA_CONFIG_HEADER=\"${CMAKE_CURRENT_SOURCE_DIR}/python_camera_config.h\"
-        HYPERDRONE_ENV_DATASET=0
-        HYPERDRONE_MODULE_NAME=hyperdrone_env_golden
+        HYPERDRONE_ENVIRONMENT_DATASET=0
+        HYPERDRONE_MODULE_NAME=hyperdrone_environment_golden
     )
     target_link_libraries(test_rl_environments_hyperdrone_python_golden
         PRIVATE
@@ -187,10 +187,10 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
             rendering_raytracing_backend
             rendering_raytracing_stb
     )
-    add_executable(test_rl_environments_hyperdrone_user_task_header user_task_header.cpp ${HYPERDRONE_PYTHON_ENV_NATIVE}/impl.cpp)
+    add_executable(test_rl_environments_hyperdrone_user_task_header user_task_header.cpp ${HYPERDRONE_PYTHON_ENVIRONMENT_NATIVE}/impl.cpp)
     get_target_property(HYPERDRONE_USER_TASK_DEFINES test_rl_environments_hyperdrone_python_golden COMPILE_DEFINITIONS)
     list(FILTER HYPERDRONE_USER_TASK_DEFINES EXCLUDE REGEX "^HYPERDRONE_MODULE_NAME=")
-    target_compile_definitions(test_rl_environments_hyperdrone_user_task_header PRIVATE ${HYPERDRONE_USER_TASK_DEFINES} HYPERDRONE_MODULE_NAME=hyperdrone_user_task HYPERDRONE_ENV_SPEC_HEADER=${PROJECT_SOURCE_DIR}/interface/python/hyperdrone/tests/env/user_task_header.h)
+    target_compile_definitions(test_rl_environments_hyperdrone_user_task_header PRIVATE ${HYPERDRONE_USER_TASK_DEFINES} HYPERDRONE_MODULE_NAME=hyperdrone_user_task HYPERDRONE_ENVIRONMENT_SPEC_HEADER=${PROJECT_SOURCE_DIR}/interface/python/hyperdrone/tests/environment/user_task_header.h)
     target_link_libraries(test_rl_environments_hyperdrone_user_task_header PRIVATE RLtools::RLtools RLtools::Test rendering_raytracing_backend rendering_raytracing_stb)
     gtest_discover_tests(test_rl_environments_hyperdrone_user_task_header)
     if(RL_TOOLS_BACKEND_ENABLE_CUDA AND TARGET owl::owl)

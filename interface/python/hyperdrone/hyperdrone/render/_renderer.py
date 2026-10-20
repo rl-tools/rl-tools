@@ -5,8 +5,7 @@ import numpy as np
 
 from .._dlpack import is_cuda as _is_cuda
 from ._component import load_core, load_renderer
-from ._config import RendererConfig
-from ..camera import CameraSpec, RGB
+from ._config import Config
 from .._output_buffers import OutputCollection
 
 
@@ -115,25 +114,14 @@ def _batch_state(base, scale, coordinates, count, device):
 
 
 class Renderer:
-    """Compile a named camera rig; repeat it with batch_size and acquire declared outputs explicitly."""
+    """Compile a named camera rig; repeat it with batch_size and acquire declared outputs explicitly. Takes the fields of render.Config, or config= itself."""
 
-    def __init__(self, width, height, *, cameras=(CameraSpec("camera", outputs=(RGB(format="rgba8"),)),), batch_size=1, num_probes=1, fidelity="high", motion_blur_samples=1, anti_aliasing_grid=1, num_overlays=0, max_overlay_instances=0, max_overlays_per_camera=0, dynamic_motion_blur=False):
-        if isinstance(fidelity, str):
-            fidelity = fidelity.lower()
-        self.config = RendererConfig(
-            width=width,
-            height=height,
-            cameras=cameras,
-            batch_size=batch_size,
-            num_probes=num_probes,
-            fidelity=fidelity,
-            motion_blur_samples=motion_blur_samples,
-            anti_aliasing_grid=anti_aliasing_grid,
-            num_overlays=num_overlays,
-            max_overlay_instances=max_overlay_instances,
-            max_overlays_per_camera=max_overlays_per_camera,
-            dynamic_motion_blur=bool(dynamic_motion_blur),
-        )
+    def __init__(self, width=None, height=None, *, config=None, **fields):
+        if config is None:
+            config = Config(width=width, height=height, **fields)
+        elif width is not None or height is not None or fields:
+            raise ValueError("hyperdrone: pass either config= or its fields")
+        self.config = config
         self._renderer = load_renderer(self.config).Renderer()
         self.outputs = OutputCollection(self._renderer, cameras=self.config.cameras)
         self._scene = None

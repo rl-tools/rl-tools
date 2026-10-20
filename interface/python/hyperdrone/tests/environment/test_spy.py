@@ -7,7 +7,7 @@ import weakref
 import pytest
 
 from hyperdrone.camera import CameraSpec, RGB, ImageObservation
-from hyperdrone.env import HyperDrone
+from hyperdrone import HyperDrone
 
 
 class NativeEnvironment:
@@ -131,11 +131,11 @@ def test_native_spy_preserves_rollout_and_environment_lifecycle(tmp_path, num_ca
     import numpy as np
 
     from hyperdrone.camera import CameraSpec, RGB, ImageObservation
-    from hyperdrone.env import EnvConfig
+    from hyperdrone import Config
     from test_taxonomy import room_glb
 
     scenes = [room_glb(tmp_path / "first.glb", taxonomy=None), room_glb(tmp_path / "second.glb", taxonomy=None, extent=6)]
-    config = EnvConfig(instances_per_world=2, width=32, height=32, fidelity="low", cameras=tuple(CameraSpec(name, outputs=(RGB("float32"),)) for name in ("front", "rear")[:num_cameras_per_agent]), observation=ImageObservation(cameras=("front", "rear")[:num_cameras_per_agent]))
+    config = Config(instances_per_world=2, width=32, height=32, fidelity="low", cameras=tuple(CameraSpec(name, outputs=(RGB("float32"),)) for name in ("front", "rear")[:num_cameras_per_agent]), observation=ImageObservation(cameras=("front", "rear")[:num_cameras_per_agent]))
     control = HyperDrone(scenes, config=config, seed=1337)
     observed = HyperDrone(scenes, config=config, seed=1337)
     try:

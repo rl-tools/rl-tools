@@ -1,17 +1,8 @@
 """Direct bindings to the C++ rl_tools rl::environments::HyperDrone<World>.
 
-The JIT extension binds the rl_tools batch verbs; this class mirrors that
-verb surface one-to-one (reset / observe / observe_privileged / step / rewards /
-terminated / rotate_scene) so a notebook drives the exact environment the C++ training
-targets use — no runners involved.
+The JIT extension binds the rl_tools batch verbs; HyperDrone mirrors that verb surface one-to-one (reset / observe / observe_privileged / step / rewards / terminated / rotate_scene) so a notebook drives the exact environment the C++ training targets use — no runners involved. All environment semantics (reset, reward, termination, scene rotation, observation composition) live on the C++ side; this module marshals tensors and nothing else. For manual composition of render and dynamics (no MDP), see examples/drone_flythrough.py.
 
-Configuration follows the C++ extension ladder: a preset names the platform
-(`presets::*` on the C++ side), a task names the wrapper (`tasks::*`), and a handful of
-universal knobs (instances_per_world, camera resolution, fidelity, motion blur) complete the picture. Arbitrary
-C++ specifications are reached through `spec_header=`: a path to a C++ header defining
-`hyperdrone_env_user::WORLD` (including any rl_tools headers it needs); the header's
-content hash is part of the JIT key, and preset/task/num_agents/num_camera_agents/cameras/observation must stay at their
-defaults since the user type supersedes them.
+Configuration follows the C++ extension ladder: a preset names the platform (`presets::*` on the C++ side), a task names the wrapper (`tasks::*`), and a handful of universal knobs (instances_per_world, camera resolution, fidelity, motion blur) complete the picture. Arbitrary C++ specifications are reached through `spec_header=`: a path to a C++ header defining `hyperdrone_user::WORLD` (including any rl_tools headers it needs); the header's content hash is part of the JIT key, and preset/task/num_agents/num_camera_agents/cameras/observation must stay at their defaults since the user type supersedes them.
 """
 import hashlib
 import json
@@ -22,13 +13,13 @@ import numpy as np
 
 import conta
 
-from .. import _jit as jit
-from .._dlpack import is_cuda
-from .._outputs import VALID_MOTION_BLUR_SAMPLES
-from ..camera import CameraSpec, RGB, ImageObservation, camera_config_header, backend_requirement, validate_cameras, validate_observation
-from .._output_buffers import OutputCollection
-from .._control import ACTUATIONS, CONTROLS, validate_control
-from .._parameters import resolve
+from . import _jit as jit
+from ._dlpack import is_cuda
+from ._outputs import VALID_MOTION_BLUR_SAMPLES
+from .camera import CameraSpec, RGB, ImageObservation, camera_config_header, backend_requirement, validate_cameras, validate_observation
+from ._output_buffers import OutputCollection
+from ._control import ACTUATIONS, CONTROLS, validate_control
+from ._parameters import resolve
 
 PRESETS = {"crazyflie": 0, "x500_fpv": 1, "x500_fpv_imu": 2}
 SELF_VISIBLE_PRESETS = ("x500_fpv", "x500_fpv_imu")
@@ -37,7 +28,7 @@ DATASETS = {"glb": 0, "procthor": 1}
 
 
 def _backend():
-    from ..render._component import _backend as render_backend
+    from .render._component import _backend as render_backend
 
     return render_backend()
 
@@ -45,7 +36,7 @@ def _backend():
 def component():
     resolved = _backend()
     return jit.Component(
-        name="env",
+        name="environment",
         variant=resolved.lower(),
         needs_cuda=resolved == "optix",
     )
@@ -55,7 +46,7 @@ _SHADING = {"low": 0, "medium": 1, "high": 2}
 
 
 @dataclass(frozen=True, kw_only=True)
-class EnvConfig:
+class Config:
     num_worlds: int = 1
     instances_per_world: int = 4
     width: int = 32
@@ -115,7 +106,7 @@ class EnvConfig:
             if self.device == "cuda":
                 raise ValueError("hyperdrone: task 'visual_inertial_localization' has no CUDA verbs — use device='cpu'")
         if self.spec_header is not None:
-            defaults = EnvConfig()
+            defaults = Config()
             superseded = [item.name for item in fields(self) if item.name not in ("num_worlds", "spec_header", "device", "dataset") and getattr(self, item.name) != getattr(defaults, item.name)]
             if superseded:
                 raise ValueError(f"hyperdrone: spec_header supersedes {', '.join(superseded)}; leave these fields at their defaults")
@@ -138,23 +129,23 @@ class EnvConfig:
     def defines(self):
         values = {
             "HYPERDRONE_CAMERA_BACKEND_REQUIREMENT": backend_requirement(self.cameras),
-            "HYPERDRONE_ENV_DATASET": DATASETS[self.dataset],
-            "HYPERDRONE_ENV_NUM_WORLDS": self.num_worlds,
-            "HYPERDRONE_ENV_INSTANCES": self.instances_per_world,
-            "HYPERDRONE_ENV_CAM_WIDTH": self.width,
-            "HYPERDRONE_ENV_CAM_HEIGHT": self.height,
-            "HYPERDRONE_ENV_SHADING": _SHADING[self.fidelity],
-            "HYPERDRONE_ENV_MB_SAMPLES": self.motion_blur_samples,
-            "HYPERDRONE_ENV_PRESET": PRESETS[self.preset],
-            "HYPERDRONE_ENV_TASK": TASKS[self.task],
-            "HYPERDRONE_ENV_CONTROL": CONTROLS.index(self.control),
-            "HYPERDRONE_ENV_ACTUATION": ACTUATIONS.index(self.actuation),
-            "HYPERDRONE_ENV_N_AGENTS": self.num_agents,
-            "HYPERDRONE_ENV_N_CAMERA_AGENTS": self.num_camera_agents,
-            "HYPERDRONE_ENV_DEVICE_CUDA": 1 if self.world_device == "cuda" else 0,
+            "HYPERDRONE_ENVIRONMENT_DATASET": DATASETS[self.dataset],
+            "HYPERDRONE_ENVIRONMENT_NUM_WORLDS": self.num_worlds,
+            "HYPERDRONE_ENVIRONMENT_INSTANCES": self.instances_per_world,
+            "HYPERDRONE_ENVIRONMENT_CAM_WIDTH": self.width,
+            "HYPERDRONE_ENVIRONMENT_CAM_HEIGHT": self.height,
+            "HYPERDRONE_ENVIRONMENT_SHADING": _SHADING[self.fidelity],
+            "HYPERDRONE_ENVIRONMENT_MB_SAMPLES": self.motion_blur_samples,
+            "HYPERDRONE_ENVIRONMENT_PRESET": PRESETS[self.preset],
+            "HYPERDRONE_ENVIRONMENT_TASK": TASKS[self.task],
+            "HYPERDRONE_ENVIRONMENT_CONTROL": CONTROLS.index(self.control),
+            "HYPERDRONE_ENVIRONMENT_ACTUATION": ACTUATIONS.index(self.actuation),
+            "HYPERDRONE_ENVIRONMENT_N_AGENTS": self.num_agents,
+            "HYPERDRONE_ENVIRONMENT_N_CAMERA_AGENTS": self.num_camera_agents,
+            "HYPERDRONE_ENVIRONMENT_DEVICE_CUDA": 1 if self.world_device == "cuda" else 0,
         }
         if self.spec_header is not None:
-            values["HYPERDRONE_ENV_SPEC_HEADER"] = os.path.abspath(self.spec_header)
+            values["HYPERDRONE_ENVIRONMENT_SPEC_HEADER"] = os.path.abspath(self.spec_header)
         return values
 
     def camera_config(self):
@@ -278,7 +269,7 @@ class HyperDrone:
 
     def __init__(self, scenes, *, config=None, seed=0, drone_asset=None, assets=None, parameters=None, drones=None, stream=None):
         self._spy = None
-        self.config = config if config is not None else EnvConfig()
+        self.config = config if config is not None else Config()
         if drones is not None and drone_asset is not None:
             raise ValueError("hyperdrone: pass either drone_asset= (one drone) or drones= (the table)")
         if drones is None:
@@ -434,7 +425,7 @@ class HyperDrone:
 
     @property
     def device(self):
-        """"cuda" when the World runs on the GPU (EnvConfig.device), "cpu" otherwise."""
+        """"cuda" when the World runs on the GPU (Config.device), "cpu" otherwise."""
         return "cuda" if self._module.CUDA_WORLD else "cpu"
 
     @property

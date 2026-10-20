@@ -1,4 +1,4 @@
-"""hyperdrone.gym — optional Gymnasium VectorEnv adapter over hyperdrone.env.
+"""hyperdrone.gym — optional Gymnasium VectorEnv adapter over hyperdrone.HyperDrone.
 
 A leaf module: the core packages never import gymnasium, and gym-side API churn stays
 isolated here. Requires the optional dependency: pip install "hyperdrone[gym]".
@@ -10,7 +10,7 @@ try:
 except ImportError as error:
     raise ImportError("hyperdrone.gym needs gymnasium — pip install 'hyperdrone[gym]'") from error
 
-from ..env import EnvConfig, HyperDrone
+from .._environment import HyperDrone
 
 __all__ = ["VectorEnv"]
 

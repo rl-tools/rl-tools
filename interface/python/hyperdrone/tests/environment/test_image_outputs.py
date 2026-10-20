@@ -7,12 +7,12 @@ import pytest
 
 from hyperdrone import render
 from hyperdrone.camera import CameraSpec, RGB, Depth, Segmentation, Normals, Flow, FlowStatus, Probes, ImageObservation
-from hyperdrone.env import EnvConfig, HyperDrone
+from hyperdrone import Config, HyperDrone
 from test_hyperdrone import rigged_asset_path, scene_directory
 
 
 OUTPUTS = (RGB("float32"), Depth(), Segmentation(), Normals(), Flow(), FlowStatus())
-CONFIG = EnvConfig(instances_per_world=2, width=16, height=16, fidelity="low", cameras=(CameraSpec("front", outputs=OUTPUTS),))
+CONFIG = Config(instances_per_world=2, width=16, height=16, fidelity="low", cameras=(CameraSpec("front", outputs=OUTPUTS),))
 # At 4–6 mm depth, float reprojection after an identity reset reaches 1.52e-3 pixels on OptiX.
 RESET_FLOW_ATOL = 2e-3
 
@@ -238,7 +238,7 @@ def _check_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, devic
 """).replace("        static constexpr TI N_CAMERA_AGENTS = 1;", "")
     source = source.replace("INSTANCES_PER_WORLD = 2;", f"INSTANCES_PER_WORLD = {instances_per_world};")
     header.write_text(source)
-    with closing(HyperDrone([scene_directory / "ProcTHOR-Train-1.glb"] * 2, config=EnvConfig(spec_header=str(header), num_worlds=2, device=device), drone_asset=str(asset), seed=4)) as env:
+    with closing(HyperDrone([scene_directory / "ProcTHOR-Train-1.glb"] * 2, config=Config(spec_header=str(header), num_worlds=2, device=device), drone_asset=str(asset), seed=4)) as env:
         assert env.total_instances == 2 * instances_per_world
         assert (env.num_agents, env.num_camera_agents, env.num_cameras_per_agent, env.num_views) == (2, 2, 3, 6)
         assert env.outputs[RGB("float32")].layout.cameras == ((0, "camera1"), (1, "camera1"))

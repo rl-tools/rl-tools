@@ -25,7 +25,7 @@ READ_ITERATIONS = 1000
 
 
 def measure(scene, profiles):
-    configuration = render.RendererConfig(width=WIDTH, height=HEIGHT, cameras=profiles, batch_size=BATCH_SIZE, fidelity="low")
+    configuration = render.Config(width=WIDTH, height=HEIGHT, cameras=profiles, batch_size=BATCH_SIZE, fidelity="low")
     artifact = jit.build_dir(component()) / "jit" / f"render_{configuration.key()}.so"
     cache_hit = artifact.exists()
     started = time.perf_counter()

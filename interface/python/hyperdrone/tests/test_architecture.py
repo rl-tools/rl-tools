@@ -1,6 +1,6 @@
 """Architecture tests: the import DAG is enforced, not aspirational.
 
-render and dynamics are peers that never see each other; env is the only integration
+render and dynamics are peers that never see each other; the environment is the only integration
 point; jit and cuda are infrastructure and import nothing from the domain packages.
 Each check runs in a fresh interpreter so this test's own imports cannot contaminate it.
 """
@@ -24,22 +24,22 @@ def imported_modules(package):
     return json.loads(result.stdout)
 
 
-def test_render_never_imports_dynamics_or_env():
+def test_render_never_imports_dynamics_or_environment():
     modules = imported_modules("hyperdrone.render")
     assert not any(name.startswith("hyperdrone.dynamics") for name in modules)
-    assert not any(name.startswith("hyperdrone.env") for name in modules)
+    assert not any(name.startswith("hyperdrone._environment") for name in modules)
 
 
-def test_dynamics_never_imports_render_or_env():
+def test_dynamics_never_imports_render_or_environment():
     modules = imported_modules("hyperdrone.dynamics")
     assert not any(name.startswith("hyperdrone.render") for name in modules)
-    assert not any(name.startswith("hyperdrone.env") for name in modules)
+    assert not any(name.startswith("hyperdrone._environment") for name in modules)
 
 
 def test_infrastructure_imports_no_domain_packages():
     for package in ("hyperdrone._jit", "hyperdrone._cuda", "hyperdrone.camera", "hyperdrone._output_buffers"):
         modules = imported_modules(package)
-        for domain in ("hyperdrone.render", "hyperdrone.dynamics", "hyperdrone.env"):
+        for domain in ("hyperdrone.render", "hyperdrone.dynamics", "hyperdrone._environment"):
             assert not any(name.startswith(domain) for name in modules), (package, domain)
 
 

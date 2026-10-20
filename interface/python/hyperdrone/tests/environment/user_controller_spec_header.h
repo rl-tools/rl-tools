@@ -3,7 +3,7 @@
 #include <rl_tools/rl/environments/hyperdrone/presets.h>
 #include <cstddef>
 
-namespace hyperdrone_env_user {
+namespace hyperdrone_user {
     namespace controllers = rl_tools::rl::environments::hyperdrone::controllers;
     template <typename SPEC>
     struct CollectiveBuffer: controllers::direct::Buffer<SPEC> {
@@ -36,26 +36,26 @@ namespace hyperdrone_env_user {
 
 namespace rl_tools {
     template <typename DEVICE, typename SPEC>
-    bool init(DEVICE&, hyperdrone_env_user::Collective<SPEC>& controller) {
+    bool init(DEVICE&, hyperdrone_user::Collective<SPEC>& controller) {
         controller.initialized = true;
         return true;
     }
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, hyperdrone_env_user::CollectiveBuffer<SPEC>& buffer) {
+    void malloc(DEVICE& device, hyperdrone_user::CollectiveBuffer<SPEC>& buffer) {
         malloc(device, buffer.actuation);
     }
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, hyperdrone_env_user::CollectiveBuffer<SPEC>& buffer) {
+    void free(DEVICE& device, hyperdrone_user::CollectiveBuffer<SPEC>& buffer) {
         free(device, buffer.actuation);
     }
     template <typename SPEC>
-    constexpr hyperdrone_env_user::controllers::Bounds<typename SPEC::T> command_bounds(const hyperdrone_env_user::Collective<SPEC>&, typename SPEC::TI) {
+    constexpr hyperdrone_user::controllers::Bounds<typename SPEC::T> command_bounds(const hyperdrone_user::Collective<SPEC>&, typename SPEC::TI) {
         return {0, 1};
     }
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATES, typename COMMANDS, typename RNG>
-    auto control(DEVICE& device, const hyperdrone_env_user::Collective<SPEC>& controller,
-                 typename hyperdrone_env_user::Collective<SPEC>::State&,
-                 hyperdrone_env_user::CollectiveBuffer<SPEC>& buffer,
+    auto control(DEVICE& device, const hyperdrone_user::Collective<SPEC>& controller,
+                 typename hyperdrone_user::Collective<SPEC>::State&,
+                 hyperdrone_user::CollectiveBuffer<SPEC>& buffer,
                  const Tensor<PARAMETERS>&, const Tensor<STATES>&, const Tensor<COMMANDS>& commands, RNG&) {
         utils::assert_exit(device, controller.initialized, "custom controller init was not dispatched");
         for (typename SPEC::TI row = 0; row < SPEC::INSTANCES; row++) {
@@ -66,7 +66,7 @@ namespace rl_tools {
         return view_range(device, buffer.actuation, tensor::ViewSpec<0, SPEC::INSTANCES>{});
     }
     template <typename DEVICE, typename ACTION, typename STATE, typename INDEX>
-    auto transition_action(DEVICE&, hyperdrone_env_user::CollectiveConfig, const Matrix<ACTION>&, const STATE& next, INDEX, INDEX component) {
+    auto transition_action(DEVICE&, hyperdrone_user::CollectiveConfig, const Matrix<ACTION>&, const STATE& next, INDEX, INDEX component) {
         return next.last_action[component];
     }
 }

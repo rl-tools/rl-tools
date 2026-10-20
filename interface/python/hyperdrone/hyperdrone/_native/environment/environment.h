@@ -2,26 +2,26 @@
 #include "../common/verbosity.h"
 #include <rl_tools/operations/cpu_mux.h>
 
-#define HYPERDRONE_ENV_STRINGIFY_INNER(x) #x
-#define HYPERDRONE_ENV_STRINGIFY(x) HYPERDRONE_ENV_STRINGIFY_INNER(x)
+#define HYPERDRONE_ENVIRONMENT_STRINGIFY_INNER(x) #x
+#define HYPERDRONE_ENVIRONMENT_STRINGIFY(x) HYPERDRONE_ENVIRONMENT_STRINGIFY_INNER(x)
 
 // Custom controller operations must precede their callers' template definitions.
-#ifdef HYPERDRONE_ENV_SPEC_HEADER
-#include HYPERDRONE_ENV_STRINGIFY(HYPERDRONE_ENV_SPEC_HEADER)
+#ifdef HYPERDRONE_ENVIRONMENT_SPEC_HEADER
+#include HYPERDRONE_ENVIRONMENT_STRINGIFY(HYPERDRONE_ENVIRONMENT_SPEC_HEADER)
 #endif
 
 #include "../common/control.h"
 #include <rl_tools/rl/environments/hyperdrone/operations_cpu.h>
-#if defined(HYPERDRONE_ENV_TASK) && HYPERDRONE_ENV_TASK == 1
+#if defined(HYPERDRONE_ENVIRONMENT_TASK) && HYPERDRONE_ENVIRONMENT_TASK == 1
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cpu.h>
 #endif
-#if defined(HYPERDRONE_ENV_TASK) && HYPERDRONE_ENV_TASK == 2
+#if defined(HYPERDRONE_ENVIRONMENT_TASK) && HYPERDRONE_ENVIRONMENT_TASK == 2
 #include <rl_tools/rl/environments/hyperdrone/tasks/moving_gate/operations_cpu.h>
 #endif
-#if defined(HYPERDRONE_ENV_TASK) && HYPERDRONE_ENV_TASK == 3
+#if defined(HYPERDRONE_ENVIRONMENT_TASK) && HYPERDRONE_ENVIRONMENT_TASK == 3
 #include <rl_tools/rl/environments/hyperdrone/tasks/visual_inertial_localization/operations_cpu.h>
 #endif
-#if defined(HYPERDRONE_ENV_PRESET) && HYPERDRONE_ENV_PRESET >= 1
+#if defined(HYPERDRONE_ENVIRONMENT_PRESET) && HYPERDRONE_ENVIRONMENT_PRESET >= 1
 #include <rl_tools/rl/environments/hyperdrone/presets.h>
 #endif
 
@@ -36,10 +36,10 @@
 #include <functional>
 #include "../common/output.h"
 
-#if !defined(HYPERDRONE_ENV_NUM_WORLDS) || !defined(HYPERDRONE_ENV_INSTANCES) || !defined(HYPERDRONE_ENV_CAM_WIDTH) || !defined(HYPERDRONE_ENV_CAM_HEIGHT) || !defined(HYPERDRONE_ENV_SHADING) || !defined(HYPERDRONE_ENV_MB_SAMPLES) || !defined(HYPERDRONE_ENV_PRESET) || !defined(HYPERDRONE_ENV_TASK) || !defined(HYPERDRONE_ENV_N_AGENTS) || !defined(HYPERDRONE_ENV_N_CAMERA_AGENTS) || !defined(HYPERDRONE_CAMERA_CONFIG_HEADER) || !defined(HYPERDRONE_ENV_DEVICE_CUDA) || !defined(HYPERDRONE_ENV_CONTROL) || !defined(HYPERDRONE_ENV_ACTUATION)
-#error "every HYPERDRONE_ENV_* configuration define must be set (hyperdrone.env.EnvConfig.defines())"
+#if !defined(HYPERDRONE_ENVIRONMENT_NUM_WORLDS) || !defined(HYPERDRONE_ENVIRONMENT_INSTANCES) || !defined(HYPERDRONE_ENVIRONMENT_CAM_WIDTH) || !defined(HYPERDRONE_ENVIRONMENT_CAM_HEIGHT) || !defined(HYPERDRONE_ENVIRONMENT_SHADING) || !defined(HYPERDRONE_ENVIRONMENT_MB_SAMPLES) || !defined(HYPERDRONE_ENVIRONMENT_PRESET) || !defined(HYPERDRONE_ENVIRONMENT_TASK) || !defined(HYPERDRONE_ENVIRONMENT_N_AGENTS) || !defined(HYPERDRONE_ENVIRONMENT_N_CAMERA_AGENTS) || !defined(HYPERDRONE_CAMERA_CONFIG_HEADER) || !defined(HYPERDRONE_ENVIRONMENT_DEVICE_CUDA) || !defined(HYPERDRONE_ENVIRONMENT_CONTROL) || !defined(HYPERDRONE_ENVIRONMENT_ACTUATION)
+#error "every HYPERDRONE_ENVIRONMENT_* configuration define must be set (hyperdrone.Config.defines())"
 #endif
-#if HYPERDRONE_ENV_DEVICE_CUDA && !defined(HYPERDRONE_ENV_CUDA)
+#if HYPERDRONE_ENVIRONMENT_DEVICE_CUDA && !defined(HYPERDRONE_ENVIRONMENT_CUDA)
 #error "a CUDA World needs the OptiX variant"
 #endif
 
@@ -53,16 +53,16 @@ namespace HYPERDRONE_MODULE_NAME {
     using HOST_DEVICE = rlt::devices::DEVICE_FACTORY<hyperdrone::CPUSpecification>;
     using T = float;
     using TI = HOST_DEVICE::index_t;
-    constexpr bool CUDA_WORLD = HYPERDRONE_ENV_DEVICE_CUDA == 1;
-    static_assert(HYPERDRONE_ENV_DATASET == 0 || HYPERDRONE_ENV_DATASET == 1, "unknown HYPERDRONE_ENV_DATASET");
-    using DATASET = rlt::utils::typing::conditional_t<HYPERDRONE_ENV_DATASET == 0,
+    constexpr bool CUDA_WORLD = HYPERDRONE_ENVIRONMENT_DEVICE_CUDA == 1;
+    static_assert(HYPERDRONE_ENVIRONMENT_DATASET == 0 || HYPERDRONE_ENVIRONMENT_DATASET == 1, "unknown HYPERDRONE_ENVIRONMENT_DATASET");
+    using DATASET = rlt::utils::typing::conditional_t<HYPERDRONE_ENVIRONMENT_DATASET == 0,
         rlt::rendering::datasets::glb::Dataset, rlt::rendering::datasets::procthor::GLB>;
 
     namespace l2f = rlt::rl::environments::l2f;
-#ifdef HYPERDRONE_ENV_SPEC_HEADER
-    using WORLD = ::hyperdrone_env_user::WORLD;
+#ifdef HYPERDRONE_ENVIRONMENT_SPEC_HEADER
+    using WORLD = ::hyperdrone_user::WORLD;
 #else
-#if HYPERDRONE_ENV_PRESET == 0
+#if HYPERDRONE_ENVIRONMENT_PRESET == 0
     using REWARD_FUNCTION = l2f::parameters::reward_functions::Squared<T>;
     static constexpr TI EPISODE_STEP_LIMIT = 500;
     using PARAMETERS_SPEC = l2f::ParametersBaseSpecification<T, TI, 4, EPISODE_STEP_LIMIT, REWARD_FUNCTION>;
@@ -102,57 +102,57 @@ namespace HYPERDRONE_MODULE_NAME {
         static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
     };
     using PRESET_SPEC = rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS>;
-#elif HYPERDRONE_ENV_PRESET == 1
+#elif HYPERDRONE_ENVIRONMENT_PRESET == 1
     using PRESET_SPEC = rlt::rl::environments::hyperdrone::presets::X500FPV<T, TI>;
-#elif HYPERDRONE_ENV_PRESET == 2
+#elif HYPERDRONE_ENVIRONMENT_PRESET == 2
     using PRESET_SPEC = rlt::rl::environments::hyperdrone::presets::X500FPVIMU<T, TI>;
 #else
-#error "unknown HYPERDRONE_ENV_PRESET"
+#error "unknown HYPERDRONE_ENVIRONMENT_PRESET"
 #endif
     struct WORLD_SPEC: PRESET_SPEC {
-        using DYNAMICS_STATIC_PARAMETERS = typename hyperdrone::ActuationConfig<HYPERDRONE_ENV_ACTUATION>::template Apply<typename PRESET_SPEC::DYNAMICS_STATIC_PARAMETERS>;
-        using CONTROLLER = typename hyperdrone::ControlConfig<HYPERDRONE_ENV_CONTROL>::TYPE;
+        using DYNAMICS_STATIC_PARAMETERS = typename hyperdrone::ActuationConfig<HYPERDRONE_ENVIRONMENT_ACTUATION>::template Apply<typename PRESET_SPEC::DYNAMICS_STATIC_PARAMETERS>;
+        using CONTROLLER = typename hyperdrone::ControlConfig<HYPERDRONE_ENVIRONMENT_CONTROL>::TYPE;
         using CAMERA_OUTPUTS = hyperdrone_camera_config::CAMERA_OUTPUTS;
         using OBSERVATION = hyperdrone_camera_config::OBSERVATION;
-        static constexpr TI INSTANCES_PER_WORLD = HYPERDRONE_ENV_INSTANCES;
-        static constexpr TI N_AGENTS = HYPERDRONE_ENV_N_AGENTS;
-        static constexpr TI N_CAMERA_AGENTS = HYPERDRONE_ENV_N_CAMERA_AGENTS;
+        static constexpr TI INSTANCES_PER_WORLD = HYPERDRONE_ENVIRONMENT_INSTANCES;
+        static constexpr TI N_AGENTS = HYPERDRONE_ENVIRONMENT_N_AGENTS;
+        static constexpr TI N_CAMERA_AGENTS = HYPERDRONE_ENVIRONMENT_N_CAMERA_AGENTS;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE =
-            (HYPERDRONE_ENV_TASK == 2 && PRESET_SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE == 0 ? 8 : PRESET_SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE)
+            (HYPERDRONE_ENVIRONMENT_TASK == 2 && PRESET_SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE == 0 ? 8 : PRESET_SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE)
             + (N_AGENTS - 1) * rlt::rl::environments::hyperdrone::MAX_DRONE_PARTS;
         // the visual-inertial localization benchmark flies without self-occlusion, like its
         // C++ harness (src/rl/environments/hyperdrone/tasks/visual_inertial_localization_harness.h)
-        static constexpr bool SELF_VISIBLE = HYPERDRONE_ENV_TASK != 3 && PRESET_SPEC::SELF_VISIBLE;
-        static constexpr TI CAM_WIDTH = HYPERDRONE_ENV_CAM_WIDTH;
-        static constexpr TI CAM_HEIGHT = HYPERDRONE_ENV_CAM_HEIGHT;
-        static constexpr bool ENABLE_MOTION_BLUR = HYPERDRONE_ENV_MB_SAMPLES > 1;
-        static constexpr TI MOTION_BLUR_SAMPLES = HYPERDRONE_ENV_MB_SAMPLES;
+        static constexpr bool SELF_VISIBLE = HYPERDRONE_ENVIRONMENT_TASK != 3 && PRESET_SPEC::SELF_VISIBLE;
+        static constexpr TI CAM_WIDTH = HYPERDRONE_ENVIRONMENT_CAM_WIDTH;
+        static constexpr TI CAM_HEIGHT = HYPERDRONE_ENVIRONMENT_CAM_HEIGHT;
+        static constexpr bool ENABLE_MOTION_BLUR = HYPERDRONE_ENVIRONMENT_MB_SAMPLES > 1;
+        static constexpr TI MOTION_BLUR_SAMPLES = HYPERDRONE_ENVIRONMENT_MB_SAMPLES;
         static constexpr TI MAX_DRONES = 8;
-        using SHADING = rlt::utils::typing::conditional_t<HYPERDRONE_ENV_SHADING == 0, rlt::rendering::raytracing::Low,
-                        rlt::utils::typing::conditional_t<HYPERDRONE_ENV_SHADING == 1, rlt::rendering::raytracing::Medium,
+        using SHADING = rlt::utils::typing::conditional_t<HYPERDRONE_ENVIRONMENT_SHADING == 0, rlt::rendering::raytracing::Low,
+                        rlt::utils::typing::conditional_t<HYPERDRONE_ENVIRONMENT_SHADING == 1, rlt::rendering::raytracing::Medium,
                                                                                       rlt::rendering::raytracing::High>>;
     };
     using BASE_WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
-#if HYPERDRONE_ENV_TASK == 0
+#if HYPERDRONE_ENVIRONMENT_TASK == 0
     using WORLD = BASE_WORLD;
-#elif HYPERDRONE_ENV_TASK == 1
+#elif HYPERDRONE_ENVIRONMENT_TASK == 1
     struct TASK_SPEC: rlt::rl::environments::hyperdrone::tasks::target_frame::Specification<BASE_WORLD> {};
     using WORLD = rlt::rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
-#elif HYPERDRONE_ENV_TASK == 2
+#elif HYPERDRONE_ENVIRONMENT_TASK == 2
     struct TASK_SPEC: rlt::rl::environments::hyperdrone::tasks::moving_gate::Specification<BASE_WORLD> {};
     using WORLD = rlt::rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>;
-#elif HYPERDRONE_ENV_TASK == 3
+#elif HYPERDRONE_ENVIRONMENT_TASK == 3
     struct TASK_SPEC: rlt::rl::environments::hyperdrone::tasks::visual_inertial_localization::Specification<BASE_WORLD> {};
     using WORLD = rlt::rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>;
 #else
-#error "unknown HYPERDRONE_ENV_TASK"
+#error "unknown HYPERDRONE_ENVIRONMENT_TASK"
 #endif
 #endif
 
     using OUTPUTS = typename WORLD::RENDERER_SPEC::OUTPUTS;
     using INSTANCE_SEGMENTATION = rro::Segmentation<rro::format::UInt32, rro::labels::Instance>;
     using SEMANTIC_SEGMENTATION = rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>;
-    constexpr TI NUM_WORLDS = HYPERDRONE_ENV_NUM_WORLDS;
+    constexpr TI NUM_WORLDS = HYPERDRONE_ENVIRONMENT_NUM_WORLDS;
     using ENV = rlt::rl::environments::HyperDrone<WORLD, NUM_WORLDS>;
     constexpr TI TOTAL = NUM_WORLDS * WORLD::INSTANCES;
     using DYNAMICS = typename WORLD::DYNAMICS_ENV::Parameters::Dynamics;
@@ -252,7 +252,7 @@ namespace HYPERDRONE_MODULE_NAME {
         constexpr TI WIDTH = WORLD::Observation::WIDTH;
         constexpr TI CHANNELS = WORLD::Observation::CHANNELS;
         ObservationLayout layout{{HEIGHT, WIDTH, CHANNELS}, "channel", {}};
-#if HYPERDRONE_ENV_TASK == 1
+#if HYPERDRONE_ENVIRONMENT_TASK == 1
         constexpr TI STACK_CHANNELS = TASK_SPEC::IMAGE_STACK_N * BASE_WORLD::IMAGE_CHANNELS;
         layout.blocks.push_back({"image_stack", 0, STACK_CHANNELS});
         layout.blocks.push_back({"target_image", STACK_CHANNELS, BASE_WORLD::IMAGE_CHANNELS});
@@ -268,7 +268,7 @@ namespace HYPERDRONE_MODULE_NAME {
 
     inline ObservationLayout observation_layout_privileged(){
         ObservationLayout layout{{WORLD::OBSERVATION_DIM_PRIVILEGED}, "flat", {}};
-#ifdef HYPERDRONE_ENV_SPEC_HEADER
+#ifdef HYPERDRONE_ENVIRONMENT_SPEC_HEADER
         layout.blocks.push_back({"observation", 0, WORLD::OBSERVATION_DIM_PRIVILEGED});
 #else
         // the dynamics observation chain: Position(3), OrientationRotationMatrix(9),
@@ -282,10 +282,10 @@ namespace HYPERDRONE_MODULE_NAME {
             layout.blocks.push_back({prefix + "linear_velocity", base + 12, 3});
             layout.blocks.push_back({prefix + "angular_velocity", base + 15, 3});
         }
-#if HYPERDRONE_ENV_TASK == 2
+#if HYPERDRONE_ENVIRONMENT_TASK == 2
         layout.blocks.push_back({"gate_state", WORLD::N_AGENTS * PER_AGENT, 8});
 #endif
-#if HYPERDRONE_ENV_TASK == 3
+#if HYPERDRONE_ENVIRONMENT_TASK == 3
         layout.blocks.push_back({"waypoint", WORLD::N_AGENTS * PER_AGENT, 3});
 #endif
 #endif
@@ -293,7 +293,7 @@ namespace HYPERDRONE_MODULE_NAME {
     }
 
     inline ObservationLayout observation_layout_imu(){
-#if HYPERDRONE_ENV_TASK == 3
+#if HYPERDRONE_ENVIRONMENT_TASK == 3
         return {{OBSERVATION_DIM_IMU}, "flat", {{"accelerometer", 0, 3}, {"gyroscope", 3, 3}, {"frame_age", 6, 1}, {"new_frame", 7, 1}}};
 #else
         return {{OBSERVATION_DIM_IMU}, "flat", {{"imu", 0, OBSERVATION_DIM_IMU}}};

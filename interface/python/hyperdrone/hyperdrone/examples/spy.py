@@ -5,7 +5,7 @@ import time
 
 import numpy as np
 
-from hyperdrone.env import EnvConfig, HyperDrone
+from hyperdrone import Config, HyperDrone
 from hyperdrone.examples.data import RIGGED_MODELS, procthor_scene_path
 
 
@@ -25,7 +25,7 @@ def main():
 
     env = HyperDrone(
         arguments.scene or procthor_scene_path(),
-        config=EnvConfig(instances_per_world=4, width=64, height=64, preset="x500_fpv", control="position"),
+        config=Config(instances_per_world=4, width=64, height=64, preset="x500_fpv", control="position"),
         drone_asset=RIGGED_MODELS["x500"],
         parameters={"dynamics": {"mdp": {"init": {"guidance": 1}}}},
         seed=0,

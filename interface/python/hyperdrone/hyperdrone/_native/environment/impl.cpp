@@ -1,15 +1,15 @@
-#if defined(HYPERDRONE_ENV_CUDA)
+#if defined(HYPERDRONE_ENVIRONMENT_CUDA)
 #define RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include <rl_tools/operations/cpu_mux.h>
 #endif
 #include "environment.h"
-#if HYPERDRONE_ENV_DEVICE_CUDA
+#if HYPERDRONE_ENVIRONMENT_DEVICE_CUDA
 #include <rl_tools/rl/environments/hyperdrone/controllers/raptor/operations_cuda.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cuda.h>
-#if HYPERDRONE_ENV_TASK == 1
+#if HYPERDRONE_ENVIRONMENT_TASK == 1
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cuda.h>
 #endif
-#if HYPERDRONE_ENV_TASK == 2
+#if HYPERDRONE_ENVIRONMENT_TASK == 2
 #include <rl_tools/rl/environments/hyperdrone/tasks/moving_gate/operations_cuda.h>
 #endif
 #endif
@@ -19,7 +19,7 @@
 #endif
 #ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
 #include <rl_tools/rl/environments/hyperdrone/spy/operations_cpu.h>
-#if HYPERDRONE_ENV_DEVICE_CUDA
+#if HYPERDRONE_ENVIRONMENT_DEVICE_CUDA
 #include <rl_tools/rl/environments/hyperdrone/spy/operations_cuda.h>
 #endif
 #endif
@@ -48,7 +48,7 @@ namespace HYPERDRONE_MODULE_NAME {
     using rl_tools::collision_stream;
 #endif
 
-#if HYPERDRONE_ENV_DEVICE_CUDA
+#if HYPERDRONE_ENVIRONMENT_DEVICE_CUDA
     using DEVICE = rlt::devices::CUDA<rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, HOST_DEVICE>>;
     // one curand state per instance across all members (the composite partitions them per member)
     using RNG = rlt::devices::random::CUDA::ENGINE<rlt::devices::random::CUDA::Specification<TI, TOTAL>>;
@@ -61,7 +61,7 @@ namespace HYPERDRONE_MODULE_NAME {
     };
 #endif
 
-#if !HYPERDRONE_ENV_DEVICE_CUDA
+#if !HYPERDRONE_ENVIRONMENT_DEVICE_CUDA
     using DEVICE = HOST_DEVICE;
     using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 #endif
@@ -886,14 +886,14 @@ namespace HYPERDRONE_MODULE_NAME {
         impl->copy_out(impl->terminated_flags, out, resident);
     }
     uintptr_t Environment::stream() const {
-#if HYPERDRONE_ENV_DEVICE_CUDA
+#if HYPERDRONE_ENVIRONMENT_DEVICE_CUDA
         return (uintptr_t)impl->device.stream;
 #else
         return 0;
 #endif
     }
     void Environment::set_stream([[maybe_unused]] uintptr_t stream){
-#if HYPERDRONE_ENV_DEVICE_CUDA
+#if HYPERDRONE_ENVIRONMENT_DEVICE_CUDA
         const CurrentDevice current(impl->device_id);
         // recording the World's event fails on a stream of another GPU
         if(cudaEventRecord(impl->device.ordering_event, (cudaStream_t)stream) != cudaSuccess){
@@ -908,7 +908,7 @@ namespace HYPERDRONE_MODULE_NAME {
     }
     void Environment::synchronize(){
         const CurrentDevice current(impl->device_id);
-#if HYPERDRONE_ENV_DEVICE_CUDA
+#if HYPERDRONE_ENVIRONMENT_DEVICE_CUDA
         cudaStreamSynchronize(impl->device.stream);
 #endif
         for(TI member = 0; member < NUM_WORLDS; member++){

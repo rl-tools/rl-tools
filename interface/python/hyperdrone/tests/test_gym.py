@@ -6,8 +6,8 @@ import pytest
 
 gymnasium = pytest.importorskip("gymnasium")
 
-from hyperdrone.camera import CameraSpec, Depth, RGB
-from hyperdrone.env import EnvConfig, ImageObservation
+from hyperdrone import Config
+from hyperdrone.camera import CameraSpec, Depth, ImageObservation, RGB
 from hyperdrone._jit import source_root
 
 
@@ -24,7 +24,7 @@ def scene_directory(tmp_path_factory):
 def test_vector_env_api(scene_directory):
     from hyperdrone.gym import VectorEnv
 
-    config = EnvConfig(num_worlds=1, instances_per_world=2, width=16, height=16, cameras=(CameraSpec("front", (RGB("float32"),)), CameraSpec("down", (Depth(),))), observation=ImageObservation(("front",)))
+    config = Config(num_worlds=1, instances_per_world=2, width=16, height=16, cameras=(CameraSpec("front", (RGB("float32"),)), CameraSpec("down", (Depth(),))), observation=ImageObservation(("front",)))
     env = VectorEnv(scene_directory, config=config, seed=11)
     try:
         assert env.num_envs == 2
@@ -58,7 +58,7 @@ def test_vector_env_rejects_missing_policy_observation(monkeypatch):
             closed.append(True)
 
     monkeypatch.setattr(gym, "HyperDrone", NonvisualEnvironment)
-    config = EnvConfig(cameras=(CameraSpec("depth", (Depth(),)),), observation=None)
+    config = Config(cameras=(CameraSpec("depth", (Depth(),)),), observation=None)
     with pytest.raises(ValueError, match="requires a configured policy observation"):
         gym.VectorEnv([], config=config)
     assert closed == [True]

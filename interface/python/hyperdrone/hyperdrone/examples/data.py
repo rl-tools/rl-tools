@@ -6,7 +6,7 @@ from pathlib import Path
 import conta
 
 PROCTHOR_SCENE = {"description": "ai2thor-hab/glb/ProcTHOR-Train-1.glb", "hash": "75d1d67a17ecd16bc3a214baa895240da8060df7"}
-# body/prop_* assemblies, each a drone table asset (hyperdrone.env.HyperDrone(drones=...))
+# body/prop_* assemblies, each a drone table asset (hyperdrone.HyperDrone(drones=...))
 RIGGED_MODELS = {
     "arpl": {"description": "rigged/arpl_optimized_scaled.glb", "hash": "25401d66376e927dd71ca7cd9527a22c867eede6", "sha256": "5effcbd84845e6bc3cc8abbd0dfd2ce877a1114ba012db702032268832f41809"},
     "crazyflie_brushless": {"description": "rigged/crazyflie_brushless_optimized_scaled.glb", "hash": "b22399b2103e0e4559c7c14239e148f963817d77", "sha256": "7a634d5d79b228358ed83e39961c32976339de8ed3d14bd450092fde75d164f9"},

@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <string>
 
-namespace hyperdrone_env_user {
+namespace hyperdrone_user {
     namespace orbiter {
         using T = float;
         using TI = std::size_t;
@@ -111,7 +111,7 @@ namespace hyperdrone_env_user {
 
 namespace rl_tools {
     template <typename DEVICE, typename TASK_SPEC>
-    bool set_asset(DEVICE& device, hyperdrone_env_user::orbiter::World<TASK_SPEC>& world, const std::string& name, const std::string& path){
+    bool set_asset(DEVICE& device, hyperdrone_user::orbiter::World<TASK_SPEC>& world, const std::string& name, const std::string& path){
         if(name == "orbiter"){
             world.orbiter_asset_path = path;
             return true;
@@ -119,7 +119,7 @@ namespace rl_tools {
         return set_asset(device, static_cast<typename TASK_SPEC::NEXT_WORLD&>(world), name, path);
     }
     template <typename DEVICE, typename TASK_SPEC, typename DATASET>
-    void init(DEVICE& device, hyperdrone_env_user::orbiter::World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, const DATASET& dataset, const typename DATASET::Corpus& corpus, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index){
+    void init(DEVICE& device, hyperdrone_user::orbiter::World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, const DATASET& dataset, const typename DATASET::Corpus& corpus, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index){
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         utils::assert_exit(device, !world.orbiter_asset_path.empty(), "orbiter: the object asset must be set before init (pass assets={'orbiter': ...})");
         world.entity_kind_index = register_entity_kind(device, world, shared, world.orbiter_asset_path);
@@ -127,14 +127,14 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename TASK_SPEC, typename RNG>
-    void sample_initial_state(DEVICE& device, hyperdrone_env_user::orbiter::World<TASK_SPEC>& world, typename hyperdrone_env_user::orbiter::World<TASK_SPEC>::Parameters& parameters, typename hyperdrone_env_user::orbiter::World<TASK_SPEC>::State& state, RNG& rng){
+    void sample_initial_state(DEVICE& device, hyperdrone_user::orbiter::World<TASK_SPEC>& world, typename hyperdrone_user::orbiter::World<TASK_SPEC>::Parameters& parameters, typename hyperdrone_user::orbiter::World<TASK_SPEC>::State& state, RNG& rng){
         using T = typename TASK_SPEC::T;
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         sample_initial_state(device, static_cast<NEXT_WORLD&>(world), static_cast<typename NEXT_WORLD::Parameters&>(parameters), static_cast<typename NEXT_WORLD::State&>(state), rng);
         // the orbit is centered on the freshly sampled spawn and its phase aligned with the
         // sampled facing, so the object starts in front of the camera (a wall or the sampled
         // attitude can still hide it) and crosses the view once per revolution
-        hyperdrone_env_user::orbiter::drone_scene_position<DEVICE, TASK_SPEC>(device, parameters, state, parameters.orbit_center);
+        hyperdrone_user::orbiter::drone_scene_position<DEVICE, TASK_SPEC>(device, parameters, state, parameters.orbit_center);
         const T qw = state.orientation[0], qx = state.orientation[1], qy = state.orientation[2], qz = state.orientation[3];
         const T forward_x = 1 - 2 * (qy * qy + qz * qz);
         const T forward_y = 2 * (qx * qy + qw * qz);
@@ -143,9 +143,9 @@ namespace rl_tools {
         state.orbit_phase = math::atan2(device.math, scene_forward_y, scene_forward_x);
     }
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC, typename RNG>
-    void sample_initial_state(DEVICE& device, hyperdrone_env_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask, RNG& rng){
+    void sample_initial_state(DEVICE& device, hyperdrone_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask, RNG& rng){
         using TI = typename TASK_SPEC::TI;
-        using WORLD = hyperdrone_env_user::orbiter::World<TASK_SPEC>;
+        using WORLD = hyperdrone_user::orbiter::World<TASK_SPEC>;
         static_assert(utils::typing::is_same_v<typename STATE_SPEC::T, typename WORLD::State>);
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             if (get(device, reset_mask, instance_i)) {
@@ -156,10 +156,10 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC>
-    void prepare_entity_poses(DEVICE& device, hyperdrone_env_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states){
+    void prepare_entity_poses(DEVICE& device, hyperdrone_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states){
         using T = typename TASK_SPEC::T;
         using TI = typename TASK_SPEC::TI;
-        using WORLD = hyperdrone_env_user::orbiter::World<TASK_SPEC>;
+        using WORLD = hyperdrone_user::orbiter::World<TASK_SPEC>;
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         const auto& kind = world.entity_kinds[world.entity_kind_index];
         const auto placement = rl::environments::hyperdrone::_entity_placement(world, kind);
@@ -168,13 +168,13 @@ namespace rl_tools {
             const auto& instance_parameters = get_ref(device, parameters, instance_i);
             const auto& state = get_ref(device, states, instance_i);
             float pose[12];
-            hyperdrone_env_user::orbiter::orbiter_pose<DEVICE, TASK_SPEC>(device, instance_parameters, state.orbit_phase, pose);
+            hyperdrone_user::orbiter::orbiter_pose<DEVICE, TASK_SPEC>(device, instance_parameters, state.orbit_phase, pose);
             if constexpr (NEXT_WORLD::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
                 constexpr T TWO_PI = (T)2 * math::PI<T>;
                 const T dt = instance_parameters.agents[0].dynamics.integration.dt;
                 float pose_open[12];
                 T phase_open = state.orbit_phase - TWO_PI * TASK_SPEC::ORBIT_RATE * dt * instance_parameters.shutter_fraction;
-                hyperdrone_env_user::orbiter::orbiter_pose<DEVICE, TASK_SPEC>(device, instance_parameters, phase_open, pose_open);
+                hyperdrone_user::orbiter::orbiter_pose<DEVICE, TASK_SPEC>(device, instance_parameters, phase_open, pose_open);
                 set_pose(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, make_pose(pose_open), make_pose(pose));
             } else {
                 set_pose(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, make_pose(pose));
@@ -183,10 +183,10 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename NEXT_STATE_SPEC, typename RNG>
-    void step(DEVICE& device, hyperdrone_env_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<ACTION_SPEC>& actions, Tensor<NEXT_STATE_SPEC>& next_states, RNG& rng){
+    void step(DEVICE& device, hyperdrone_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<ACTION_SPEC>& actions, Tensor<NEXT_STATE_SPEC>& next_states, RNG& rng){
         using T = typename TASK_SPEC::T;
         using TI = typename TASK_SPEC::TI;
-        using WORLD = hyperdrone_env_user::orbiter::World<TASK_SPEC>;
+        using WORLD = hyperdrone_user::orbiter::World<TASK_SPEC>;
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         constexpr T TWO_PI = (T)2 * math::PI<T>;
         if constexpr (NEXT_WORLD::SPEC::HISTORY_LENGTH > 1 || NEXT_WORLD::RENDERER_SPEC::HAS_FLOW){
@@ -205,7 +205,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
-    void render(DEVICE& device, hyperdrone_env_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask){
+    void render(DEVICE& device, hyperdrone_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask){
         if(!world.render_pending){
             return;
         }
@@ -217,7 +217,7 @@ namespace rl_tools {
     // a frame requested by reset or step and observed without an explicit render goes through
     // the task's render, so the object moves with it
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename OBSERVATION_SPEC, typename RNG>
-    void observe(DEVICE& device, hyperdrone_env_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, typename TASK_SPEC::NEXT_WORLD::Observation observation_type, Tensor<OBSERVATION_SPEC>& observations, RNG& rng){
+    void observe(DEVICE& device, hyperdrone_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, typename TASK_SPEC::NEXT_WORLD::Observation observation_type, Tensor<OBSERVATION_SPEC>& observations, RNG& rng){
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         if(world.render_pending){
             render(device, world, parameters, states, world.render_reset);
@@ -226,31 +226,31 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename NEXT_STATE_SPEC, typename REWARD_SPEC, typename RNG>
-    void reward(DEVICE& device, hyperdrone_env_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<ACTION_SPEC>& actions, Tensor<NEXT_STATE_SPEC>& next_states, Tensor<REWARD_SPEC>& rewards, RNG& rng){
+    void reward(DEVICE& device, hyperdrone_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<ACTION_SPEC>& actions, Tensor<NEXT_STATE_SPEC>& next_states, Tensor<REWARD_SPEC>& rewards, RNG& rng){
         using T = typename TASK_SPEC::T;
         using TI = typename TASK_SPEC::TI;
-        using WORLD = hyperdrone_env_user::orbiter::World<TASK_SPEC>;
+        using WORLD = hyperdrone_user::orbiter::World<TASK_SPEC>;
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         reward(device, static_cast<NEXT_WORLD&>(world), parameters, states, actions, next_states, rewards, rng);
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             const auto& instance_parameters = get_ref(device, parameters, instance_i);
             const auto& next_state = get_ref(device, next_states, instance_i);
-            T distance = hyperdrone_env_user::orbiter::orbiter_distance<DEVICE, TASK_SPEC>(device, instance_parameters, next_state, next_state.orbit_phase);
+            T distance = hyperdrone_user::orbiter::orbiter_distance<DEVICE, TASK_SPEC>(device, instance_parameters, next_state, next_state.orbit_phase);
             set(device, rewards, get(device, rewards, instance_i) - TASK_SPEC::REWARD_DISTANCE_SCALE * distance, instance_i);
         }
     }
 
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename TERMINATED_SPEC, typename RNG>
-    void terminated(DEVICE& device, hyperdrone_env_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, Tensor<TERMINATED_SPEC>& terminated_flags, RNG& rng){
+    void terminated(DEVICE& device, hyperdrone_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, Tensor<TERMINATED_SPEC>& terminated_flags, RNG& rng){
         using T = typename TASK_SPEC::T;
         using TI = typename TASK_SPEC::TI;
-        using WORLD = hyperdrone_env_user::orbiter::World<TASK_SPEC>;
+        using WORLD = hyperdrone_user::orbiter::World<TASK_SPEC>;
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         terminated(device, static_cast<NEXT_WORLD&>(world), parameters, states, terminated_flags, rng);
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             const auto& instance_parameters = get_ref(device, parameters, instance_i);
             const auto& state = get_ref(device, states, instance_i);
-            T distance = hyperdrone_env_user::orbiter::orbiter_distance<DEVICE, TASK_SPEC>(device, instance_parameters, state, state.orbit_phase);
+            T distance = hyperdrone_user::orbiter::orbiter_distance<DEVICE, TASK_SPEC>(device, instance_parameters, state, state.orbit_phase);
             if (distance < TASK_SPEC::COLLISION_RADIUS) {
                 set(device, terminated_flags, true, instance_i);
             }
@@ -261,7 +261,7 @@ namespace rl_tools {
 // ADL entry points, mirroring the shipped tasks: member-lifecycle verbs carry no Tensor
 // argument, so composite code only finds a task's overloads through the task type's own
 // namespace at instantiation
-namespace hyperdrone_env_user::orbiter {
+namespace hyperdrone_user::orbiter {
     template <typename DEVICE, typename TASK_SPEC>
     bool set_asset(DEVICE& device, World<TASK_SPEC>& world, const std::string& name, const std::string& path){
         return ::rl_tools::set_asset(device, world, name, path);

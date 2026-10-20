@@ -9,11 +9,11 @@ import pytest
 
 from hyperdrone import render
 from hyperdrone.camera import CameraSpec, RGB, Segmentation
-from hyperdrone.env import EnvConfig, HyperDrone
+from hyperdrone import Config, HyperDrone
 
 
-CONFIG = EnvConfig(instances_per_world=2, width=16, height=16, fidelity="low",
-                   cameras=(CameraSpec("front", outputs=(RGB("float32"), Segmentation(labels="semantic"))),), device="cpu")
+CONFIG = Config(instances_per_world=2, width=16, height=16, fidelity="low",
+                cameras=(CameraSpec("front", outputs=(RGB("float32"), Segmentation(labels="semantic"))),), device="cpu")
 CLASSES = {0: "Unknown", 7: "Room"}
 
 
@@ -52,7 +52,7 @@ def room_glb(path, taxonomy="test", classes=None, extent=5):
 def test_dataset_config():
     assert CONFIG.dataset == "glb"
     assert CONFIG.key() != replace(CONFIG, dataset="procthor").key()
-    assert CONFIG.defines()["HYPERDRONE_ENV_DATASET"] == 0
+    assert CONFIG.defines()["HYPERDRONE_ENVIRONMENT_DATASET"] == 0
     with pytest.raises(ValueError, match="unknown dataset"):
         replace(CONFIG, dataset="missing")
 
@@ -161,7 +161,7 @@ def test_custom_world_metadata(tmp_path):
         pytest.skip("no x500 test asset")
     scene = room_glb(tmp_path / "room.glb", taxonomy="ai2thor-hab")
     env = HyperDrone(scene, drone_asset=asset,
-                           config=EnvConfig(spec_header=str(header), dataset="procthor", device="cpu"))
+                           config=Config(spec_header=str(header), dataset="procthor", device="cpu"))
     try:
         assert env.segmentation_taxonomy == "ai2thor-hab"
         agent = render.AGENT_SEGMENTATION_CLASS

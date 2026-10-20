@@ -6,7 +6,7 @@ from .. import _cuda
 from .._dlpack import DLPackBuffer as _DLPackBuffer, is_cuda
 from .._parameters import resolve
 from ._component import ensure_sim_library, load_core, _resolve_device
-from ._config import STATE_COMPONENTS, SimConfig
+from ._config import STATE_COMPONENTS, Config
 
 IDENTITY_MOUNT = np.array([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]], dtype=np.float32)
 
@@ -47,7 +47,7 @@ class Sim:
     """
 
     def __init__(self, num_drones, *, parameters=None, seed=0, device="cpu", control="motor", actuation="rotors"):
-        self._config = SimConfig(num_drones=num_drones, control=control, actuation=actuation)
+        self._config = Config(num_drones=num_drones, control=control, actuation=actuation)
         if type(seed) is not int or not 0 <= seed <= 0xFFFFFFFF:
             raise ValueError("hyperdrone: seed must be an integer in [0, 2**32 - 1]")
         self.device = _resolve_device(device)

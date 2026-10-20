@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(hyperdrone_env LANGUAGES CXX)
+project(hyperdrone_environment LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -46,15 +46,15 @@ FetchContent_Declare(
     EXCLUDE_FROM_ALL
 )
 FetchContent_MakeAvailable(stb)
-add_library(hyperdrone_env_stb INTERFACE)
-target_include_directories(hyperdrone_env_stb SYSTEM INTERFACE ${stb_SOURCE_DIR})
+add_library(hyperdrone_environment_stb INTERFACE)
+target_include_directories(hyperdrone_environment_stb SYSTEM INTERFACE ${stb_SOURCE_DIR})
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/hyperdrone_jit.cmake)
 hyperdrone_jit_find_nanobind()
 
 function(hyperdrone_component_libraries DEFINES OUT_LIBRARIES)
     hyperdrone_jit_parse_defines("${DEFINES}" CONFIG)
-    if(DEFINED CONFIG_HYPERDRONE_ENV_SPEC_HEADER)
+    if(DEFINED CONFIG_HYPERDRONE_ENVIRONMENT_SPEC_HEADER)
         set(${OUT_LIBRARIES} rendering_raytracing_backend rendering_raytracing_backend_depth rendering_raytracing_backend_segmentation rendering_raytracing_backend_normals PARENT_SCOPE)
     elseif(CONFIG_HYPERDRONE_CAMERA_BACKEND_REQUIREMENT STREQUAL "normals")
         set(${OUT_LIBRARIES} rendering_raytracing_backend_normals PARENT_SCOPE)
@@ -68,20 +68,20 @@ function(hyperdrone_component_libraries DEFINES OUT_LIBRARIES)
 endfunction()
 
 # under OptiX impl.cpp, which holds the environment behind the binding, is compiled by nvcc so
-# the World can run on the GPU (EnvConfig.device); the nanobind translation unit stays C++
+# the World can run on the GPU (Config.device); the nanobind translation unit stays C++
 if(HYPERDRONE_VARIANT STREQUAL "OPTIX")
-    add_compile_definitions(HYPERDRONE_ENV_CUDA=1)
+    add_compile_definitions(HYPERDRONE_ENVIRONMENT_CUDA=1)
     set_source_files_properties(impl.cpp PROPERTIES LANGUAGE CUDA)
 endif()
 
-set(hyperdrone_env_libraries RLtools::RLtools hyperdrone_env_stb)
+set(hyperdrone_environment_libraries RLtools::RLtools hyperdrone_environment_stb)
 if(TARGET RLtools::RaytracingSpy)
-    list(APPEND hyperdrone_env_libraries RLtools::RaytracingSpy rendering_raytracing_backend)
+    list(APPEND hyperdrone_environment_libraries RLtools::RaytracingSpy rendering_raytracing_backend)
 endif()
 
 hyperdrone_jit_add_configs(
-    COMPONENT env
+    COMPONENT environment
     PYTHON_MODULE
     SOURCES environment.cpp impl.cpp
-    LINK ${hyperdrone_env_libraries}
+    LINK ${hyperdrone_environment_libraries}
 )

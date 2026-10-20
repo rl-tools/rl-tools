@@ -8,7 +8,7 @@ import inspect
 import pytest
 
 SURFACE = {
-    "hyperdrone": ["HyperDrone", "Rotorcraft", "articulate", "set_verbosity", "verbosity"],
+    "hyperdrone": ["Config", "HyperDrone", "Rotorcraft", "articulate", "set_verbosity", "verbosity"],
     "hyperdrone.camera": ["CameraSpec", "RGB", "Depth", "Segmentation", "Normals", "Flow", "FlowStatus", "Probes", "ImageObservation", "OutputDescriptor"],
     "hyperdrone.render": [
         "AGENT_SEGMENTATION_CLASS",
@@ -16,6 +16,7 @@ SURFACE = {
         "FIDELITY",
         "FlowStatus",
         "ClearanceSampler",
+        "Config",
         "Mesh",
         "Object",
         "ObjectAssembly",
@@ -23,7 +24,6 @@ SURFACE = {
         "PlacementBatch",
         "Pose",
         "Renderer",
-        "RendererConfig",
         "Scene",
         "SceneLight",
         "compose_transforms",
@@ -42,12 +42,6 @@ SURFACE = {
         "MODELS",
         "Sim",
     ],
-    "hyperdrone.env": [
-        "EnvConfig",
-        "ImageObservation",
-        "HyperDrone",
-        "ObservationLayout",
-    ],
 }
 
 
@@ -59,23 +53,23 @@ def test_public_surface_is_locked():
         )
 
 
-def test_top_level_hyperdrone_is_the_environment():
-    import hyperdrone
-    from hyperdrone.env import HyperDrone
-    assert hyperdrone.HyperDrone is HyperDrone
-
-
 def test_sim_has_no_mdp_surface():
     from hyperdrone.dynamics import Sim
     for name in ("set_compute_mdp", "rewards", "terminated"):
         assert not hasattr(Sim, name), (
-            f"Sim.{name} was removed — reward/termination live in hyperdrone.env.HyperDrone"
+            f"Sim.{name} was removed — reward/termination live in hyperdrone.HyperDrone"
         )
+
+
+@pytest.mark.parametrize("name", ["MultiEnvironment", "EnvConfig"])
+def test_removed_env_names_point_to_the_root(name):
+    with pytest.raises(ImportError, match="from hyperdrone import Config, HyperDrone"):
+        getattr(importlib.import_module("hyperdrone.env"), name)
 
 
 SIGNATURES = {
     "hyperdrone.render.Renderer": ("width", "height"),
-    "hyperdrone.render.RendererConfig": (),
+    "hyperdrone.render.Config": (),
     "hyperdrone.render.OverlayPlacement": (),
     "hyperdrone.render.Pose": ("base",),
     "hyperdrone.render.ClearanceSampler": ("scene",),
@@ -98,13 +92,12 @@ SIGNATURES = {
     "hyperdrone.dynamics.Sim.step": ("actions",),
     "hyperdrone.dynamics.Sim.camera_bases": (),
     "hyperdrone.dynamics.Sim.camera_bases_dlpack": (),
-    "hyperdrone.env.EnvConfig": (),
-    "hyperdrone.env.ObservationLayout": (),
-    "hyperdrone.env.HyperDrone": ("scenes",),
-    "hyperdrone.env.HyperDrone.reset": ("mask",),
-    "hyperdrone.env.HyperDrone.step": ("actions",),
-    "hyperdrone.env.HyperDrone.set_instance_parameters": ("overrides", "mask"),
-    **{f"hyperdrone.env.HyperDrone.{name}": () for name in ("observe", "observe_privileged", "observe_imu", "rewards", "terminated", "render", "probe", "spy")},
+    "hyperdrone.Config": (),
+    "hyperdrone.HyperDrone": ("scenes",),
+    "hyperdrone.HyperDrone.reset": ("mask",),
+    "hyperdrone.HyperDrone.step": ("actions",),
+    "hyperdrone.HyperDrone.set_instance_parameters": ("overrides", "mask"),
+    **{f"hyperdrone.HyperDrone.{name}": () for name in ("observe", "observe_privileged", "observe_imu", "rewards", "terminated", "render", "probe", "spy")},
     "hyperdrone.Rotorcraft": ("assembly",),
     "hyperdrone.articulate": ("assembly",),
 }

@@ -1,4 +1,4 @@
-"""DLPack plumbing shared by the render, dynamics, and env packages."""
+"""DLPack plumbing shared by render, dynamics, and the environment."""
 
 KDL_CPU = 1
 KDL_CUDA = 2

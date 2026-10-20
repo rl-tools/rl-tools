@@ -1,9 +1,9 @@
 // Golden-rollout generator sharing the binding's concrete C++ environment (the configuration
 // defines and the implementation unit come from CMake). Run from the repo root; regenerate
 // deliberately and review the diff.
-#include "../../../../../interface/python/hyperdrone/hyperdrone/_native/env/environment.h"
+#include "../../../../../interface/python/hyperdrone/hyperdrone/_native/environment/environment.h"
 
-namespace henv = hyperdrone_env_golden;
+namespace henv = hyperdrone_environment_golden;
 
 #include <array>
 #include <cstdio>
@@ -90,20 +90,20 @@ int main(){
     manifest["steps"] = STEPS;
     manifest["action_formula"] = "-1 + 2*(((step*131 + instance*31 + dim*7) % 101) / 100)";
     manifest["defines"] = {
-        {"HYPERDRONE_ENV_DATASET", HYPERDRONE_ENV_DATASET},
-        {"HYPERDRONE_ENV_NUM_WORLDS", HYPERDRONE_ENV_NUM_WORLDS},
-        {"HYPERDRONE_ENV_INSTANCES", HYPERDRONE_ENV_INSTANCES},
-        {"HYPERDRONE_ENV_CAM_WIDTH", HYPERDRONE_ENV_CAM_WIDTH},
-        {"HYPERDRONE_ENV_CAM_HEIGHT", HYPERDRONE_ENV_CAM_HEIGHT},
-        {"HYPERDRONE_ENV_SHADING", HYPERDRONE_ENV_SHADING},
-        {"HYPERDRONE_ENV_MB_SAMPLES", HYPERDRONE_ENV_MB_SAMPLES},
-        {"HYPERDRONE_ENV_PRESET", HYPERDRONE_ENV_PRESET},
-        {"HYPERDRONE_ENV_TASK", HYPERDRONE_ENV_TASK},
-        {"HYPERDRONE_ENV_CONTROL", HYPERDRONE_ENV_CONTROL},
-        {"HYPERDRONE_ENV_ACTUATION", HYPERDRONE_ENV_ACTUATION},
-        {"HYPERDRONE_ENV_N_AGENTS", HYPERDRONE_ENV_N_AGENTS},
-        {"HYPERDRONE_ENV_N_CAMERA_AGENTS", HYPERDRONE_ENV_N_CAMERA_AGENTS},
-        {"HYPERDRONE_ENV_DEVICE_CUDA", HYPERDRONE_ENV_DEVICE_CUDA},
+        {"HYPERDRONE_ENVIRONMENT_DATASET", HYPERDRONE_ENVIRONMENT_DATASET},
+        {"HYPERDRONE_ENVIRONMENT_NUM_WORLDS", HYPERDRONE_ENVIRONMENT_NUM_WORLDS},
+        {"HYPERDRONE_ENVIRONMENT_INSTANCES", HYPERDRONE_ENVIRONMENT_INSTANCES},
+        {"HYPERDRONE_ENVIRONMENT_CAM_WIDTH", HYPERDRONE_ENVIRONMENT_CAM_WIDTH},
+        {"HYPERDRONE_ENVIRONMENT_CAM_HEIGHT", HYPERDRONE_ENVIRONMENT_CAM_HEIGHT},
+        {"HYPERDRONE_ENVIRONMENT_SHADING", HYPERDRONE_ENVIRONMENT_SHADING},
+        {"HYPERDRONE_ENVIRONMENT_MB_SAMPLES", HYPERDRONE_ENVIRONMENT_MB_SAMPLES},
+        {"HYPERDRONE_ENVIRONMENT_PRESET", HYPERDRONE_ENVIRONMENT_PRESET},
+        {"HYPERDRONE_ENVIRONMENT_TASK", HYPERDRONE_ENVIRONMENT_TASK},
+        {"HYPERDRONE_ENVIRONMENT_CONTROL", HYPERDRONE_ENVIRONMENT_CONTROL},
+        {"HYPERDRONE_ENVIRONMENT_ACTUATION", HYPERDRONE_ENVIRONMENT_ACTUATION},
+        {"HYPERDRONE_ENVIRONMENT_N_AGENTS", HYPERDRONE_ENVIRONMENT_N_AGENTS},
+        {"HYPERDRONE_ENVIRONMENT_N_CAMERA_AGENTS", HYPERDRONE_ENVIRONMENT_N_CAMERA_AGENTS},
+        {"HYPERDRONE_ENVIRONMENT_DEVICE_CUDA", HYPERDRONE_ENVIRONMENT_DEVICE_CUDA},
     };
     manifest["observation_layout"] = layout_json(henv::observation_layout());
     manifest["observation_layout_privileged"] = layout_json(henv::observation_layout_privileged());

@@ -10,8 +10,8 @@ import pytest
 
 import conta
 import hyperdrone
-from hyperdrone.env import EnvConfig, HyperDrone, ImageObservation
-from hyperdrone.camera import CameraSpec, RGB, Flow, FlowStatus
+from hyperdrone import Config, HyperDrone
+from hyperdrone.camera import CameraSpec, ImageObservation, RGB, Flow, FlowStatus
 from hyperdrone._jit import source_root
 
 
@@ -26,20 +26,20 @@ def scene_directory(tmp_path_factory):
     return directory
 
 
-CONFIG = EnvConfig(num_worlds=1, instances_per_world=2, width=32, height=32, fidelity="low")
+CONFIG = Config(num_worlds=1, instances_per_world=2, width=32, height=32, fidelity="low")
 
 
 @pytest.mark.parametrize("name", ["num_worlds", "instances_per_world", "width", "height", "num_agents", "num_camera_agents"])
 @pytest.mark.parametrize("value", [0, -1, 2.5, True])
 def test_positive_integer_configuration(name, value):
     with pytest.raises(ValueError, match=f"{name} must be a positive integer"):
-        EnvConfig(**{name: value})
+        Config(**{name: value})
 
 
 def test_camera_agent_configuration():
-    config = EnvConfig(preset="x500_fpv", num_agents=2)
+    config = Config(preset="x500_fpv", num_agents=2)
     assert config.num_camera_agents == 1
-    assert config.defines()["HYPERDRONE_ENV_N_CAMERA_AGENTS"] == 1
+    assert config.defines()["HYPERDRONE_ENVIRONMENT_N_CAMERA_AGENTS"] == 1
     assert config.key() == replace(config, num_camera_agents=1).key()
     assert config.key() != replace(config, num_camera_agents=2).key()
     with pytest.raises(ValueError, match="num_camera_agents must not exceed num_agents"):
@@ -51,7 +51,7 @@ def test_camera_agent_configuration():
 @pytest.mark.parametrize("task", ["target_frame", "moving_gate", "visual_inertial_localization"])
 def test_tasks_reject_multiple_agents(task):
     with pytest.raises(ValueError, match="single-agent"):
-        EnvConfig(task=task, preset="x500_fpv_imu", num_agents=2)
+        Config(task=task, preset="x500_fpv_imu", num_agents=2)
 
 
 def test_reset_guard_and_repeated_acquisition(scene_directory):
@@ -158,7 +158,7 @@ def test_verb_sequence_shapes_and_determinism(scene_directory):
 
 
 def test_configurations_keep_independent_state(scene_directory):
-    small = HyperDrone(scene_directory, config=EnvConfig(instances_per_world=2, width=16, height=16, fidelity="low"), seed=5)
+    small = HyperDrone(scene_directory, config=Config(instances_per_world=2, width=16, height=16, fidelity="low"), seed=5)
     large = HyperDrone(scene_directory, config=CONFIG, seed=5)
     try:
         assert type(small._environment) is not type(large._environment)
@@ -380,35 +380,35 @@ def test_gym_autoreset_observations_match_explicit_render(scene_directory, monke
 def test_config_validation_errors():
     for samples in (0, -1, 3, 2.5, True):
         with pytest.raises(ValueError, match="motion_blur_samples"):
-            EnvConfig(motion_blur_samples=samples)
+            Config(motion_blur_samples=samples)
     with pytest.raises(ValueError, match="unknown preset"):
-        EnvConfig(preset="nonexistent")
+        Config(preset="nonexistent")
     for cameras in ((), ("front",), (CameraSpec("front", (RGB("float32"),)), CameraSpec("front", (RGB("float32"),)))):
         with pytest.raises(ValueError):
-            EnvConfig(cameras=cameras)
+            Config(cameras=cameras)
     profiles = (CameraSpec("front", (RGB("float32"),)), CameraSpec("chase", (RGB("float32"),)))
     with pytest.raises(ValueError, match="one observation camera"):
-        EnvConfig(task="target_frame", cameras=profiles, observation=ImageObservation(("front", "chase")))
-    EnvConfig(task="target_frame", cameras=profiles, observation=ImageObservation(("front",)))
+        Config(task="target_frame", cameras=profiles, observation=ImageObservation(("front", "chase")))
+    Config(task="target_frame", cameras=profiles, observation=ImageObservation(("front",)))
     with pytest.raises(ValueError, match="spec_header supersedes"):
-        EnvConfig(cameras=profiles, spec_header=__file__)
+        Config(cameras=profiles, spec_header=__file__)
     with pytest.raises(ValueError, match="unknown task"):
-        EnvConfig(task="nonexistent")
+        Config(task="nonexistent")
     with pytest.raises(ValueError, match="SELF_VISIBLE"):
-        EnvConfig(num_agents=2)
+        Config(num_agents=2)
     with pytest.raises(ValueError, match="spec_header supersedes"):
-        EnvConfig(task="target_frame", spec_header=__file__)
+        Config(task="target_frame", spec_header=__file__)
     with pytest.raises(ValueError, match="unknown device"):
-        EnvConfig(device="tpu")
+        Config(device="tpu")
     with pytest.raises(ValueError, match="single-agent"):
-        EnvConfig(preset="x500_fpv", task="target_frame", num_agents=2)
+        Config(preset="x500_fpv", task="target_frame", num_agents=2)
     with pytest.raises(ValueError, match="single-agent"):
-        EnvConfig(preset="x500_fpv", task="moving_gate", num_agents=2)
+        Config(preset="x500_fpv", task="moving_gate", num_agents=2)
     with pytest.raises(ValueError, match="no CUDA verbs"):
-        EnvConfig(preset="x500_fpv_imu", task="visual_inertial_localization", device="cuda")
-    assert EnvConfig(spec_header=__file__).world_device == "cpu"
+        Config(preset="x500_fpv_imu", task="visual_inertial_localization", device="cuda")
+    assert Config(spec_header=__file__).world_device == "cpu"
     with pytest.raises(ValueError, match="asset per drone"):
-        HyperDrone("/nonexistent", config=EnvConfig(preset="x500_fpv", num_agents=1))
+        HyperDrone("/nonexistent", config=Config(preset="x500_fpv", num_agents=1))
 
 
 def test_observation_layout(scene_directory):
@@ -431,9 +431,9 @@ def test_observation_layout(scene_directory):
 
 @pytest.mark.parametrize("num_agents", [1, 2])
 def test_position_commands_use_scene_frame_for_every_agent(scene_directory, num_agents):
-    config = EnvConfig(instances_per_world=2, width=16, height=16, fidelity="low",
-                       control="position", preset="crazyflie" if num_agents == 1 else "x500_fpv",
-                       num_agents=num_agents, device="cpu")
+    config = Config(instances_per_world=2, width=16, height=16, fidelity="low",
+                    control="position", preset="crazyflie" if num_agents == 1 else "x500_fpv",
+                    num_agents=num_agents, device="cpu")
     drones = None if num_agents == 1 else [{"asset": drone_asset_path(), "parameters": {}}]
     parameters = {"dynamics": {"mdp": {"init": {
         "max_linear_velocity": 0, "max_angular_velocity": 0, "min_rpm": 0, "max_rpm": 0,
@@ -468,8 +468,8 @@ def test_position_commands_use_scene_frame_for_every_agent(scene_directory, num_
 
 
 def test_ctbr_commands_reach_every_agent_current_step(scene_directory):
-    config = EnvConfig(instances_per_world=2, num_agents=2, preset="x500_fpv_imu",
-                       width=16, height=16, fidelity="low", control="ctbr", actuation="ideal", device="cpu")
+    config = Config(instances_per_world=2, num_agents=2, preset="x500_fpv_imu",
+                    width=16, height=16, fidelity="low", control="ctbr", actuation="ideal", device="cpu")
     with closing(HyperDrone(scene_directory, config=config, drone_asset=drone_asset_path(), seed=31)) as env:
         env.reset()
         assert env.control == "ctbr" and env.actuation == "ideal"
@@ -502,8 +502,8 @@ def test_ctbr_commands_reach_every_agent_current_step(scene_directory):
 
 
 def test_position_parameter_mutation_resets_only_selected_instances(scene_directory):
-    config = EnvConfig(instances_per_world=2, width=16, height=16, fidelity="low",
-                       control="position", device="cpu")
+    config = Config(instances_per_world=2, width=16, height=16, fidelity="low",
+                    control="position", device="cpu")
     parameters = {"dynamics": {"mdp": {"init": {
         "max_linear_velocity": 0, "max_angular_velocity": 0, "min_rpm": 0, "max_rpm": 0,
     }}}}
@@ -542,8 +542,8 @@ def drone_asset_path():
     return rigged_asset_path("x500")
 
 
-CONFIG_DRONES = EnvConfig(instances_per_world=4, width=16, height=16, preset="x500_fpv")
-CONFIG_MULTI_AGENT = EnvConfig(instances_per_world=2, num_agents=7, num_camera_agents=7, width=16, height=16, fidelity="low", preset="x500_fpv")
+CONFIG_DRONES = Config(instances_per_world=4, width=16, height=16, preset="x500_fpv")
+CONFIG_MULTI_AGENT = Config(instances_per_world=2, num_agents=7, num_camera_agents=7, width=16, height=16, fidelity="low", preset="x500_fpv")
 
 
 @pytest.mark.parametrize("camera_agents", [1, 2])
@@ -716,7 +716,7 @@ def test_multi_agent_spawn_replay(scene_directory, motion_blur_samples):
 
 @pytest.mark.parametrize("task", [None, "target_frame"])
 def test_explicit_spawns_ignore_seed_and_preserve_mask(scene_directory, task):
-    config = EnvConfig(instances_per_world=2, width=16, height=16, preset="x500_fpv", motion_blur_samples=8, task=task)
+    config = Config(instances_per_world=2, width=16, height=16, preset="x500_fpv", motion_blur_samples=8, task=task)
     drones = [{"asset": rigged_asset_path(name), "parameters": {"dynamics": {"dynamics": {"model": name}}}} for name in ("x500", "crazyflie")]
     parameters = {"dynamics": {"mdp": {"init": {"max_linear_velocity": 0, "max_angular_velocity": 0, "min_rpm": 0, "max_rpm": 0}}}}
     reference = None
@@ -875,7 +875,7 @@ def smoke_rollout(env):
 
 
 def test_x500_target_frame(scene_directory):
-    config = EnvConfig(instances_per_world=2, width=16, height=16, preset="x500_fpv", task="target_frame")
+    config = Config(instances_per_world=2, width=16, height=16, preset="x500_fpv", task="target_frame")
     env = HyperDrone(scene_directory, config=config, seed=3, drone_asset=drone_asset_path())
     try:
         assert env.observation_dim == 16 * 16 * 6
@@ -892,7 +892,7 @@ def test_x500_target_frame(scene_directory):
 @pytest.mark.parametrize("cameras", [1, 2])
 def test_moving_gate(scene_directory, cameras):
     profiles = tuple(CameraSpec(f"camera{index}", (RGB("float32"),)) for index in range(cameras))
-    config = EnvConfig(instances_per_world=2, width=16, height=16, task="moving_gate", cameras=profiles, observation=ImageObservation(tuple(camera.name for camera in profiles)))
+    config = Config(instances_per_world=2, width=16, height=16, task="moving_gate", cameras=profiles, observation=ImageObservation(tuple(camera.name for camera in profiles)))
     with pytest.raises(ValueError, match="needs assets"):
         HyperDrone(scene_directory, config=config, seed=4)
     env = HyperDrone(scene_directory, config=config, seed=4, assets={"gate": drone_asset_path()})
@@ -908,10 +908,10 @@ def test_moving_gate(scene_directory, cameras):
 
 def test_visual_inertial_localization(scene_directory):
     with pytest.raises(ValueError, match="x500_fpv_imu"):
-        EnvConfig(task="visual_inertial_localization")
+        Config(task="visual_inertial_localization")
     with pytest.raises(ValueError, match="asset per drone"):
-        HyperDrone(scene_directory, config=EnvConfig(preset="x500_fpv_imu"), seed=6)
-    config = EnvConfig(instances_per_world=2, width=16, height=16, preset="x500_fpv_imu", task="visual_inertial_localization")
+        HyperDrone(scene_directory, config=Config(preset="x500_fpv_imu"), seed=6)
+    config = Config(instances_per_world=2, width=16, height=16, preset="x500_fpv_imu", task="visual_inertial_localization")
     env = HyperDrone(scene_directory, config=config, seed=6)
     try:
         assert env.action_dim == 0, "the task flies itself"
@@ -959,7 +959,7 @@ def test_visual_inertial_localization(scene_directory):
 
 def test_spec_header_escape_hatch(scene_directory):
     header = Path(__file__).parent / "user_spec_header.h"
-    config = EnvConfig(spec_header=str(header))
+    config = Config(spec_header=str(header))
     env = HyperDrone(scene_directory, config=config, seed=5, drone_asset=drone_asset_path())
     try:
         assert env.self_visible
@@ -974,8 +974,8 @@ def test_spec_header_escape_hatch(scene_directory):
 
 def test_spec_header_custom_controller(scene_directory):
     directory = Path(__file__).parent
-    with closing(HyperDrone(scene_directory, config=EnvConfig(spec_header=str(directory / "user_controller_spec_header.h")), seed=5, drone_asset=drone_asset_path())) as custom, \
-         closing(HyperDrone(scene_directory, config=EnvConfig(spec_header=str(directory / "user_spec_header.h")), seed=5, drone_asset=drone_asset_path())) as direct:
+    with closing(HyperDrone(scene_directory, config=Config(spec_header=str(directory / "user_controller_spec_header.h")), seed=5, drone_asset=drone_asset_path())) as custom, \
+         closing(HyperDrone(scene_directory, config=Config(spec_header=str(directory / "user_spec_header.h")), seed=5, drone_asset=drone_asset_path())) as direct:
         assert custom.control == "collective"
         assert custom.action_dim == 1
         np.testing.assert_array_equal(custom.action_low, [0])
@@ -992,7 +992,7 @@ def test_spec_header_custom_controller(scene_directory):
 
 def test_spec_header_drone_table(scene_directory):
     header = Path(__file__).parent / "user_spec_header.h"
-    config = EnvConfig(spec_header=str(header))
+    config = Config(spec_header=str(header))
     asset = drone_asset_path()
     drones = [{"asset": asset, "parameters": {"cameras": {"camera0": {"fov": fov}}}} for fov in (50, 70, 90)]
     env = HyperDrone(scene_directory, config=config, seed=5, drones=drones)
@@ -1068,18 +1068,18 @@ def test_scenes_conta_reference(monkeypatch, tmp_path):
 def test_scenes_preflight_errors(tmp_path):
     source = scene_source()
     with pytest.raises(ValueError, match="scene reference"):
-        HyperDrone([source], config=EnvConfig(num_worlds=2), seed=0)
+        HyperDrone([source], config=Config(num_worlds=2), seed=0)
     with pytest.raises(ValueError, match="not found"):
-        HyperDrone(["/nonexistent.glb"], config=EnvConfig(), seed=0)
+        HyperDrone(["/nonexistent.glb"], config=Config(), seed=0)
     with pytest.raises(ValueError, match=r"\.glb scene"):
-        HyperDrone(tmp_path, config=EnvConfig(), seed=0)
+        HyperDrone(tmp_path, config=Config(), seed=0)
 
 
 def test_drone_asset_conta_reference(monkeypatch, tmp_path):
     scene = scene_source()
     asset = drone_asset_path()
     scene_hash, asset_hash = conta_store(monkeypatch, tmp_path, scene, asset)
-    config = EnvConfig(instances_per_world=2, width=16, height=16, preset="x500_fpv", task="target_frame")
+    config = Config(instances_per_world=2, width=16, height=16, preset="x500_fpv", task="target_frame")
     env = HyperDrone([f"conta:{scene_hash}"], config=config, seed=3, drone_asset=f"conta:{asset_hash}")
     try:
         smoke_rollout(env)
@@ -1094,7 +1094,7 @@ def test_step_clock_is_independent_of_image_reads(scene_directory, history_lengt
     header.write_text("""#pragma once
 #include <rl_tools/rl/environments/hyperdrone/presets.h>
 #include <cstddef>
-namespace hyperdrone_env_user {
+namespace hyperdrone_user {
     struct SPEC: rl_tools::rl::environments::hyperdrone::presets::X500FPV<float, std::size_t> {
         static constexpr std::size_t N_CAMERA_AGENTS = 1;
         static constexpr std::size_t INSTANCES_PER_WORLD = 2;
@@ -1109,7 +1109,7 @@ namespace hyperdrone_env_user {
     using WORLD = rl_tools::rl::environments::hyperdrone::World<SPEC>;
 }
 """.replace("HISTORY_COUNT", str(history_length)))
-    config = EnvConfig(spec_header=str(header), device="cuda" if render._backend() == "optix" else "cpu")
+    config = Config(spec_header=str(header), device="cuda" if render._backend() == "optix" else "cpu")
     records = []
     for read_every_step in (False, True):
         with closing(HyperDrone(scene_directory, config=config, seed=319)) as env:
@@ -1129,7 +1129,7 @@ namespace hyperdrone_env_user {
 
 
 def test_vil_cadence_does_not_depend_on_reads(scene_directory):
-    config = EnvConfig(instances_per_world=2, width=16, height=16, preset="x500_fpv_imu", task="visual_inertial_localization")
+    config = Config(instances_per_world=2, width=16, height=16, preset="x500_fpv_imu", task="visual_inertial_localization")
     records = []
     for read_every_step in (False, True):
         with closing(HyperDrone(scene_directory, config=config, seed=419)) as env:
@@ -1151,7 +1151,7 @@ def test_custom_vil_rejects_partial_reset_before_sampling(scene_directory, tmp_p
 #include <rl_tools/rl/environments/hyperdrone/presets.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/visual_inertial_localization/operations_cpu.h>
 #include <cstddef>
-namespace hyperdrone_env_user {
+namespace hyperdrone_user {
     struct SPEC: rl_tools::rl::environments::hyperdrone::presets::X500FPVIMU<float, std::size_t> {
         static constexpr std::size_t N_CAMERA_AGENTS = 1;
         static constexpr std::size_t INSTANCES_PER_WORLD = 2;
@@ -1167,7 +1167,7 @@ namespace hyperdrone_env_user {
 """)
     records = []
     for reject_first in (False, True):
-        with closing(HyperDrone(scene_directory, config=EnvConfig(spec_header=str(header)), seed=37)) as env:
+        with closing(HyperDrone(scene_directory, config=Config(spec_header=str(header)), seed=37)) as env:
             if reject_first:
                 with pytest.raises(ValueError, match="all-or-none"):
                     env.reset([True, False])

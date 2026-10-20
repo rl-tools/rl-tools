@@ -12,7 +12,7 @@ def test_assimp_reuses_archive_without_source_override(tmp_path, monkeypatch, ca
     (donor / "assimp-src/CMakeLists.txt").write_text("unverified source")
     archive_name = "assimp-v6.0.4.tar.gz"
     (donor / "assimp-download" / archive_name).write_bytes(b"archive for CMake to verify")
-    target = tmp_path / "env-generic"
+    target = tmp_path / "environment-generic"
     if cached_sources:
         (target / "assimp-src").mkdir(parents=True)
     seeded = _patches.seed_dependencies(target.name)
@@ -24,12 +24,12 @@ def test_assimp_reuses_archive_without_source_override(tmp_path, monkeypatch, ca
 def test_existing_archive_is_preserved(tmp_path, monkeypatch):
     monkeypatch.setattr(_workspace, "dependencies_root", lambda: tmp_path)
     archive_name = "assimp-v6.0.4.tar.gz"
-    for component, contents in [("render-generic", b"donor"), ("env-generic", b"cached")]:
+    for component, contents in [("render-generic", b"donor"), ("environment-generic", b"cached")]:
         directory = tmp_path / component / "assimp-download"
         directory.mkdir(parents=True)
         (directory / archive_name).write_bytes(contents)
-    _patches.seed_dependencies("env-generic")
-    assert (tmp_path / "env-generic/assimp-download" / archive_name).read_bytes() == b"cached"
+    _patches.seed_dependencies("environment-generic")
+    assert (tmp_path / "environment-generic/assimp-download" / archive_name).read_bytes() == b"cached"
 
 
 def test_owl_commit_pin(tmp_path, monkeypatch):

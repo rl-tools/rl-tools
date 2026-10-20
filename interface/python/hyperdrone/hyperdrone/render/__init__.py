@@ -10,7 +10,7 @@ from .. import _cuda
 from .._outputs import FlowStatus
 from . import datasets, primitives
 from ._component import _backend, component, load_core
-from ._config import FIDELITY, RendererConfig
+from ._config import FIDELITY, Config
 from ._renderer import OverlayPlacement, PlacementBatch, Pose, Renderer
 from ._sampling import ClearanceSampler
 from ._scene import (
@@ -28,6 +28,7 @@ __all__ = [
     "FIDELITY",
     "FlowStatus",
     "ClearanceSampler",
+    "Config",
     "Mesh",
     "Object",
     "ObjectAssembly",
@@ -35,7 +36,6 @@ __all__ = [
     "PlacementBatch",
     "Pose",
     "Renderer",
-    "RendererConfig",
     "Scene",
     "SceneLight",
     "compose_transforms",

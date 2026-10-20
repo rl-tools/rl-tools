@@ -6,13 +6,14 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from hyperdrone.env import EnvConfig, HyperDrone, ObservationLayout
+from hyperdrone import Config, HyperDrone
+from hyperdrone._environment import ObservationLayout
 from hyperdrone._jit import source_root
 
 GOLDEN = source_root() / "tests" / "data" / "rl" / "environments" / "hyperdrone" / "python_golden"
 
 # the generator's World runs on the host; a CUDA World draws from a different RNG engine
-CONFIG = EnvConfig(num_worlds=1, instances_per_world=2, width=16, height=16, fidelity="low", device="cpu")
+CONFIG = Config(num_worlds=1, instances_per_world=2, width=16, height=16, fidelity="low", device="cpu")
 
 
 def observe_pair(env):
