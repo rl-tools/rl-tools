@@ -157,9 +157,13 @@ namespace HYPERDRONE_MODULE_NAME {
         // staging only after one
         size_t host_pose_writes = 0;
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        // borrowed device inputs in flight: one event per call, recorded on the render stream after
-        // the call's last reader, recycled once complete
-        std::deque<cudaEvent_t> input_events;
+        using CudaFloats = nanobind::ndarray<const float, nanobind::c_contig, nanobind::device::cuda>;
+        // device inputs the render stream has yet to read, oldest first: the imported arrays themselves, not their Python producers, because a DLPack import owns its storage independently of the producer (an exporter may hand its only reference to the import). Each call's arrays stay with the event recorded after their last GPU reader and are released once it completes: on the next device input, on a synchronizing verb, or at teardown after the renderer synchronizes
+        struct DeviceInputs {
+            cudaEvent_t ready;
+            std::vector<CudaFloats> arrays;
+        };
+        std::deque<DeviceInputs> inputs_in_flight;
         std::vector<cudaEvent_t> spare_events;
 #endif
         const std::vector<hyperdrone::OutputMetadata> output_layouts = hyperdrone::output_metadata<SPEC>();
@@ -187,15 +191,20 @@ namespace HYPERDRONE_MODULE_NAME {
 #endif
         }
         ~Renderer(){
-            rlt::free(device, renderer);
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-            for(cudaEvent_t event : input_events){
-                cudaEventDestroy(event);
+            {
+                nanobind::gil_scoped_release release;
+                rlt::synchronize(device, renderer);
             }
+            for(const auto& inputs : inputs_in_flight){
+                cudaEventDestroy(inputs.ready);
+            }
+            inputs_in_flight.clear();
             for(cudaEvent_t event : spare_events){
                 cudaEventDestroy(event);
             }
 #endif
+            rlt::free(device, renderer);
         }
 
         const char* backend() const {
@@ -284,28 +293,43 @@ namespace HYPERDRONE_MODULE_NAME {
         size_t release_inputs() {
             size_t released = 0;
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-            while(!input_events.empty() && cudaEventQuery(input_events.front()) == cudaSuccess){
-                spare_events.push_back(input_events.front());
-                input_events.pop_front();
+            while(!inputs_in_flight.empty() && cudaEventQuery(inputs_in_flight.front().ready) == cudaSuccess){
+                spare_events.push_back(inputs_in_flight.front().ready);
+                inputs_in_flight.pop_front();
                 released++;
             }
 #endif
             return released;
         }
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        void retain_inputs() {
-            cudaEvent_t event;
-            if(spare_events.empty()){
-                if(cudaEventCreateWithFlags(&event, cudaEventDisableTiming) != cudaSuccess){
-                    throw std::runtime_error("hyperdrone: cudaEventCreate failed");
+        void retain_inputs(std::initializer_list<CudaFloats> arrays) {
+            cudaEvent_t event = nullptr;
+            try {
+                if(spare_events.empty()){
+                    if(cudaEventCreateWithFlags(&event, cudaEventDisableTiming) != cudaSuccess){
+                        throw std::runtime_error("hyperdrone: cudaEventCreate failed");
+                    }
                 }
+                else {
+                    event = spare_events.back();
+                    spare_events.pop_back();
+                }
+                if(cudaEventRecord(event, rlt::stream(device, renderer)) != cudaSuccess){
+                    throw std::runtime_error("hyperdrone: cudaEventRecord failed");
+                }
+                inputs_in_flight.push_back({event, arrays});
             }
-            else {
-                event = spare_events.back();
-                spare_events.pop_back();
+            catch (...) {
+                {
+                    nanobind::gil_scoped_release release;
+                    cudaStreamSynchronize(rlt::stream(device, renderer));
+                }
+                if(event != nullptr){
+                    cudaEventDestroy(event);
+                }
+                throw;
             }
-            cudaEventRecord(event, rlt::stream(device, renderer));
-            input_events.push_back(event);
+            release_inputs();
         }
 #endif
 
@@ -950,7 +974,7 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
         .def("render_stream", [](Renderer& self){ return (uintptr_t)self.render_stream(); });
 
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-    using CudaFloats = nb::ndarray<const float, nb::c_contig, nb::device::cuda>;
+    using CudaFloats = Renderer::CudaFloats;
     renderer_class
         .def("set_cameras_device", [](Renderer& self, nb::ndarray<const float, nb::c_contig, nb::device::cuda> cameras, uintptr_t stream){
             int64_t dims[3] = {0, 0, 0};
@@ -959,7 +983,7 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
             }
             self.check_cameras_dims(cameras.ndim(), dims);
             self.set_cameras_device(cameras.data(), stream);
-            self.retain_inputs();
+            self.retain_inputs({cameras});
         }, nb::arg("cameras").noconvert(), nb::arg("stream") = 0)
         // benchmark fast path: index a pre-uploaded set without any per-call DLPack traffic
         .def("set_cameras_from_cuda_buffer", [](Renderer& self, hyperdrone::CudaBuffer& buffer, size_t index, uintptr_t stream){
@@ -979,12 +1003,12 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
             }
             self.check_cameras_dims(cameras_close.ndim(), dims);
             self.set_motion_blur_cameras_device(cameras_open.data(), cameras_close.data(), stream);
-            self.retain_inputs();
+            self.retain_inputs({cameras_open, cameras_close});
         }, nb::arg("cameras_open").noconvert(), nb::arg("cameras_close").noconvert(), nb::arg("stream") = 0)
         .def("set_pose_batch_device", [](Renderer& self, PlacementBatch& batch, CudaFloats bases, std::optional<CudaFloats> scales, float scale, std::optional<CudaFloats> coordinates, std::optional<CudaFloats> bases_close, std::optional<CudaFloats> scales_close, float scale_close, std::optional<CudaFloats> coordinates_close, uintptr_t stream){
             const size_t columns = hyperdrone::check_batch(batch.size(), batch.num_coordinates, bases, scales, coordinates, bases_close, scales_close, coordinates_close);
             self.set_pose_batch_device(batch, bases.data(), hyperdrone::pointer(scales), scale, hyperdrone::pointer(coordinates), columns, hyperdrone::pointer(bases_close), hyperdrone::pointer(scales_close), scale_close, hyperdrone::pointer(coordinates_close), stream);
-            self.retain_inputs();
+            self.retain_inputs({bases, scales.value_or(CudaFloats{}), coordinates.value_or(CudaFloats{}), bases_close.value_or(CudaFloats{}), scales_close.value_or(CudaFloats{}), coordinates_close.value_or(CudaFloats{})});
         }, nb::arg("batch"), nb::arg("bases").noconvert(), nb::arg("scales").none().noconvert(), nb::arg("scale"), nb::arg("coordinates").none().noconvert(), nb::arg("bases_close").none().noconvert(), nb::arg("scales_close").none().noconvert(), nb::arg("scale_close"), nb::arg("coordinates_close").none().noconvert(), nb::arg("stream") = 0);
 #endif
 }

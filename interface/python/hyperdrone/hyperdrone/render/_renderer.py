@@ -1,4 +1,3 @@
-from collections import deque
 from dataclasses import KW_ONLY, dataclass
 from itertools import count
 
@@ -139,24 +138,17 @@ class Renderer:
         self.outputs = OutputCollection(self._renderer, cameras=self.config.cameras)
         self._scene = None
         self._asset_pool = None
-        # borrowed device inputs per call, oldest first, until the render stream is done with them
-        self._inputs_in_flight = deque()
         self._live = {}
         self._generation = count()
         self._despawns = 0
         self._serial = next(_RENDERER_SERIALS)
 
     def __del__(self):
-        if getattr(self, "_inputs_in_flight", ()):
-            self._renderer.synchronize()
-
-    def _retain(self, *inputs):
-        self._inputs_in_flight.append(inputs)
-        self._release()
-
-    def _release(self):
-        for _ in range(self._renderer.release_inputs()):
-            self._inputs_in_flight.popleft()
+        native = getattr(self, "_renderer", None)
+        if native is not None:
+            # Imported leases can retain the native renderer through its own output buffers.
+            native.synchronize()
+            native.release_inputs()
 
     @property
     def width(self):
@@ -219,7 +211,6 @@ class Renderer:
             if not hasattr(self._renderer, "set_cameras_device"):
                 raise RuntimeError("hyperdrone: device-resident camera input requires the OptiX backend")
             self._renderer.set_cameras_device(cameras, int(stream))
-            self._retain(cameras)
             return
         self._renderer.set_cameras(_as_cameras(cameras, self.num_cameras))
 
@@ -229,7 +220,6 @@ class Renderer:
         if _is_cuda(cameras_open):
             self._require_device_inputs("set_motion_blur_cameras_device")
             self._renderer.set_motion_blur_cameras_device(cameras_open, cameras_close, int(stream))
-            self._retain(cameras_open, cameras_close)
             return
         self._renderer.set_motion_blur_cameras(
             _as_cameras(cameras_open, self.num_cameras),
@@ -266,19 +256,19 @@ class Renderer:
 
     def render(self):
         self._renderer.render()
-        self._release()
+        self._renderer.release_inputs()
 
     def render_launch(self):
         self._renderer.render_launch()
 
     def render_sync(self):
         self._renderer.render_sync()
-        self._release()
+        self._renderer.release_inputs()
 
     def probe(self):
         self._require_probes()
         self._renderer.probe()
-        self._release()
+        self._renderer.release_inputs()
 
     def probe_launch(self):
         self._require_probes()
@@ -287,11 +277,11 @@ class Renderer:
     def probe_sync(self):
         self._require_probes()
         self._renderer.probe_sync()
-        self._release()
+        self._renderer.release_inputs()
 
     def synchronize(self):
         self._renderer.synchronize()
-        self._release()
+        self._renderer.release_inputs()
 
     def update(self):
         """Publish pending overlay changes (attach/detach/spawn/despawn and the transform
@@ -394,7 +384,6 @@ class Renderer:
         closed = _batch_state(close.base, close.scale, coordinates_close, count, device) if close is not None else (None, None, 1.0, None)
         if device:
             self._renderer.set_pose_batch_device(batch._native, *opened, *closed, int(stream))
-            self._retain(*(value for value in inputs if value is not None and not np.isscalar(value)))
             return
         self._renderer.set_pose_batch(batch._native, *opened, *closed)
 

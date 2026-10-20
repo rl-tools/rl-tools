@@ -1263,6 +1263,15 @@ namespace rl_tools {
         template <typename DEVICE>
         void join(DEVICE& device, cudaEvent_t event, cudaStream_t backend_stream, long){}
 
+        template <typename DEVICE>
+        auto finish_copy(DEVICE& device, cudaEvent_t event, cudaStream_t backend_stream, int) -> decltype(device.stream, void()){
+            join(device, event, backend_stream, 0);
+        }
+        template <typename DEVICE>
+        void finish_copy(DEVICE& device, cudaEvent_t event, cudaStream_t backend_stream, long){
+            cudaStreamSynchronize(backend_stream);
+        }
+
         // publishes the pending rows of one host staging mirror into its resident tensor: the
         // rows compact into the pageable index/row lists and one scatter kernel writes them —
         // two copies and one kernel per tensor and update, however sparse the host writes were.
@@ -1543,35 +1552,38 @@ namespace rl_tools {
         return rendering::raytracing::backends::optix::overlay_accel_structure(overlay_state->accel);
     }
 
-    // the overlay's state as the device holds it, enqueued on device.stream: the slot structure
-    // table and the resident rows; the snapshot may live in device, pinned or pageable memory
+    // the overlay's resident state, ordered on the caller's stream when present and complete on return for a streamless host caller; the snapshot may live in device, pinned or pageable memory
     template <typename DEVICE, typename SPEC, typename SNAPSHOT_SPEC>
     void copy(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, rendering::raytracing::OverlayIndex overlay, rendering::raytracing::OverlaySnapshot<SNAPSHOT_SPEC>& snapshot){
         static_assert(SPEC::ENABLE_OVERLAYS, "copy of an overlay requires an overlay-enabled renderer specification");
         static_assert(SNAPSHOT_SPEC::MAX_OVERLAY_INSTANCES == SPEC::MAX_OVERLAY_INSTANCES, "copy: the snapshot needs the renderer's overlay capacity");
         utils::assert_exit(device, overlay.index < SPEC::NUM_OVERLAYS, "copy: overlay index out of range");
+        namespace optix = rendering::raytracing::backends::optix;
+        const cudaStream_t cuda_stream = stream(device, renderer);
+        optix::fork(device, renderer.backend->ordering_event, cuda_stream, 0);
         const size_t base = overlay.index * SPEC::MAX_OVERLAY_INSTANCES;
-        cudaMemcpyAsync(snapshot.slots, overlay_structure(device, renderer) + base, SPEC::MAX_OVERLAY_INSTANCES * sizeof(rendering::raytracing::OverlaySlotStructure), cudaMemcpyDefault, device.stream);
-        cudaMemcpyAsync(snapshot.rows, data(renderer.transforms) + base * 12, SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), cudaMemcpyDefault, device.stream);
+        cudaMemcpyAsync(snapshot.slots, overlay_structure(device, renderer) + base, SPEC::MAX_OVERLAY_INSTANCES * sizeof(rendering::raytracing::OverlaySlotStructure), cudaMemcpyDefault, cuda_stream);
+        cudaMemcpyAsync(snapshot.rows, data(renderer.transforms) + base * 12, SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), cudaMemcpyDefault, cuda_stream);
+        optix::finish_copy(device, renderer.backend->ordering_event, cuda_stream, 0);
     }
 
-    // restores an overlay in place on device.stream as a device producer would: the structure
-    // table and the resident rows (every motion sample under dynamic motion blur), its host rows
-    // no longer pending and the host state left clean, so the next update_launch consumes them
-    // unchanged. The host placement state is not updated: the restored overlay is not editable
-    // through spawn, replace or set_pose afterwards, as the spectator never does
+    // restores an overlay with the same completion contract as capture: the structure table and the resident rows (every motion sample under dynamic motion blur), its host rows no longer pending and the host state left clean, so the next update_launch consumes them unchanged. The host placement state is not updated: the restored overlay is not editable through spawn, replace or set_pose afterwards, as the spectator never does
     template <typename DEVICE, typename SPEC, typename SNAPSHOT_SPEC>
     void copy(DEVICE& device, const rendering::raytracing::OverlaySnapshot<SNAPSHOT_SPEC>& snapshot, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, rendering::raytracing::OverlayIndex overlay){
         static_assert(SPEC::ENABLE_OVERLAYS, "copy of an overlay requires an overlay-enabled renderer specification");
         static_assert(SNAPSHOT_SPEC::MAX_OVERLAY_INSTANCES == SPEC::MAX_OVERLAY_INSTANCES, "copy: the snapshot needs the renderer's overlay capacity");
         constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
         utils::assert_exit(device, overlay.index < SPEC::NUM_OVERLAYS, "copy: overlay index out of range");
+        namespace optix = rendering::raytracing::backends::optix;
+        const cudaStream_t cuda_stream = stream(device, renderer);
+        optix::fork(device, renderer.backend->ordering_event, cuda_stream, 0);
+        devices::cuda::order_after(renderer.backend->ordering_event, collision_stream(device, renderer), cuda_stream);
         const size_t base = overlay.index * SPEC::MAX_OVERLAY_INSTANCES;
-        cudaMemcpyAsync(overlay_structure(device, renderer) + base, snapshot.slots, SPEC::MAX_OVERLAY_INSTANCES * sizeof(rendering::raytracing::OverlaySlotStructure), cudaMemcpyDefault, device.stream);
-        cudaMemcpyAsync(data(renderer.transforms) + base * 12, snapshot.rows, SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), cudaMemcpyDefault, device.stream);
+        cudaMemcpyAsync(overlay_structure(device, renderer) + base, snapshot.slots, SPEC::MAX_OVERLAY_INSTANCES * sizeof(rendering::raytracing::OverlaySlotStructure), cudaMemcpyDefault, cuda_stream);
+        cudaMemcpyAsync(data(renderer.transforms) + base * 12, snapshot.rows, SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), cudaMemcpyDefault, cuda_stream);
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
             for(size_t sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
-                cudaMemcpyAsync(data(renderer.transforms_motion) + (sample * SLOTS + base) * 12, snapshot.rows, SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), cudaMemcpyDefault, device.stream);
+                cudaMemcpyAsync(data(renderer.transforms_motion) + (sample * SLOTS + base) * 12, snapshot.rows, SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), cudaMemcpyDefault, cuda_stream);
             }
         }
         for(size_t slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
@@ -1581,6 +1593,7 @@ namespace rl_tools {
             }
         }
         renderer.overlays[overlay.index].dirty = false;
+        optix::finish_copy(device, renderer.backend->ordering_event, cuda_stream, 0);
     }
 
     template <typename DEVICE, typename SPEC>

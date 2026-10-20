@@ -252,11 +252,95 @@ TEST(RL_TOOLS_OVERLAY_PRODUCER_SUITE, MOTION_TENSOR_WRITE_EQUALS_VERB){
     EXPECT_GT(visibility.rgb, MIN_MOVE_CHANGED_PIXELS) << "producer frame did not move away from the baseline (stale transforms)";
 }
 
+TEST(RL_TOOLS_OVERLAY_PRODUCER_SUITE, OVERLAY_SNAPSHOT_HOST_ROUND_TRIP){
+    using namespace rl_tools;
+    using namespace producer_contract;
+    using rendering::raytracing::OverlayIndex;
+    using SPEC = rendering::raytracing::Specification<PairConfig>;
+    using RENDERER = rendering::raytracing::Renderer<SPEC, BACKEND>;
+    Harness<SPEC, RENDERER> source, target;
+    set_pose(source.device, source.renderer, OverlayIndex{0}, source.placement, make_pose(POSE_B.data()));
+    spawn(source.device, source.renderer, OverlayIndex{0}, source.asset, make_pose(POSE_C.data()), nullptr, rendering::segmentation::AGENT);
+    update_launch(source.device, source.renderer);
+    rendering::raytracing::OverlaySnapshot<SPEC> snapshot;
+    copy(source.device, source.renderer, OverlayIndex{0}, snapshot);
+    EXPECT_EQ(snapshot.slots[0].active, 1u);
+    EXPECT_EQ(snapshot.slots[1].active, 1u);
+    EXPECT_EQ(snapshot.slots[1].segmentation_class, rendering::segmentation::AGENT);
+    EXPECT_EQ(snapshot.slots[0].object, source.renderer.asset_parts[0].object);
+    EXPECT_EQ(snapshot.slots[1].object, source.renderer.asset_parts[0].object);
+    EXPECT_EQ(std::memcmp(snapshot.rows, POSE_B.data(), sizeof(POSE_B)), 0);
+    EXPECT_EQ(std::memcmp(snapshot.rows + 12, POSE_C.data(), sizeof(POSE_C)), 0);
+    copy(target.device, snapshot, target.renderer, OverlayIndex{0});
+    snapshot = {};
+    const Frame expected = source.capture(), actual = target.capture();
+    EXPECT_EQ(expected.rgb, actual.rgb);
+    EXPECT_EQ(expected.depth, actual.depth);
+    std::vector<float> motion;
+    golden::copy_out(target.renderer.device, target.device, target.renderer.transforms_motion, motion);
+    for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+        const float* rows = motion.data() + sample * SPEC::MAX_OVERLAY_INSTANCES * 12;
+        EXPECT_EQ(std::memcmp(rows, POSE_B.data(), sizeof(POSE_B)), 0);
+        EXPECT_EQ(std::memcmp(rows + 12, POSE_C.data(), sizeof(POSE_C)), 0);
+    }
+}
+
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX) && defined(RL_TOOLS_RENDERING_RAYTRACING_OVERLAY_PRODUCER_ACTIVE_BACKEND)
 namespace producer_contract {
     struct StructureConfig: PairConfig {
         static constexpr TI NUM_OVERLAYS = 2;
     };
+    struct SnapshotConfig: PairConfig {
+        using OUTPUTS = rro::List<rro::RGB<>, rro::Depth<>>;
+    };
+    struct StreamDeviceSpecification: rlt::devices::DefaultCPUSpecification {
+        struct DEVICE_EXTENSION {
+            cudaStream_t stream = nullptr;
+        };
+    };
+}
+
+TEST(RL_TOOLS_OVERLAY_PRODUCER_SUITE, OVERLAY_SNAPSHOT_STREAM_ROUND_TRIP){
+    using namespace rl_tools;
+    using namespace producer_contract;
+    using rendering::raytracing::OverlayIndex;
+    using SPEC = rendering::raytracing::Specification<SnapshotConfig>;
+    using RENDERER = rendering::raytracing::Renderer<SPEC, BACKEND>;
+    using SNAPSHOT = rendering::raytracing::OverlaySnapshot<SPEC>;
+    Harness<SPEC, RENDERER> source, target;
+    set_pose(source.device, source.renderer, OverlayIndex{0}, source.placement, make_pose(POSE_B.data()));
+    spawn(source.device, source.renderer, OverlayIndex{0}, source.asset, make_pose(POSE_C.data()), nullptr, rendering::segmentation::AGENT);
+    const Frame expected = source.capture();
+    devices::CPU<StreamDeviceSpecification> device;
+    init(device);
+    ASSERT_EQ(cudaStreamCreateWithFlags(&device.stream, cudaStreamNonBlocking), cudaSuccess);
+    SNAPSHOT* resident = nullptr;
+    SNAPSHOT* captured = nullptr;
+    ASSERT_EQ(cudaMalloc(&resident, sizeof(SNAPSHOT)), cudaSuccess);
+    ASSERT_EQ(cudaMallocHost(&captured, sizeof(SNAPSHOT)), cudaSuccess);
+    ASSERT_EQ(cudaStreamBeginCapture(device.stream, cudaStreamCaptureModeGlobal), cudaSuccess);
+    copy(device, source.renderer, OverlayIndex{0}, *resident);
+    copy(device, *resident, target.renderer, OverlayIndex{0});
+    copy(device, target.renderer, OverlayIndex{0}, *captured);
+    cudaGraph_t graph = nullptr;
+    ASSERT_EQ(cudaStreamEndCapture(device.stream, &graph), cudaSuccess);
+    cudaGraphExec_t executable = nullptr;
+    ASSERT_EQ(cudaGraphInstantiate(&executable, graph, 0), cudaSuccess);
+    ASSERT_EQ(cudaGraphLaunch(executable, device.stream), cudaSuccess);
+    ASSERT_EQ(cudaStreamSynchronize(device.stream), cudaSuccess);
+    EXPECT_EQ(captured->slots[0].active, 1u);
+    EXPECT_EQ(captured->slots[1].active, 1u);
+    EXPECT_EQ(captured->slots[1].segmentation_class, rendering::segmentation::AGENT);
+    EXPECT_EQ(std::memcmp(captured->rows, POSE_B.data(), sizeof(POSE_B)), 0);
+    EXPECT_EQ(std::memcmp(captured->rows + 12, POSE_C.data(), sizeof(POSE_C)), 0);
+    const Frame actual = target.capture();
+    EXPECT_EQ(expected.rgb, actual.rgb);
+    EXPECT_EQ(expected.depth, actual.depth);
+    ASSERT_EQ(cudaGraphExecDestroy(executable), cudaSuccess);
+    ASSERT_EQ(cudaGraphDestroy(graph), cudaSuccess);
+    ASSERT_EQ(cudaFreeHost(captured), cudaSuccess);
+    ASSERT_EQ(cudaFree(resident), cudaSuccess);
+    ASSERT_EQ(cudaStreamDestroy(device.stream), cudaSuccess);
 }
 
 TEST(RL_TOOLS_OVERLAY_PRODUCER_SUITE, MOTION_STRUCTURE_WRITE_WITHOUT_UPDATE){

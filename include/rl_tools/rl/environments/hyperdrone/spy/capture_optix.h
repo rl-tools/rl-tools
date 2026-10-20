@@ -92,10 +92,7 @@ namespace rl_tools {
             auto* geometry = static_cast<GEOMETRY*>(capture.device_geometry);
             spy_capture_cuda_check(cudaMemcpyAsync(&geometry->camera, data(cameras(device, renderer)) + local_camera, sizeof(geometry->camera), cudaMemcpyDeviceToDevice, producer_stream));
             if constexpr(WORLD::RENDERER_SPEC::ENABLE_OVERLAYS) {
-                // the overlay snapshot read on the producer stream: the structure table and the rows through the sink
-                constexpr size_t SLOTS = WORLD::RENDERER_SPEC::MAX_OVERLAY_INSTANCES;
-                spy_capture_cuda_check(cudaMemcpyAsync(geometry->overlay.slots, overlay_structure(device, renderer) + instance_i * SLOTS, SLOTS * sizeof(rendering::raytracing::OverlaySlotStructure), cudaMemcpyDeviceToDevice, producer_stream));
-                spy_capture_cuda_check(cudaMemcpyAsync(geometry->overlay.rows, pose_sink(device, renderer).transforms + instance_i * SLOTS * 12, SLOTS * 12 * sizeof(float), cudaMemcpyDeviceToDevice, producer_stream));
+                copy(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, geometry->overlay);
             }
         }
     }

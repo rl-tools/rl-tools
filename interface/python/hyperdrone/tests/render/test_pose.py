@@ -206,27 +206,6 @@ def test_batched_device_shutter_pair_matches_the_host_batch():
     np.testing.assert_array_equal(frame(renderer), expected)
 
 
-@pytest.mark.skipif(render._backend() != "optix", reason="device pose input requires the OptiX backend")
-def test_device_inputs_are_released_without_a_sync():
-    import time
-    import hyperdrone
-    renderer, (first, second), bases, scales, coordinates = two_placements()
-    batch = renderer.placement_batch([first, second])
-    uploads = hyperdrone._cuda.upload(np.stack([bases + 0.01 * index for index in range(8)]))
-    for index in range(1000):
-        renderer.set_pose(batch, render.Pose(uploads.view(index % 8)))
-        renderer.update_launch()
-        renderer.render_launch()
-    # the queue never outgrows the launch queue, and drains once the GPU catches up
-    assert len(renderer._inputs_in_flight) < 1000
-    deadline = time.monotonic() + 10
-    while renderer._inputs_in_flight and time.monotonic() < deadline:
-        time.sleep(0.01)
-        renderer._release()
-    assert not renderer._inputs_in_flight
-    renderer.render_sync()
-
-
 def test_launch_verbs_match_the_waiting_verbs():
     renderer, (first, second), bases, scales, coordinates = two_placements()
     renderer.set_pose(first, render.Pose(bases[0]), coordinates=coordinates[0])

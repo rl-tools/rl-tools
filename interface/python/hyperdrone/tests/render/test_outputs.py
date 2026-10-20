@@ -233,23 +233,8 @@ def test_cuda_transport_without_tensor_framework():
         assert runtime.cudaStreamSynchronize(consumer) == 0
         np.testing.assert_array_equal(copied_live, expected)
         np.testing.assert_array_equal(copied_destination, expected)
-        input_release_completed = []
-
-        class CameraInput:
-            def __init__(self):
-                camera = renderer.camera(position=(0, 0, 0), look_at=(1, 0, 0))
-                self.array = _cuda.upload(camera[None]).view()
-
-            def __dlpack_device__(self):
-                return self.array.__dlpack_device__()
-
-            def __dlpack__(self, stream=None):
-                return self.array.__dlpack__(stream=stream)
-
-            def __del__(self):
-                input_release_completed.append(runtime.cudaStreamQuery(producer) == 0)
-
-        camera_input = CameraInput()
+        camera = renderer.camera(position=(0, 0, 0), look_at=(1, 0, 0))
+        camera_input = _cuda.upload(camera[None]).view()
         assert runtime.cudaLaunchHostFunc(producer, delay, None) == 0
         renderer.set_cameras(camera_input)
         renderer.render_launch()
@@ -257,7 +242,7 @@ def test_cuda_transport_without_tensor_framework():
         assert runtime.cudaStreamQuery(producer) != 0
         del camera_input, renderer
         gc.collect()
-        assert input_release_completed == [True]
         assert retained.__dlpack__(stream=consumer.value) is not None
+        assert runtime.cudaStreamSynchronize(consumer) == 0
     finally:
         assert runtime.cudaStreamDestroy(consumer) == 0
