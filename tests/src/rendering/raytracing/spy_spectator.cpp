@@ -1,13 +1,14 @@
 #include <rl_tools/operations/cpu_mux.h>
-#include <rl_tools/rl/environments/hyperdrone/spy/operations_cpu_spectator.h>
+#include <rl_tools/rendering/raytracing/spy/operations_cpu_spectator.h>
 
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <chrono>
 #include <stdexcept>
 
 namespace {
     namespace rt = rl_tools::rendering::raytracing;
-    namespace spy = rl_tools::rl::environments::hyperdrone::spy;
+    namespace spy = rt::spy;
     using namespace rl_tools;
 
     struct SourceConfig: rt::config::Default<float, size_t> {
@@ -18,6 +19,8 @@ namespace {
     };
 
     struct Config: spy::SpectatorConfig<SourceConfig> {
+        static constexpr size_t NUM_OVERLAYS = 1;
+        static constexpr size_t MAX_OVERLAYS_PER_CAMERA = 1;
         static constexpr size_t CAM_WIDTH = 32;
         static constexpr size_t CAM_HEIGHT = 24;
     };
@@ -34,7 +37,7 @@ namespace {
         return object;
     }
 
-    class HyperDroneSpySpectator: public ::testing::Test {
+    class RaytracingSpySpectator: public ::testing::Test {
     protected:
         devices::DefaultCPU device;
         spy::Spectator<Config> spectator;
@@ -63,13 +66,14 @@ namespace {
             const float forward[3] = {1, 0, 0};
             const float up[3] = {0, 0, 1};
             result.camera = make_camera_data(position, forward, up, 80.0f, static_cast<float>(Config::CAM_WIDTH) / Config::CAM_HEIGHT);
-            result.overlay.slots[0] = {active ? 1u : 0u, object, rendering::segmentation::INHERIT};
+            result.overlays[0].slots[0] = {active ? 1u : 0u, object, rendering::segmentation::INHERIT};
             const float identity[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
             for(size_t element = 0; element < 12; element++) {
-                result.overlay.rows[element] = identity[element];
+                result.overlays[0].rows[element] = identity[element];
             }
-            result.member = 17;
-            result.instance = 9;
+            result.num_overlays = 1;
+            result.overlay_indices[0] = rt::OverlayIndex{0};
+            result.view = 179;
             result.scene_version = 23;
             result.captured_at = 24.25;
             return result;
@@ -103,7 +107,7 @@ namespace {
         }
     };
 
-    TEST_F(HyperDroneSpySpectator, ResolvedObjectReplacementTransformsAndActiveMasks) {
+    TEST_F(RaytracingSpySpectator, ResolvedObjectReplacementTransformsAndActiveMasks) {
         start_spy_spectator(device, spectator);
         const auto background = render_job(job(false));
         const auto red = render_job(job(true, 0));
@@ -115,13 +119,13 @@ namespace {
         EXPECT_GT(red.pixels[center] & 0xffu, (red.pixels[center] >> 8) & 0xffu);
         EXPECT_GT((green.pixels[center] >> 8) & 0xffu, green.pixels[center] & 0xffu);
         auto translated = job(true, 1);
-        translated.overlay.rows[7] = 10;
+        translated.overlays[0].rows[7] = 10;
         EXPECT_EQ(render_job(translated).pixels, background.pixels);
         EXPECT_EQ(render_job(job(false, 1)).pixels, background.pixels);
         EXPECT_EQ(render_job(job(true, 0)).pixels, red.pixels);
     }
 
-    TEST_F(HyperDroneSpySpectator, SceneSwitchPreservesPoolObjectNumbering) {
+    TEST_F(RaytracingSpySpectator, SceneSwitchPreservesPoolObjectNumbering) {
         other_scene.objects.push_back(triangle(0.1f, 0.1f, 0.8f));
         other_scene.instances.push_back({0, {1, 0, 0, 0, 0, 1, 0, 10, 0, 0, 1, 0}, false});
         start_spy_spectator(device, spectator);
@@ -133,13 +137,13 @@ namespace {
         const auto switched_red = render_job(switched);
         EXPECT_EQ(switched_red.scene_version, switched.scene_version);
         EXPECT_EQ(switched_red.pixels, red.pixels);
-        switched.overlay.slots[0].object = 2;
+        switched.overlays[0].slots[0].object = 2;
         EXPECT_EQ(render_job(switched).pixels, green.pixels);
         EXPECT_EQ(render_job(job(true, 0)).pixels, red.pixels);
         stop_spy_spectator(device, spectator);
     }
 
-    TEST_F(HyperDroneSpySpectator, BoundedSubmissionResultAndRestart) {
+    TEST_F(RaytracingSpySpectator, BoundedSubmissionResultAndRestart) {
         auto request = job();
         spy::SpectatorImage result;
         EXPECT_FALSE(submit_spy_spectator(device, spectator, request));
@@ -150,8 +154,7 @@ namespace {
             submit_job(job());
             EXPECT_FALSE(submit_spy_spectator(device, spectator, request));
             result = await_result();
-            EXPECT_EQ(result.member, request.member);
-            EXPECT_EQ(result.instance, request.instance);
+            EXPECT_EQ(result.view, request.view);
             EXPECT_EQ(result.scene_version, request.scene_version);
             EXPECT_DOUBLE_EQ(result.captured_at, request.captured_at);
             EXPECT_EQ(result.pixels.size(), Config::CAM_WIDTH * Config::CAM_HEIGHT);
@@ -166,7 +169,7 @@ namespace {
         EXPECT_FALSE(poll_spy_spectator(device, spectator, result));
     }
 
-    TEST_F(HyperDroneSpySpectator, WorkerErrorPropagatesAndCanRestart) {
+    TEST_F(RaytracingSpySpectator, WorkerErrorPropagatesAndCanRestart) {
         start_spy_spectator(device, spectator);
         submit_job({});
         EXPECT_THROW(await_result(), std::invalid_argument);
@@ -175,5 +178,55 @@ namespace {
         stop_spy_spectator(device, spectator);
         start_spy_spectator(device, spectator);
         EXPECT_EQ(render_job(job()).pixels.size(), Config::CAM_WIDTH * Config::CAM_HEIGHT);
+    }
+
+    struct MultipleOverlayConfig: Config {
+        static constexpr size_t NUM_OVERLAYS = 3;
+        static constexpr size_t MAX_OVERLAYS_PER_CAMERA = 2;
+    };
+
+    TEST_F(RaytracingSpySpectator, MultipleOverlayAttachmentsAndRemoval) {
+        using SPEC = rt::Specification<MultipleOverlayConfig>;
+        spy::SpectatorBuffer<MultipleOverlayConfig> buffer;
+        spy::SpectatorJob<SPEC> request;
+        spy::SpectatorImage image;
+        const auto original = job();
+        request.camera = original.camera;
+        request.metadata = original.metadata;
+        request.num_overlays = 2;
+        request.overlay_indices = {rt::OverlayIndex{2}, rt::OverlayIndex{0}};
+        for(size_t slot = 0; slot < 2; slot++) {
+            request.overlays[slot].slots[0] = {1, static_cast<unsigned int>(slot), rendering::segmentation::INHERIT};
+            std::copy_n(rt::detail::IDENTITY_TRANSFORM, 12, request.overlays[slot].rows);
+            request.overlays[slot].rows[7] = slot == 0 ? -1.25f : 1.25f;
+        }
+        malloc(device, buffer, spy_spectator_device_id(device, rt::backends::Default{}));
+        malloc(buffer.device, buffer.renderer);
+        init(buffer.device, buffer.renderer, scene, pool, request.metadata);
+        render_spy_spectator(buffer.device, buffer, request, image);
+        EXPECT_EQ(buffer.renderer.attachments[0], 2u);
+        EXPECT_EQ(buffer.renderer.attachments[1], 0u);
+        const auto both = image.pixels;
+        request.num_overlays = 1;
+        render_spy_spectator(buffer.device, buffer, request, image);
+        EXPECT_EQ(buffer.renderer.attachments[0], 2u);
+        EXPECT_EQ(buffer.renderer.attachments[1], buffer.renderer.INVALID_OVERLAY);
+        const auto red = image.pixels;
+        EXPECT_NE(both, red);
+        request.overlay_indices[0] = rt::OverlayIndex{0};
+        request.overlays[0] = request.overlays[1];
+        render_spy_spectator(buffer.device, buffer, request, image);
+        EXPECT_NE(image.pixels, red);
+        EXPECT_NE(image.pixels, both);
+        request.num_overlays = 0;
+        render_spy_spectator(buffer.device, buffer, request, image);
+        EXPECT_NE(image.pixels, red);
+        EXPECT_EQ(buffer.renderer.attachments[0], buffer.renderer.INVALID_OVERLAY);
+        request.num_overlays = 3;
+        EXPECT_THROW(copy_spy_overlays(buffer.device, buffer.renderer, request), std::invalid_argument);
+        request.num_overlays = 1;
+        request.overlay_indices[0] = rt::OverlayIndex{3};
+        EXPECT_THROW(copy_spy_overlays(buffer.device, buffer.renderer, request), std::invalid_argument);
+        free(buffer.device, buffer);
     }
 }

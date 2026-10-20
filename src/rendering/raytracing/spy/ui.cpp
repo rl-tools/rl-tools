@@ -1,4 +1,4 @@
-#include <rl_tools/rl/environments/hyperdrone/spy/ui.h>
+#include <rl_tools/rendering/raytracing/spy/ui.h>
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
@@ -19,24 +19,20 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <thread>
 #include <vector>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::environments::hyperdrone::spy::ui {
+namespace rl_tools::rendering::raytracing::spy::ui {
     struct Window {
         GLFWwindow* handle = nullptr;
         ImGuiContext* imgui = nullptr;
         std::thread::id owner = std::this_thread::get_id();
         GLuint atlas = 0;
         GLuint spectator = 0;
-        std::size_t members = 0;
-        std::size_t instances = 0;
-        std::size_t agents = 0;
-        std::size_t cameras_per_agent = 0;
+        std::vector<std::string> labels;
         std::size_t selected = 0;
         int atlas_width = 0;
         int atlas_height = 0;
@@ -57,18 +53,18 @@ namespace rl_tools::rl::environments::hyperdrone::spy::ui {
         void require_main_thread() {
 #ifdef __APPLE__
             if(!pthread_main_np()) {
-                throw std::runtime_error("HyperDrone spy must run on the main thread");
+                throw std::runtime_error("Raytracing spy must run on the main thread");
             }
 #elif defined(__linux__)
             if(syscall(SYS_gettid) != getpid()) {
-                throw std::runtime_error("HyperDrone spy must run on the main thread");
+                throw std::runtime_error("Raytracing spy must run on the main thread");
             }
 #endif
         }
 
         void require_owner(Window* window) {
             if(window == nullptr || window->owner != std::this_thread::get_id()) {
-                throw std::runtime_error("HyperDrone spy must be updated and closed on its creating thread");
+                throw std::runtime_error("Raytracing spy must be updated and closed on its creating thread");
             }
         }
 
@@ -142,7 +138,7 @@ namespace rl_tools::rl::environments::hyperdrone::spy::ui {
             glBindTexture(GL_TEXTURE_2D, 0);
             if(glGetError() != GL_NO_ERROR) {
                 glDeleteTextures(1, &texture);
-                throw std::runtime_error("HyperDrone spy could not allocate its display textures");
+                throw std::runtime_error("Raytracing spy could not allocate its display textures");
             }
             return texture;
         }
@@ -170,11 +166,6 @@ namespace rl_tools::rl::environments::hyperdrone::spy::ui {
             }
         }
 
-        void camera_identity(Window* window, std::size_t camera) {
-            const auto views = window->agents * window->cameras_per_agent;
-            ImGui::Text("Member %zu / instance %zu / agent %zu / camera %zu", camera / (window->instances * views), (camera / views) % window->instances, (camera / window->cameras_per_agent) % window->agents, camera % window->cameras_per_agent);
-        }
-
         void draw(Window* window, Input& input, double atlas_age, double spectator_age, const char* status) {
             const auto previous_selection = window->selected;
             ImGui_ImplOpenGL3_NewFrame();
@@ -182,40 +173,42 @@ namespace rl_tools::rl::environments::hyperdrone::spy::ui {
             ImGui::NewFrame();
             ImGui::SetNextWindowPos(ImVec2(0, 0));
             ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
-            ImGui::Begin("HyperDrone spy", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
-            const float left_width = ImGui::GetContentRegionAvail().x * 0.45f;
-            ImGui::BeginChild("Cameras", ImVec2(left_width, 0));
-            frame_age("Cameras", atlas_age);
-            camera_identity(window, window->selected);
-            const auto atlas_size = image_size(window->atlas_width, window->atlas_height);
-            const auto atlas_origin = ImGui::GetCursorScreenPos();
-            ImGui::Image((ImTextureID)(std::intptr_t)window->atlas, atlas_size);
-            if(!window->mouse_captured && ImGui::IsItemHovered()) {
-                const auto cursor = ImGui::GetIO().MousePos;
-                const auto column = std::min(window->columns - 1, static_cast<int>((cursor.x - atlas_origin.x) * window->columns / atlas_size.x));
-                const auto row = std::min(window->rows - 1, static_cast<int>((cursor.y - atlas_origin.y) * window->rows / atlas_size.y));
-                const auto camera = static_cast<std::size_t>(row) * window->columns + column;
-                if(camera < window->members * window->instances * window->agents * window->cameras_per_agent) {
-                    ImGui::BeginTooltip();
-                    camera_identity(window, camera);
-                    ImGui::EndTooltip();
-                    if(ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                        window->selected = camera;
+            ImGui::Begin("Spy", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
+            if(!window->labels.empty()) {
+                const float left_width = ImGui::GetContentRegionAvail().x * 0.45f;
+                ImGui::BeginChild("Cameras", ImVec2(left_width, 0));
+                frame_age("Cameras", atlas_age);
+                ImGui::TextUnformatted(window->labels[window->selected].c_str());
+                const auto atlas_size = image_size(window->atlas_width, window->atlas_height);
+                const auto atlas_origin = ImGui::GetCursorScreenPos();
+                ImGui::Image((ImTextureID)(std::intptr_t)window->atlas, atlas_size);
+                if(!window->mouse_captured && ImGui::IsItemHovered()) {
+                    const auto cursor = ImGui::GetIO().MousePos;
+                    const auto column = std::min(window->columns - 1, static_cast<int>((cursor.x - atlas_origin.x) * window->columns / atlas_size.x));
+                    const auto row = std::min(window->rows - 1, static_cast<int>((cursor.y - atlas_origin.y) * window->rows / atlas_size.y));
+                    const auto camera = static_cast<std::size_t>(row) * window->columns + column;
+                    if(camera < window->labels.size()) {
+                        ImGui::BeginTooltip();
+                        ImGui::TextUnformatted(window->labels[camera].c_str());
+                        ImGui::EndTooltip();
+                        if(ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                            window->selected = camera;
+                        }
                     }
                 }
+                const float tile_width = atlas_size.x / window->columns;
+                const float tile_height = atlas_size.y / window->rows;
+                const ImVec2 tile_origin(atlas_origin.x + (window->selected % window->columns) * tile_width, atlas_origin.y + (window->selected / window->columns) * tile_height);
+                ImGui::GetWindowDrawList()->AddRect(tile_origin, ImVec2(tile_origin.x + tile_width, tile_origin.y + tile_height), IM_COL32(255, 194, 62, 255), 0.0f, 2.0f);
+                ImGui::EndChild();
+                ImGui::SameLine();
             }
-            const float tile_width = atlas_size.x / window->columns;
-            const float tile_height = atlas_size.y / window->rows;
-            const ImVec2 tile_origin(atlas_origin.x + (window->selected % window->columns) * tile_width, atlas_origin.y + (window->selected / window->columns) * tile_height);
-            ImGui::GetWindowDrawList()->AddRect(tile_origin, ImVec2(tile_origin.x + tile_width, tile_origin.y + tile_height), IM_COL32(255, 194, 62, 255), 0.0f, 2.0f);
-            ImGui::EndChild();
-            ImGui::SameLine();
             ImGui::BeginChild("Spectator", ImVec2(0, 0));
             if(window->selected != previous_selection) {
                 spectator_age = -1;
             }
             frame_age("Spectator", spectator_age);
-            input.reset_camera = ImGui::Button("Start from selected camera") && !window->mouse_captured;
+            input.reset_camera = ImGui::Button(window->labels.empty() ? "Reset camera" : "Start from selected camera") && !window->mouse_captured;
             ImGui::TextUnformatted("Click view: mouse look | WASD: move | Q/E: down/up | Shift: faster | Esc: release");
             if(status != nullptr && status[0] != '\0') {
                 ImGui::TextWrapped("%s", status);
@@ -246,22 +239,19 @@ namespace rl_tools::rl::environments::hyperdrone::spy::ui {
         }
     }
 
-    Window* create(std::size_t members, std::size_t instances, std::size_t agents, std::size_t cameras_per_agent, int atlas_width, int atlas_height, int columns, int rows, int spectator_width, int spectator_height) {
+    Window* create(const char* title, const std::vector<std::string>& labels, int atlas_width, int atlas_height, int columns, int rows, int spectator_width, int spectator_height) {
         require_main_thread();
         if(active_window != nullptr) {
-            throw std::runtime_error("Only one HyperDrone spy window can be open per process");
+            throw std::runtime_error("Only one Raytracing spy window can be open per process");
         }
-        if(members == 0 || instances == 0 || agents == 0 || cameras_per_agent == 0 || members > std::numeric_limits<std::size_t>::max() / instances || members * instances > std::numeric_limits<std::size_t>::max() / agents || members * instances * agents > std::numeric_limits<std::size_t>::max() / cameras_per_agent || columns <= 0 || rows <= 0 || atlas_width < columns || atlas_height < rows || spectator_width <= 0 || spectator_height <= 0 || members * instances * agents * cameras_per_agent > static_cast<std::size_t>(columns) * rows) {
-            throw std::invalid_argument("HyperDrone spy received invalid camera or image dimensions");
+        if(title == nullptr || spectator_width <= 0 || spectator_height <= 0 || (!labels.empty() && (columns <= 0 || rows <= 0 || atlas_width < columns || atlas_height < rows || labels.size() > static_cast<std::size_t>(columns) * rows))) {
+            throw std::invalid_argument("Raytracing spy received invalid title or image dimensions");
         }
         if(!glfwInit()) {
-            throw std::runtime_error("HyperDrone spy could not initialize GLFW; a desktop display is required");
+            throw std::runtime_error("Raytracing spy could not initialize GLFW; a desktop display is required");
         }
         auto window = std::make_unique<Window>();
-        window->members = members;
-        window->instances = instances;
-        window->agents = agents;
-        window->cameras_per_agent = cameras_per_agent;
+        window->labels = labels;
         window->atlas_width = atlas_width;
         window->atlas_height = atlas_height;
         window->columns = columns;
@@ -273,10 +263,10 @@ namespace rl_tools::rl::environments::hyperdrone::spy::ui {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
-        window->handle = glfwCreateWindow(1440, 800, "HyperDrone spy", nullptr, nullptr);
+        window->handle = glfwCreateWindow(labels.empty() ? 960 : 1440, 800, title, nullptr, nullptr);
         glfwDefaultWindowHints();
         if(window->handle == nullptr) {
-            throw std::runtime_error("HyperDrone spy could not create an OpenGL 3.2 window");
+            throw std::runtime_error("Raytracing spy could not create an OpenGL 3.2 window");
         }
         try {
             ContextScope context(window.get());
@@ -287,7 +277,7 @@ namespace rl_tools::rl::environments::hyperdrone::spy::ui {
             ImGui::StyleColorsDark();
             glfwSwapInterval(0);
             if(!ImGui_ImplGlfw_InitForOpenGL(window->handle, false)) {
-                throw std::runtime_error("HyperDrone spy could not initialize its GLFW GUI backend");
+                throw std::runtime_error("Raytracing spy could not initialize its GLFW GUI backend");
             }
             window->glfw_backend = true;
             glfwSetWindowUserPointer(window->handle, window.get());
@@ -301,10 +291,12 @@ namespace rl_tools::rl::environments::hyperdrone::spy::ui {
             glfwSetKeyCallback(window->handle, forward_event<ImGui_ImplGlfw_KeyCallback>);
             glfwSetCharCallback(window->handle, forward_event<ImGui_ImplGlfw_CharCallback>);
             if(!ImGui_ImplOpenGL3_Init("#version 150")) {
-                throw std::runtime_error("HyperDrone spy could not initialize its OpenGL GUI backend");
+                throw std::runtime_error("Raytracing spy could not initialize its OpenGL GUI backend");
             }
             window->opengl_backend = true;
-            window->atlas = create_texture(atlas_width, atlas_height);
+            if(!labels.empty()) {
+                window->atlas = create_texture(atlas_width, atlas_height);
+            }
             window->spectator = create_texture(spectator_width, spectator_height);
         }
         catch(...) {

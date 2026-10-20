@@ -9,6 +9,7 @@
 #include <rl_tools/rendering/raytracing/backends/generic/operations_cpu.h>
 #endif
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
+#include <rl_tools/rendering/raytracing/primitives/operations_cpu.h>
 
 #ifndef RL_TOOLS_SCENE_SUITE
 #define RL_TOOLS_SCENE_SUITE RENDERING_RAYTRACING_GENERIC_SCENE
@@ -24,6 +25,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <vector>
 #include <chrono>
 #include <cmath>
@@ -134,6 +136,87 @@ namespace {
         std::vector<float> depth(RENDERER_SPEC::CAM_PIXELS);
         read_output(device, renderer, rlt::output(device, renderer, rro::Depth<>{}), depth.data());
         return depth[(RENDERER_SPEC::CAM_HEIGHT / 2) * RENDERER_SPEC::CAM_WIDTH + RENDERER_SPEC::CAM_WIDTH / 2];
+    }
+}
+
+TEST(RL_TOOLS_SCENE_SUITE, BOX_PRIMITIVE_GEOMETRY){
+    DEVICE device;
+    const float size[3] = {0.25f, 2.0f, 0.5f};
+    const float color[3] = {0.2f, 0.4f, 0.8f};
+    using rlt::make_box;
+    const auto object = make_box(device, size, color);
+    ASSERT_EQ(object.meshes.size(), 1u);
+    const auto& mesh = object.meshes[0];
+    ASSERT_EQ(mesh.vertices.size(), 24u * 3);
+    ASSERT_EQ(mesh.normals.size(), mesh.vertices.size());
+    ASSERT_EQ(mesh.indices.size(), 12u * 3);
+    float low[3] = {size[0], size[1], size[2]};
+    float high[3] = {-size[0], -size[1], -size[2]};
+    for(size_t vertex = 0; vertex < 24; vertex++){
+        float normal_length_squared = 0;
+        for(unsigned axis = 0; axis < 3; axis++){
+            const float position = mesh.vertices[vertex * 3 + axis];
+            const float normal = mesh.normals[vertex * 3 + axis];
+            low[axis] = std::min(low[axis], position);
+            high[axis] = std::max(high[axis], position);
+            normal_length_squared += normal * normal;
+        }
+        EXPECT_FLOAT_EQ(normal_length_squared, 1);
+    }
+    for(unsigned axis = 0; axis < 3; axis++){
+        EXPECT_FLOAT_EQ(low[axis], -size[axis] * 0.5f);
+        EXPECT_FLOAT_EQ(high[axis], size[axis] * 0.5f);
+        EXPECT_FLOAT_EQ(mesh.color[axis], color[axis]);
+    }
+    double volume = 0;
+    for(size_t face = 0; face < 12; face++){
+        const float* positions[3];
+        const float* normals[3];
+        for(unsigned corner = 0; corner < 3; corner++){
+            const int index = mesh.indices[face * 3 + corner];
+            ASSERT_GE(index, 0);
+            ASSERT_LT(index, 24);
+            positions[corner] = mesh.vertices.data() + index * 3;
+            normals[corner] = mesh.normals.data() + index * 3;
+        }
+        float outward = 0;
+        float cross[3];
+        float area_squared = 0;
+        for(unsigned axis = 0; axis < 3; axis++){
+            const unsigned u = (axis + 1) % 3, v = (axis + 2) % 3;
+            cross[axis] = (positions[1][u] - positions[0][u]) * (positions[2][v] - positions[0][v])
+                        - (positions[1][v] - positions[0][v]) * (positions[2][u] - positions[0][u]);
+            outward += positions[0][axis] * cross[axis];
+            area_squared += cross[axis] * cross[axis];
+            EXPECT_FLOAT_EQ(normals[0][axis], normals[1][axis]);
+            EXPECT_FLOAT_EQ(normals[0][axis], normals[2][axis]);
+        }
+        EXPECT_GT(outward, 0);
+        ASSERT_GT(area_squared, 0);
+        for(unsigned axis = 0; axis < 3; axis++){
+            EXPECT_FLOAT_EQ(normals[0][axis], cross[axis] / std::sqrt(area_squared));
+        }
+        volume += outward / 6.0;
+    }
+    EXPECT_DOUBLE_EQ(volume, size[0] * size[1] * size[2]);
+}
+
+TEST(RL_TOOLS_SCENE_SUITE, BOX_PRIMITIVE_INVALID_INPUTS){
+    DEVICE device;
+    using rlt::make_box;
+    for(unsigned axis = 0; axis < 3; axis++){
+        for(float value : {0.0f, -1.0f, std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()}){
+            float size[3] = {1, 1, 1};
+            const float color[3] = {1, 1, 1};
+            size[axis] = value;
+            EXPECT_THROW(make_box(device, size, color), std::invalid_argument);
+        }
+        for(float value : {std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()}){
+            const float size[3] = {1, 1, 1};
+            float color[3] = {1, 1, 1};
+            color[axis] = value;
+            EXPECT_THROW(make_box(device, size, color), std::invalid_argument);
+        }
     }
 }
 

@@ -17,7 +17,7 @@
 #include <cuda_runtime.h>
 #include "../common/cuda_device.h"
 #endif
-#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
 #include <rl_tools/rl/environments/hyperdrone/spy/operations_cpu.h>
 #if HYPERDRONE_ENV_DEVICE_CUDA
 #include <rl_tools/rl/environments/hyperdrone/spy/operations_cuda.h>
@@ -107,7 +107,7 @@ namespace HYPERDRONE_MODULE_NAME {
         DEVICE device{};
         ENV env{};
         RNG rng{};
-#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
         rlt::rl::environments::hyperdrone::Spy<rlt::rl::environments::hyperdrone::spy::Config<ENV>> spy{};
         bool spy_open = false;
 #endif
@@ -917,7 +917,7 @@ namespace HYPERDRONE_MODULE_NAME {
             probe_sync(impl->device, renderer);
         }
     }
-#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
     template <typename DEVICE, typename CONFIG>
     void allocate_spy(DEVICE& device, rlt::rl::environments::hyperdrone::Spy<CONFIG>& spy, typename CONFIG::ENVIRONMENT& environment){
         if constexpr (!CONFIG::WORLD::RENDERER_SPEC::HAS_RGB){
@@ -939,7 +939,7 @@ namespace HYPERDRONE_MODULE_NAME {
     }
 #endif
     void Environment::spy_open(){
-#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
         const CurrentDevice current(impl->device_id);
         if(impl->spy_open){
             throw std::runtime_error("hyperdrone: this environment already has an open spy");
@@ -951,7 +951,7 @@ namespace HYPERDRONE_MODULE_NAME {
 #endif
     }
     bool Environment::spy_update(){
-#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
         const CurrentDevice current(impl->device_id);
         if(impl->spy_open){
             using rlt::update;
@@ -964,7 +964,7 @@ namespace HYPERDRONE_MODULE_NAME {
         return false;
     }
     void Environment::spy_close(){
-#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
         const CurrentDevice current(impl->device_id);
         if(impl->spy_open){
             using rlt::free;

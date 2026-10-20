@@ -8,7 +8,7 @@ AUTO default: first available of OptiX, Metal, Vulkan, WebGPU, Generic).
 """
 from .. import _cuda
 from .._outputs import FlowStatus
-from . import datasets
+from . import datasets, primitives
 from ._component import _backend, component, load_core
 from ._config import FIDELITY, RendererConfig
 from ._renderer import OverlayPlacement, Pose, Renderer
@@ -44,6 +44,7 @@ __all__ = [
     "load_scene",
     "make_camera",
     "make_transform",
+    "primitives",
 ]
 
 _cuda.register_provider(load_core)

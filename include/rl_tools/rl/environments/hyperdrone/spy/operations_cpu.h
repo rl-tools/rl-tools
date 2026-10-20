@@ -5,7 +5,7 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SPY_OPERATIONS_CPU_H
 
 #include "spy.h"
-#include "operations_cpu_spectator.h"
+#include "../../../../rendering/raytracing/spy/operations_cpu_spectator.h"
 #include "capture_cpu.h"
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
 #include "capture_optix.h"
@@ -13,15 +13,10 @@
 #include "capture_cuda.h"
 #endif
 #endif
-#include <chrono>
 #include <stdexcept>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
-    inline double spy_time() {
-        return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
-    }
-
     template <typename CONFIG>
     void prepare_spy_capture(rl::environments::hyperdrone::spy::State<CONFIG>& state, typename CONFIG::ENVIRONMENT& environment, double now) {
         using WORLD = typename CONFIG::WORLD;
@@ -47,8 +42,7 @@ namespace rl_tools {
             job.scene = &environment.shared.library.scenes[slot.scene_id];
             job.pool = &environment.shared.library.pool;
             job.metadata = slot.metadata;
-            job.member = member;
-            job.instance = (state.selected_camera / WORLD::N_VIEWS) % WORLD::INSTANCES;
+            job.view = state.selected_camera / WORLD::N_VIEWS;
             job.scene_version = world.scene_version;
             job.captured_at = buffer.frames[member].captured_at;
         }
@@ -63,10 +57,10 @@ namespace rl_tools {
             return;
         }
         auto& job = buffer.job;
-        if(state.environment->worlds[job.member].scene_version != job.scene_version) {
+        if(state.environment->worlds[job.view / WORLD::INSTANCES].scene_version != job.scene_version) {
             return;
         }
-        auto& view = state.views[job.member * WORLD::INSTANCES + job.instance];
+        auto& view = state.views[job.view];
         auto& host = get_rendering_device(device);
         if(!view.initialized || view.scene_version != job.scene_version || state.reset_camera) {
             const auto& camera = buffer.geometry.camera;
@@ -84,7 +78,11 @@ namespace rl_tools {
         const T look[3] = {view.position[0] + math::cos(host.math, view.yaw) * math::cos(host.math, view.pitch), view.position[1] + math::sin(host.math, view.yaw) * math::cos(host.math, view.pitch), view.position[2] + math::sin(host.math, view.pitch)};
         const T up[3] = {0, 0, 1};
         job.camera = make_camera_data(view.position, look, up, T(80), T(CONFIG::SPECTATOR_CONFIG::CAM_WIDTH) / T(CONFIG::SPECTATOR_CONFIG::CAM_HEIGHT));
-        job.overlay = buffer.geometry.overlay;
+        if constexpr(WORLD::RENDERER_SPEC::ENABLE_OVERLAYS) {
+            job.num_overlays = 1;
+            job.overlay_indices[0] = rendering::raytracing::OverlayIndex{0};
+            job.overlays[0] = buffer.geometry.overlay;
+        }
         submit_spy_spectator(device, state.spectator, job);
     }
 
@@ -99,7 +97,7 @@ namespace rl_tools {
         }
         stop_spy_spectator(device, state.spectator);
         free_spy_capture(device, state, typename CONFIG::BACKEND{});
-        rl::environments::hyperdrone::spy::ui::destroy(state.window);
+        rendering::raytracing::spy::ui::destroy(state.window);
         delete spy.state;
         spy.state = nullptr;
     }
@@ -142,14 +140,24 @@ namespace rl_tools {
             throw std::logic_error("HyperDrone spy must be initialized on its creating thread");
         }
         state.environment = &environment;
-        state.window = rl::environments::hyperdrone::spy::ui::create(CONFIG::ENVIRONMENT::N_WORLDS, CONFIG::WORLD::INSTANCES, CONFIG::WORLD::N_CAMERA_AGENTS, CONFIG::WORLD::N_CAMERAS_PER_AGENT, CONFIG::ATLAS_WIDTH, CONFIG::ATLAS_HEIGHT, state.columns, state.rows, CONFIG::SPECTATOR_CONFIG::CAM_WIDTH, CONFIG::SPECTATOR_CONFIG::CAM_HEIGHT);
+        std::vector<std::string> labels;
+        for(size_t member = 0; member < CONFIG::ENVIRONMENT::N_WORLDS; member++) {
+            for(size_t instance = 0; instance < CONFIG::WORLD::INSTANCES; instance++) {
+                for(size_t agent = 0; agent < CONFIG::WORLD::N_CAMERA_AGENTS; agent++) {
+                    for(size_t camera = 0; camera < CONFIG::WORLD::N_CAMERAS_PER_AGENT; camera++) {
+                        labels.push_back("Member " + std::to_string(member) + " / instance " + std::to_string(instance) + " / agent " + std::to_string(agent) + " / camera " + std::to_string(camera));
+                    }
+                }
+            }
+        }
+        state.window = rendering::raytracing::spy::ui::create("HyperDrone spy", labels, CONFIG::ATLAS_WIDTH, CONFIG::ATLAS_HEIGHT, state.columns, state.rows, CONFIG::SPECTATOR_CONFIG::CAM_WIDTH, CONFIG::SPECTATOR_CONFIG::CAM_HEIGHT);
         start_spy_spectator(device, state.spectator);
         state.open = true;
     }
 
     template <typename DEVICE, typename CONFIG>
     bool update(DEVICE& device, rl::environments::hyperdrone::Spy<CONFIG>& spy, typename CONFIG::ENVIRONMENT& environment) {
-        namespace ui = rl::environments::hyperdrone::spy::ui;
+        namespace ui = rendering::raytracing::spy::ui;
         using WORLD = typename CONFIG::WORLD;
         using T = typename CONFIG::T;
         if(spy.state == nullptr || !spy.state->open) {
@@ -195,8 +203,7 @@ namespace rl_tools {
         if(poll_spy_spectator(device, state.spectator, buffer.image)) {
             const auto& image = buffer.image;
             const size_t selected_member = state.selected_camera / (WORLD::INSTANCES * WORLD::N_VIEWS);
-            const size_t selected_instance = (state.selected_camera / WORLD::N_VIEWS) % WORLD::INSTANCES;
-            if(image.member == selected_member && image.instance == selected_instance && image.scene_version == environment.worlds[selected_member].scene_version) {
+            if(image.view == state.selected_camera / WORLD::N_VIEWS && image.scene_version == environment.worlds[selected_member].scene_version) {
                 ui::upload_spectator(state.window, image.pixels.data());
                 state.spectator_captured_at = image.captured_at;
             }
