@@ -123,6 +123,28 @@ ideal point lights.
 
 `render()` acquires the declared image outputs; `render_launch()` and `render_sync()` split submission from waiting. Reads never create a capture or advance temporal state. Declare `Probes()` on the cameras that need collision probes, set `num_probes` per selected camera, call `generate_probe_directions()`, and execute `probe()` separately. `renderer.outputs[Probes()].distance.read()` returns float32 distances; `.hit.read()` returns native int32 hit flags. Probe 0 follows the camera's principal axis; remaining directions form a fixed Fibonacci set in camera FLU coordinates.
 
+### Interactive renderer spy
+
+`renderer.spy()` opens an independent spectator using the selected camera's scene and attached overlays, without rendering source outputs or advancing flow history. Initialize the renderer and set its cameras first. Call `renderer.update()` after overlay edits and `spy.update()` regularly on the main thread; use `with renderer.spy(camera=0) as spy:` or call `spy.close()`. This explicitly polled viewer does not import or require IPython.
+
+The optional `renderer.spy(interactive=True)` integration publishes edits after each command in terminal IPython and keeps the window responsive while the prompt is idle. Run the articulated mechanism example with:
+
+```bash
+.venv/bin/pip install ipython
+.venv/bin/ipython -i -m hyperdrone.examples.articulation_spy
+```
+
+```python
+renderer.set_pose(placement, render.Pose(base), coordinates=[0.8, 0.3])
+second = renderer.spawn(0, handle, render.Pose(render.make_transform(position=(2, 0, 1))))
+renderer.despawn(second)
+spy.close()
+```
+
+Long-running commands need explicit `spy.update()` calls to process GUI events. Interactive polling requires terminal IPython's full prompt and no other active `%gui` integration; notebooks and the plain Python shell use explicit polling. Scene geometry and the asset pool remain fixed after initialization. The viewer uses the same optional GLFW/OpenGL dependencies and camera controls as the [environment spy](#native-spy).
+
+C++ uses `raytracing::Spy<raytracing::spy::Config<RENDERER>>` with device-first `malloc`, `init(device, spy, renderer, scene, pool, metadata, camera)`, `update(device, spy, renderer)` and `free`, linking `RLtools::RaytracingSpy`. Pass the scene and pool used to initialize the source renderer and keep all three alive until freeing the spy; camera poses and placements remain editable, while scene and pool geometry stay fixed.
+
 ### Output buffers and DLPack
 
 ```python
@@ -344,11 +366,11 @@ env.close()
 
 Click a camera tile to select its member, instance, agent and camera, then click the spectator for mouse look. WASD moves, Q/E moves down/up, Shift accelerates, and Esc releases the mouse; the spectator pose is retained for each world independently. The spectator has its own renderer; camera capture and spectator refresh are capped at 20 Hz, and GUI work at 60 Hz. They still consume GPU bandwidth and rendering capacity. Use `with` or explicitly close the spy on the main thread before environment teardown. The Gymnasium adapter also exposes `env.spy()`; call `update()` after `reset()` or `step()`.
 
-The optional native dependencies are GLFW and desktop OpenGL (on Ubuntu: `libglfw3-dev`, `libgl1-mesa-dev`); CMake fetches the pinned Dear ImGui release with git. After adding dependencies to an existing build, run `cmake /path/to/cache/env-<backend>-<tag>`, unset `HYPERDRONE_SKIP_BUILD`, and restart Python; constructing the next environment rebuilds its native module. The build directory lives under `HYPERDRONE_CACHE_DIR` (default `~/.cache/hyperdrone`); CMake reports `HyperDrone spy` availability. Ordinary environments remain usable when these dependencies are absent; `env.spy()` then explains the missing build feature. No display or window is opened until `env.spy()` is called.
+The optional native dependencies are GLFW and desktop OpenGL (on Ubuntu: `libglfw3-dev`, `libgl1-mesa-dev`); CMake fetches the pinned Dear ImGui release with git. After adding dependencies to an existing build, run `cmake /path/to/cache/env-<backend>-<tag>`, unset `HYPERDRONE_SKIP_BUILD`, and restart Python; constructing the next environment rebuilds its native module. The build directory lives under `HYPERDRONE_CACHE_DIR` (default `~/.cache/hyperdrone`); CMake reports `Raytracing spy` availability. Set `RL_TOOLS_RENDERING_RAYTRACING_DISABLE_SPY=ON` to disable both native viewers. Ordinary environments remain usable when these dependencies are absent; `env.spy()` then explains the missing build feature. No display or window is opened until `env.spy()` is called.
 
 Run `python -m hyperdrone.examples.spy` to watch four X500 drones with rigged bodies and spinning propellers hold position with RAPTOR in the shared ProcTHOR scene; optionally pass a local GLB path as the positional argument.
 
-C++ uses `hyperdrone::Spy<hyperdrone::spy::Config<ENVIRONMENT>>` with device-first `malloc`, `init`, `update` and `free`; link `RLtools::HyperDroneSpy` and close the spy before freeing its environment. The [C++ example](../../../src/rl/environments/hyperdrone/spy/example.cpp) builds as `example_hyperdrone_spy` when the GUI dependencies are available. Both interfaces share the same capture, spectator and window implementation.
+C++ uses `hyperdrone::Spy<hyperdrone::spy::Config<ENVIRONMENT>>` with device-first `malloc`, `init`, `update` and `free`; link `RLtools::RaytracingSpy` and close the spy before freeing its environment. The [C++ example](../../../src/rl/environments/hyperdrone/spy/example.cpp) builds as `example_hyperdrone_spy` when the GUI dependencies are available. Both interfaces share the same capture, spectator and window implementation.
 
 ### Visual-inertial localization
 
@@ -423,7 +445,9 @@ Use the repository `.venv` with editable `interface/python/hyperdrone[gym]` inst
 HYPERDRONE_RENDER_BACKEND=GENERIC .venv/bin/python -m pytest interface/python/hyperdrone/tests -v
 ```
 
-With the spy dependencies installed, run `HYPERDRONE_TEST_SPY=1 xvfb-run -a .venv/bin/python -m pytest interface/python/hyperdrone/tests/env/test_spy.py` to check the native GUI lifecycle and exact simulation equivalence; omit `xvfb-run -a` when using a desktop display.
+With the spy dependencies installed, run `HYPERDRONE_TEST_SPY=1 xvfb-run -a .venv/bin/python -m pytest interface/python/hyperdrone/tests/env/test_spy.py interface/python/hyperdrone/tests/render/test_renderer_spy.py` to check both native GUI lifecycles, unchanged renderer outputs and exact simulation equivalence; omit `xvfb-run -a` when using a desktop display.
+
+`tests/render/test_spy_ipython_terminal.py` exercises the optional integration in a real terminal when IPython and pexpect are installed; it requires no display.
 
 `tests/jit` exercises the build infrastructure against a toy component in seconds;
 `tests/test_architecture.py` enforces the import DAG (render and dynamics never see each
@@ -534,6 +558,8 @@ Assign labels before `Renderer.init()`: `object.segmentation_class = id`, `scene
 Objects, scenes, assemblies and pools expose `remap_segmentation_classes(mapping, taxonomy="custom", classes={...})`; pools also expose `remap_asset_segmentation_classes(asset, mapping, ...)`. Omitting taxonomy/classes selects unnamed numeric IDs. Mappings must cover every used class, and validation failures leave labels unchanged. Remapping preserves valid class boundaries and rejects mixed-class welded objects; explicitly assign one class first if collapsing their labels is intentional. Remap conflicting sources separately before composition. The C++ equivalents are device-first `assign_segmentation_class` and `remap_segmentation_classes` in `rendering/segmentation_cpu.h`, with a shared immutable target taxonomy (or `nullptr` for unnamed IDs).
 
 ### Articulated assets
+
+[`Articulation.ipynb`](hyperdrone/examples/Articulation.ipynb) builds a hinge and slider with `render.primitives.box(size=(x, y, z), color=(r, g, b))` and displays a three-second MP4. Boxes are ordinary `Object`s centered at the origin, with full dimensions in FLU coordinates.
 
 Every part of an `ObjectAssembly` moves relative to its parent part (`add_part(object, transform, parent=...)`, or the enclosing node that `load_assembly(path, part_nodes=[...])` records; an enclosing node comes first) through its joint, by default `fixed`. `assembly.set_joint(part, "revolute", axis=..., pivot=..., coordinate=i)` turns the part (index or object name) and its children `coordinates[i]` radians about `axis` through `pivot`, both in the part frame; `"prismatic"` slides them `coordinates[i]` metres along `axis`. At zero coordinates every part sits at its rest frame. Joints are bound when the assembly enters the pool, which requires every coordinate below `assembly.num_coordinates` to drive a joint (several joints may share one).
 

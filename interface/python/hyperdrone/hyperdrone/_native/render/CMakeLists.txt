@@ -89,6 +89,10 @@ function(hyperdrone_component_libraries DEFINES OUT_LIBRARIES)
 endfunction()
 
 set(render_sources renderer.cpp)
+set(render_libraries RLtools::RLtools hyperdrone_render_stb hyperdrone_render_tooling)
+if(TARGET RLtools::RaytracingSpy)
+    list(APPEND render_libraries RLtools::RaytracingSpy rendering_raytracing_backend)
+endif()
 if(HYPERDRONE_VARIANT STREQUAL "OPTIX")
     list(APPEND render_sources set_pose_device.cu)
 endif()
@@ -96,5 +100,5 @@ hyperdrone_jit_add_configs(
     COMPONENT render
     PYTHON_MODULE
     SOURCES ${render_sources}
-    LINK RLtools::RLtools hyperdrone_render_stb hyperdrone_render_tooling
+    LINK ${render_libraries}
 )

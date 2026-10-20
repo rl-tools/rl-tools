@@ -25,7 +25,6 @@ option(RL_TOOLS_DISABLE_HDF5 "Disable HDF5" OFF)
 option(RL_TOOLS_DISABLE_ZLIB "Disable zlib" OFF)
 option(RL_TOOLS_DISABLE_TENSORBOARD "Disable TensorBoard logging" OFF)
 option(RL_TOOLS_DISABLE_CLI11 "Disable CLI11" OFF)
-option(RL_TOOLS_DISABLE_HYPERDRONE_SPY "Disable the native HyperDrone spy GUI" OFF)
 
 option(RL_TOOLS_BACKEND_DISABLE_BLAS "Disable all BLAS backends (naive fallback)" OFF)
 option(RL_TOOLS_BACKEND_DISABLE_MKL "Disable the MKL BLAS backend" OFF)
@@ -38,6 +37,7 @@ option(RL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO "Disable MuJoCo" OFF)
 option(RL_TOOLS_TESTS_DISABLE_EIGEN "Disable Eigen-based benchmark tests" OFF)
 
 option(RL_TOOLS_RENDERING_DISABLE_RAYTRACING "Disable raytracing" OFF)
+option(RL_TOOLS_RENDERING_RAYTRACING_DISABLE_SPY "Disable the native raytracing spy GUI" OFF)
 option(RL_TOOLS_RENDERING_RAYTRACING_DISABLE_OPTIX "Exclude OptiX from raytracing backend auto-selection" OFF)
 option(RL_TOOLS_RENDERING_RAYTRACING_DISABLE_METAL "Exclude Metal from raytracing backend auto-selection" OFF)
 option(RL_TOOLS_RENDERING_RAYTRACING_DISABLE_VULKAN "Exclude Vulkan from raytracing backend auto-selection" OFF)
@@ -171,6 +171,7 @@ include(cmake/autodetect/all.cmake)
 
 include(cmake/optional/mujoco.cmake)
 include(cmake/optional/raytracing.cmake)
+add_subdirectory(src/rendering/raytracing/spy)
 add_subdirectory(src/rl/environments/hyperdrone/spy)
 
 if(NOT RL_TOOLS_DISABLE_TARGETS)

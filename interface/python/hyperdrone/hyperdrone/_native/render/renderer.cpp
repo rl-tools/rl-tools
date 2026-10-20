@@ -1,6 +1,9 @@
 #include "renderer_config.h"
 #include <rl_tools/rendering/datasets/operations_cpu.h>
 #include <rendering/raytracing/camera_orbit.h>
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
+#include <rl_tools/rendering/raytracing/spy/operations_cpu.h>
+#endif
 
 #include "bindings.h"
 #include "output_bindings.h"
@@ -11,6 +14,7 @@
 #include <nanobind/stl/vector.h>
 
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#include "cuda_device.h"
 #include "cuda_staging.h"
 #include "set_pose_device.h"
 #endif
@@ -156,6 +160,13 @@ namespace HYPERDRONE_MODULE_NAME {
         // host pose writes so far: a placement batch takes over its members' rows from the host
         // staging only after one
         size_t host_pose_writes = 0;
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
+        rrt::Spy<rrt::spy::Config<RENDERER>> spy{};
+        const rrt::Scene* spy_scene = nullptr;
+        rrt::AssetPool empty_pool;
+        const rrt::AssetPool* spy_pool = nullptr;
+        bool spy_is_open = false;
+#endif
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
         using CudaFloats = nanobind::ndarray<const float, nanobind::c_contig, nanobind::device::cuda>;
         // device inputs the render stream has yet to read, oldest first: the imported arrays themselves, not their Python producers, because a DLPack import owns its storage independently of the producer (an exporter may hand its only reference to the import). Each call's arrays stay with the event recorded after their last GPU reader and are released once it completes: on the next device input, on a synchronizing verb, or at teardown after the renderer synchronizes
@@ -204,6 +215,7 @@ namespace HYPERDRONE_MODULE_NAME {
                 cudaEventDestroy(event);
             }
 #endif
+            spy_close();
             rlt::free(device, renderer);
         }
 
@@ -235,6 +247,10 @@ namespace HYPERDRONE_MODULE_NAME {
             else {
                 rlt::init(device, renderer, *bundle);
             }
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
+            spy_scene = &bundle->scene;
+            spy_pool = pool == nullptr ? &empty_pool : pool;
+#endif
             initialized = true;
         }
 
@@ -332,6 +348,62 @@ namespace HYPERDRONE_MODULE_NAME {
             release_inputs();
         }
 #endif
+
+        void spy_open(size_t camera) {
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+            const hyperdrone::CurrentCudaDevice current(device_id);
+#endif
+            require_init();
+            if(spy_is_open){
+                throw std::runtime_error("hyperdrone: this renderer already has an open spy");
+            }
+            using rlt::malloc;
+            using rlt::init;
+            using rlt::free;
+            try{
+                malloc(device, spy);
+                init(device, spy, renderer, *spy_scene, *spy_pool, scene_metadata, camera);
+                spy_is_open = true;
+            }
+            catch(...){
+                free(device, spy);
+                throw;
+            }
+#else
+            (void)camera;
+            throw std::runtime_error("hyperdrone: the spy was not compiled; provide GLFW, desktop OpenGL and git (to fetch Dear ImGui), then reconfigure the render JIT build (see the HyperDrone README)");
+#endif
+        }
+
+        bool spy_update() {
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+            const hyperdrone::CurrentCudaDevice current(device_id);
+#endif
+            if(spy_is_open){
+                using rlt::update;
+                if(update(device, spy, renderer)){
+                    return true;
+                }
+                spy_close();
+            }
+#endif
+            return false;
+        }
+
+        void spy_close() {
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+            const hyperdrone::CurrentCudaDevice current(device_id);
+#endif
+            if(spy_is_open){
+                using rlt::free;
+                free(device, spy);
+                spy_is_open = false;
+            }
+#endif
+        }
 
         // camera input is a renderer-owned tensor written in place; under motion blur both
         // shutter poses must be written every step, so a blur-free update writes both
@@ -899,6 +971,9 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
         .def("update_launch", &Renderer::update_launch, nb::call_guard<nb::gil_scoped_release>())
         .def("synchronize", &Renderer::synchronize, nb::call_guard<nb::gil_scoped_release>())
         .def("release_inputs", &Renderer::release_inputs)
+        .def("spy_open", &Renderer::spy_open, nb::arg("camera") = 0, nb::call_guard<nb::gil_scoped_release>())
+        .def("spy_update", &Renderer::spy_update, nb::call_guard<nb::gil_scoped_release>())
+        .def("spy_close", &Renderer::spy_close, nb::call_guard<nb::gil_scoped_release>())
         .def("set_cameras", [](Renderer& self, FloatArray cameras){
             self.check_cameras_shape(cameras);
             self.set_cameras(cameras.data());

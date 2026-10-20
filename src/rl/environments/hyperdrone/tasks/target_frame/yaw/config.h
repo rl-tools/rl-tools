@@ -184,7 +184,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::yaw{
     };
     using TASK_WORLD = rlt::rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
     using HYPERDRONE = rlt::rl::environments::HyperDrone<TASK_WORLD, N_ACTIVE_SCENES>;
-#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
     using SPY = rlt::rl::environments::hyperdrone::Spy<rlt::rl::environments::hyperdrone::spy::Config<HYPERDRONE>>;
 #endif
     using ENVIRONMENT = TASK_WORLD;

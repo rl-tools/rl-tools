@@ -20,7 +20,7 @@
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cuda.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/yaw/operations_cuda.h>
-#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
 #include <rl_tools/rl/environments/hyperdrone/spy/operations_cpu.h>
 #endif
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
@@ -205,7 +205,7 @@ namespace rl_tools{
         ValidationState validation;
         malloc(host, compute, validation);
         init(host, compute, validation, seed);
-#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
         SPY spy;
         if(open_spy){
             malloc(compute, spy);
@@ -263,7 +263,7 @@ namespace rl_tools{
                 auto target_row = view_range(compute, targets, time * N_ENVIRONMENTS, tensor::ViewSpec<0, N_ENVIRONMENTS>{});
                 yaw_targets(compute, runner.states, target_row);
                 epilogue(compute, dataset, runner, runner_buffer, environment, compute_rng, time);
-#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
                 update(compute, spy, environment);
 #endif
                 global_step += N_ENVIRONMENTS;
@@ -335,7 +335,7 @@ namespace rl_tools{
                     auto gradient = reshape_row_major(compute, gradient_tensor, tensor::Shape<TI, 1, BATCH_SIZE, TARGET_DIM>{});
                     backward(compute, student, inputs, gradient, student_buffer);
                     step(compute, optimizer, student);
-#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
                     update(compute, spy, environment);
 #endif
                 }
@@ -401,7 +401,7 @@ namespace rl_tools{
             std::cout << "Epoch " << epoch << " step " << global_step << " MSE " << loss_sum << " orientation " << orientation_bound << " degrees, early resets " << early_resets << std::endl;
         }
 
-#ifdef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
         free(compute, spy);
 #endif
         free(host, compute, validation);
@@ -446,7 +446,7 @@ int main(int argc, char** argv){
         return 1;
     }
     try{
-#ifndef RL_TOOLS_ENABLE_HYPERDRONE_SPY
+#ifndef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
         if(open_spy){
             throw std::runtime_error("--spy requires the HyperDrone spy (GLFW and desktop OpenGL), see the CMake configure summary");
         }

@@ -61,8 +61,7 @@ namespace {
         prepare_spy_capture(state, environment, 10);
         pack_spy_atlas_cpu(device, state, environment);
         EXPECT_EQ(state.buffer.job.scene, &environment.shared.library.scenes[1]);
-        EXPECT_EQ(state.buffer.job.member, 1u);
-        EXPECT_EQ(state.buffer.job.instance, 1u);
+        EXPECT_EQ(state.buffer.job.view, 4u);
         EXPECT_EQ(state.buffer.job.scene_version, 2u);
         EXPECT_EQ(atlas[0], 0xff000000u);
         EXPECT_EQ(atlas[2], 0xff550000u);

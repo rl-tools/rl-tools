@@ -6,11 +6,10 @@
 #include <array>
 #include <cstring>
 
-namespace rl_tools::rl::environments::hyperdrone::spy::ui {
+namespace rl_tools::rendering::raytracing::spy::ui {
     struct Window {
         Input input;
-        size_t camera_agents;
-        size_t cameras_per_agent;
+        std::vector<std::string> labels;
         size_t atlas_size;
         size_t spectator_size;
         std::vector<uint32_t> atlas;
@@ -23,13 +22,12 @@ namespace rl_tools::rl::environments::hyperdrone::spy::ui {
     size_t created = 0;
     size_t destroyed = 0;
 
-    Window* create(size_t, size_t, size_t camera_agents, size_t cameras_per_agent, int atlas_width, int atlas_height, int, int, int spectator_width, int spectator_height) {
+    Window* create(const char*, const std::vector<std::string>& labels, int atlas_width, int atlas_height, int, int, int spectator_width, int spectator_height) {
         if(fail_create) {
             throw std::runtime_error("Simulated window creation failure");
         }
         auto* window = new Window;
-        window->camera_agents = camera_agents;
-        window->cameras_per_agent = cameras_per_agent;
+        window->labels = labels;
         window->atlas_size = static_cast<size_t>(atlas_width) * atlas_height;
         window->spectator_size = static_cast<size_t>(spectator_width) * spectator_height;
         created++;
@@ -63,7 +61,7 @@ namespace {
     using namespace rl_tools;
     namespace hd = rl::environments::hyperdrone;
     namespace rt = rendering::raytracing;
-    namespace ui = hd::spy::ui;
+    namespace ui = rt::spy::ui;
 
     struct WorldConfig: hd::presets::X500FPV<float, size_t> {
         using SHADING = rt::Low;
@@ -84,7 +82,7 @@ namespace {
     using World = hd::World<WorldConfig>;
     using Environment = rl::environments::HyperDrone<World, 1>;
     struct Config: hd::spy::Config<Environment> {
-        struct SPECTATOR_CONFIG: hd::spy::SpectatorConfig<World::RENDERER_CONFIG> {
+        struct SPECTATOR_CONFIG: hd::spy::Config<Environment>::SPECTATOR_CONFIG {
             static constexpr size_t CAM_WIDTH = 16;
             static constexpr size_t CAM_HEIGHT = 12;
         };
@@ -173,7 +171,7 @@ namespace {
                     throw std::runtime_error("Spy did not publish the selected view");
                 }
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            } while(viewer.state->window->spectator_uploads == previous || viewer.state->buffer.image.instance != instance || viewer.state->buffer.image.scene_version != version || viewer.state->reset_camera);
+            } while(viewer.state->window->spectator_uploads == previous || viewer.state->buffer.image.view != instance || viewer.state->buffer.image.scene_version != version || viewer.state->reset_camera);
         }
     };
 
@@ -183,8 +181,8 @@ namespace {
         malloc(device, viewer);
         init(device, viewer, environment);
         auto* window = viewer.state->window;
-        EXPECT_EQ(window->camera_agents, World::N_CAMERA_AGENTS);
-        EXPECT_EQ(window->cameras_per_agent, World::N_CAMERAS_PER_AGENT);
+        EXPECT_EQ(window->labels.size(), World::INSTANCES * World::N_VIEWS);
+        EXPECT_EQ(window->labels[1], "Member 0 / instance 0 / agent 0 / camera 1");
         await_image(0, 1);
         ASSERT_EQ(window->atlas.size(), Config::ATLAS_WIDTH * Config::ATLAS_HEIGHT);
         ASSERT_EQ(window->spectator.size(), Config::SPECTATOR_CONFIG::CAM_WIDTH * Config::SPECTATOR_CONFIG::CAM_HEIGHT);

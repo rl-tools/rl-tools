@@ -12,6 +12,7 @@
 #include "verbosity.h"
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_common.h>
+#include <rl_tools/rendering/raytracing/primitives/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/rotorcraft/operations_cpu.h>
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/datasets/procthor/catalog.h>
@@ -311,6 +312,11 @@ NB_MODULE(hyperdrone_render_core, m){
         .def("add_mesh", [](rrt::Object& object, const rrt::Mesh& mesh){ object.meshes.push_back(mesh); })
         .def("add_light", [](rrt::Object& object, const rrt::SceneLight& light){ object.lights.push_back(light); })
         .def_prop_ro("num_meshes", [](const rrt::Object& object){ return object.meshes.size(); });
+
+    m.def("_primitive_box", [](Vec3 size, Vec3 color){
+        using rlt::make_box;
+        return make_box(g_device, size.data(), color.data());
+    }, nb::arg("size"), nb::arg("color") = Vec3{0.8f, 0.8f, 0.8f});
 
     nb::class_<rrt::ObjectAssembly>(m, "ObjectAssembly")
         .def(nb::init<>())

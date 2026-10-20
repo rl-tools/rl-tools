@@ -1,6 +1,9 @@
-#include <rl_tools/rl/environments/hyperdrone/spy/ui.h>
+#include <rl_tools/rendering/raytracing/spy/ui.h>
 #include <metra/metra.h>
 
+#ifdef __APPLE__
+#define GL_SILENCE_DEPRECATION
+#endif
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 #include <gtest/gtest.h>
@@ -19,7 +22,7 @@
 #endif
 
 namespace {
-    namespace ui = rl_tools::rl::environments::hyperdrone::spy::ui;
+    namespace ui = rl_tools::rendering::raytracing::spy::ui;
 
     ui::Input frame(ui::Window* window) {
         ui::update(window, 0.05, 0.05, "GUI integration test");
@@ -38,7 +41,7 @@ namespace {
         for(unsigned int i = 0; i < count; i++) {
             char* title = nullptr;
             if(XFetchName(display, children[i], &title) && title != nullptr) {
-                if(std::strcmp(title, "HyperDrone spy") == 0) {
+                if(std::strcmp(title, "Raytracing spy") == 0) {
                     found = children[i];
                 }
                 XFree(title);
@@ -93,7 +96,7 @@ namespace {
 #endif
 }
 
-TEST(HyperDroneSpyUI, RealWindowUploadsInputAndHostContext) {
+TEST(RaytracingSpyUI, RealWindowUploadsInputAndHostContext) {
 #ifdef RL_TOOLS_SPY_TEST_X11
     if(std::getenv("DISPLAY") == nullptr) {
         GTEST_SKIP() << "An X11 display is required; run under xvfb-run for a virtual display";
@@ -115,10 +118,10 @@ TEST(HyperDroneSpyUI, RealWindowUploadsInputAndHostContext) {
     glClearColor(0.25f, 0.5f, 0.75f, 1.0f);
 
     const auto started = std::chrono::steady_clock::now();
-    std::unique_ptr<ui::Window, decltype(&ui::destroy)> window(ui::create(2, 1, 2, 2, 8, 8, 4, 2, 8, 6), ui::destroy);
+    std::unique_ptr<ui::Window, decltype(&ui::destroy)> window(ui::create("Raytracing spy", {"Camera 0", "Camera 1", "Camera 2", "Camera 3", "Camera 4", "Camera 5", "Camera 6", "Camera 7"}, 8, 8, 4, 2, 8, 6), ui::destroy);
     EXPECT_EQ(glfwGetCurrentContext(), host.get());
     EXPECT_EQ(ImGui::GetCurrentContext(), host_imgui.get());
-    EXPECT_THROW(ui::create(1, 1, 1, 1, 8, 8, 1, 1, 8, 6), std::runtime_error);
+    EXPECT_THROW(ui::create("Raytracing spy", {}, 0, 0, 0, 0, 8, 6), std::runtime_error);
 
     std::array<std::uint32_t, 64> atlas;
     atlas.fill(0xff0000ffu);
@@ -213,11 +216,16 @@ TEST(HyperDroneSpyUI, RealWindowUploadsInputAndHostContext) {
     EXPECT_EQ(glfwGetCurrentContext(), host.get());
     EXPECT_EQ(ImGui::GetCurrentContext(), host_imgui.get());
     EXPECT_EQ(glfwWindowShouldClose(host.get()), GLFW_FALSE);
-    window.reset(ui::create(1, 1, 1, 1, 8, 8, 1, 1, 8, 6));
-    EXPECT_FALSE(frame(window.get()).closed);
+    EXPECT_THROW(ui::create("Raytracing spy", {"Camera 0"}, 0, 0, 0, 0, 8, 6), std::invalid_argument);
+    EXPECT_THROW(ui::create("Raytracing spy", {}, 0, 0, 0, 0, 0, 6), std::invalid_argument);
+    window.reset(ui::create("Raytracing spy", {}, 0, 0, 0, 0, 8, 6));
+    ui::upload_spectator(window.get(), spectator.data());
+    const auto standalone = frame(window.get());
+    EXPECT_FALSE(standalone.closed);
+    EXPECT_EQ(standalone.camera, 0u);
     window.reset();
     EXPECT_EQ(glfwGetCurrentContext(), host.get());
     EXPECT_EQ(ImGui::GetCurrentContext(), host_imgui.get());
     EXPECT_EQ(glGetError(), static_cast<GLenum>(GL_NO_ERROR));
-    metra::log("hyperdrone/spy/ui/smoke_seconds", std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count());
+    metra::log("rendering/raytracing/spy/ui/smoke_seconds", std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count());
 }

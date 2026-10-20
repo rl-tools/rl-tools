@@ -142,6 +142,7 @@ class Renderer:
         self._generation = count()
         self._despawns = 0
         self._serial = next(_RENDERER_SERIALS)
+        self._spy = None
 
     def __del__(self):
         native = getattr(self, "_renderer", None)
@@ -291,6 +292,26 @@ class Renderer:
     def update_launch(self):
         """update without waiting for it: queued on the render stream (OptiX)."""
         self._renderer.update_launch()
+
+    def spy(self, *, interactive=False, camera=0):
+        """Open an independent spectator on the main thread, starting at camera.
+
+        Call renderer.update() to publish edits, then spy.update() to poll the window.
+        interactive=True does both between commands in terminal IPython. The source
+        renderer's outputs and temporal history are untouched. Use a context manager
+        or spy.close() to close the window before exiting.
+        """
+        from ._spy import Spy
+
+        if self._spy is not None and self._spy._renderer is not None:
+            raise RuntimeError("hyperdrone: this renderer already has an open spy")
+        if interactive:
+            from ._spy_ipython import InteractiveSpy
+
+            self._spy = InteractiveSpy(self._renderer, camera=camera, has_overlays=self.config.num_overlays > 0)
+        else:
+            self._spy = Spy(self._renderer, camera=camera)
+        return self._spy
 
     def can_attach(self, camera, overlay):
         return self._renderer.can_attach(camera, overlay)

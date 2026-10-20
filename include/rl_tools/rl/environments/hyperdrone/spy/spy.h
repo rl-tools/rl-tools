@@ -5,8 +5,8 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SPY_SPY_H
 
 #include "../world.h"
-#include "spectator.h"
-#include "ui.h"
+#include "../../../../rendering/raytracing/spy/spectator.h"
+#include "../../../../rendering/raytracing/spy/ui.h"
 #include <array>
 #include <thread>
 #include <vector>
@@ -25,7 +25,10 @@ namespace rl_tools::rl::environments::hyperdrone {
             using T = typename WORLD::T;
             using TI = typename WORLD::TI;
             using BACKEND = typename WORLD::RENDERER::BACKEND;
-            using SPECTATOR_CONFIG = SpectatorConfig<typename WORLD::RENDERER_CONFIG>;
+            struct SPECTATOR_CONFIG: rendering::raytracing::spy::SpectatorConfig<typename WORLD::RENDERER_CONFIG> {
+                static constexpr TI NUM_OVERLAYS = WORLD::RENDERER_SPEC::ENABLE_OVERLAYS ? 1 : 0;
+                static constexpr TI MAX_OVERLAYS_PER_CAMERA = NUM_OVERLAYS;
+            };
             static constexpr TI ATLAS_WIDTH = 1024;
             static constexpr TI ATLAS_HEIGHT = 1024;
             static constexpr double REFRESH_INTERVAL = 1.0 / 20.0;
@@ -76,8 +79,8 @@ namespace rl_tools::rl::environments::hyperdrone {
             Geometry<CONFIG> geometry{};
             CaptureStorage<typename CONFIG::BACKEND> capture;
             std::array<Frame, CONFIG::ENVIRONMENT::N_WORLDS> frames{};
-            SpectatorJob<rendering::raytracing::Specification<typename CONFIG::SPECTATOR_CONFIG>> job;
-            SpectatorImage image;
+            rendering::raytracing::spy::SpectatorJob<rendering::raytracing::Specification<typename CONFIG::SPECTATOR_CONFIG>> job;
+            rendering::raytracing::spy::SpectatorImage image;
             size_t selected_camera = 0;
             bool selected_valid = false;
             bool pending = false;
@@ -85,10 +88,10 @@ namespace rl_tools::rl::environments::hyperdrone {
 
         template <typename CONFIG>
         struct State {
-            ui::Window* window = nullptr;
+            rendering::raytracing::spy::ui::Window* window = nullptr;
             typename CONFIG::ENVIRONMENT* environment = nullptr;
             Buffer<CONFIG> buffer;
-            Spectator<typename CONFIG::SPECTATOR_CONFIG> spectator;
+            rendering::raytracing::spy::Spectator<typename CONFIG::SPECTATOR_CONFIG> spectator;
             std::vector<View<typename CONFIG::T>> views;
             std::array<Frame, CONFIG::ENVIRONMENT::N_WORLDS> displayed_frames{};
             std::thread::id owner;

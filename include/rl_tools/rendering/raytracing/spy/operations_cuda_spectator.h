@@ -1,16 +1,16 @@
-#include "../../../../version.h"
-#include "../../../../rl_tools.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SPY_OPERATIONS_CUDA_SPECTATOR_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#include "../../../version.h"
+#include "../../../rl_tools.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RENDERING_RAYTRACING_SPY_OPERATIONS_CUDA_SPECTATOR_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SPY_OPERATIONS_CUDA_SPECTATOR_H
+#define RL_TOOLS_RENDERING_RAYTRACING_SPY_OPERATIONS_CUDA_SPECTATOR_H
 
 #include "spectator.h"
-#include "../../../../rendering/raytracing/backends/optix/operations_cuda.h"
+#include "../backends/optix/operations_cuda.h"
 
 #include <stdexcept>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::environments::hyperdrone::spy {
+namespace rl_tools::rendering::raytracing::spy {
     struct SpectatorCudaDeviceSpecification: devices::DefaultCPUSpecification {
         struct DEVICE_EXTENSION {
             cudaStream_t stream = nullptr;
@@ -30,7 +30,7 @@ namespace rl_tools::rl::environments::hyperdrone::spy {
 namespace rl_tools {
     inline void spy_spectator_cuda_check(cudaError_t status) {
         if(status != cudaSuccess) {
-            throw std::runtime_error(std::string("HyperDrone spy spectator: ") + cudaGetErrorString(status));
+            throw std::runtime_error(std::string("Raytracing spy spectator: ") + cudaGetErrorString(status));
         }
     }
 
@@ -42,8 +42,8 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename CONFIG>
-    void malloc(DEVICE& device, rl::environments::hyperdrone::spy::SpectatorBuffer<CONFIG, rendering::raytracing::backends::Optix>& buffer, int device_id) {
-        using SPEC = typename rl::environments::hyperdrone::spy::SpectatorBuffer<CONFIG, rendering::raytracing::backends::Optix>::SPEC;
+    void malloc(DEVICE& device, rendering::raytracing::spy::SpectatorBuffer<CONFIG, rendering::raytracing::backends::Optix>& buffer, int device_id) {
+        using SPEC = typename rendering::raytracing::spy::SpectatorBuffer<CONFIG, rendering::raytracing::backends::Optix>::SPEC;
         spy_spectator_cuda_check(cudaSetDevice(device_id));
         spy_spectator_cuda_check(cudaStreamCreateWithFlags(&device.stream, cudaStreamNonBlocking));
         spy_spectator_cuda_check(cudaMallocHost(&buffer.camera, sizeof(*buffer.camera)));
@@ -51,7 +51,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename CONFIG>
-    void free(DEVICE& device, rl::environments::hyperdrone::spy::SpectatorBuffer<CONFIG, rendering::raytracing::backends::Optix>& buffer) {
+    void free(DEVICE& device, rendering::raytracing::spy::SpectatorBuffer<CONFIG, rendering::raytracing::backends::Optix>& buffer) {
         if(device.stream != nullptr) {
             cudaStreamSynchronize(device.stream);
         }
@@ -69,13 +69,13 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename CONFIG>
-    void render_spy_spectator(DEVICE& device, rl::environments::hyperdrone::spy::SpectatorBuffer<CONFIG, rendering::raytracing::backends::Optix>& buffer, const rl::environments::hyperdrone::spy::SpectatorJob<rendering::raytracing::Specification<CONFIG>>& job, rl::environments::hyperdrone::spy::SpectatorImage& result) {
-        using SPEC = typename rl::environments::hyperdrone::spy::SpectatorBuffer<CONFIG, rendering::raytracing::backends::Optix>::SPEC;
+    void render_spy_spectator(DEVICE& device, rendering::raytracing::spy::SpectatorBuffer<CONFIG, rendering::raytracing::backends::Optix>& buffer, const rendering::raytracing::spy::SpectatorJob<rendering::raytracing::Specification<CONFIG>>& job, rendering::raytracing::spy::SpectatorImage& result) {
+        using SPEC = typename rendering::raytracing::spy::SpectatorBuffer<CONFIG, rendering::raytracing::backends::Optix>::SPEC;
         auto& renderer = buffer.renderer;
         *buffer.camera = job.camera;
         spy_spectator_cuda_check(cudaMemcpyAsync(data(cameras(device, renderer)), buffer.camera, sizeof(*buffer.camera), cudaMemcpyHostToDevice, device.stream));
+        copy_spy_overlays(device, renderer, job);
         if constexpr(SPEC::ENABLE_OVERLAYS) {
-            copy(device, job.overlay, renderer, rendering::raytracing::OverlayIndex{0});
             update_launch(device, renderer);
         }
         render_launch(device, renderer);

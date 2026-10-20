@@ -1,12 +1,13 @@
-#include "../../../../version.h"
-#include "../../../../rl_tools.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SPY_SPECTATOR_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#include "../../../version.h"
+#include "../../../rl_tools.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RENDERING_RAYTRACING_SPY_SPECTATOR_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SPY_SPECTATOR_H
+#define RL_TOOLS_RENDERING_RAYTRACING_SPY_SPECTATOR_H
 
-#include "../../../../devices/cpu.h"
-#include "../../../../rendering/raytracing/renderer.h"
+#include "../../../devices/cpu.h"
+#include "../renderer.h"
 
+#include <array>
 #include <condition_variable>
 #include <exception>
 #include <mutex>
@@ -14,7 +15,7 @@
 #include <vector>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::environments::hyperdrone::spy {
+namespace rl_tools::rendering::raytracing::spy {
     template <typename SOURCE_CONFIG>
     struct SpectatorConfig: rendering::raytracing::config::Default<typename SOURCE_CONFIG::T, typename SOURCE_CONFIG::TI> {
         using TI = typename SOURCE_CONFIG::TI;
@@ -23,13 +24,11 @@ namespace rl_tools::rl::environments::hyperdrone::spy {
         static constexpr TI CAM_HEIGHT = 480;
         static constexpr TI NUM_CAMERAS = 1;
         static constexpr TI NUM_PROBES = 0;
-        static constexpr TI NUM_OVERLAYS = SOURCE_CONFIG::NUM_OVERLAYS > 0 ? 1 : 0;
+        static constexpr TI NUM_OVERLAYS = SOURCE_CONFIG::NUM_OVERLAYS;
         static constexpr TI MAX_OVERLAY_INSTANCES = SOURCE_CONFIG::MAX_OVERLAY_INSTANCES;
-        static constexpr TI MAX_OVERLAYS_PER_CAMERA = NUM_OVERLAYS;
+        static constexpr TI MAX_OVERLAYS_PER_CAMERA = SOURCE_CONFIG::MAX_OVERLAYS_PER_CAMERA;
     };
 
-    // one frame of a training renderer as the spectator re-renders it: the scene and pool it was
-    // built from, the camera and the overlay's snapshot
     template <typename T_SPEC>
     struct SpectatorJob {
         using SPEC = T_SPEC;
@@ -37,18 +36,18 @@ namespace rl_tools::rl::environments::hyperdrone::spy {
         const rendering::raytracing::Scene* scene = nullptr;
         const rendering::raytracing::AssetPool* pool = nullptr;
         rendering::SceneMetadata<T> metadata;
-        size_t member = 0;
-        size_t instance = 0;
+        size_t view = 0;
         size_t scene_version = 0;
         rendering::raytracing::Camera<T> camera{};
-        rendering::raytracing::OverlaySnapshot<SPEC> overlay{};
+        std::array<rendering::raytracing::OverlaySnapshot<SPEC>, SPEC::MAX_OVERLAYS_PER_CAMERA> overlays{};
+        std::array<rendering::raytracing::OverlayIndex, SPEC::MAX_OVERLAYS_PER_CAMERA> overlay_indices{};
+        size_t num_overlays = 0;
         double captured_at = 0;
     };
 
     struct SpectatorImage {
         std::vector<uint32_t> pixels;
-        size_t member = 0;
-        size_t instance = 0;
+        size_t view = 0;
         size_t scene_version = 0;
         double captured_at = 0;
     };

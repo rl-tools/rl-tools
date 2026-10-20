@@ -75,8 +75,8 @@ if(HYPERDRONE_VARIANT STREQUAL "OPTIX")
 endif()
 
 set(hyperdrone_env_libraries RLtools::RLtools hyperdrone_env_stb)
-if(TARGET RLtools::HyperDroneSpy)
-    list(APPEND hyperdrone_env_libraries RLtools::HyperDroneSpy rendering_raytracing_backend)
+if(TARGET RLtools::RaytracingSpy)
+    list(APPEND hyperdrone_env_libraries RLtools::RaytracingSpy rendering_raytracing_backend)
 endif()
 
 hyperdrone_jit_add_configs(
