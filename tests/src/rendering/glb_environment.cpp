@@ -341,6 +341,38 @@ namespace {
         }
     }
 
+    TEST_F(GlbEnvironment, converter_hssd_round_trip){
+        const auto source = write_glb(std::nullopt);
+        for(const auto* subdirectory : {"stages", "objects", "metadata", "semantics/scenes", "scenes"}){
+            std::filesystem::create_directories(directory / subdirectory);
+        }
+        std::filesystem::copy_file(source, directory / "stages/stage.glb");
+        std::filesystem::copy_file(source, directory / "objects/object.glb");
+        std::ofstream(directory / "objects/object.object_config.json") << Json{{"semantic_id", 7}};
+        std::ofstream(directory / "semantics/hssd-hab_semantic_lexicon.json") << Json{{"classes", {{{"id", 0}, {"name", "unknown"}}, {{"id", 7}, {"name", "chair"}}, {{"id", 300}, {"name", "table"}}}}};
+        std::ofstream(directory / "metadata/hssd_obj_semantics_condensed.csv") << "Object Hash,\"Is Pickable:\nsmall?\",\"Semantic Category:\nCONDENSED\",\"Semantic Category:\nThe primary\"\nobject,No,table,dining_table\n";
+        std::ofstream(directory / "semantics/objects.csv") << "id,wnsynsetkey,main_category,super_category\n";
+        std::ofstream(directory / "semantics/scenes/test.semantic_config.json") << Json{{"region_annotations", Json::array()}};
+        const auto input = directory / "scenes/test.scene_instance.json";
+        std::ofstream(input) << Json{{"stage_instance", {{"template_name", "stages/stage"}}}, {"default_lighting", "no_lights"}, {"object_instances", {{{"template_name", "objects/object"}}}}};
+        rlt::rendering::datasets::procthor::conversion::Options options;
+        options.scene_instance_path = input.string();
+        options.output_glb_path = (directory / "converted.glb").string();
+        options.dataset = rlt::rendering::datasets::procthor::conversion::Dataset::HSSD;
+        std::string error;
+        ASSERT_TRUE(rlt::rendering::datasets::procthor::conversion::scene_instance_to_glb(options, error)) << error;
+        rlt::rendering::Bundle<float> bundle;
+        ASSERT_TRUE(load(device, bundle, options.output_glb_path, Roots{}));
+        ASSERT_EQ(bundle.scene.objects.size(), 3u);
+        EXPECT_EQ(bundle.scene.objects[0].segmentation_class, 0u);
+        EXPECT_EQ(bundle.scene.objects[1].segmentation_class, 0u);
+        EXPECT_EQ(bundle.scene.objects[2].segmentation_class, 300u);
+        const auto taxonomy = segmentation_taxonomy(device, bundle.scene);
+        ASSERT_TRUE(taxonomy);
+        EXPECT_EQ(taxonomy->name, "hssd-hab");
+        EXPECT_EQ(taxonomy->classes, (std::map<uint32_t, std::string>{{0, "unknown"}, {7, "chair"}, {300, "table"}}));
+    }
+
     TEST_F(GlbEnvironment, raw_dataset_forwards_mode_and_invalidates_semantic_cache){
         const auto source = write_glb(std::nullopt);
         std::filesystem::create_directories(directory / "assets");

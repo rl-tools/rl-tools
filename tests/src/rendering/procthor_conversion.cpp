@@ -99,6 +99,27 @@ namespace {
         return model;
     }
 
+    const char* const HSSD_CONDENSED = R"(Object Hash,"Articulated Object:
+does the object have links/joint/slides?","Is Pickable:
+is the object small enough to be picked up?","Semantic Category:
+CONDENSED
+
+condensed by a couple hundred, ""quoted""","Semantic Category:
+The primary semantic category for the object",,
+object,No,Yes,chair,armchair,,
+condensed,No,Yes,chair,armchair,,
+base,No,No,table,"dining_table, oak",,
+unlexiconed,No,#N/A,shelf/cabinet,shelf,,
+)";
+
+    const char* const HSSD_OBJECTS = R"(id,name,wnsynsetkey,main_category,super_category
+condensed,"Chair, ""oak""",chair.n.01,table,furniture
+fallback,Door,door.n.01,door,opening
+unlexiconed,Shelf,shelf.n.01,,
+)";
+
+    const Json HSSD_REGIONS = {{{"name", "kitchen"}, {"label", "kitchen"}, {"poly_loop", {{0.5, 0.0, -1.25}, {2.0, 0.0, -1.25}, {2.0, 0.0, 1.0}}}, {"floor_height", 0.0}, {"extrusion_height", 2.8}}};
+
     class ProcTHORConversion: public ::testing::TestWithParam<std::tuple<bool, bool>>{
     protected:
         fs::path directory;
@@ -107,45 +128,77 @@ namespace {
             const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
             directory = fs::temp_directory_path() / "rl_tools_procthor_conversion_tests" / info->test_suite_name() / info->name();
             fs::remove_all(directory);
-            for(const auto* subdirectory : {"assets", "configs", "stages", "objects"}){
+            for(const auto* subdirectory : {"assets", "configs", "stages", "objects", "metadata", "semantics/scenes"}){
                 fs::create_directories(directory / subdirectory);
             }
             std::ofstream(directory / "configs/object_semantic_id_mapping.json") << Json{{"Undefined", 0}, {"Floor", 159}, {"Wall", 162}, {"Chair", 21}};
             std::ofstream(directory / "configs/object.object_config.json") << Json{{"semantic_id", 21}};
+            std::ofstream(directory / "semantics/hssd-hab_semantic_lexicon.json") << Json{{"classes", {{{"id", 0}, {"name", "unknown"}}, {{"id", 1}, {"name", "chair"}}, {{"id", 2}, {"name", "door"}}, {{"id", 3}, {"name", "floor"}}, {{"id", 4}, {"name", "table"}}}}};
+            std::ofstream(directory / "metadata/hssd_obj_semantics_condensed.csv") << HSSD_CONDENSED;
+            std::ofstream(directory / "semantics/objects.csv") << HSSD_OBJECTS;
+            std::ofstream(directory / "semantics/scenes/test.semantic_config.json") << Json{{"region_annotations", HSSD_REGIONS}};
         }
 
         void TearDown() override{
             fs::remove_all(directory);
         }
 
-        Glb convert(const Glb& model, bool add_object = false){
-            const auto [hssd, normalize] = GetParam();
-            write_glb(directory / (hssd ? "stages/stage.glb" : "assets/stage.glb"), model.document, model.binary);
-            Json scene = {{"stage_instance", {{"template_name", "stage"}}}, {"default_lighting", "no_lights"}};
-            if(add_object){
-                write_glb(directory / (hssd ? "objects/object.glb" : "assets/object.glb"), model.document, model.binary);
-                scene["object_instances"] = {{{"template_name", hssd ? "objects/object" : "object"}}};
+        bool hssd() const{
+            return std::get<0>(GetParam());
+        }
+
+        // HSSD configs carry a stale semantic_id (3 = floor in the fixture lexicon) that labels must ignore
+        void write_object(const std::string& name, const Glb& model){
+            write_glb(directory / (hssd() ? "objects" : "assets") / (name + ".glb"), model.document, model.binary);
+            if(hssd()){
+                std::ofstream(directory / "objects" / (name + ".object_config.json")) << Json{{"semantic_id", 3}};
+            }
+        }
+
+        bool convert_scene(const std::vector<std::string>& objects, std::string& error){
+            Json scene = {{"stage_instance", {{"template_name", "stage"}}}, {"default_lighting", "no_lights"}, {"object_instances", Json::array()}};
+            for(const auto& object : objects){
+                scene["object_instances"].push_back({{"template_name", hssd() ? "objects/" + object : object}});
             }
             const auto input = directory / "configs/test.scene_instance.json";
             std::ofstream(input) << scene.dump();
             conversion::Options options;
             options.scene_instance_path = input.string();
             options.output_glb_path = (directory / "output.glb").string();
-            options.normalize = normalize;
-            options.dataset = hssd ? conversion::Dataset::HSSD : conversion::Dataset::AI2THOR_HAB;
+            options.normalize = std::get<1>(GetParam());
+            options.dataset = hssd() ? conversion::Dataset::HSSD : conversion::Dataset::AI2THOR_HAB;
+            return conversion::scene_instance_to_glb(options, error);
+        }
+
+        Glb convert(const Glb& model, size_t instances = 0){
+            write_glb(directory / (hssd() ? "stages/stage.glb" : "assets/stage.glb"), model.document, model.binary);
+            if(instances > 0){
+                write_object("object", model);
+            }
             std::string error;
-            EXPECT_TRUE(conversion::scene_instance_to_glb(options, error)) << error;
-            return read_glb(options.output_glb_path);
+            EXPECT_TRUE(convert_scene(std::vector<std::string>(instances, "object"), error)) << error;
+            return read_glb(directory / "output.glb");
         }
     };
 
     TEST_P(ProcTHORConversion, exports_dataset_semantics_and_tracks_changes){
         auto model = triangle();
         model.document["nodes"][0]["extras"] = {{"type", "Floor"}};
-        const auto result = convert(model, true);
+        const auto result = convert(model, 1);
         const auto& scene = result.document["scenes"][0];
-        if(std::get<0>(GetParam())){
-            EXPECT_FALSE(scene.contains(Json::json_pointer("/extras/rl_tools/segmentation")));
+        if(hssd()){
+            EXPECT_EQ(scene["extras"]["rl_tools"]["segmentation"]["taxonomy"], "hssd-hab");
+            ASSERT_EQ(scene["nodes"].size(), 2u);
+            EXPECT_EQ(result.document["nodes"][scene["nodes"][0].get<size_t>()]["extras"]["rl_tools"]["segmentation_class"], 0);
+            EXPECT_EQ(result.document["nodes"][scene["nodes"][1].get<size_t>()]["extras"]["rl_tools"]["segmentation_class"], 1);
+            conversion::Options options;
+            options.scene_instance_path = (directory / "configs/test.scene_instance.json").string();
+            options.dataset = conversion::Dataset::HSSD;
+            std::string first, second, error;
+            ASSERT_TRUE(conversion::semantic_source(options, first, error)) << error;
+            std::ofstream(directory / "metadata/hssd_obj_semantics_condensed.csv") << std::string(HSSD_CONDENSED).replace(std::string(HSSD_CONDENSED).find("object,No,Yes,chair"), 19, "object,No,Yes,table");
+            ASSERT_TRUE(conversion::semantic_source(options, second, error)) << error;
+            EXPECT_NE(first, second);
             return;
         }
         const auto& semantics = scene["extras"]["rl_tools"]["segmentation"];
@@ -179,10 +232,67 @@ namespace {
         auto model = triangle();
         model.document["nodes"][0]["extras"] = {{"type", "Ceiling"}};
         const auto result = convert(model);
-        if(!std::get<0>(GetParam())){
-            const auto root = result.document["scenes"][0]["nodes"][0].get<size_t>();
-            EXPECT_EQ(result.document["nodes"][root]["extras"]["rl_tools"]["segmentation_class"], 0);
+        const auto root = result.document["scenes"][0]["nodes"][0].get<size_t>();
+        EXPECT_EQ(result.document["nodes"][root]["extras"]["rl_tools"]["segmentation_class"], 0);
+    }
+
+    TEST_P(ProcTHORConversion, hssd_labels_follow_dataset_tables_and_keep_records){
+        if(!hssd()){
+            return;
         }
+        auto stage = triangle();
+        stage.document["nodes"][0]["extras"] = {{"type", "floor"}};
+        write_glb(directory / "stages/stage.glb", stage.document, stage.binary);
+        for(const auto* name : {"condensed", "fallback", "unlexiconed", "base_part_1", "none"}){
+            write_object(name, triangle());
+        }
+        std::string error;
+        ASSERT_TRUE(convert_scene({"condensed", "missing", "fallback", "unlexiconed", "base_part_1", "none", "condensed"}, error)) << error;
+        const auto output = read_glb(directory / "output.glb").document;
+        const auto& scene = output["scenes"][0];
+        EXPECT_EQ(scene["extras"]["rl_tools"]["segmentation"], (Json{{"taxonomy", "hssd-hab"}, {"classes", {{"unknown", 0}, {"chair", 1}, {"door", 2}, {"floor", 3}, {"table", 4}}}}));
+        EXPECT_EQ(scene["extras"]["hssd"], (Json{{"scene", "test"}, {"region_annotations", HSSD_REGIONS}}));
+        const auto& environment = scene["extras"]["rl_tools"]["environment"];
+        EXPECT_EQ(environment["mode"], "solid");
+        EXPECT_EQ(environment["background"], Json({0.0, 0.0, 0.0}));
+        EXPECT_GT(environment["ambient"][0].get<double>(), 0.0);
+        EXPECT_EQ(environment["ambient"], Json({environment["ambient"][0], environment["ambient"][0], environment["ambient"][0]}));
+        const std::vector<std::tuple<std::string, int, int, Json>> expected = {
+            {"condensed", 0, 1, {{"wnsynsetkey", "chair.n.01"}, {"main_category", "table"}, {"super_category", "furniture"}, {"condensed_category", "chair"}, {"primary_category", "armchair"}, {"pickable", true}}},
+            {"fallback", 2, 2, {{"wnsynsetkey", "door.n.01"}, {"main_category", "door"}, {"super_category", "opening"}}},
+            {"unlexiconed", 3, 0, {{"wnsynsetkey", "shelf.n.01"}, {"condensed_category", "shelf/cabinet"}, {"primary_category", "shelf"}}},
+            {"base_part_1", 4, 4, {{"condensed_category", "table"}, {"primary_category", "dining_table, oak"}, {"pickable", false}}},
+            {"none", 5, 0, Json::object()},
+            {"condensed", 6, 1, {{"wnsynsetkey", "chair.n.01"}, {"main_category", "table"}, {"super_category", "furniture"}, {"condensed_category", "chair"}, {"primary_category", "armchair"}, {"pickable", true}}}
+        };
+        ASSERT_EQ(scene["nodes"].size(), 1 + expected.size());
+        EXPECT_EQ(output["nodes"][scene["nodes"][0].get<size_t>()]["extras"]["rl_tools"]["segmentation_class"], 3);
+        for(size_t object = 0; object < expected.size(); object++){
+            const auto& [name, instance, id, categories] = expected[object];
+            const auto& node = output["nodes"][scene["nodes"][object + 1].get<size_t>()];
+            EXPECT_EQ(node["name"], name);
+            EXPECT_EQ(node["extras"]["rl_tools"]["segmentation_class"], id) << name;
+            Json record = {{"template", "objects/" + name}, {"instance", instance}};
+            if(!categories.empty()){
+                record["categories"] = categories;
+            }
+            EXPECT_EQ(node["extras"]["hssd"], record) << name;
+        }
+    }
+
+    TEST_P(ProcTHORConversion, hssd_requires_semantic_config_and_object_configs){
+        if(!hssd()){
+            return;
+        }
+        convert(triangle(), 1);
+        std::string error;
+        fs::remove(directory / "objects/object.object_config.json");
+        EXPECT_FALSE(convert_scene({"object"}, error));
+        EXPECT_NE(error.find("objects/object"), std::string::npos) << error;
+        write_object("object", triangle());
+        fs::remove(directory / "semantics/scenes/test.semantic_config.json");
+        EXPECT_FALSE(convert_scene({"object"}, error));
+        EXPECT_NE(error.find("test.semantic_config.json"), std::string::npos) << error;
     }
 
     TEST_P(ProcTHORConversion, serialized_light_indices){
@@ -205,6 +315,7 @@ namespace {
         write_glb(directory / "assets/object.glb", model);
         write_glb(directory / "stages/stage.glb", model);
         write_glb(directory / "objects/object.glb", model);
+        std::ofstream(directory / "objects/object.object_config.json") << Json::object();
         const Json scene = {
             {"stage_instance", {{"template_name", "stage"}}},
             {"object_instances", {{{"template_name", hssd ? "objects/object" : "object"}, {"translation", {3.0, 4.0, 5.0}}}}},
@@ -231,11 +342,8 @@ namespace {
         ASSERT_TRUE(stream.good());
         const auto output = Json::parse(data);
         const auto environment_path = Json::json_pointer("/scenes/0/extras/rl_tools/environment");
-        if(hssd){
-            EXPECT_FALSE(output.contains(environment_path));
-        }
-        else{
-            ASSERT_TRUE(output.contains(environment_path));
+        ASSERT_TRUE(output.contains(environment_path));
+        if(!hssd){
             EXPECT_EQ(output.at(environment_path), (Json{{"mode", "solid"}, {"ambient", {0.6, 0.6, 0.6}}, {"background", {0.0, 0.0, 0.0}}}));
         }
         const auto& lights = output.at("extensions").at("KHR_lights_punctual").at("lights");
@@ -290,14 +398,38 @@ namespace {
         auto model = triangle();
         model.binary.push_back(123);
         model.document["buffers"][0]["byteLength"] = model.binary.size();
-        const auto output = convert(model, true);
+        model.document["bufferViews"].push_back({{"buffer", 0}, {"byteOffset", 36}, {"byteLength", 1}});
+        auto object = triangle();
+        object.binary.clear();
+        append_floats(object.binary, {0, 0, 0, 2, 0, 0, 0, 2, 0});
+        write_object("object", object);
+        write_glb(directory / (hssd() ? "stages/stage.glb" : "assets/stage.glb"), model.document, model.binary);
+        std::string error;
+        ASSERT_TRUE(convert_scene({"object"}, error)) << error;
+        const auto output = read_glb(directory / "output.glb");
         ASSERT_EQ(output.document["accessors"].size(), 2u);
         ASSERT_EQ(output.document["buffers"].size(), 1u);
         for(size_t index = 0; index < 2; index++){
+            const auto& expected = index == 0 ? model.binary : object.binary;
             const auto& accessor = output.document["accessors"][index];
             const auto& view = output.document["bufferViews"][accessor["bufferView"].get<size_t>()];
             const size_t offset = view.value("byteOffset", size_t{0}) + accessor.value("byteOffset", size_t{0});
             EXPECT_EQ(offset % sizeof(float), 0u);
+            ASSERT_LE(offset + 36, output.binary.size());
+            EXPECT_EQ(std::vector<unsigned char>(output.binary.begin() + offset, output.binary.begin() + offset + 36), std::vector<unsigned char>(expected.begin(), expected.begin() + 36));
+        }
+        const auto& odd = output.document["bufferViews"][1];
+        EXPECT_EQ(output.binary.at(odd.value("byteOffset", size_t{0})), 123);
+    }
+
+    TEST_P(ProcTHORConversion, identical_buffer_views_are_stored_once){
+        const auto model = triangle();
+        const auto output = convert(model, 2);
+        ASSERT_EQ(output.document["accessors"].size(), 3u);
+        EXPECT_EQ(output.binary.size(), model.binary.size());
+        for(const auto& accessor : output.document["accessors"]){
+            const auto& view = output.document["bufferViews"][accessor["bufferView"].get<size_t>()];
+            const size_t offset = view.value("byteOffset", size_t{0}) + accessor.value("byteOffset", size_t{0});
             ASSERT_LE(offset + model.binary.size(), output.binary.size());
             EXPECT_EQ(std::vector<unsigned char>(output.binary.begin() + offset, output.binary.begin() + offset + model.binary.size()), model.binary);
         }

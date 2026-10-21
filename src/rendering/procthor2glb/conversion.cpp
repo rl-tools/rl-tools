@@ -19,9 +19,12 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <set>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -47,6 +50,10 @@ enum class DatasetMode {
     AI2THOR,
     HSSD,
 };
+
+static constexpr double AI2THOR_AMBIENT = 0.6;
+// matches the median luminance of HSSD renders (no ceilings) to ProcTHOR's at AI2THOR_AMBIENT (High shading, 320 free-space views each)
+static constexpr double HSSD_AMBIENT = 0.7;
 
 // ---------------------------------------------------------------------------
 // Raw image loader: stores bytes as-is (KTX2 decoded later in the pipeline).
@@ -983,36 +990,32 @@ static void stripExtensions(tinygltf::Model& model,
 
 // ---------------------------------------------------------------------------
 // Consolidate all buffers into buffer 0 (GLB binary chunk only stores buf 0).
+// Each bufferView's bytes are stored once at a 4-byte aligned offset: merged
+// instances of one object repeat their geometry and textures, which make up
+// 38% of the HSSD scene bytes and lie beyond gzip's 32 KB window.
 // ---------------------------------------------------------------------------
 static void consolidateBuffers(tinygltf::Model& model) {
-    if (model.buffers.size() <= 1) {
-        if (!model.buffers.empty()) model.buffers[0].uri.clear();
-        return;
-    }
+    if (model.buffers.empty()) return;
 
-    std::cout << "Consolidating " << model.buffers.size()
-              << " buffers into one...\n";
-
-    std::vector<size_t> offset(model.buffers.size());
-    size_t total = 0;
-    for (size_t i = 0; i < model.buffers.size(); i++) {
-        total += (4 - total % 4) % 4;
-        offset[i] = total;
-        total += model.buffers[i].data.size();
-    }
-
-    std::vector<unsigned char> merged(total, 0);
-    for (size_t i = 0; i < model.buffers.size(); i++) {
-        const auto& data = model.buffers[i].data;
-        std::copy(data.begin(), data.end(), merged.begin() + offset[i]);
-    }
-
+    std::vector<unsigned char> merged;
+    std::unordered_map<std::string_view, size_t> stored;
+    size_t viewBytes = 0;
     for (auto& bv : model.bufferViews) {
-        if (bv.buffer >= 0 && bv.buffer < (int)offset.size()) {
-            bv.byteOffset += offset[bv.buffer];
-            bv.buffer = 0;
+        if (bv.buffer < 0 || bv.buffer >= (int)model.buffers.size()) continue;
+        const std::string_view bytes(reinterpret_cast<const char*>(model.buffers[bv.buffer].data.data()) + bv.byteOffset, bv.byteLength);
+        viewBytes += bytes.size();
+        auto [entry, inserted] = stored.emplace(bytes, 0);
+        if (inserted) {
+            merged.resize(merged.size() + (4 - merged.size() % 4) % 4, 0);
+            entry->second = merged.size();
+            merged.insert(merged.end(), bytes.begin(), bytes.end());
         }
+        bv.buffer = 0;
+        bv.byteOffset = entry->second;
     }
+
+    std::cout << "Consolidated " << model.buffers.size() << " buffers: "
+              << merged.size() << " of " << viewBytes << " bufferView bytes stored\n";
 
     model.buffers.clear();
     tinygltf::Buffer buf;
@@ -1397,36 +1400,149 @@ static fs::path findDatasetRoot(const fs::path& sceneJsonPath,
     return fs::canonical(sceneJsonPath).parent_path().parent_path().parent_path();
 }
 
+static std::string sceneId(const fs::path& sceneJsonPath) {
+    std::string name = sceneJsonPath.stem().string();
+    const auto suffix = name.find(".scene_instance");
+    return suffix == std::string::npos ? name : name.substr(0, suffix);
+}
+
+// RFC 4180: quoted fields may hold commas, doubled quotes and line breaks (HSSD's condensed table header does).
+static std::vector<std::vector<std::string>> readCsv(const fs::path& path){
+    std::ifstream stream(path, std::ios::binary);
+    if(!stream){
+        throw std::runtime_error("cannot read semantic input " + path.string());
+    }
+    const std::string text((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+    std::vector<std::vector<std::string>> rows;
+    std::vector<std::string> row;
+    std::string field;
+    bool quoted = false;
+    for(size_t index = 0; index < text.size(); index++){
+        const char c = text[index];
+        if(quoted){
+            if(c != '"'){
+                field += c;
+            }
+            else if(index + 1 < text.size() && text[index + 1] == '"'){
+                field += '"';
+                index++;
+            }
+            else{
+                quoted = false;
+            }
+        }
+        else if(c == '"'){
+            quoted = true;
+        }
+        else if(c == ','){
+            row.push_back(std::move(field));
+            field.clear();
+        }
+        else if(c == '\n' || c == '\r'){
+            if(c == '\r' && index + 1 < text.size() && text[index + 1] == '\n'){
+                index++;
+            }
+            row.push_back(std::move(field));
+            field.clear();
+            rows.push_back(std::move(row));
+            row.clear();
+        }
+        else{
+            field += c;
+        }
+    }
+    if(quoted){
+        throw std::runtime_error("unterminated quoted field in " + path.string());
+    }
+    if(!field.empty() || !row.empty()){
+        row.push_back(std::move(field));
+        rows.push_back(std::move(row));
+    }
+    return rows;
+}
+
+struct CsvTable {
+    fs::path path;
+    std::vector<std::string> header;
+    std::map<std::string, std::vector<std::string>> rows;
+
+    size_t column(const std::string& prefix) const {
+        for(size_t index = 0; index < header.size(); index++){
+            if(header[index].rfind(prefix, 0) == 0){
+                return index;
+            }
+        }
+        throw std::runtime_error("no column " + prefix + " in " + path.string());
+    }
+
+    // decomposed parts (<hash>_part_<n>) fall back to their base object's row
+    const std::vector<std::string>* find(const std::string& hash) const {
+        auto row = rows.find(hash);
+        const auto part = hash.find("_part_");
+        if(row == rows.end() && part != std::string::npos){
+            row = rows.find(hash.substr(0, part));
+        }
+        return row == rows.end() ? nullptr : &row->second;
+    }
+};
+
+static CsvTable readCsvTable(const fs::path& path, const std::string& keyColumnName){
+    auto records = readCsv(path);
+    if(records.empty()){
+        throw std::runtime_error("empty semantic input " + path.string());
+    }
+    CsvTable table{path, std::move(records.front()), {}};
+    const size_t keyColumn = table.column(keyColumnName);
+    for(size_t index = 1; index < records.size(); index++){
+        auto& record = records[index];
+        if(record.size() != table.header.size()){
+            throw std::runtime_error("row " + std::to_string(index) + " of " + path.string() + " has " + std::to_string(record.size()) + " fields, expected " + std::to_string(table.header.size()));
+        }
+        const std::string key = record[keyColumn];
+        if(!table.rows.emplace(key, std::move(record)).second){
+            throw std::runtime_error("duplicate key " + key + " in " + path.string());
+        }
+    }
+    return table;
+}
+
 struct SemanticInputs {
     json classes;
     json objects = json::object();
+    json categories = json::object();  // HSSD: per template, the non-empty objects.csv and condensed-table fields
 };
 
-static SemanticInputs readSemanticInputs(const fs::path& root, const json& scene){
-    const auto read = [](const fs::path& path){
-        std::ifstream stream(path);
-        if(!stream){
-            throw std::runtime_error("cannot read semantic input " + path.string());
-        }
-        return json::parse(stream);
-    };
-    SemanticInputs inputs;
-    inputs.classes = read(root / "configs/object_semantic_id_mapping.json");
-    if(!inputs.classes.is_object() || !inputs.classes.contains("Undefined") || inputs.classes["Undefined"] != 0){
-        throw std::runtime_error("semantic taxonomy must define Undefined as 0");
-    }
+static std::set<uint32_t> classIds(const json& classes){
     std::set<uint32_t> ids;
-    for(const auto& value : inputs.classes.items()){
+    for(const auto& value : classes.items()){
         if(!value.value().is_number_integer() || value.value().get<int64_t>() < 0 || value.value().get<int64_t>() >= 0xFFFFFFFFLL || !ids.insert(value.value().get<uint32_t>()).second){
             throw std::runtime_error("invalid or duplicate semantic class ID: " + value.key());
         }
     }
+    return ids;
+}
+
+static json readJsonInput(const fs::path& path){
+    std::ifstream stream(path);
+    if(!stream){
+        throw std::runtime_error("cannot read semantic input " + path.string());
+    }
+    return json::parse(stream);
+}
+
+static SemanticInputs readAi2thorSemanticInputs(const fs::path& root, const json& scene){
+    SemanticInputs inputs;
+    inputs.classes = readJsonInput(root / "configs/object_semantic_id_mapping.json");
+    if(!inputs.classes.is_object() || !inputs.classes.contains("Undefined") || inputs.classes["Undefined"] != 0){
+        throw std::runtime_error("semantic taxonomy must define Undefined as 0");
+    }
+    const auto ids = classIds(inputs.classes);
     for(const auto& instance : scene.value("object_instances", json::array())){
         const std::string name = instance.value("template_name", "");
         if(name.empty() || inputs.objects.contains(name)){
             continue;
         }
-        const auto config = read(resolveObjectConfigPath(DatasetMode::AI2THOR, root, name));
+        const auto config = readJsonInput(resolveObjectConfigPath(DatasetMode::AI2THOR, root, name));
         const auto id = config.value("semantic_id", json(0));
         if(!id.is_number_integer() || id.get<int64_t>() < 0 || id.get<int64_t>() >= 0xFFFFFFFFLL || !ids.count(id.get<uint32_t>())){
             throw std::runtime_error("object semantic_id absent from taxonomy: " + name);
@@ -1434,6 +1550,70 @@ static SemanticInputs readSemanticInputs(const fs::path& root, const json& scene
         inputs.objects[name] = id;
     }
     return inputs;
+}
+
+// HSSD object configs' semantic_id below 25 follow a stale ID space, so classes come from the dataset tables:
+// the condensed category, else objects.csv main_category, matched to a lexicon class by exact name, else 0 (unknown).
+static SemanticInputs readHssdSemanticInputs(const fs::path& root, const json& scene){
+    SemanticInputs inputs;
+    inputs.classes = json::object();
+    const auto lexicon = readJsonInput(root / "semantics/hssd-hab_semantic_lexicon.json");
+    for(const auto& entry : lexicon.at("classes")){
+        const auto name = entry.at("name").get<std::string>();
+        if(name.empty() || inputs.classes.contains(name)){
+            throw std::runtime_error("empty or duplicate semantic class name: " + name);
+        }
+        inputs.classes[name] = entry.at("id");
+    }
+    if(!inputs.classes.contains("unknown") || inputs.classes["unknown"] != 0){
+        throw std::runtime_error("semantic taxonomy must define unknown as 0");
+    }
+    classIds(inputs.classes);
+    const auto condensed = readCsvTable(root / "metadata/hssd_obj_semantics_condensed.csv", "Object Hash");
+    const auto objects = readCsvTable(root / "semantics/objects.csv", "id");
+    const size_t condensedCategory = condensed.column("Semantic Category:\nCONDENSED");
+    const size_t primaryCategory = condensed.column("Semantic Category:\nThe primary");
+    const size_t pickable = condensed.column("Is Pickable:");
+    const size_t wnsynsetkey = objects.column("wnsynsetkey");
+    const size_t mainCategory = objects.column("main_category");
+    const size_t superCategory = objects.column("super_category");
+    for(const auto& instance : scene.value("object_instances", json::array())){
+        const std::string name = instance.value("template_name", "");
+        if(name.empty() || inputs.objects.contains(name)){
+            continue;
+        }
+        const std::string hash = fs::path(name).filename().string();
+        const auto* condensedRow = condensed.find(hash);
+        const auto* objectsRow = objects.find(hash);
+        json id = 0;
+        if(condensedRow != nullptr && inputs.classes.contains((*condensedRow)[condensedCategory])){
+            id = inputs.classes[(*condensedRow)[condensedCategory]];
+        }
+        else if(objectsRow != nullptr && inputs.classes.contains((*objectsRow)[mainCategory])){
+            id = inputs.classes[(*objectsRow)[mainCategory]];
+        }
+        inputs.objects[name] = id;
+        json record = json::object();
+        const auto copy = [&](const std::vector<std::string>* row, size_t column, const char* key){
+            if(row != nullptr && !(*row)[column].empty()){
+                record[key] = (*row)[column];
+            }
+        };
+        copy(objectsRow, wnsynsetkey, "wnsynsetkey");
+        copy(objectsRow, mainCategory, "main_category");
+        copy(objectsRow, superCategory, "super_category");
+        copy(condensedRow, condensedCategory, "condensed_category");
+        copy(condensedRow, primaryCategory, "primary_category");
+        if(condensedRow != nullptr && ((*condensedRow)[pickable] == "Yes" || (*condensedRow)[pickable] == "No")){
+            record["pickable"] = (*condensedRow)[pickable] == "Yes";
+        }
+        inputs.categories[name] = std::move(record);
+    }
+    return inputs;
+}
+
+static SemanticInputs readSemanticInputs(DatasetMode mode, const fs::path& root, const json& scene){
+    return mode == DatasetMode::HSSD ? readHssdSemanticInputs(root, scene) : readAi2thorSemanticInputs(root, scene);
 }
 
 static void setSemanticClass(tinygltf::Node& node, uint32_t id){
@@ -1926,11 +2106,12 @@ bool semantic_source(const Options& options, std::string& source, std::string& e
     try{
         std::ifstream stream(options.scene_instance_path);
         const auto scene = json::parse(stream);
-        const auto root = findDatasetRoot(options.scene_instance_path, DatasetMode::AI2THOR);
-        const auto inputs = readSemanticInputs(root, scene);
+        const DatasetMode mode = options.dataset == Dataset::HSSD ? DatasetMode::HSSD : DatasetMode::AI2THOR;
+        const auto root = findDatasetRoot(options.scene_instance_path, mode);
+        const auto inputs = readSemanticInputs(mode, root, scene);
         std::string stage_hash;
         const std::string stage = scene.value("stage_instance", json::object()).value("template_name", "");
-        if(!stage.empty() && !conta::detail::sha1_file(resolveStageAssetPath(DatasetMode::AI2THOR, root, stage), stage_hash)){
+        if(!stage.empty() && !conta::detail::sha1_file(resolveStageAssetPath(mode, root, stage), stage_hash)){
             throw std::runtime_error("cannot hash stage semantic input: " + stage);
         }
         source = json{{"classes", inputs.classes}, {"objects", inputs.objects}, {"stage", stage_hash}}.dump();
@@ -1966,14 +2147,16 @@ bool scene_instance_to_glb(const Options& options, std::string& error) {
     // -- Determine dataset root --
     fs::path datasetRoot = findDatasetRoot(inputPath, datasetMode);
     SemanticInputs semantics;
-    if(datasetMode == DatasetMode::AI2THOR){
-        try{
-            semantics = readSemanticInputs(datasetRoot, sceneJson);
+    json regionAnnotations;
+    try{
+        semantics = readSemanticInputs(datasetMode, datasetRoot, sceneJson);
+        if(datasetMode == DatasetMode::HSSD){
+            regionAnnotations = readJsonInput(datasetRoot / "semantics/scenes" / (sceneId(inputPath) + ".semantic_config.json")).at("region_annotations");
         }
-        catch(const std::exception& exception){
-            error = exception.what();
-            return false;
-        }
+    }
+    catch(const std::exception& exception){
+        error = exception.what();
+        return false;
     }
     std::cout << "Dataset mode: "
               << (datasetMode == DatasetMode::HSSD ? "hssd" : "ai2thor-hab")
@@ -1982,10 +2165,7 @@ bool scene_instance_to_glb(const Options& options, std::string& error) {
 
     // -- Default output name --
     if (outputPath.empty()) {
-        std::string s = fs::path(inputPath).stem().string();
-        auto pos = s.find(".scene_instance");
-        if (pos != std::string::npos) s = s.substr(0, pos);
-        outputPath = s + ".glb";
+        outputPath = sceneId(inputPath) + ".glb";
     }
     std::cout << "Output: " << outputPath << "\n";
 
@@ -2055,14 +2235,12 @@ bool scene_instance_to_glb(const Options& options, std::string& error) {
                                                   hasStageMatrix ? &stageMatrix : nullptr,
                                                   fs::path(tmpl).stem().string());
                 for(int r : stageRoots){
-                    if(datasetMode == DatasetMode::AI2THOR){
-                        auto& node = outModel.nodes[r];
-                        std::string type;
-                        if(node.extras.IsObject() && node.extras.Has("type") && node.extras.Get("type").IsString()){
-                            type = node.extras.Get("type").Get<std::string>();
-                        }
-                        setSemanticClass(node, semantics.classes.value(type, 0u));
+                    auto& node = outModel.nodes[r];
+                    std::string type;
+                    if(node.extras.IsObject() && node.extras.Has("type") && node.extras.Get("type").IsString()){
+                        type = node.extras.Get("type").Get<std::string>();
                     }
+                    setSemanticClass(node, semantics.classes.value(type, 0u));
                     outScene.nodes.push_back(r);
                 }
                 mergeExtensions(outModel, *m);
@@ -2084,7 +2262,8 @@ bool scene_instance_to_glb(const Options& options, std::string& error) {
         std::cout << "Processing " << objects.size()
                   << " object instances...\n";
 
-        for (auto& objInst : objects) {
+        for (size_t instanceIndex = 0; instanceIndex < objects.size(); instanceIndex++) {
+            auto& objInst = objects[instanceIndex];
             std::string tmpl = objInst.value("template_name", "");
             if (tmpl.empty()) continue;
 
@@ -2118,24 +2297,28 @@ bool scene_instance_to_glb(const Options& options, std::string& error) {
             // Non-uniform scale
             double s[3] = {1, 1, 1};
             if (datasetMode == DatasetMode::HSSD) {
-                std::ifstream cfgFile(resolveObjectConfigPath(datasetMode, datasetRoot, tmpl));
-                if (cfgFile.is_open()) {
-                    try {
-                        json cfg = json::parse(cfgFile);
-                        readScale(cfg, s);
-                    } catch (const json::exception& e) {
-                        std::cerr << "  warn: failed to parse object config for "
-                                  << tmpl << ": " << e.what() << "\n";
-                    }
+                json cfg;
+                if (!readJsonFile(resolveObjectConfigPath(datasetMode, datasetRoot, tmpl), cfg)) {
+                    error = "no readable object config for merged object " + tmpl;
+                    return false;
                 }
+                readScale(cfg, s);
             }
             readScale(objInst, s);
 
             auto matrix = buildTRS(t, q, s);
             auto r = mergeModel(outModel, *objModel, &matrix);
-            outModel.nodes[r.rootNode].name = fs::path(tmpl).stem().string();
-            if(datasetMode == DatasetMode::AI2THOR){
-                setSemanticClass(outModel.nodes[r.rootNode], semantics.objects.at(tmpl).get<uint32_t>());
+            auto& root = outModel.nodes[r.rootNode];
+            root.name = fs::path(tmpl).stem().string();
+            setSemanticClass(root, semantics.objects.at(tmpl).get<uint32_t>());
+            if (datasetMode == DatasetMode::HSSD) {
+                json record = {{"template", tmpl}, {"instance", instanceIndex}};
+                if (!semantics.categories.at(tmpl).empty()) {
+                    record["categories"] = semantics.categories.at(tmpl);
+                }
+                auto extras = root.extras.Get<tinygltf::Value::Object>();
+                extras["hssd"] = jsonToTinyValue(record);
+                root.extras = tinygltf::Value(std::move(extras));
             }
             outScene.nodes.push_back(r.rootNode);
             mergeExtensions(outModel, *objModel);
@@ -2178,10 +2361,16 @@ bool scene_instance_to_glb(const Options& options, std::string& error) {
         std::cout << "\n";
     }
 
-    if (datasetMode == DatasetMode::AI2THOR) {
-        outScene.extras = jsonToTinyValue({{"rl_tools", {{"environment", {
-            {"mode", "solid"}, {"ambient", {0.6, 0.6, 0.6}}, {"background", {0.0, 0.0, 0.0}}
-        }}, {"segmentation", {{"taxonomy", "ai2thor-hab"}, {"classes", semantics.classes}}}}}});
+    {
+        const bool hssd = datasetMode == DatasetMode::HSSD;
+        const double ambient = hssd ? HSSD_AMBIENT : AI2THOR_AMBIENT;
+        json sceneExtras = {{"rl_tools", {{"environment", {
+            {"mode", "solid"}, {"ambient", {ambient, ambient, ambient}}, {"background", {0.0, 0.0, 0.0}}
+        }}, {"segmentation", {{"taxonomy", hssd ? "hssd-hab" : "ai2thor-hab"}, {"classes", semantics.classes}}}}}};
+        if (hssd) {
+            sceneExtras["hssd"] = {{"scene", sceneId(inputPath)}, {"region_annotations", std::move(regionAnnotations)}};
+        }
+        outScene.extras = jsonToTinyValue(sceneExtras);
     }
 
     // -- Finalize scene --
