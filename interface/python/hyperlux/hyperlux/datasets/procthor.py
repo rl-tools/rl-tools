@@ -7,8 +7,8 @@ __all__ = ["Train200"]
 
 def __getattr__(name):
     if name in __all__:
-        return getattr(load_core(), name)
-    raise AttributeError(f"module 'hyperlux.render.datasets.procthor' has no attribute {name}")
+        return getattr(load_core().procthor, name)
+    raise AttributeError(f"module 'hyperlux.datasets.procthor' has no attribute {name}")
 
 
 def __dir__():

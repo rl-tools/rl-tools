@@ -25,6 +25,7 @@
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cuda.h>
 #include <rl_tools/hyperlux/datasets/procthor/operations_cpu.h>
+#include <rl_tools/hyperlux/datasets/hssd/operations_cpu.h>
 
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
@@ -442,7 +443,8 @@ int main(int argc, char** argv){
     rlt::init(device);
     rlt::init(device_gpu);
     device.logger.verbosity = rlt::devices::logging::Verbosity::warning;
-    rlt::hyperlux::datasets::procthor::GLB scene_dataset{{}, resolve_training_scenes(device, argc > 1 ? argv[1] : nullptr)};
+    std::string scene_dataset_name;
+    rlt::hyperlux::datasets::glb::Dataset scene_dataset{{}, resolve_training_scenes(device, argc > 1 ? argv[1] : nullptr, scene_dataset_name)};
     std::mt19937 scene_rng(seed);
     std::vector<TI> scene_permutation(N_TOTAL_SCENES);
     std::iota(scene_permutation.begin(), scene_permutation.end(), 0);
@@ -455,8 +457,8 @@ int main(int argc, char** argv){
     rlt::init(device, extrack_config, extrack_paths, seed);
     metra::log_raw("hyperdrone/target_frame/on_policy/target", "\"" RL_TOOLS_HYPERDRONE_TARGET_NAME "\"");
     metra::log_raw("hyperdrone/target_frame/on_policy/scene_references", nlohmann::json(scene_dataset.references).dump());
-    if(argc == 1 || std::string(argv[1]) == rlt::hyperlux::datasets::procthor::Train200::NAME){
-        metra::log_raw("hyperdrone/target_frame/on_policy/dataset", nlohmann::json(rlt::hyperlux::datasets::procthor::Train200::NAME).dump());
+    if(!scene_dataset_name.empty()){
+        metra::log_raw("hyperdrone/target_frame/on_policy/dataset", nlohmann::json(scene_dataset_name).dump());
     }
     metra::log("hyperdrone/target_frame/on_policy/seed", static_cast<double>(seed));
 
@@ -488,7 +490,7 @@ int main(int argc, char** argv){
     HYPERDRONE& env = *env_storage;
     rlt::malloc(device_gpu, env);
     typename decltype(scene_dataset)::Corpus scene_corpus;
-    rlt::hyperlux::datasets::procthor::enumerate(device, scene_dataset, scene_corpus);
+    rlt::enumerate(device, scene_dataset, scene_corpus);
     if(static_cast<TI>(scene_corpus.references.size()) < N_TOTAL_SCENES){
         std::cerr << "Need at least " << N_TOTAL_SCENES << " GLB scenes, found " << scene_corpus.references.size() << std::endl;
         return 1;

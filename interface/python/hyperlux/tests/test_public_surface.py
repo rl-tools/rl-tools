@@ -37,7 +37,8 @@ SURFACE = {
         "verbosity",
     ],
     "hyperlux.camera": ["CameraSpec", "RGB", "Depth", "Segmentation", "Normals", "Flow", "FlowStatus", "Probes", "OutputDescriptor"],
-    "hyperlux.datasets": ["procthor"],
+    "hyperlux.datasets": ["hssd", "procthor"],
+    "hyperlux.datasets.hssd": ["Train125", "Val43"],
     "hyperlux.datasets.procthor": ["Train200"],
 }
 

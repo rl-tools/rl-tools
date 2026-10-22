@@ -4,16 +4,12 @@
 #pragma once
 #define RL_TOOLS_HYPERLUX_DATASETS_PROCTHOR_CATALOG_H
 
+#include "../catalog.h"
 #include "procthor.h"
 #include <cstddef>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::hyperlux::datasets::procthor {
-    struct SceneReference {
-        const char* id;
-        const char* reference;
-    };
-
     struct Train200 {
         using LOADER = GLB;
         using Corpus = LOADER::Corpus;

@@ -4,7 +4,7 @@ HyperLux is the batch raytracer behind HyperDrone: N cameras over one static sce
 
 | Module | What it is |
 |---|---|
-| `hyperlux` | `HyperLux`, the renderer compiled per `hyperlux.Config`; the scene model (`Scene`, `Object`, `Mesh`, `ObjectAssembly`, `AssetPool`, `SceneLight`), the GLB loaders, `primitives`, `ClearanceSampler` and `datasets.procthor.Train200`. |
+| `hyperlux` | `HyperLux`, the renderer compiled per `hyperlux.Config`; the scene model (`Scene`, `Object`, `Mesh`, `ObjectAssembly`, `AssetPool`, `SceneLight`), the GLB loaders, `primitives`, `ClearanceSampler` and the `datasets` catalogs (`procthor.Train200`, `hssd.Train125`, `hssd.Val43`). |
 | `hyperlux.camera` | Camera rigs (`CameraSpec`) and the typed output descriptors, shared with packages built on hyperlux such as hyperdrone. |
 
 Native components are JIT-compiled per set of compile-time constants (resolution, camera count, outputs, motion blur, ...) into a persistent cache; later uses load the cached library directly. The scene module is shared, and every renderer configuration is a directly bound Python extension; scene and asset-pool objects can be reused across configurations. Packages built on hyperlux compile their own components through the same JIT (`hyperlux._jit`) and share the cache, the CUDA staging buffers and the output-buffer protocol: hyperdrone's dynamics and environment are the first.
@@ -177,6 +177,8 @@ dataset = hyperlux.datasets.procthor.Train200()
 scene = hyperlux.load_scene(dataset["ProcTHOR-Train-1"].reference)
 ```
 
+`hyperlux.datasets.hssd.Train125()` and `hyperlux.datasets.hssd.Val43()` are hssd-hab's official train and validation splits in `scene_splits.yaml` order, keyed by HSSD scene ID (`dataset["102344022"]`). Their GLBs carry the `hssd-hab` taxonomy, described in `src/hyperlux/procthor2glb/README.md`. HSSD is licensed CC BY-NC 4.0.
+
 ### Articulated assets
 
 [`Articulation.ipynb`](hyperlux/examples/Articulation.ipynb) builds a hinge and slider with `hyperlux.primitives.box(size=(x, y, z), color=(r, g, b))` and displays a three-second MP4. Boxes are ordinary `Object`s centered at the origin, with full dimensions in FLU coordinates.
@@ -235,6 +237,6 @@ hyperlux and hyperdrone are released as a pair with one version number: `interfa
 
 ## Stability
 
-The JIT key hashes the configuration and the top-level header only; changes to included headers rebuild that tree in place. Reproducibility is per configuration and call sequence on one host build (`-O3 -march=native -ffast-math`). The `Train200` catalog is immutable; cite its RLtools commit for paper datasets and identify the examples and golden scenes separately as fixtures.
+The JIT key hashes the configuration and the top-level header only; changes to included headers rebuild that tree in place. Reproducibility is per configuration and call sequence on one host build (`-O3 -march=native -ffast-math`). The `Train200`, `Train125` and `Val43` catalogs are immutable; cite their RLtools commit for paper datasets and identify the examples and golden scenes separately as fixtures.
 
 All RGB fidelity tiers store sRGB; RGBA8 alpha is always 255 and reserved. Medium uses a checker background. Probe misses return `+inf` with int32 hit flags; `ClearanceSampler` accepts candidates whose sampled rays have no hit closer than the clearance radius; it does not compute hyperdrone's free-space annotation table.

@@ -80,6 +80,8 @@ def main():
     dataset = hyperlux.datasets.procthor.Train200()
     assert len(dataset) == 200
     assert dataset["ProcTHOR-Train-1"].reference == "conta:07b9d8e44f3891573b6292f8cc47bf7725a43b89"
+    assert len(hyperlux.datasets.hssd.Train125()) == 125
+    assert hyperlux.datasets.hssd.Val43()[0].reference == "conta:e5e59b08d09e1192a2a176d05f8006c5d5c21b5f"
     render()
     step_dynamics()
     articulate_rotorcraft()

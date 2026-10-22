@@ -1,17 +1,25 @@
 #pragma once
 
 namespace rl_tools{
-    template<typename DEVICE>
-    auto resolve_training_scenes(DEVICE& device, const char* scene_arg){
+    template<typename DATASET, typename DEVICE>
+    auto select_catalog_scenes(DEVICE& device, std::string& dataset_name){
         using namespace rl::environments::hyperdrone::tasks::target_frame::on_policy;
-        using DATASET = hyperlux::datasets::procthor::Train200;
+        utils::assert_exit(device, N_TOTAL_SCENES <= DATASET::NUM_SCENES, "the scene catalog has fewer scenes than N_TOTAL_SCENES");
+        typename DATASET::Corpus corpus;
+        enumerate(device, DATASET{}, corpus);
+        dataset_name = DATASET::NAME;
+        std::cout << "Selected first " << N_TOTAL_SCENES << " scenes from " << DATASET::NAME << std::endl;
+        return std::vector<std::string>(corpus.references.begin(), corpus.references.begin() + N_TOTAL_SCENES);
+    }
+
+    template<typename DEVICE>
+    auto resolve_training_scenes(DEVICE& device, const char* scene_arg, std::string& dataset_name){
+        using namespace rl::environments::hyperdrone::tasks::target_frame::on_policy;
         std::vector<std::string> scene_paths;
-        if(scene_arg == nullptr || std::string(scene_arg) == DATASET::NAME){
-            utils::assert_exit(device, N_TOTAL_SCENES <= DATASET::NUM_SCENES, "Train200 has fewer scenes than N_TOTAL_SCENES");
-            typename DATASET::Corpus corpus;
-            enumerate(device, DATASET{}, corpus);
-            scene_paths.assign(corpus.references.begin(), corpus.references.begin() + N_TOTAL_SCENES);
-            std::cout << "Selected first " << N_TOTAL_SCENES << " scenes from " << DATASET::NAME << std::endl;
+        if(scene_arg == nullptr || std::string(scene_arg) == hyperlux::datasets::procthor::Train200::NAME){
+            scene_paths = select_catalog_scenes<hyperlux::datasets::procthor::Train200>(device, dataset_name);
+        } else if(std::string(scene_arg) == hyperlux::datasets::hssd::Train125::NAME){
+            scene_paths = select_catalog_scenes<hyperlux::datasets::hssd::Train125>(device, dataset_name);
         } else if(std::filesystem::is_directory(scene_arg)){
             std::vector<std::string> all_glbs;
             for(auto& entry : std::filesystem::directory_iterator(scene_arg)){

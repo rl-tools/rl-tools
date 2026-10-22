@@ -322,7 +322,7 @@ With the spy dependencies installed, run `HYPERDRONE_TEST_SPY=1 xvfb-run -a .ven
 
 `tests/test_architecture.py` enforces the import DAG (dynamics never imports the environment); `tests/test_versions.py` checks the hyperlux pin against both package versions; `interface/python/scripts/test_sdist.sh` is the self-containment rot guard of the package pair.
 
-`hyperlux.datasets.procthor.Train200()` lists the header-pinned 200-scene ProcTHOR training subset (see the hyperlux README); `dataset.references[:4]` is a valid `scenes` argument.
+`hyperlux.datasets.procthor.Train200()`, `hyperlux.datasets.hssd.Train125()` and `hyperlux.datasets.hssd.Val43()` list the header-pinned scene catalogs (see the hyperlux README); `dataset.references[:4]` is a valid `scenes` argument.
 
 Camera profiles declare immutable output descriptors from `hyperlux.camera`; the hyperlux README lists them with dtypes, shapes and contracts, and `ImageObservation` from `hyperdrone` selects the policy's mounts among them.
 
@@ -399,6 +399,6 @@ renderer.render()
 
 The release contract covers documented names, single-agent shapes and the documented environment variables. Multi-agent parameter/spawn shapes, observation layouts (including `agent<i>/` block prefixes), team-mean rewards and any-agent termination remain experimental. The shipped tasks are single-agent. `spec_header` constants and their shadowing form the stable extension tier; custom verb-overload wrappers are experimental and should pin the package version. The JIT key hashes the top-level header only; changes to included headers rebuild that tree in place.
 
-Reproducibility is per seed, configuration, reset masks and call sequence on one host build (`-O3 -march=native -ffast-math`). RNG streams may change in minor releases. Environment IMU noise and shutter sampling still share the physics RNG. The `Train200` catalog is immutable; cite its RLtools commit for paper datasets and identify the examples and golden scenes separately as fixtures.
+Reproducibility is per seed, configuration, reset masks and call sequence on one host build (`-O3 -march=native -ffast-math`). RNG streams may change in minor releases. Environment IMU noise and shutter sampling still share the physics RNG. The `Train200`, `Train125` and `Val43` catalogs are immutable; cite their RLtools commit for paper datasets and identify the examples and golden scenes separately as fixtures.
 
 Presets name platforms and default to a neutral MDP: zero reward and disabled termination. Configure the task through `parameters["dynamics"]["mdp"]`; `moving_gate` adds +10 for a pass and terminates on gate crashes. Preset and task names are stable. Privileged observations are ground truth, with row-major body-to-world rotation matrices. Raw views follow physical `(instance, agent, camera)` order; selected policy views are stacked along image height, and all cameras share resolution.
