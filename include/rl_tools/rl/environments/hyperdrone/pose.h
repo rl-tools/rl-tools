@@ -5,13 +5,13 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_POSE_H
 
 #include "../l2f/quaternion_helper.h"
-#include "../../../rendering/raytracing/types.h"
+#include "../../../hyperlux/types.h"
 
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     template <typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<T> make_camera_data(const T position[3], const T look_at[3], const T up[3], T fov, T aspect);
+    RL_TOOLS_FUNCTION_PLACEMENT hyperlux::Camera<T> make_camera_data(const T position[3], const T look_at[3], const T up[3], T fov, T aspect);
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
@@ -122,7 +122,7 @@ namespace rl_tools::rl::environments::hyperdrone {
     // scene-under-drone: the dynamics state lives near the origin; scene_translation/scene_yaw
     // place the drone's frame inside the scene at camera-production time
     template <typename DEVICE, typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<T> make_camera(
+    RL_TOOLS_FUNCTION_PLACEMENT hyperlux::Camera<T> make_camera(
         DEVICE& device,
         const Camera<T>& camera,
         const T orientation[4],
@@ -166,7 +166,7 @@ namespace rl_tools::rl::environments::hyperdrone {
     }
 
     template <typename DEVICE, typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<T> make_target_camera(
+    RL_TOOLS_FUNCTION_PLACEMENT hyperlux::Camera<T> make_target_camera(
         DEVICE& device,
         const Camera<T>& camera,
         T aspect,
@@ -237,8 +237,8 @@ namespace rl_tools::rl::environments::hyperdrone {
     }
 
     template <typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<T> interpolate_camera(const rendering::raytracing::Camera<T>& from, const rendering::raytracing::Camera<T>& to, T alpha){
-        rendering::raytracing::Camera<T> out;
+    RL_TOOLS_FUNCTION_PLACEMENT hyperlux::Camera<T> interpolate_camera(const hyperlux::Camera<T>& from, const hyperlux::Camera<T>& to, T alpha){
+        hyperlux::Camera<T> out;
         for(unsigned i = 0; i < 3; i++){
             out.pos[i] = from.pos[i] + (to.pos[i] - from.pos[i]) * alpha;
             out.dir_00[i] = from.dir_00[i] + (to.dir_00[i] - from.dir_00[i]) * alpha;

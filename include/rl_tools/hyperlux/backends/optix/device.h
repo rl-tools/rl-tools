@@ -1,0 +1,180 @@
+#include "../../../version.h"
+#include "../../../rl_tools.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_HYPERLUX_BACKENDS_OPTIX_DEVICE_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_HYPERLUX_BACKENDS_OPTIX_DEVICE_H
+
+#include "../../types.h"
+
+#include <owl/owl.h>
+#include <owl/common/math/vec.h>
+
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools {
+    /* variables for the triangle mesh geometry */
+    struct TrianglesGeomData
+    {
+        /*! base color we use when there is no texture */
+        owl::vec3f color;
+        /*! array/buffer of vertex indices */
+        owl::vec3i *index;
+        /*! array/buffer of vertex positions */
+        owl::vec3f *vertex;
+        /*! array/buffer of texture coordinates (may be null) */
+        owl::vec2f *tex_coord;
+        /*! diffuse texture (0 if none) */
+        cudaTextureObject_t texture;
+        /*! whether this geometry has a valid texture */
+        int has_texture;
+        int unlit;
+        float metallic;
+        OptixTraversableHandle world;
+        owl::vec3f *normal;
+        float roughness;
+        cudaTextureObject_t normal_map;
+        int has_normal_map;
+        cudaTextureObject_t metallic_roughness_map;
+        int has_metallic_roughness_map;
+        owl::vec3f emissive;
+        cudaTextureObject_t emissive_map;
+        int has_emissive_map;
+        cudaTextureObject_t occlusion_map;
+        int has_occlusion_map;
+        float opacity;
+        int alpha_mode;
+        float alpha_cutoff;
+        hyperlux::SceneLight *scene_lights;
+        int num_scene_lights;
+        owl::vec3f ambient_color;
+    };
+
+    struct OptixCameraData
+    {
+        owl::vec3f pos;
+        owl::vec3f dir_00;
+        owl::vec3f dir_du;
+        owl::vec3f dir_dv;
+    };
+    static_assert(sizeof(OptixCameraData) == sizeof(hyperlux::Camera<float>), "OptixCameraData and Camera<float> must have identical layout");
+
+    /* variables for the ray generation program */
+    struct RayGenData
+    {
+        uint32_t *fb_ptr;
+        float *obs_ptr;           // observation output (3 floats per pixel), null when disabled
+        int    num_cameras;  // total number of cameras
+        OptixTraversableHandle world;
+        OptixCameraData *cameras; // device array of all cameras
+    };
+
+    struct MotionBlurRayGenData
+    {
+        uint32_t *fb_ptr;
+        float *obs_ptr;
+        int    num_cameras;
+        OptixTraversableHandle world;
+        OptixCameraData *cameras_open;
+        OptixCameraData *cameras_close;
+    };
+
+    // dynamic motion blur: one launch per motion sample against per-sample overlay TLAS state;
+    // the shutter time is a device word published on-stream by the overlay fill kernel and the
+    // pass result is added into a linear float accumulator, resolved after the last pass
+    struct AccumulateRayGenData
+    {
+        float *accum_ptr;         // 3 floats per pixel, linear radiance summed across passes
+        const float *shutter_ptr; // per-pass shutter time in [0, 1]
+        int    num_cameras;
+        OptixTraversableHandle world;
+        OptixCameraData *cameras_open;
+        OptixCameraData *cameras_close;
+    };
+
+
+    // launch params shared by every raygen/hit program: overlay traversables + per-camera
+    // attachment table for min-t composition; overlay_count == 0 keeps every loop empty
+    struct OverlayLaunchParams
+    {
+        unsigned long long *overlays;   // OptixTraversableHandle per overlay
+        unsigned long long *overlays_previous; // flow: the previous instant's TLAS per overlay (null without flow overlays)
+        uint32_t *attachments;          // [num_cameras * overlay_count]
+        int overlay_count;
+        int cam_width;                  // framebuffer tile math so closest-hit programs can
+        int cam_height;                 // recover the camera index for composed secondaries
+        int grid_cols;
+        unsigned int *instance_classes; // per global instance id (semantic segmentation)
+        unsigned int *camera_table;     // outputs::fill_camera_table
+        unsigned int output_mask;       // outputs::Plan::MASK
+        int all_cameras;                // outputs::Layout::ALL_CAMERAS: every camera's mask is output_mask and its row is its index, camera_table is not read
+    };
+
+    /* variables for the miss program */
+    struct MissProgData
+    {
+        owl::vec3f  color_0;
+        owl::vec3f  color_1;
+    };
+
+    // ---- Collision probing ----
+
+    using CollisionResult = hyperlux::CollisionResult;
+
+    struct CollisionGeomData
+    {
+        int dummy;
+    };
+
+    struct CollisionMissData
+    {
+        int dummy;
+    };
+
+    // one flow pass between the two instants, direction-neutral: the backward pass traces the
+    // current instant (source) and lands on the previous one (target), the forward pass the
+    // reverse; the overlay TLAS arrays come from the launch params by source_previous
+    struct FlowRayGenData
+    {
+        float *flow_ptr;                 // 2 per pixel of the source grid: p_target - p_source in pixels
+        uint32_t *status_ptr;            // FlowStatus per source pixel
+        int    num_cameras;
+        OptixTraversableHandle world;
+        OptixCameraData *cameras_source;
+        OptixCameraData *cameras_target;
+        const float *flow_deltas;                   // this direction's [slots][12] slab carrying source hits to the target instant, null without overlays
+        unsigned int source_first_overlay_instance; // first global id of the source instant's overlay range
+        int source_previous;                        // 1: source = previous instant (forward pass)
+        uint32_t *color_ptr;
+        uint32_t *status_color_ptr;
+        float color_scale;
+    };
+
+    struct AuxiliaryRayGenData
+    {
+        FlowRayGenData flow;
+        float *depth_ptr;
+        uint32_t *depth_color_ptr;
+        uint32_t *seg_ptr;
+        uint32_t *seg_color_ptr;
+        uint32_t *semantic_ptr;
+        uint32_t *semantic_color_ptr;
+        float *normals_ptr;
+        uint32_t *normals_color_ptr;
+        float depth_scale;
+    };
+
+    struct CollisionRayGenData
+    {
+        CollisionResult *results;    // [num_cameras * num_probes] output
+        owl::vec3f           *probe_directions; // [num_probes] unit directions (index 0 = placeholder, overridden by camera forward)
+        OptixCameraData *cameras;        // reused camera array
+        OptixTraversableHandle world;
+        int   num_probes;
+        int   num_cameras;
+        float max_dist;
+    };
+
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
+
+
+#endif

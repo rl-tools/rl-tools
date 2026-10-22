@@ -19,7 +19,7 @@ namespace l2f = rlt::rl::environments::l2f;
 namespace on_policy_runner = rlt::rl::components::on_policy_runner;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
-using DEVICE_GPU_SPEC = rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
+using DEVICE_GPU_SPEC = rlt::hyperlux::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
 using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<DEVICE_GPU_SPEC>;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using RNG_GPU = typename DEVICE_GPU::SPEC::RANDOM::ENGINE<>;
@@ -75,7 +75,7 @@ namespace test_hyperdrone_episodes_cuda {
         static constexpr TI INSTANCES_PER_WORLD = 4;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
-        using SHADING = rlt::rendering::raytracing::Low;
+        using SHADING = rlt::hyperlux::Low;
     };
     using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
     constexpr TI INSTANCES = WORLD::INSTANCES;
@@ -213,9 +213,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_EPISODES_CUDA, CPU_CUDA_PARITY){
     rlt::malloc(device, shared.library);
     rlt::malloc(device, world_cpu);
     rlt::malloc(device_gpu, world_gpu);
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    rlt::hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
-    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
     rlt::init(device, world_cpu, shared, dataset, corpus, 0, 1, 0);
     rlt::init(device_gpu, world_gpu, shared, dataset, corpus, 0, 1, 0);
 

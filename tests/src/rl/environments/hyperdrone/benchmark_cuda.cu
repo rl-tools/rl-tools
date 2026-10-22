@@ -21,12 +21,12 @@
 #include <sys/resource.h>
 
 namespace rlt = rl_tools;
-namespace rro = rlt::rendering::raytracing::outputs;
+namespace rro = rlt::hyperlux::outputs;
 using rlt::output;
 namespace l2f = rlt::rl::environments::l2f;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
-using DEVICE_GPU_SPEC = rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
+using DEVICE_GPU_SPEC = rlt::hyperlux::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
 using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<DEVICE_GPU_SPEC>;
 using RNG_GPU = typename DEVICE_GPU::SPEC::RANDOM::ENGINE<>;
 using T = float;
@@ -81,7 +81,7 @@ namespace benchmark_hyperdrone {
         static constexpr TI INSTANCES_PER_WORLD = 64;
         static constexpr TI CAM_WIDTH = 80;
         static constexpr TI CAM_HEIGHT = 50;
-        using SHADING = rlt::rendering::raytracing::High;
+        using SHADING = rlt::hyperlux::High;
         static constexpr bool ENABLE_ANTI_ALIASING = true;
         static constexpr TI ANTI_ALIASING_GRID_SIZE = 2;
         static constexpr T BRIGHTNESS_RANDOMIZATION_RANGE = 0.5;
@@ -104,7 +104,7 @@ namespace benchmark_self_visible {
         static constexpr TI INSTANCES_PER_WORLD = 64;
         static constexpr TI CAM_WIDTH = 80;
         static constexpr TI CAM_HEIGHT = 50;
-        using SHADING = rlt::rendering::raytracing::High;
+        using SHADING = rlt::hyperlux::High;
         static constexpr bool ENABLE_MOTION_BLUR = true;
         static constexpr TI MOTION_BLUR_SAMPLES = 4;
         static constexpr TI MAX_DRONES = 4;
@@ -143,9 +143,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
     ASSERT_EQ(cudaMemGetInfo(&free_before, &total_bytes), cudaSuccess);
     ENVIRONMENT env;
     rlt::malloc(device_gpu, env);
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
+    rlt::hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
-    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
     for(TI world_i = 0; world_i < N_WORLDS; world_i++){
         rlt::init(device_gpu, env.worlds[world_i], env.shared, dataset, corpus, world_i, 1, world_i);
     }
@@ -182,8 +182,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
     // stream into a staging buffer, event, per-renderer camera D2D + render_launch + scatter into
     // the frame history, then the observation assembly kernel (training_cuda scatters into
     // gpu_frame_stack_history and assembles the policy input from it)
-    rlt::rendering::raytracing::Camera<T>* staging_cameras;
-    cudaMalloc(&staging_cameras, INSTANCES * sizeof(rlt::rendering::raytracing::Camera<T>));
+    rlt::hyperlux::Camera<T>* staging_cameras;
+    cudaMalloc(&staging_cameras, INSTANCES * sizeof(rlt::hyperlux::Camera<T>));
     cudaEvent_t cameras_ready;
     cudaEventCreateWithFlags(&cameras_ready, cudaEventDisableTiming);
     float* hand_rolled_history;
@@ -216,7 +216,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
             auto& renderer = rlt::get_renderer(device_gpu, world);
             cudaStream_t render_stream = rlt::stream(device_gpu, renderer);
             cudaStreamWaitEvent(render_stream, cameras_ready, 0);
-            cudaMemcpyAsync(rlt::data(rlt::cameras(device_gpu, renderer)), staging_cameras + world_i * M, M * sizeof(rlt::rendering::raytracing::Camera<T>), cudaMemcpyDeviceToDevice, render_stream);
+            cudaMemcpyAsync(rlt::data(rlt::cameras(device_gpu, renderer)), staging_cameras + world_i * M, M * sizeof(rlt::hyperlux::Camera<T>), cudaMemcpyDeviceToDevice, render_stream);
             rlt::render_launch(device_gpu, renderer);
             auto parameters_block = rlt::view_range(device_gpu, parameters, world_i * M, rlt::tensor::ViewSpec<0, M>{});
             auto reset_block = rlt::view_range(device_gpu, reset_mask, world_i * M, rlt::tensor::ViewSpec<0, M>{});
@@ -274,7 +274,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
             auto& renderer = rlt::get_renderer(device_gpu, world);
             cudaStream_t render_stream = rlt::stream(device_gpu, renderer);
             cudaStreamWaitEvent(render_stream, cameras_ready, 0);
-            cudaMemcpyAsync(rlt::data(rlt::cameras(device_gpu, renderer)), staging_cameras + world_i * M, M * sizeof(rlt::rendering::raytracing::Camera<T>), cudaMemcpyDeviceToDevice, render_stream);
+            cudaMemcpyAsync(rlt::data(rlt::cameras(device_gpu, renderer)), staging_cameras + world_i * M, M * sizeof(rlt::hyperlux::Camera<T>), cudaMemcpyDeviceToDevice, render_stream);
             // the host device: cameras_ready alone orders the launch, so the renderers run concurrently
             rlt::render_launch(device, renderer);
         }
@@ -341,7 +341,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, SELF_VISIBLE_MOTION_BLUR){
     auto& device = device_gpu.rendering;
     rlt::init(device);
     rlt::init(device_gpu);
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
+    rlt::hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
     // one body for every instance, or a body drawn per reset from four
     const std::vector<rlt::rl::environments::hyperdrone::Drone<WORLD_SPEC>> tables[] = {
         {drone<REGISTRY::x500>("x500.glb")},

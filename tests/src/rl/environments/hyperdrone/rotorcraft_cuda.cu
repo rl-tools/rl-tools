@@ -4,8 +4,8 @@
 
 #include <rl_tools/operations/cuda.h>
 #include <rl_tools/operations/cpu_mux.h>
-#include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
-#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
+#include <rl_tools/hyperlux/operations_cpu_mux.h>
+#include <rl_tools/hyperlux/datasets/glb/operations_cpu.h>
 #include <rl_tools/rl/environments/l2f/operations_generic.h>
 #include <rl_tools/rl/environments/hyperdrone/pose.h>
 #include <rl_tools/rl/environments/hyperdrone/rotorcraft/operations_cpu.h>
@@ -20,7 +20,7 @@
 #include <vector>
 
 namespace rlt = rl_tools;
-namespace rro = rlt::rendering::raytracing::outputs;
+namespace rro = rlt::hyperlux::outputs;
 using rlt::output;
 namespace l2f = rlt::rl::environments::l2f;
 
@@ -44,9 +44,9 @@ static constexpr TI NUM_CAMERAS = 2;
 static constexpr TI ONBOARD_CAMERA = 0;
 static constexpr TI THIRD_PERSON_CAMERA = 1;
 
-struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+struct CONFIG: rlt::hyperlux::config::Default<T, TI>{
     static constexpr TI CAM_WIDTH = ::CAM_WIDTH, CAM_HEIGHT = ::CAM_HEIGHT, NUM_CAMERAS = ::NUM_CAMERAS, NUM_PROBES = 1;
-    using SHADING = rlt::rendering::raytracing::High;
+    using SHADING = rlt::hyperlux::High;
     using OUTPUTS = rro::List<rro::RGB<>>;
     static constexpr TI NUM_OVERLAYS = 1;
     static constexpr TI MAX_OVERLAY_INSTANCES = 8;
@@ -55,8 +55,8 @@ struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI MOTION_BLUR_SAMPLES = 4;
     static constexpr bool ENABLE_DYNAMIC_MOTION_BLUR = true;
 };
-using SPEC = rlt::rendering::raytracing::Specification<CONFIG>;
-using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;
+using SPEC = rlt::hyperlux::Specification<CONFIG>;
+using Renderer = rlt::HyperLux<SPEC>;
 
 namespace test_hyperdrone_rig_cuda {
     using REWARD_FUNCTION = l2f::parameters::reward_functions::Squared<T>;
@@ -103,7 +103,7 @@ namespace test_hyperdrone_rig_cuda {
 }
 
 struct KernelParams {
-    rlt::rendering::raytracing::OverlayPlacement placement;
+    rlt::hyperlux::OverlayPlacement placement;
     float body_open[12];
     float body_close[12];
     float phase_open[4];
@@ -111,11 +111,11 @@ struct KernelParams {
 };
 
 template <typename T_DEVICE>
-__global__ void produce_transforms_kernel(T_DEVICE device, KernelParams params, rlt::rendering::raytracing::PoseSink<SPEC> sink){
+__global__ void produce_transforms_kernel(T_DEVICE device, KernelParams params, rlt::hyperlux::PoseSink<SPEC> sink){
     if(blockIdx.x != 0 || threadIdx.x != 0){
         return;
     }
-    rlt::set_pose(device, sink, rlt::rendering::raytracing::OverlayIndex{0}, params.placement, rlt::make_pose(params.body_open), rlt::make_pose(params.body_close), params.phase_open, params.phase_close);
+    rlt::set_pose(device, sink, rlt::hyperlux::OverlayIndex{0}, params.placement, rlt::make_pose(params.body_open), rlt::make_pose(params.body_close), params.phase_open, params.phase_close);
 }
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT_CUDA, HOST_DEVICE_RENDER_PARITY){
@@ -131,9 +131,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT_CUDA, HOST_DEVICE_RENDER_PAR
     rlt::init(device);
     rlt::devices::cuda::TAG<DEVICE_GPU, true> tag_device{};
 
-    rlt::rendering::Bundle<T> bundle;
+    rlt::hyperlux::Bundle<T> bundle;
     ASSERT_TRUE((rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, SCENE_PATH)));
-    rlt::rendering::raytracing::ObjectAssembly drone_assembly;
+    rlt::hyperlux::ObjectAssembly drone_assembly;
     ASSERT_TRUE((rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, drone_assembly, DRONE_PATH)));
 
     ASSERT_TRUE(rlt::articulate(device, drone_assembly));
@@ -141,15 +141,15 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT_CUDA, HOST_DEVICE_RENDER_PAR
     ASSERT_TRUE(rlt::init(device, rotorcraft, drone_assembly));
     ASSERT_EQ(rlt::num_coordinates(device, drone_assembly), 4);
 
-    rlt::rendering::raytracing::AssetPool pool;
+    rlt::hyperlux::AssetPool pool;
     const auto drone_asset = rlt::add(device, pool, drone_assembly);
 
     Renderer renderer;
     rlt::malloc(device, renderer);
     rlt::init(device, renderer, bundle, pool);
-    rlt::attach(device, renderer, ONBOARD_CAMERA, rlt::rendering::raytracing::OverlayIndex{0});
-    rlt::attach(device, renderer, THIRD_PERSON_CAMERA, rlt::rendering::raytracing::OverlayIndex{0});
-    const auto placement = rlt::spawn(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, drone_asset);
+    rlt::attach(device, renderer, ONBOARD_CAMERA, rlt::hyperlux::OverlayIndex{0});
+    rlt::attach(device, renderer, THIRD_PERSON_CAMERA, rlt::hyperlux::OverlayIndex{0});
+    const auto placement = rlt::spawn(device, renderer, rlt::hyperlux::OverlayIndex{0}, drone_asset);
 
     // shutter pair from an actual StateRenderRotorPhase rollout
     using ENV = test_hyperdrone_rig_cuda::ENV;
@@ -190,7 +190,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT_CUDA, HOST_DEVICE_RENDER_PAR
         state.position[1] + scene_translation[1],
         state.position[2] + scene_translation[2]
     };
-    rlt::rendering::raytracing::Camera<T> cameras[NUM_CAMERAS];
+    rlt::hyperlux::Camera<T> cameras[NUM_CAMERAS];
     {
         rlt::rl::environments::hyperdrone::Camera<T> camera;
         camera.mount.pose.position[0] = 0.10;
@@ -211,7 +211,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT_CUDA, HOST_DEVICE_RENDER_PAR
     std::vector<uint32_t> frame_device_path(NUM_CAMERAS * CAM_PIXELS);
 
     // host path: verbs
-    rlt::set_pose(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(params.body_open), rlt::make_pose(params.body_close), params.phase_open, params.phase_close);
+    rlt::set_pose(device, renderer, rlt::hyperlux::OverlayIndex{0}, placement, rlt::make_pose(params.body_open), rlt::make_pose(params.body_close), params.phase_open, params.phase_close);
     rlt::update(device, renderer);
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
@@ -271,7 +271,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT_CUDA, HOST_DEVICE_RENDER_PAR
             static_params.phase_open[rotor_i] = 0;
             static_params.phase_close[rotor_i] = 0;
         }
-        rlt::set_pose(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(static_params.body_open), rlt::make_pose(static_params.body_close), static_params.phase_open, static_params.phase_close);
+        rlt::set_pose(device, renderer, rlt::hyperlux::OverlayIndex{0}, placement, rlt::make_pose(static_params.body_open), rlt::make_pose(static_params.body_close), static_params.phase_open, static_params.phase_close);
         rlt::update(device, renderer);
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
@@ -307,7 +307,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT_CUDA, HOST_DEVICE_RENDER_PAR
         // re-render with the drone parked far below the scene: any pixel that changes belonged
         // to the drone
         float far_away[12] = {1,0,0,0, 0,1,0,-1000, 0,0,1,-1000};
-        rlt::set_pose(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(far_away), rlt::make_pose(far_away));
+        rlt::set_pose(device, renderer, rlt::hyperlux::OverlayIndex{0}, placement, rlt::make_pose(far_away), rlt::make_pose(far_away));
         rlt::update(device, renderer);
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
@@ -336,11 +336,11 @@ namespace general_pose_test {
     static constexpr TI ROWS = (SinkSpec::MOTION_BLUR_SAMPLES + 1) * SLOTS * 12;
 
     template <typename TAG>
-    __global__ void pose_kernel(TAG device, rlt::rendering::raytracing::PoseSink<SinkSpec> sink, rlt::rendering::raytracing::OverlayPlacement placement, const float* base_open, const float* base_close, const float* open, const float* close){
+    __global__ void pose_kernel(TAG device, rlt::hyperlux::PoseSink<SinkSpec> sink, rlt::hyperlux::OverlayPlacement placement, const float* base_open, const float* base_close, const float* open, const float* close){
         if(threadIdx.x != 0 || blockIdx.x != 0){
             return;
         }
-        rlt::set_pose(device, sink, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(base_open), rlt::make_pose(base_close, 1.5f), open, close);
+        rlt::set_pose(device, sink, rlt::hyperlux::OverlayIndex{0}, placement, rlt::make_pose(base_open), rlt::make_pose(base_close, 1.5f), open, close);
     }
 }
 
@@ -356,8 +356,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT_CUDA, GENERAL_KINEMATICS_HOS
     DEVICE_GPU gpu;
     rlt::init(host);
     rlt::init(gpu);
-    rlt::rendering::raytracing::ObjectAssembly assembly;
-    rlt::rendering::raytracing::Object object;
+    rlt::hyperlux::ObjectAssembly assembly;
+    rlt::hyperlux::Object object;
     const float arm_rest[12] = {1,0,0,0, 0,1,0,3, 0,0,1,0};
     const float slider_rest[12] = {0,-1,0,1, 1,0,0,3, 0,0,1,0};
     const float cap_rest[12] = {1,0,0,1, 0,1,0,3, 0,0,1,2};
@@ -367,29 +367,29 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT_CUDA, GENERAL_KINEMATICS_HOS
     assembly.parts[1].parent = 0;
     assembly.parts[2].parent = 1;
     auto& hinge = assembly.parts[0].joint;
-    hinge.type = rlt::rendering::Joint::Type::REVOLUTE;
+    hinge.type = rlt::hyperlux::Joint::Type::REVOLUTE;
     hinge.axis[0] = 2;
     hinge.axis[1] = 1;
     hinge.axis[2] = 0;
     hinge.pivot[0] = 0.5f;
     hinge.coordinate = 1;
     auto& rail = assembly.parts[1].joint;
-    rail.type = rlt::rendering::Joint::Type::PRISMATIC;
+    rail.type = rlt::hyperlux::Joint::Type::PRISMATIC;
     rail.axis[1] = 2;
     rail.axis[2] = 0;
     rail.coordinate = 0;
-    rlt::rendering::raytracing::AssetPool pool;
+    rlt::hyperlux::AssetPool pool;
     ASSERT_TRUE(rlt::can_add(host, pool, assembly));
-    std::vector<rlt::rendering::raytracing::AssetPart> parts;
-    rlt::rendering::raytracing::detail::flatten_parts(assembly, 0, parts);
-    const rlt::rendering::raytracing::OverlayPlacement placement{0, parts.size(), 0};
+    std::vector<rlt::hyperlux::AssetPart> parts;
+    rlt::hyperlux::detail::flatten_parts(assembly, 0, parts);
+    const rlt::hyperlux::OverlayPlacement placement{0, parts.size(), 0};
     const float base_open[12] = {1,0,0,4, 0,1,0,0, 0,0,1,0};
     const float base_close[12] = {0,-1,0,5, 1,0,0,1, 0,0,1,0.5f};
     const float open[2] = {0, 0};
     const float close[2] = {2, 12.566370614359172f};
 
     float *base_open_gpu, *base_close_gpu, *open_gpu, *close_gpu, *rows_gpu;
-    rlt::rendering::raytracing::AssetPart* parts_gpu;
+    rlt::hyperlux::AssetPart* parts_gpu;
     ASSERT_EQ(cudaMalloc(&base_open_gpu, sizeof(base_open)), cudaSuccess);
     ASSERT_EQ(cudaMalloc(&base_close_gpu, sizeof(base_close)), cudaSuccess);
     ASSERT_EQ(cudaMalloc(&open_gpu, sizeof(open)), cudaSuccess);
@@ -402,7 +402,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT_CUDA, GENERAL_KINEMATICS_HOS
     ASSERT_EQ(cudaMemcpy(close_gpu, close, sizeof(close), cudaMemcpyHostToDevice), cudaSuccess);
     ASSERT_EQ(cudaMemcpy(parts_gpu, parts.data(), parts.size() * sizeof(parts[0]), cudaMemcpyHostToDevice), cudaSuccess);
     ASSERT_EQ(cudaMemset(rows_gpu, 0, ROWS * sizeof(float)), cudaSuccess);
-    rlt::rendering::raytracing::PoseSink<SinkSpec> device_sink;
+    rlt::hyperlux::PoseSink<SinkSpec> device_sink;
     device_sink.transforms = rows_gpu;
     device_sink.transforms_motion = rows_gpu + SLOTS * 12;
     device_sink.parts = parts_gpu;
@@ -413,18 +413,18 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT_CUDA, GENERAL_KINEMATICS_HOS
     ASSERT_EQ(cudaMemcpy(actual.data(), rows_gpu, ROWS * sizeof(float), cudaMemcpyDeviceToHost), cudaSuccess);
 
     std::vector<float> expected(ROWS, 0.0f);
-    rlt::rendering::raytracing::PoseSink<SinkSpec> host_sink;
+    rlt::hyperlux::PoseSink<SinkSpec> host_sink;
     host_sink.transforms = expected.data();
     host_sink.transforms_motion = expected.data() + SLOTS * 12;
     host_sink.parts = parts.data();
-    rlt::set_pose(host, host_sink, rlt::rendering::raytracing::OverlayIndex{0}, placement, rlt::make_pose(base_open), rlt::make_pose(base_close, 1.5f), open, close);
+    rlt::set_pose(host, host_sink, rlt::hyperlux::OverlayIndex{0}, placement, rlt::make_pose(base_open), rlt::make_pose(base_close, 1.5f), open, close);
     float worst = 0;
     for(TI i = 0; i < ROWS; i++){
         const float error = std::abs(expected[i] - actual[i]);
         worst = std::max(worst, error);
         EXPECT_NEAR(expected[i], actual[i], 2e-5f) << "element " << i;
     }
-    metra::log("rendering/rig/cuda/max_pose_error", worst);
+    metra::log("hyperlux/rig/cuda/max_pose_error", worst);
     cudaFree(parts_gpu);
     cudaFree(rows_gpu);
     cudaFree(close_gpu);

@@ -37,7 +37,7 @@
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cuda.h>
 #endif
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
-#include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
+#include <rl_tools/hyperlux/datasets/procthor/operations_cpu.h>
 
 #include <rl_tools/nn/loss_functions/mse/operations_generic.h>
 #ifdef __CUDACC__
@@ -338,7 +338,7 @@ void fetch_world_frames(DEVICE& device, DEVICE_COMPUTE& device_compute, TASK_WOR
     }
 }
 
-int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datasets::procthor::GLB& scene_dataset){
+int run_rank(SharedState& shared, TI rank, TI seed, const rlt::hyperlux::datasets::procthor::GLB& scene_dataset){
 #ifdef __CUDACC__
     check_cuda(cudaSetDevice(static_cast<int>(rank)));
     DEVICE_COMPUTE device_compute;
@@ -434,8 +434,8 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
     {
         std::lock_guard<std::mutex> loading_lock(shared.io_mutex);
         rlt::malloc(device_compute, env);
-        rlt::rendering::datasets::procthor::GLB::Corpus scene_corpus;
-        rlt::rendering::datasets::procthor::enumerate(device, scene_dataset, scene_corpus);
+        rlt::hyperlux::datasets::procthor::GLB::Corpus scene_corpus;
+        rlt::hyperlux::datasets::procthor::enumerate(device, scene_dataset, scene_corpus);
         if(static_cast<TI>(scene_corpus.references.size()) != N_TOTAL_SCENES){
             throw std::runtime_error("Unexpected scene corpus size");
         }
@@ -1194,7 +1194,7 @@ int main(int argc, char** argv){
 
     // scene corpus: the first N_TOTAL_SCENES of a directory ordered by the trailing integer of
     // the stem, or one .glb replicated across all slots
-    rlt::rendering::datasets::procthor::GLB scene_dataset{{}, {}};
+    rlt::hyperlux::datasets::procthor::GLB scene_dataset{{}, {}};
     const char* scene_arg = argv[1];
     if(std::filesystem::is_directory(scene_arg)){
         std::vector<std::string> all_glbs;

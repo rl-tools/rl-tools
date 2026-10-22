@@ -46,7 +46,7 @@
 #include HYPERDRONE_CAMERA_CONFIG_HEADER
 
 namespace rlt = rl_tools;
-namespace rro = rlt::rendering::raytracing::outputs;
+namespace rro = rlt::hyperlux::outputs;
 
 // Each configuration needs a distinct C++ type in nanobind's shared type registry.
 namespace HYPERDRONE_MODULE_NAME {
@@ -56,7 +56,7 @@ namespace HYPERDRONE_MODULE_NAME {
     constexpr bool CUDA_WORLD = HYPERDRONE_ENVIRONMENT_DEVICE_CUDA == 1;
     static_assert(HYPERDRONE_ENVIRONMENT_DATASET == 0 || HYPERDRONE_ENVIRONMENT_DATASET == 1, "unknown HYPERDRONE_ENVIRONMENT_DATASET");
     using DATASET = rlt::utils::typing::conditional_t<HYPERDRONE_ENVIRONMENT_DATASET == 0,
-        rlt::rendering::datasets::glb::Dataset, rlt::rendering::datasets::procthor::GLB>;
+        rlt::hyperlux::datasets::glb::Dataset, rlt::hyperlux::datasets::procthor::GLB>;
 
     namespace l2f = rlt::rl::environments::l2f;
 #ifdef HYPERDRONE_ENVIRONMENT_SPEC_HEADER
@@ -128,9 +128,9 @@ namespace HYPERDRONE_MODULE_NAME {
         static constexpr bool ENABLE_MOTION_BLUR = HYPERDRONE_ENVIRONMENT_MB_SAMPLES > 1;
         static constexpr TI MOTION_BLUR_SAMPLES = HYPERDRONE_ENVIRONMENT_MB_SAMPLES;
         static constexpr TI MAX_DRONES = 8;
-        using SHADING = rlt::utils::typing::conditional_t<HYPERDRONE_ENVIRONMENT_SHADING == 0, rlt::rendering::raytracing::Low,
-                        rlt::utils::typing::conditional_t<HYPERDRONE_ENVIRONMENT_SHADING == 1, rlt::rendering::raytracing::Medium,
-                                                                                      rlt::rendering::raytracing::High>>;
+        using SHADING = rlt::utils::typing::conditional_t<HYPERDRONE_ENVIRONMENT_SHADING == 0, rlt::hyperlux::Low,
+                        rlt::utils::typing::conditional_t<HYPERDRONE_ENVIRONMENT_SHADING == 1, rlt::hyperlux::Medium,
+                                                                                      rlt::hyperlux::High>>;
     };
     using BASE_WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
 #if HYPERDRONE_ENVIRONMENT_TASK == 0

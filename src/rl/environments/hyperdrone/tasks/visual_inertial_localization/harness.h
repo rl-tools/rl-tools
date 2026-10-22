@@ -119,9 +119,9 @@ namespace hyperdrone_vio {
         typename BASE_WORLD::SharedContext shared;
         rlt::malloc(device, shared.library);
         rlt::malloc(device, world);
-        rlt::rendering::datasets::procthor::GLB dataset{{}, {scene_path}};
-        typename rlt::rendering::datasets::procthor::GLB::Corpus corpus;
-        rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+        rlt::hyperlux::datasets::procthor::GLB dataset{{}, {scene_path}};
+        typename rlt::hyperlux::datasets::procthor::GLB::Corpus corpus;
+        rlt::hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
         rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
 
         RNG rng;

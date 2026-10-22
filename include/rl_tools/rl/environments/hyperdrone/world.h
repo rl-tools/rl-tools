@@ -10,10 +10,10 @@
 #include "pose.h"
 #include "rotorcraft/rotorcraft.h"
 #include "controllers/direct/direct.h"
-#include "../../../rendering/raytracing/renderer.h"
-#include "../../../rendering/datasets/procthor/procthor.h"
-#include "../../../rendering/datasets/annotations/free_space.h"
-#include "../../../rendering/datasets/annotations/cache.h"
+#include "../../../hyperlux/hyperlux.h"
+#include "../../../hyperlux/datasets/procthor/procthor.h"
+#include "../../../hyperlux/datasets/annotations/free_space.h"
+#include "../../../hyperlux/datasets/annotations/cache.h"
 
 #include <string>
 #include <vector>
@@ -23,8 +23,8 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::hyperdrone {
     namespace world {
         template <typename... OUTPUTS>
-        constexpr bool camera_output_descriptors(rendering::raytracing::outputs::List<OUTPUTS...>) {
-            return (utils::typing::is_same_v<OUTPUTS, typename rendering::raytracing::outputs::Entry<OUTPUTS>::OUTPUT> && ...);
+        constexpr bool camera_output_descriptors(hyperlux::outputs::List<OUTPUTS...>) {
+            return (utils::typing::is_same_v<OUTPUTS, typename hyperlux::outputs::Entry<OUTPUTS>::OUTPUT> && ...);
         }
     }
 
@@ -68,14 +68,14 @@ namespace rl_tools::rl::environments::hyperdrone {
         static constexpr TI CAM_WIDTH = 64;
         static constexpr TI CAM_HEIGHT = 64;
         static constexpr TI NUM_PROBES = 1;
-        using SHADING = rendering::raytracing::High;
+        using SHADING = hyperlux::High;
         static constexpr bool ENABLE_MOTION_BLUR = false;
         static constexpr TI MOTION_BLUR_SAMPLES = 1;
         static constexpr bool ENABLE_ANTI_ALIASING = false;
         static constexpr TI ANTI_ALIASING_GRID_SIZE = 1;
-        using CAMERA_OUTPUTS = CameraOutputs<rendering::raytracing::outputs::List<
-            rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>,
-            rendering::raytracing::outputs::Probes>>;
+        using CAMERA_OUTPUTS = CameraOutputs<hyperlux::outputs::List<
+            hyperlux::outputs::RGB<hyperlux::outputs::format::Float32>,
+            hyperlux::outputs::Probes>>;
         using OBSERVATION = ImageObservation<0>;
         static constexpr TI HISTORY_LENGTH = 1;
         static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = 0;
@@ -114,7 +114,7 @@ namespace rl_tools::rl::environments::hyperdrone {
             AGENT_STATE agent_states[N_AGENTS];
         };
         namespace camera_outputs {
-            namespace out = rendering::raytracing::outputs;
+            namespace out = hyperlux::outputs;
             template <typename ACCUMULATED, typename... PROFILES>
             struct Merge;
             template <typename ACCUMULATED>
@@ -155,10 +155,10 @@ namespace rl_tools::rl::environments::hyperdrone {
         template <typename CAMERAS>
         struct RendererOutputs;
         template <typename... PROFILES>
-        struct RendererOutputs<CameraOutputs<PROFILES...>>: camera_outputs::Selected<typename camera_outputs::Merge<rendering::raytracing::outputs::List<>, PROFILES...>::TYPE, PROFILES...> {
+        struct RendererOutputs<CameraOutputs<PROFILES...>>: camera_outputs::Selected<typename camera_outputs::Merge<hyperlux::outputs::List<>, PROFILES...>::TYPE, PROFILES...> {
         };
         template <typename T_SPEC>
-        struct RendererConfig: rendering::raytracing::config::Default<typename T_SPEC::T, typename T_SPEC::TI> {
+        struct RendererConfig: hyperlux::config::Default<typename T_SPEC::T, typename T_SPEC::TI> {
             using SPEC = T_SPEC;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
@@ -168,8 +168,8 @@ namespace rl_tools::rl::environments::hyperdrone {
             static constexpr TI NUM_PROBES = SPEC::NUM_PROBES;
             using SHADING = typename SPEC::SHADING;
             using DECLARED_OUTPUTS = typename RendererOutputs<typename SPEC::CAMERA_OUTPUTS>::TYPE;
-            static constexpr bool INTERNAL_PROBES = !rendering::raytracing::outputs::contains<DECLARED_OUTPUTS, rendering::raytracing::outputs::Probes>::value;
-            using OUTPUTS = typename rendering::raytracing::outputs::Concat<DECLARED_OUTPUTS, rendering::raytracing::outputs::If<INTERNAL_PROBES, rendering::raytracing::outputs::Cameras<rendering::raytracing::outputs::cameras::Every<SPEC::N_CAMERA_AGENTS * SPEC::CAMERA_OUTPUTS::COUNT, 0>, rendering::raytracing::outputs::Probes>>>::type;
+            static constexpr bool INTERNAL_PROBES = !hyperlux::outputs::contains<DECLARED_OUTPUTS, hyperlux::outputs::Probes>::value;
+            using OUTPUTS = typename hyperlux::outputs::Concat<DECLARED_OUTPUTS, hyperlux::outputs::If<INTERNAL_PROBES, hyperlux::outputs::Cameras<hyperlux::outputs::cameras::Every<SPEC::N_CAMERA_AGENTS * SPEC::CAMERA_OUTPUTS::COUNT, 0>, hyperlux::outputs::Probes>>>::type;
             static constexpr bool ENABLE_MOTION_BLUR = SPEC::ENABLE_MOTION_BLUR;
             static constexpr TI MOTION_BLUR_SAMPLES = SPEC::MOTION_BLUR_SAMPLES;
             static constexpr bool ENABLE_ANTI_ALIASING = SPEC::ENABLE_ANTI_ALIASING;
@@ -180,7 +180,7 @@ namespace rl_tools::rl::environments::hyperdrone {
             static constexpr bool ENABLE_DYNAMIC_MOTION_BLUR = SPEC::ENABLE_MOTION_BLUR && SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE > 0;
         };
 
-        template <typename RENDERER_SPEC, typename OUTPUT, unsigned int PERIOD, bool PRESENT = rendering::raytracing::outputs::contains<typename RENDERER_SPEC::OUTPUTS, OUTPUT>::value>
+        template <typename RENDERER_SPEC, typename OUTPUT, unsigned int PERIOD, bool PRESENT = hyperlux::outputs::contains<typename RENDERER_SPEC::OUTPUTS, OUTPUT>::value>
         struct OutputRows {
             static constexpr unsigned int COUNT = 0;
             RL_TOOLS_FUNCTION_PLACEMENT static constexpr bool selected(unsigned int) {
@@ -193,9 +193,9 @@ namespace rl_tools::rl::environments::hyperdrone {
 
         template <typename RENDERER_SPEC, typename OUTPUT, unsigned int PERIOD>
         struct OutputRows<RENDERER_SPEC, OUTPUT, PERIOD, true> {
-            using ENTRY = typename rendering::raytracing::outputs::EntryOf<typename RENDERER_SPEC::OUTPUTS, OUTPUT>::TYPE;
-            using SELECTION = typename rendering::raytracing::outputs::Entry<ENTRY>::SELECTION;
-            static constexpr unsigned int COUNT = rendering::raytracing::outputs::cameras::count<SELECTION>(PERIOD);
+            using ENTRY = typename hyperlux::outputs::EntryOf<typename RENDERER_SPEC::OUTPUTS, OUTPUT>::TYPE;
+            using SELECTION = typename hyperlux::outputs::Entry<ENTRY>::SELECTION;
+            static constexpr unsigned int COUNT = hyperlux::outputs::cameras::count<SELECTION>(PERIOD);
             RL_TOOLS_FUNCTION_PLACEMENT static constexpr bool selected(unsigned int camera) {
                 return SELECTION::selected(camera);
             }
@@ -289,19 +289,19 @@ namespace rl_tools::rl::environments::hyperdrone {
     struct SharedContext {
         using SPEC = T_SPEC;
         using TI = typename SPEC::TI;
-        using LIBRARY = rendering::raytracing::AssetLibrary<rendering::raytracing::Specification<world::RendererConfig<SPEC>>>;
+        using LIBRARY = hyperlux::AssetLibrary<hyperlux::Specification<world::RendererConfig<SPEC>>>;
         using DRONE = hyperdrone::Drone<SPEC>;
         LIBRARY library;
-        std::shared_ptr<const rendering::SegmentationTaxonomy> segmentation_taxonomy;
+        std::shared_ptr<const hyperlux::SegmentationTaxonomy> segmentation_taxonomy;
         std::vector<std::string> pool_asset_paths;
-        std::vector<rendering::raytracing::AssetHandle> pool_asset_handles;
+        std::vector<hyperlux::AssetHandle> pool_asset_handles;
         // opt-in: set the directory before init to persist and reuse free-space scans
-        rendering::datasets::annotations::Cache annotation_cache;
+        hyperlux::datasets::annotations::Cache annotation_cache;
         std::vector<Drone<SPEC>> drones;  // registered before the first World init
         TI num_drones = 0;  // 0 until built
         // SELF_VISIBLE: one pooled mesh per distinct assembly content, all with drone_parts parts
         // (a swap then keeps every slot, see replace), and one body per entry
-        std::vector<rendering::raytracing::AssetHandle> drone_meshes;
+        std::vector<hyperlux::AssetHandle> drone_meshes;
         TI drone_parts = 0;
         std::vector<DroneBody<SPEC>> drone_bodies;
     };
@@ -351,8 +351,8 @@ namespace rl_tools::rl::environments::hyperdrone {
         static constexpr bool PRIVILEGED_OBSERVATION_AVAILABLE = true;
 
         using RENDERER_CONFIG = world::RendererConfig<SPEC>;
-        using RENDERER_SPEC = rendering::raytracing::Specification<RENDERER_CONFIG>;
-        using RGB_ROWS = world::OutputRows<RENDERER_SPEC, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>, N_CAMERAS_PER_AGENT>;
+        using RENDERER_SPEC = hyperlux::Specification<RENDERER_CONFIG>;
+        using RGB_ROWS = world::OutputRows<RENDERER_SPEC, hyperlux::outputs::RGB<hyperlux::outputs::format::Float32>, N_CAMERAS_PER_AGENT>;
         static_assert(world::valid_observation<OBSERVATION, RGB_ROWS, N_CAMERAS_PER_AGENT>(), "image observation mounts must be unique, in range, and provide RGB<Float32>");
         RL_TOOLS_FUNCTION_PLACEMENT static constexpr TI observation_camera(TI index) {
             return index / N_OBSERVATION_CAMERAS_PER_AGENT * N_CAMERAS_PER_AGENT + OBSERVATION::mount(index % N_OBSERVATION_CAMERAS_PER_AGENT);
@@ -360,10 +360,10 @@ namespace rl_tools::rl::environments::hyperdrone {
         RL_TOOLS_FUNCTION_PLACEMENT static constexpr TI observation_rgb_row(TI index) {
             return RGB_ROWS::row(observation_camera(index));
         }
-        using RENDERER = rendering::raytracing::Renderer<RENDERER_SPEC>;
-        using ANNOTATIONS_SPEC = rendering::datasets::annotations::FreeSpaceSpecification<T, TI>;
-        using ANNOTATIONS = rendering::datasets::annotations::FreeSpace<ANNOTATIONS_SPEC>;
-        using LIBRARY = rendering::raytracing::AssetLibrary<RENDERER_SPEC>;
+        using RENDERER = HyperLux<RENDERER_SPEC>;
+        using ANNOTATIONS_SPEC = hyperlux::datasets::annotations::FreeSpaceSpecification<T, TI>;
+        using ANNOTATIONS = hyperlux::datasets::annotations::FreeSpace<ANNOTATIONS_SPEC>;
+        using LIBRARY = hyperlux::AssetLibrary<RENDERER_SPEC>;
         using SharedContext = hyperdrone::SharedContext<SPEC>;
 
         // a registered entity kind (register_entity_kind): its pooled asset, its first slot and its
@@ -371,7 +371,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         // region, first-fit), so the kind's rows sit at instance * MAX_ENTITY_SLOTS_PER_INSTANCE +
         // slot_offset in every instance and hot slot
         struct EntityKind {
-            rendering::raytracing::AssetHandle asset;
+            hyperlux::AssetHandle asset;
             TI slot_offset;
             TI num_parts;
         };
@@ -381,7 +381,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         struct HotSlot {
             RENDERER renderer;
             ANNOTATIONS annotations;
-            rendering::SceneMetadata<T> metadata;
+            hyperlux::SceneMetadata<T> metadata;
             TI corpus_index;
             TI scene_id;
         };
@@ -400,7 +400,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         // per-frame runtime state, resident on the environment's compute device
         static constexpr TI FRAME_DIM = SPEC::CAM_HEIGHT * SPEC::CAM_WIDTH * IMAGE_CHANNELS;
         using HISTORY_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::HISTORY_LENGTH, INSTANCES * N_OBSERVATION_VIEWS, FRAME_DIM>>;
-        using PREV_CAMERAS_SPEC = tensor::Specification<rendering::raytracing::Camera<T>, TI, tensor::Shape<TI, INSTANCES * N_VIEWS>>;
+        using PREV_CAMERAS_SPEC = tensor::Specification<hyperlux::Camera<T>, TI, tensor::Shape<TI, INSTANCES * N_VIEWS>>;
         using EPISODE_START_SPEC = tensor::Specification<TI, TI, tensor::Shape<TI, INSTANCES>>;
         using RENDER_RESET_SPEC = tensor::Specification<bool, TI, tensor::Shape<TI, INSTANCES>>;
         using ACTIVE_ANNOTATIONS_SPEC = tensor::Specification<ANNOTATIONS, TI, tensor::Shape<TI, 1>>;
@@ -425,7 +425,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         Tensor<DRONE_PARAMETERS_SPEC> drone_parameters;
         Tensor<DRONE_BODIES_SPEC> drone_bodies;
         TI num_drones = 0;
-        std::vector<rendering::raytracing::AssetHandle> drone_meshes;
+        std::vector<hyperlux::AssetHandle> drone_meshes;
         TI drone_parts = 0;
         TI drone_slot_offset = 0;
 

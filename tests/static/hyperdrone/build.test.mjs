@@ -47,7 +47,7 @@ function fixture(t){
         },
         compiled(){
             const fidelity = {Low: "low", Medium: "medium", High: "high", VeryHigh: "very-high"};
-            return [...readFileSync(header, "utf8").matchAll(/Config<rendering::raytracing::(\w+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)>/g)]
+            return [...readFileSync(header, "utf8").matchAll(/Config<hyperlux::(\w+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)>/g)]
                 .map(([, shading, motion, aa, scale, agents]) => `${fidelity[shading]}-mb${motion}-aa${aa}-${480 * scale}x${270 * scale}-agents${agents}`);
         },
     };

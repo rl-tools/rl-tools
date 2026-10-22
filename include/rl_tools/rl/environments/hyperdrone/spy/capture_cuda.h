@@ -51,7 +51,7 @@ namespace rl_tools::rl::environments::hyperdrone::spy {
 
 namespace rl_tools {
     template <typename DEV_SPEC, typename CONFIG>
-    void capture_spy(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::spy::State<CONFIG>& state, typename CONFIG::ENVIRONMENT& env, rendering::raytracing::backends::Optix) {
+    void capture_spy(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::spy::State<CONFIG>& state, typename CONFIG::ENVIRONMENT& env, hyperlux::backends::Optix) {
         using WORLD = typename CONFIG::WORLD;
         constexpr size_t CAMERAS = WORLD::INSTANCES * WORLD::N_VIEWS;
         constexpr size_t WIDTH = CONFIG::ATLAS_WIDTH, HEIGHT = CONFIG::ATLAS_HEIGHT;

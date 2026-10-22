@@ -1,4 +1,4 @@
 find_package(Vulkan REQUIRED COMPONENTS glslangValidator)
 
 target_link_libraries(rl_tools_full INTERFACE assimp::assimp Vulkan::Vulkan)
-target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_RENDERING_ENABLE_RAYTRACING RL_TOOLS_RENDERING_RAYTRACING_BACKEND_VULKAN)
+target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_ENABLE_HYPERLUX RL_TOOLS_HYPERLUX_BACKEND_VULKAN)

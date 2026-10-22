@@ -1,6 +1,6 @@
 """Python-API counterpart of the simulator-matrix raytracing benchmark
-(src/rendering/raytracing/benchmark/simulator_matrix.cpp), matching the configuration of
-`rendering_raytracing_sim_benchmark_medium` with no arguments:
+(src/hyperlux/benchmark/simulator_matrix.cpp), matching the configuration of
+`hyperlux_sim_benchmark_medium` with no arguments:
 
   4096 cameras @ 64x64, medium fidelity, RGB output, collision probes compiled out
   (no Probes output), AA/MB off, fov 80 degrees,

@@ -16,7 +16,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::imitation
     using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
     using T = float;
 #ifdef __CUDACC__
-    using DEVICE_COMPUTE_SPEC = rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
+    using DEVICE_COMPUTE_SPEC = rlt::hyperlux::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
     using DEVICE_COMPUTE = rlt::devices::DEVICE_FACTORY_CUDA<DEVICE_COMPUTE_SPEC>;
     using TYPE_POLICY = rlt::numeric_types::Policy<float,
         rlt::numeric_types::UseCase<rlt::numeric_types::categories::Parameter, __nv_bfloat16>,
@@ -157,7 +157,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::imitation
     static constexpr T BRIGHTNESS_RANDOMIZATION_RANGE = 0.5;
     static constexpr T TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE = 0.25;
 
-    using RENDER_SHADING = rlt::rendering::raytracing::High;
+    using RENDER_SHADING = rlt::hyperlux::High;
     static constexpr bool RENDER_ENABLE_MOTION_BLUR = false;
     static constexpr TI RENDER_MOTION_BLUR_SAMPLES = 1;
     static constexpr bool RENDER_ENABLE_ANTI_ALIASING = true;

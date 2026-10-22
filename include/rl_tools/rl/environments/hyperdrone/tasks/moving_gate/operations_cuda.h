@@ -32,7 +32,7 @@ namespace rl_tools{
         // the gate is a rigid entity moved along the constant-twist screw between the shutter-open
         // and shutter-close gate poses
         template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC>
-        __global__ void gate_rows_kernel(DEVICE device, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, rendering::raytracing::PoseSink<typename TASK_SPEC::NEXT_WORLD::RENDERER_SPEC> sink, rendering::raytracing::OverlayPlacement placement){
+        __global__ void gate_rows_kernel(DEVICE device, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, hyperlux::PoseSink<typename TASK_SPEC::NEXT_WORLD::RENDERER_SPEC> sink, hyperlux::OverlayPlacement placement){
             using T = typename TASK_SPEC::T;
             using TI = typename DEVICE::index_t;
             using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
@@ -49,10 +49,10 @@ namespace rl_tools{
                     const T phase_open = state.gate_phase - TWO_PI * instance_parameters.gate_frequency * dt * instance_parameters.shutter_fraction;
                     float pose_open[12];
                     gate_pose(device, instance_parameters, phase_open, pose_open);
-                    set_pose(device, sink, rendering::raytracing::OverlayIndex{instance_i}, placement, make_pose(pose_open), make_pose(pose_close));
+                    set_pose(device, sink, hyperlux::OverlayIndex{instance_i}, placement, make_pose(pose_open), make_pose(pose_close));
                 }
                 else{
-                    set_pose(device, sink, rendering::raytracing::OverlayIndex{instance_i}, placement, make_pose(pose_close));
+                    set_pose(device, sink, hyperlux::OverlayIndex{instance_i}, placement, make_pose(pose_close));
                 }
             }
         }

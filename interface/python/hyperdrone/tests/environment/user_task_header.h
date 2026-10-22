@@ -14,7 +14,7 @@ namespace hyperdrone_user {
             static constexpr TI INSTANCES_PER_WORLD = 4;
             static constexpr TI CAM_WIDTH = 64;
             static constexpr TI CAM_HEIGHT = 64;
-            using SHADING = rl_tools::rendering::raytracing::Low;
+            using SHADING = rl_tools::hyperlux::Low;
             static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 16;  // drone rig parts + the orbiter
             static constexpr bool ENABLE_MOTION_BLUR = true;
             static constexpr TI MOTION_BLUR_SAMPLES = 8;
@@ -175,9 +175,9 @@ namespace rl_tools {
                 float pose_open[12];
                 T phase_open = state.orbit_phase - TWO_PI * TASK_SPEC::ORBIT_RATE * dt * instance_parameters.shutter_fraction;
                 hyperdrone_user::orbiter::orbiter_pose<DEVICE, TASK_SPEC>(device, instance_parameters, phase_open, pose_open);
-                set_pose(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, make_pose(pose_open), make_pose(pose));
+                set_pose(device, renderer, hyperlux::OverlayIndex{instance_i}, placement, make_pose(pose_open), make_pose(pose));
             } else {
-                set_pose(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, make_pose(pose));
+                set_pose(device, renderer, hyperlux::OverlayIndex{instance_i}, placement, make_pose(pose));
             }
         }
     }

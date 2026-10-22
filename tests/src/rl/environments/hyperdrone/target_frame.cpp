@@ -64,7 +64,7 @@ namespace test_target_frame {
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
         static constexpr TI HISTORY_LENGTH = 4;
-        using SHADING = rlt::rendering::raytracing::Low;
+        using SHADING = rlt::hyperlux::Low;
         static constexpr T BRIGHTNESS_RANDOMIZATION_RANGE = 0.25;
     };
     using BASE_WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
@@ -121,7 +121,7 @@ struct TensorsFor {
 using Tensors = TensorsFor<WORLD>;
 
 namespace test_target_auxiliary {
-    namespace out = rlt::rendering::raytracing::outputs;
+    namespace out = rlt::hyperlux::outputs;
     struct Specification: WORLD_SPEC {
         using CAMERA_OUTPUTS = rlt::rl::environments::hyperdrone::CameraOutputs<out::List<out::RGB<>>, out::List<out::RGB<out::format::Float32>, out::Flow<>, out::FlowStatus<>>, out::List<out::RGB<out::format::Float32>, out::Depth<>>>;
         using OBSERVATION = rlt::rl::environments::hyperdrone::ImageObservation<1>;
@@ -137,7 +137,7 @@ namespace test_target_auxiliary {
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME, SELECTED_TARGET_CAMERA_WITH_AUXILIARY_VIEWS) {
     using namespace rlt;
     using SparseWorld = test_target_auxiliary::World;
-    namespace out = rendering::raytracing::outputs;
+    namespace out = hyperlux::outputs;
     if(SCENE_PATH.empty()) {
         GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
     }
@@ -150,9 +150,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME, SELECTED_TARGET_CAMERA_WI
     world.parameters.agents[0].cameras[0].mount.pose.position[0] = -1;
     world.parameters.agents[0].cameras[1].fov = 95;
     world.parameters.agents[0].cameras[2].fov = 110;
-    rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
-    rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
     rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
     RNG rng;
     malloc(device, rng);
@@ -238,9 +238,9 @@ void bank_and_stack_semantics(){
     typename BASE_WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);
     rlt::malloc(device, world);
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
+    rlt::hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
-    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
     rlt::init(device, world, shared, dataset, corpus, 0, 2, 0);
     EXPECT_TRUE(rlt::rl::environments::hyperdrone::tasks::target_frame::_bank_due(world));
 

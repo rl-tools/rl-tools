@@ -11,7 +11,7 @@ VENDOR_MANIFEST = (
     "include/rl_tools",
     "include/conta",
     "include/metra",
-    "src/rendering/raytracing",
+    "src/hyperlux",
     "src/rl/environments/hyperdrone/spy",
     "CMakeLists.txt",
     "cmake",

@@ -5,14 +5,14 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SPY_CAPTURE_OPTIX_H
 
 #include "spy.h"
-#include "../../../../rendering/raytracing/backends/optix/operations_cuda.h"
+#include "../../../../hyperlux/backends/optix/operations_cuda.h"
 
 #include <algorithm>
 #include <stdexcept>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::hyperdrone::spy {
-    struct CaptureStorage<rendering::raytracing::backends::Optix>::State {
+    struct CaptureStorage<hyperlux::backends::Optix>::State {
         uint32_t* device_atlas = nullptr;
         void* device_geometry = nullptr;
         void* host_geometry = nullptr;
@@ -32,9 +32,9 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename CONFIG>
-    void malloc_spy_capture(DEVICE&, rl::environments::hyperdrone::spy::State<CONFIG>& state, rendering::raytracing::backends::Optix) {
+    void malloc_spy_capture(DEVICE&, rl::environments::hyperdrone::spy::State<CONFIG>& state, hyperlux::backends::Optix) {
         namespace spy = rl::environments::hyperdrone::spy;
-        auto* capture = new spy::CaptureStorage<rendering::raytracing::backends::Optix>::State{};
+        auto* capture = new spy::CaptureStorage<hyperlux::backends::Optix>::State{};
         state.buffer.capture.state = capture;
         const size_t atlas_bytes = CONFIG::ATLAS_WIDTH * CONFIG::ATLAS_HEIGHT * sizeof(uint32_t);
         spy_capture_cuda_check(cudaMallocHost(&state.buffer.atlas, atlas_bytes));
@@ -49,7 +49,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename CONFIG>
-    void free_spy_capture(DEVICE&, rl::environments::hyperdrone::spy::State<CONFIG>& state, rendering::raytracing::backends::Optix) {
+    void free_spy_capture(DEVICE&, rl::environments::hyperdrone::spy::State<CONFIG>& state, hyperlux::backends::Optix) {
         auto* capture = state.buffer.capture.state;
         if(capture != nullptr) {
             if(capture->capturing) {
@@ -92,7 +92,7 @@ namespace rl_tools {
             auto* geometry = static_cast<GEOMETRY*>(capture.device_geometry);
             spy_capture_cuda_check(cudaMemcpyAsync(&geometry->camera, data(cameras(device, renderer)) + local_camera, sizeof(geometry->camera), cudaMemcpyDeviceToDevice, producer_stream));
             if constexpr(WORLD::RENDERER_SPEC::ENABLE_OVERLAYS) {
-                copy(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, geometry->overlay);
+                copy(device, renderer, hyperlux::OverlayIndex{instance_i}, geometry->overlay);
             }
         }
     }
@@ -114,7 +114,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename CONFIG>
-    bool poll_spy_capture(DEVICE&, rl::environments::hyperdrone::spy::State<CONFIG>& state, rendering::raytracing::backends::Optix) {
+    bool poll_spy_capture(DEVICE&, rl::environments::hyperdrone::spy::State<CONFIG>& state, hyperlux::backends::Optix) {
         auto& capture = *state.buffer.capture.state;
         const auto status = cudaEventQuery(capture.ready);
         if(status == cudaErrorNotReady) {
@@ -129,7 +129,7 @@ namespace rl_tools {
     }
 
     template <typename DEV_SPEC, typename CONFIG>
-    void capture_spy(devices::CPU<DEV_SPEC>& device, rl::environments::hyperdrone::spy::State<CONFIG>& state, typename CONFIG::ENVIRONMENT& env, rendering::raytracing::backends::Optix) {
+    void capture_spy(devices::CPU<DEV_SPEC>& device, rl::environments::hyperdrone::spy::State<CONFIG>& state, typename CONFIG::ENVIRONMENT& env, hyperlux::backends::Optix) {
         pack_spy_atlas_cpu(device, state, env);
         constexpr size_t CAMERAS_PER_MEMBER = CONFIG::WORLD::INSTANCES * CONFIG::WORLD::N_VIEWS;
         const size_t member_i = state.buffer.selected_camera / CAMERAS_PER_MEMBER;

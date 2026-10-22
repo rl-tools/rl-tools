@@ -24,7 +24,7 @@ namespace {
         static constexpr size_t ATLAS_WIDTH = 7;
         static constexpr size_t ATLAS_HEIGHT = 5;
     };
-    constexpr bool HOST_RENDERER = utils::typing::is_same_v<Config::BACKEND, rendering::raytracing::backends::Generic>;
+    constexpr bool HOST_RENDERER = utils::typing::is_same_v<Config::BACKEND, hyperlux::backends::Generic>;
 
     TEST(HYPERDRONE_SPY, RawRGBAndSceneIdentityWithoutPolicyObservation) {
         if(!HOST_RENDERER) {
@@ -92,7 +92,7 @@ namespace {
 
     struct SparseWorldConfig: WorldConfig {
         static constexpr size_t INSTANCES_PER_WORLD = 1;
-        using CAMERA_OUTPUTS = hd::CameraOutputs<rendering::raytracing::outputs::List<Config::RGB_FLOAT>, rendering::raytracing::outputs::List<rendering::raytracing::outputs::Depth<>>, rendering::raytracing::outputs::List<Config::RGB_PACKED>>;
+        using CAMERA_OUTPUTS = hd::CameraOutputs<hyperlux::outputs::List<Config::RGB_FLOAT>, hyperlux::outputs::List<hyperlux::outputs::Depth<>>, hyperlux::outputs::List<Config::RGB_PACKED>>;
     };
     using SparseWorld = hd::World<SparseWorldConfig>;
     using SparseEnvironment = rl::environments::HyperDrone<SparseWorld, 1>;

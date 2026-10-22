@@ -18,7 +18,7 @@ namespace test_multicamera {
         static constexpr typename BASE::TI HISTORY_LENGTH = 2;
         static constexpr bool ENABLE_MOTION_BLUR = true;
         static constexpr typename BASE::TI MOTION_BLUR_SAMPLES = 2;
-        using CAMERA_PROFILE = typename rendering::raytracing::outputs::Concat<typename BASE::CAMERA_PROFILE, rendering::raytracing::outputs::List<rendering::raytracing::outputs::Flow<>, rendering::raytracing::outputs::FlowStatus<>>>::type;
+        using CAMERA_PROFILE = typename hyperlux::outputs::Concat<typename BASE::CAMERA_PROFILE, hyperlux::outputs::List<hyperlux::outputs::Flow<>, hyperlux::outputs::FlowStatus<>>>::type;
         using CAMERA_OUTPUTS = rl::environments::hyperdrone::CameraOutputs<CAMERA_PROFILE, CAMERA_PROFILE>;
         static constexpr typename BASE::T CAMERA_FOV_RANDOMIZATION_RANGE = 2;
     };
@@ -63,7 +63,7 @@ namespace test_multicamera {
     };
 
     template <typename T>
-    void check_camera(const rendering::Camera<T>& actual, const rendering::Camera<T>& expected) {
+    void check_camera(const hyperlux::Camera<T>& actual, const hyperlux::Camera<T>& expected) {
         for (unsigned dim = 0; dim < 3; dim++) {
             EXPECT_NEAR(actual.pos[dim], expected.pos[dim], 1e-5);
             EXPECT_NEAR(actual.dir_00[dim], expected.dir_00[dim], 1e-5);
@@ -92,7 +92,7 @@ namespace test_multicamera {
         shared.drones[0].parameters.dynamics.dynamics = rl::environments::l2f::parameters::dynamics::registry<rl::environments::l2f::parameters::dynamics::REGISTRY::x500, PARAMETERS_SPEC>;
         shared.drones[0].parameters.cameras[0].fov = 60;
         shared.drones[0].parameters.cameras[1].fov = 85;
-        rendering::datasets::glb::Dataset dataset{{}, {scene_path}};
+        hyperlux::datasets::glb::Dataset dataset{{}, {scene_path}};
         typename decltype(dataset)::Corpus corpus;
         enumerate(host, dataset, corpus);
         init(device, world, shared, dataset, corpus, 0, 1, 0);
@@ -162,21 +162,21 @@ namespace test_multicamera {
                 EXPECT_EQ(renderer.attachments[instance_i * WORLD::N_VIEWS + view], instance_i);
             }
         }
-        std::vector<rendering::Camera<T>> previous(NUM_CAMERAS), current(NUM_CAMERAS), opened(NUM_CAMERAS);
+        std::vector<hyperlux::Camera<T>> previous(NUM_CAMERAS), current(NUM_CAMERAS), opened(NUM_CAMERAS);
         Tensor<typename WORLD::PREV_CAMERAS_SPEC> current_alias, opened_alias;
         current_alias._data = current.data();
         opened_alias._data = opened.data();
         std::vector<float> rgb(NUM_CAMERAS * WORLD::FRAME_DIM);
-        Tensor<rl_tools::rendering::raytracing::outputs::TensorSpecification<typename WORLD::RENDERER_SPEC, rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>>> rgb_alias;
+        Tensor<rl_tools::hyperlux::outputs::TensorSpecification<typename WORLD::RENDERER_SPEC, rl_tools::hyperlux::outputs::RGB<rl_tools::hyperlux::outputs::format::Float32>>> rgb_alias;
         rgb_alias._data = rgb.data();
         std::vector<float> history(SPEC::HISTORY_LENGTH * NUM_CAMERAS * WORLD::FRAME_DIM);
         Tensor<typename WORLD::HISTORY_SPEC> history_alias;
         history_alias._data = history.data();
         std::vector<float> flow(NUM_CAMERAS * PIXELS * 2);
-        Tensor<rl_tools::rendering::raytracing::outputs::TensorSpecification<typename WORLD::RENDERER_SPEC, rl_tools::rendering::raytracing::outputs::Flow<>>> flow_alias;
+        Tensor<rl_tools::hyperlux::outputs::TensorSpecification<typename WORLD::RENDERER_SPEC, rl_tools::hyperlux::outputs::Flow<>>> flow_alias;
         flow_alias._data = flow.data();
         std::vector<uint32_t> segmentation(NUM_CAMERAS * PIXELS);
-        Tensor<rl_tools::rendering::raytracing::outputs::TensorSpecification<typename WORLD::RENDERER_SPEC, rl_tools::rendering::raytracing::outputs::Segmentation<>>> segmentation_alias;
+        Tensor<rl_tools::hyperlux::outputs::TensorSpecification<typename WORLD::RENDERER_SPEC, rl_tools::hyperlux::outputs::Segmentation<>>> segmentation_alias;
         segmentation_alias._data = segmentation.data();
         const uint32_t scene_instances = (uint32_t)shared.library.scenes.front().instances.size();
         for (TI frame = 0; frame < 3; frame++) {
@@ -235,10 +235,10 @@ namespace test_multicamera {
             copy(device, host, resident.observations_privileged, staging.observations_privileged);
             copy(renderer.device, host, cameras(device, renderer), current_alias);
             copy(renderer.device, host, cameras_open(device, renderer), opened_alias);
-            copy(renderer.device, host, output(device, renderer, rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>{}), rgb_alias);
+            copy(renderer.device, host, output(device, renderer, rl_tools::hyperlux::outputs::RGB<rl_tools::hyperlux::outputs::format::Float32>{}), rgb_alias);
             copy(device, host, world.history, history_alias);
-            copy(renderer.device, host, output(device, renderer, rl_tools::rendering::raytracing::outputs::Flow<>{}), flow_alias);
-            copy(renderer.device, host, output(device, renderer, rl_tools::rendering::raytracing::outputs::Segmentation<>{}), segmentation_alias);
+            copy(renderer.device, host, output(device, renderer, rl_tools::hyperlux::outputs::Flow<>{}), flow_alias);
+            copy(renderer.device, host, output(device, renderer, rl_tools::hyperlux::outputs::Segmentation<>{}), segmentation_alias);
             test_agent_parameters::check_rigs(host, device, world, shared, staging);
             test_agent_parameters::check_semantics(host, world, shared);
             for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {

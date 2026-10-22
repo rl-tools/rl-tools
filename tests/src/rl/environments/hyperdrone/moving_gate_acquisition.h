@@ -20,15 +20,15 @@ namespace test_moving_gate_acquisition {
         static constexpr TI CAM_HEIGHT = 13;
         static constexpr TI HISTORY_LENGTH = HISTORY;
         static constexpr bool SELF_VISIBLE = false;
-        using CAMERA_OUTPUTS = rl::environments::hyperdrone::CameraOutputs<typename rl_tools::rendering::raytracing::outputs::Concat<
-            rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>>,
-            rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::RGB<>>,
-            rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::Depth<>>,
-            rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::Segmentation<rl_tools::rendering::raytracing::outputs::format::UInt32, rl_tools::rendering::raytracing::outputs::labels::Instance>>,
-            rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::Normals<>>,
-            rl_tools::rendering::raytracing::outputs::If<(FLOW), rl_tools::rendering::raytracing::outputs::Flow<>>,
-            rl_tools::rendering::raytracing::outputs::If<(FLOW), rl_tools::rendering::raytracing::outputs::FlowStatus<>>,
-            rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::Probes>
+        using CAMERA_OUTPUTS = rl::environments::hyperdrone::CameraOutputs<typename rl_tools::hyperlux::outputs::Concat<
+            rl_tools::hyperlux::outputs::List<rl_tools::hyperlux::outputs::RGB<rl_tools::hyperlux::outputs::format::Float32>>,
+            rl_tools::hyperlux::outputs::List<rl_tools::hyperlux::outputs::RGB<>>,
+            rl_tools::hyperlux::outputs::List<rl_tools::hyperlux::outputs::Depth<>>,
+            rl_tools::hyperlux::outputs::List<rl_tools::hyperlux::outputs::Segmentation<rl_tools::hyperlux::outputs::format::UInt32, rl_tools::hyperlux::outputs::labels::Instance>>,
+            rl_tools::hyperlux::outputs::List<rl_tools::hyperlux::outputs::Normals<>>,
+            rl_tools::hyperlux::outputs::If<(FLOW), rl_tools::hyperlux::outputs::Flow<>>,
+            rl_tools::hyperlux::outputs::If<(FLOW), rl_tools::hyperlux::outputs::FlowStatus<>>,
+            rl_tools::hyperlux::outputs::List<rl_tools::hyperlux::outputs::Probes>
         >::type>;
         static constexpr bool ENABLE_MOTION_BLUR = true;
         static constexpr TI MOTION_BLUR_SAMPLES = 4;
@@ -69,9 +69,9 @@ namespace test_moving_gate_acquisition {
         malloc(host, shared.library);
         malloc(device, world);
         world.gate_asset_path = asset_path;
-        rendering::datasets::procthor::GLB dataset{{}, {scene_path}};
+        hyperlux::datasets::procthor::GLB dataset{{}, {scene_path}};
         typename decltype(dataset)::Corpus corpus;
-        rendering::datasets::procthor::enumerate(host, dataset, corpus);
+        hyperlux::datasets::procthor::enumerate(host, dataset, corpus);
         rl_tools::init(device, world, shared, dataset, corpus, 0, 1, 0);
         malloc(device, parameters);
         malloc(device, states);
@@ -126,7 +126,7 @@ namespace test_moving_gate_acquisition {
         auto retained_image = [&](){
             std::vector<unsigned char> snapshot;
             auto& renderer = get_renderer(device, world);
-            append_tensor(host, renderer.device, output(device, renderer, rl_tools::rendering::raytracing::outputs::RGB<>{}), snapshot);
+            append_tensor(host, renderer.device, output(device, renderer, rl_tools::hyperlux::outputs::RGB<>{}), snapshot);
             append_tensor(host, device, world.history, snapshot);
             return snapshot;
         };
@@ -168,10 +168,10 @@ namespace test_moving_gate_acquisition {
                         }
                     }
                 };
-                append_tensor(host, renderer.device, output(device, renderer, rl_tools::rendering::raytracing::outputs::RGB<>{}), snapshot["rgba"]);
-                append_tensor(host, renderer.device, output(device, renderer, rl_tools::rendering::raytracing::outputs::Depth<>{}), snapshot["depth"]);
-                const auto ids = append_tensor(host, renderer.device, output(device, renderer, rl_tools::rendering::raytracing::outputs::Segmentation<>{}), snapshot["segmentation"]);
-                append_tensor(host, renderer.device, output(device, renderer, rl_tools::rendering::raytracing::outputs::Normals<>{}), snapshot["normals"]);
+                append_tensor(host, renderer.device, output(device, renderer, rl_tools::hyperlux::outputs::RGB<>{}), snapshot["rgba"]);
+                append_tensor(host, renderer.device, output(device, renderer, rl_tools::hyperlux::outputs::Depth<>{}), snapshot["depth"]);
+                const auto ids = append_tensor(host, renderer.device, output(device, renderer, rl_tools::hyperlux::outputs::Segmentation<>{}), snapshot["segmentation"]);
+                append_tensor(host, renderer.device, output(device, renderer, rl_tools::hyperlux::outputs::Normals<>{}), snapshot["normals"]);
                 append_poses(renderer.transforms, "transforms");
                 append_tensor(host, device, observations, snapshot["observation"]);
                 append_tensor(host, device, world.history, snapshot["history"]);
@@ -180,14 +180,14 @@ namespace test_moving_gate_acquisition {
                 EXPECT_EQ(episode_start[1], 0);
                 EXPECT_FALSE(world.render_pending);
                 if constexpr (FLOW){
-                    const auto flow = append_tensor(host, renderer.device, output(device, renderer, rl_tools::rendering::raytracing::outputs::Flow<>{}), snapshot["flow"]);
-                    const auto status = append_tensor(host, renderer.device, output(device, renderer, rl_tools::rendering::raytracing::outputs::FlowStatus<>{}), snapshot["flow_status"]);
+                    const auto flow = append_tensor(host, renderer.device, output(device, renderer, rl_tools::hyperlux::outputs::Flow<>{}), snapshot["flow"]);
+                    const auto status = append_tensor(host, renderer.device, output(device, renderer, rl_tools::hyperlux::outputs::FlowStatus<>{}), snapshot["flow_status"]);
                     append_poses(renderer.transforms_previous, "transforms_previous");
                     EXPECT_EQ(world.flow_scene_version, world.scene_version);
                     bool moving_gate_flow = false;
                     const size_t scene_instances = shared.library.scenes[world.slots[world.active_slot].scene_id].instances.size();
                     for(size_t pixel = 0; pixel < ids.size(); pixel++){
-                        if(ids[pixel] != uint32_t(-1) && ids[pixel] >= scene_instances && status[pixel] == rendering::raytracing::FlowStatus::VALID){
+                        if(ids[pixel] != uint32_t(-1) && ids[pixel] >= scene_instances && status[pixel] == hyperlux::FlowStatus::VALID){
                             moving_gate_flow = moving_gate_flow || std::abs(flow[pixel * 2]) + std::abs(flow[pixel * 2 + 1]) > 1e-4f;
                         }
                     }

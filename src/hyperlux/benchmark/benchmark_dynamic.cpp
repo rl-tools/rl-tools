@@ -1,0 +1,497 @@
+// Dynamic inside-out benchmark: cameras fly deterministic Catmull-Rom loops through
+// collision-validated indoor waypoints, with per-step pose uploads inside the timed loop
+// (the RL-rollout interaction pattern). Poses are precomputed into a periodic table so the
+// per-step CPU cost is a memcpy and the measurement stays GPU-bound.
+#define RL_TOOLS_HYPERLUX_OUTPUT_RGB 0
+#define RL_TOOLS_HYPERLUX_OUTPUT_RGBD 1
+
+#ifndef RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_SHADING
+#define RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_SHADING 2
+#endif
+#ifndef RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_OUTPUT_MODE
+#define RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_OUTPUT_MODE RL_TOOLS_HYPERLUX_OUTPUT_RGB
+#endif
+#ifndef RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_AA_GRID
+#define RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_AA_GRID 1
+#endif
+#ifndef RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_MB_SAMPLES
+#define RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_MB_SAMPLES 1
+#endif
+#ifndef RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_CONSUME
+#define RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_CONSUME 0
+#endif
+#ifndef RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_TILE
+#define RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_TILE 1
+#endif
+#ifndef RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_NUM_CAMERAS
+#define RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_NUM_CAMERAS 4096
+#endif
+#ifndef RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_WIDTH
+#define RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_WIDTH 64
+#endif
+#ifndef RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_HEIGHT
+#define RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_HEIGHT 64
+#endif
+
+#include <rl_tools/operations/cpu_mux.h>
+#include <rl_tools/hyperlux/operations_cpu_mux.h>
+#include <rl_tools/hyperlux/datasets/glb/operations_cpu.h>
+#include <rl_tools/hyperlux/datasets/procthor/operations_cpu.h>
+#include <rl_tools/hyperlux/datasets/annotations/operations_cpu.h>
+#include <rl_tools/hyperlux/save_cpu.h>
+
+#include <algorithm>
+#include <array>
+#include <chrono>
+#include <cmath>
+#include <cstdint>
+#include <cstring>
+#include <filesystem>
+#include <iostream>
+#include <random>
+#include <string>
+#include <vector>
+
+namespace rlt = rl_tools;
+namespace rro = rlt::hyperlux::outputs;
+using rlt::output;
+
+using T = float;
+using TI = int;
+
+#if RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_SHADING == 0
+using SHADING = rlt::hyperlux::Low;
+static constexpr const char* SHADING_NAME = "low";
+#elif RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_SHADING == 1
+using SHADING = rlt::hyperlux::Medium;
+static constexpr const char* SHADING_NAME = "medium";
+#elif RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_SHADING == 2
+using SHADING = rlt::hyperlux::High;
+static constexpr const char* SHADING_NAME = "high";
+#else
+using SHADING = rlt::hyperlux::VeryHigh;
+static constexpr const char* SHADING_NAME = "veryhigh";
+#endif
+
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_METAL)
+static constexpr const char* BACKEND_NAME = "metal";
+#elif defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
+static constexpr const char* BACKEND_NAME = "optix";
+#elif defined(RL_TOOLS_HYPERLUX_BACKEND_VULKAN)
+static constexpr const char* BACKEND_NAME = "vulkan";
+#else
+static constexpr const char* BACKEND_NAME = "generic";
+#endif
+
+static constexpr bool OUTPUT_DEPTH_ENABLED = RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_OUTPUT_MODE == RL_TOOLS_HYPERLUX_OUTPUT_RGBD;
+static constexpr TI NUM_CAMERAS = RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_NUM_CAMERAS;
+static constexpr TI NUM_PROBES = 64;
+static constexpr TI AA_GRID = RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_AA_GRID;
+static constexpr TI MB_SAMPLES = RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_MB_SAMPLES;
+static constexpr bool ENABLE_MB = MB_SAMPLES > 1;
+static constexpr bool ENABLE_AA = AA_GRID > 1;
+static constexpr bool CONSUME = RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_CONSUME != 0;
+static constexpr TI TILE = RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_TILE;
+
+struct CONFIG: rlt::hyperlux::config::Default<T, TI>{
+    static constexpr TI CAM_WIDTH = RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_WIDTH;
+    static constexpr TI CAM_HEIGHT = RL_TOOLS_HYPERLUX_BENCHMARK_DYNAMIC_HEIGHT;
+    static constexpr TI NUM_CAMERAS = ::NUM_CAMERAS, NUM_PROBES = ::NUM_PROBES;
+    using SHADING = ::SHADING;
+    using OUTPUTS = typename rro::Concat<
+        rro::List<rro::RGB<>>,
+        rro::If<(OUTPUT_DEPTH_ENABLED), rro::Depth<>>,
+        rro::List<rro::Probes>
+    >::type;
+    static constexpr bool ENABLE_MOTION_BLUR = ENABLE_MB;
+    static constexpr TI MOTION_BLUR_SAMPLES = MB_SAMPLES;
+    static constexpr bool ENABLE_ANTI_ALIASING = ENABLE_AA;
+    static constexpr TI ANTI_ALIASING_GRID_SIZE = AA_GRID;
+};
+using SPEC = rlt::hyperlux::Specification<CONFIG>;
+using ANNOTATIONS_SPEC = rlt::hyperlux::datasets::annotations::FreeSpaceSpecification<T, TI, 512>;
+using DEVICE = rlt::devices::DEVICE_FACTORY<>;
+using Camera = rlt::hyperlux::Camera<T>;
+
+static constexpr T FOV = 80;
+static constexpr T ASPECT = (T)SPEC::CAM_WIDTH / (T)SPEC::CAM_HEIGHT;
+static constexpr TI NUM_WAYPOINTS = 4;
+static constexpr TI TRAJECTORY_PERIOD = 600;
+static constexpr T YAW_AMPLITUDE = 0.6f;
+static constexpr T PITCH_AMPLITUDE = 0.25f;
+static constexpr T LOS_MARGIN = 0.1f;
+static constexpr T PI = 3.14159265358979323846f;
+
+struct Vec3{
+    T v[3];
+};
+
+static Vec3 catmull_rom(const Vec3& p0, const Vec3& p1, const Vec3& p2, const Vec3& p3, T t){
+    Vec3 result;
+    const T t2 = t * t;
+    const T t3 = t2 * t;
+    for(int d = 0; d < 3; d++){
+        result.v[d] = 0.5f * (2.0f * p1.v[d]
+            + (-p0.v[d] + p2.v[d]) * t
+            + (2.0f * p0.v[d] - 5.0f * p1.v[d] + 4.0f * p2.v[d] - p3.v[d]) * t2
+            + (-p0.v[d] + 3.0f * p1.v[d] - 3.0f * p2.v[d] + p3.v[d]) * t3);
+    }
+    return result;
+}
+
+static Vec3 catmull_rom_derivative(const Vec3& p0, const Vec3& p1, const Vec3& p2, const Vec3& p3, T t){
+    Vec3 result;
+    const T t2 = t * t;
+    for(int d = 0; d < 3; d++){
+        result.v[d] = 0.5f * ((-p0.v[d] + p2.v[d])
+            + 2.0f * (2.0f * p0.v[d] - 5.0f * p1.v[d] + 4.0f * p2.v[d] - p3.v[d]) * t
+            + 3.0f * (-p0.v[d] + 3.0f * p1.v[d] - 3.0f * p2.v[d] + p3.v[d]) * t2);
+    }
+    return result;
+}
+
+static Camera evaluate_pose(const std::array<Vec3, NUM_WAYPOINTS>& waypoints, T u, T yaw_phase){
+    namespace v3 = rlt::hyperlux::vec3;
+    u = u - std::floor(u / (T)NUM_WAYPOINTS) * (T)NUM_WAYPOINTS;
+    const TI segment = (TI)u;
+    const T t = u - (T)segment;
+    const Vec3& p0 = waypoints[(segment + NUM_WAYPOINTS - 1) % NUM_WAYPOINTS];
+    const Vec3& p1 = waypoints[segment % NUM_WAYPOINTS];
+    const Vec3& p2 = waypoints[(segment + 1) % NUM_WAYPOINTS];
+    const Vec3& p3 = waypoints[(segment + 2) % NUM_WAYPOINTS];
+    const Vec3 position = catmull_rom(p0, p1, p2, p3, t);
+    Vec3 velocity = catmull_rom_derivative(p0, p1, p2, p3, t);
+    T speed = std::sqrt(velocity.v[0] * velocity.v[0] + velocity.v[1] * velocity.v[1] + velocity.v[2] * velocity.v[2]);
+    if(speed < 1e-6f){
+        velocity = {1, 0, 0};
+        speed = 1;
+    }
+    const T yaw_offset = YAW_AMPLITUDE * std::sin(2.0f * PI * 2.0f * u / (T)NUM_WAYPOINTS + yaw_phase);
+    const T cos_yaw = std::cos(yaw_offset);
+    const T sin_yaw = std::sin(yaw_offset);
+    T look_direction[3] = {
+        (velocity.v[0] * cos_yaw - velocity.v[1] * sin_yaw) / speed,
+        (velocity.v[0] * sin_yaw + velocity.v[1] * cos_yaw) / speed,
+        velocity.v[2] / speed
+    };
+    const T pitch_offset = PITCH_AMPLITUDE * std::sin(2.0f * PI * 3.0f * u / (T)NUM_WAYPOINTS + 2.0f * yaw_phase);
+    const T look_at[3] = {
+        position.v[0] + look_direction[0],
+        position.v[1] + look_direction[1],
+        position.v[2] + look_direction[2] + pitch_offset
+    };
+    const T up[3] = {0, 0, 1};
+    return rlt::make_camera_data(position.v, look_at, up, FOV, ASPECT);
+}
+
+template <typename DEVICE, typename RENDERER>
+void upload_poses(DEVICE& device, RENDERER& renderer, const Camera* poses, const Camera* poses_open){
+    using CAMERA_ALIAS_SPEC = rlt::tensor::Specification<Camera, TI, typename decltype(renderer.cameras)::SPEC::SHAPE, true, rlt::tensor::RowMajorStride<typename decltype(renderer.cameras)::SPEC::SHAPE>, true>;
+    rlt::Tensor<CAMERA_ALIAS_SPEC> camera_alias;
+    camera_alias._data = poses;
+    rlt::copy(device, renderer.device, camera_alias, rlt::cameras(device, renderer));
+    if constexpr(RENDERER::SPEC::ENABLE_MOTION_BLUR){
+        camera_alias._data = poses_open;
+        rlt::copy(device, renderer.device, camera_alias, rlt::cameras_open(device, renderer));
+    }
+}
+
+// host staging for the consume/checksum path: outputs are backend-native tensors
+// (device-resident on OptiX)
+template <typename DEVICE, typename RENDERER>
+void consume_outputs(DEVICE& device, RENDERER& renderer, std::vector<uint32_t>& frame_staging, std::vector<float>& depth_staging){
+    constexpr size_t pixel_count = (size_t)RENDERER::SPEC::NUM_CAMERAS * RENDERER::SPEC::CAM_PIXELS;
+    frame_staging.resize(pixel_count);
+    rlt::Tensor<rro::TensorSpecification<typename RENDERER::SPEC, rro::RGB<>>> frame_alias;
+    frame_alias._data = frame_staging.data();
+    rlt::copy(renderer.device, device, rlt::output(device, renderer, rro::RGB<>{}), frame_alias);
+    if constexpr(RENDERER::SPEC::HAS_DEPTH){
+        depth_staging.resize(pixel_count);
+        rlt::Tensor<rro::TensorSpecification<typename RENDERER::SPEC, rro::Depth<>>> depth_alias;
+        depth_alias._data = depth_staging.data();
+        rlt::copy(renderer.device, device, rlt::output(device, renderer, rro::Depth<>{}), depth_alias);
+    }
+}
+
+template <typename DEVICE, typename RENDERER>
+void save_depth_if_available(DEVICE& device, RENDERER& renderer, const char* filename){
+    if constexpr(RENDERER::SPEC::HAS_DEPTH){
+        rlt::save_depth_image(device, renderer, filename);
+    }
+    else{
+        (void)filename;
+    }
+}
+
+int main(int ac, char** av){
+    std::string model_file;
+    std::string dump_dir;
+    TI num_steps = 2000;
+    TI num_warmup = 20;
+    for(int i = 1; i < ac; i++){
+        std::string arg = av[i];
+        if((arg == "-m" || arg == "--model") && i + 1 < ac){
+            model_file = av[++i];
+        } else if(arg == "--steps" && i + 1 < ac){
+            num_steps = std::atoi(av[++i]);
+        } else if(arg == "--dump" && i + 1 < ac){
+            dump_dir = av[++i];
+        } else if(arg == "-h" || arg == "--help"){
+            std::cout << "Usage: " << av[0] << " --model <file> [--steps N] [--dump <dir>]\n";
+            return 0;
+        } else if(arg[0] != '-'){
+            model_file = arg;
+        }
+    }
+    DEVICE device;
+    rlt::init(device);
+    if(model_file.empty()){
+        rlt::log(device, device.logger, rlt::devices::logging::Verbosity::error, "No model specified. Use --model <file>.");
+        return 1;
+    }
+
+    rlt::HyperLux<SPEC> renderer;
+    rlt::malloc(device, renderer);
+
+    rlt::hyperlux::Bundle<T> bundle;
+    if(!rlt::load<SHADING, SPEC::HAS_RGB>(device, bundle, model_file)){
+        rlt::log(device, device.logger, rlt::devices::logging::Verbosity::error, "Failed to load model: ", model_file);
+        return 1;
+    }
+    if constexpr(TILE > 1){
+        auto& scene = bundle.scene;
+        float bbox_min[3] = {1e30f, 1e30f, 1e30f}, bbox_max[3] = {-1e30f, -1e30f, -1e30f};
+        for(const auto& object : scene.objects){
+            for(const auto& mesh : object.meshes){
+                for(size_t vertex_i = 0; vertex_i + 2 < mesh.vertices.size(); vertex_i += 3){
+                    for(int d = 0; d < 3; d++){
+                        bbox_min[d] = std::min(bbox_min[d], mesh.vertices[vertex_i + d]);
+                        bbox_max[d] = std::max(bbox_max[d], mesh.vertices[vertex_i + d]);
+                    }
+                }
+            }
+        }
+        const float tile_offset[2] = {bbox_max[0] - bbox_min[0] + 1.0f, bbox_max[1] - bbox_min[1] + 1.0f};
+        const size_t num_original_instances = scene.instances.size();
+        for(TI tile_x = 0; tile_x < TILE; tile_x++){
+            for(TI tile_y = 0; tile_y < TILE; tile_y++){
+                if(tile_x == 0 && tile_y == 0){
+                    continue;
+                }
+                for(size_t instance_i = 0; instance_i < num_original_instances; instance_i++){
+                    rlt::hyperlux::Instance instance = scene.instances[instance_i];
+                    instance.transform[3] += tile_x * tile_offset[0];
+                    instance.transform[7] += tile_y * tile_offset[1];
+                    instance.identity = false;
+                    scene.instances.push_back(instance);
+                }
+            }
+        }
+        rlt::hyperlux::datasets::compute_bounds(device, bundle);
+        rlt::log(device, device.logger, "Tiled scene ", TILE, "x", TILE, ": ", scene.instances.size(), " instances");
+    }
+    rlt::init(device, renderer, bundle);
+    rlt::generate_probe_directions(device, renderer);
+
+    rlt::hyperlux::datasets::annotations::FreeSpace<ANNOTATIONS_SPEC> annotations;
+    rlt::hyperlux::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
+    rlt::hyperlux::datasets::annotations::annotate(device, annotations, bundle.metadata, renderer, free_space_parameters);
+    const TI num_positions = annotations.num_positions;
+    rlt::utils::assert_exit(device, num_positions >= 8, "benchmark_dynamic: too few indoor positions");
+
+    auto position_of = [&](TI pool_index) -> Vec3 {
+        const auto& indoor_position = annotations.positions[pool_index];
+        return {indoor_position.position[0], indoor_position.position[1], indoor_position.position[2]};
+    };
+    auto segment_clear = [&](const std::vector<Vec3>& from, const std::vector<Vec3>& to, std::vector<bool>& clear){
+        namespace v3 = rlt::hyperlux::vec3;
+        std::vector<Camera> camera_staging(NUM_CAMERAS);
+        for(TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++){
+            const T up[3] = {0, 0, 1};
+            camera_staging[camera_i] = rlt::make_camera_data(from[camera_i].v, to[camera_i].v, up, FOV, ASPECT);
+        }
+        upload_poses(device, renderer, camera_staging.data(), camera_staging.data());
+        rlt::probe(device, renderer);
+        std::vector<rlt::hyperlux::CollisionResult> probe_staging((size_t)NUM_CAMERAS * NUM_PROBES);
+        rlt::Tensor<rro::TensorSpecification<SPEC, rro::Probes>> probe_alias;
+        probe_alias._data = probe_staging.data();
+        rlt::copy(renderer.device, device, rlt::output(device, renderer, rro::Probes{}), probe_alias);
+        const auto* probe_results = probe_staging.data();
+        for(TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++){
+            T delta[3];
+            v3::sub(to[camera_i].v, from[camera_i].v, delta);
+            const T segment_length = v3::length(delta);
+            const auto& forward_probe = probe_results[(size_t)camera_i * NUM_PROBES];
+            clear[camera_i] = segment_length > 0.5f && (!forward_probe.hit || forward_probe.distance > segment_length - LOS_MARGIN);
+        }
+    };
+
+    std::mt19937 rng(0x5EED);
+    std::uniform_int_distribution<TI> pool_distribution(0, num_positions - 1);
+    std::vector<std::array<TI, NUM_WAYPOINTS>> waypoint_indices(NUM_CAMERAS);
+    for(TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++){
+        waypoint_indices[camera_i][0] = pool_distribution(rng);
+    }
+    std::vector<Vec3> from(NUM_CAMERAS), to(NUM_CAMERAS), to_next(NUM_CAMERAS);
+    std::vector<bool> clear(NUM_CAMERAS), clear_return(NUM_CAMERAS), accepted(NUM_CAMERAS);
+    for(TI waypoint_i = 1; waypoint_i < NUM_WAYPOINTS; waypoint_i++){
+        const bool closing = waypoint_i == NUM_WAYPOINTS - 1;
+        std::fill(accepted.begin(), accepted.end(), false);
+        TI num_accepted = 0;
+        for(TI attempt = 0; attempt < 32 && num_accepted < NUM_CAMERAS; attempt++){
+            for(TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++){
+                if(!accepted[camera_i]){
+                    TI candidate = pool_distribution(rng);
+                    while(candidate == waypoint_indices[camera_i][waypoint_i - 1]){
+                        candidate = pool_distribution(rng);
+                    }
+                    waypoint_indices[camera_i][waypoint_i] = candidate;
+                }
+                from[camera_i] = position_of(waypoint_indices[camera_i][waypoint_i - 1]);
+                to[camera_i] = position_of(waypoint_indices[camera_i][waypoint_i]);
+                to_next[camera_i] = position_of(waypoint_indices[camera_i][0]);
+            }
+            segment_clear(from, to, clear);
+            if(closing){
+                segment_clear(to, to_next, clear_return);
+            }
+            for(TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++){
+                if(!accepted[camera_i] && clear[camera_i] && (!closing || clear_return[camera_i])){
+                    accepted[camera_i] = true;
+                    num_accepted++;
+                }
+            }
+        }
+        rlt::log(device, device.logger, "Waypoint ", waypoint_i, ": ", num_accepted, "/", NUM_CAMERAS, " LOS-validated");
+    }
+
+    rlt::log(device, device.logger, "Precomputing pose tables (", TRAJECTORY_PERIOD, " steps x ", NUM_CAMERAS, " cameras)");
+    std::vector<Camera> pose_table((size_t)TRAJECTORY_PERIOD * NUM_CAMERAS);
+    std::vector<Camera> pose_table_open;
+    if constexpr(SPEC::ENABLE_MOTION_BLUR){
+        pose_table_open.resize((size_t)TRAJECTORY_PERIOD * NUM_CAMERAS);
+    }
+    const T du = (T)NUM_WAYPOINTS / (T)TRAJECTORY_PERIOD;
+    for(TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++){
+        std::array<Vec3, NUM_WAYPOINTS> waypoints;
+        for(TI waypoint_i = 0; waypoint_i < NUM_WAYPOINTS; waypoint_i++){
+            waypoints[waypoint_i] = position_of(waypoint_indices[camera_i][waypoint_i]);
+        }
+        const T u_start = (T)NUM_WAYPOINTS * (T)camera_i / (T)NUM_CAMERAS;
+        const T yaw_phase = 2.0f * PI * (T)camera_i / (T)NUM_CAMERAS;
+        for(TI step = 0; step < TRAJECTORY_PERIOD; step++){
+            const T u = u_start + (T)step * du;
+            pose_table[(size_t)step * NUM_CAMERAS + camera_i] = evaluate_pose(waypoints, u, yaw_phase);
+            if constexpr(SPEC::ENABLE_MOTION_BLUR){
+                pose_table_open[(size_t)step * NUM_CAMERAS + camera_i] = evaluate_pose(waypoints, u - 0.5f * du, yaw_phase);
+            }
+        }
+    }
+
+    auto upload_step = [&](TI step){
+        const size_t table_offset = (size_t)(step % TRAJECTORY_PERIOD) * NUM_CAMERAS;
+        const Camera* poses_open = pose_table_open.empty() ? nullptr : &pose_table_open[table_offset];
+        upload_poses(device, renderer, &pose_table[table_offset], poses_open);
+    };
+
+    uint64_t checksum = 0;
+    std::vector<uint32_t> frame_staging;
+    std::vector<float> depth_staging;
+    auto accumulate_checksum = [&](){
+        constexpr size_t pixel_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+        const uint32_t* frame = frame_staging.data();
+        for(size_t pixel_i = 0; pixel_i < pixel_count; pixel_i += 4097){
+            checksum = checksum * 1099511628211ull + frame[pixel_i];
+        }
+    };
+
+    if(!dump_dir.empty()){
+        std::filesystem::create_directories(dump_dir);
+    }
+    auto dump_step = [&](TI step){
+        if(dump_dir.empty()){
+            return;
+        }
+        rlt::render_sync(device, renderer);
+        char filename[512];
+        std::snprintf(filename, sizeof(filename), "%s/%s_step_%04d.png", dump_dir.c_str(), BACKEND_NAME, step);
+        rlt::save_image(device, renderer, filename);
+        if constexpr(SPEC::HAS_DEPTH){
+            std::snprintf(filename, sizeof(filename), "%s/%s_step_%04d_depth.png", dump_dir.c_str(), BACKEND_NAME, step);
+        }
+        save_depth_if_available(device, renderer, filename);
+    };
+
+    for(TI step = 0; step < num_warmup; step++){
+        upload_step(step);
+        rlt::render_launch(device, renderer);
+    }
+    rlt::render_sync(device, renderer);
+
+    rlt::log(device, device.logger, "Starting dynamic benchmark: ", NUM_CAMERAS, " cameras at ",
+        SPEC::CAM_WIDTH, "x", SPEC::CAM_HEIGHT, " shading=", SHADING_NAME,
+        " aa=", AA_GRID, " mb=", MB_SAMPLES, " consume=", (CONSUME ? 1 : 0),
+        " tile=", TILE, " steps=", num_steps);
+
+    std::vector<double> step_times_ms((size_t)num_steps);
+    for(TI step = 0; step < num_steps; step++){
+        auto step_start = std::chrono::high_resolution_clock::now();
+        upload_step(num_warmup + step);
+        rlt::render_launch(device, renderer);
+        if constexpr(CONSUME){
+            rlt::render_sync(device, renderer);
+            consume_outputs(device, renderer, frame_staging, depth_staging);
+            accumulate_checksum();
+        }
+        auto step_end = std::chrono::high_resolution_clock::now();
+        step_times_ms[step] = std::chrono::duration<double, std::milli>(step_end - step_start).count();
+        if(step == 0 || step == num_steps / 2 || step == num_steps - 1){
+            dump_step(step);
+        }
+    }
+    rlt::render_sync(device, renderer);
+    double wall_ms = 0;
+    for(double step_time : step_times_ms){
+        wall_ms += step_time;
+    }
+
+    if constexpr(!CONSUME){
+        consume_outputs(device, renderer, frame_staging, depth_staging);
+        accumulate_checksum();
+    }
+
+    std::vector<double> sorted_times = step_times_ms;
+    std::sort(sorted_times.begin(), sorted_times.end());
+    double mean_ms = 0;
+    for(double step_time : step_times_ms){
+        mean_ms += step_time;
+    }
+    mean_ms /= num_steps;
+    const double p50_ms = sorted_times[(size_t)(num_steps * 0.50)];
+    const double p99_ms = sorted_times[std::min((size_t)(num_steps * 0.99), (size_t)num_steps - 1)];
+    const double max_ms = sorted_times[num_steps - 1];
+
+    const long long total_frames = (long long)num_steps * NUM_CAMERAS;
+    long long rays_per_frame = (long long)SPEC::CAM_PIXELS * ((SPEC::HAS_RGB ? SPEC::RGB_SAMPLES : 0) + (SPEC::HAS_DEPTH ? 1 : 0));
+    const long long total_rays = total_frames * (rays_per_frame + NUM_PROBES);
+    const double fps = total_frames / (wall_ms / 1000.0);
+    const double mrays = (total_rays / 1e6) / (wall_ms / 1000.0);
+
+    rlt::log(device, device.logger, "=== DYNAMIC BENCHMARK RESULTS ===");
+    rlt::log(device, device.logger, "  Backend:            ", BACKEND_NAME);
+    rlt::log(device, device.logger, "  Step latency mean:  ", mean_ms, " ms");
+    rlt::log(device, device.logger, "  Step latency p50:   ", p50_ms, " ms");
+    rlt::log(device, device.logger, "  Step latency p99:   ", p99_ms, " ms");
+    rlt::log(device, device.logger, "  Step latency max:   ", max_ms, " ms");
+    rlt::log(device, device.logger, "  Throughput:         ", fps, " frames/sec");
+    rlt::log(device, device.logger, "  Camera+probe rays:  ", mrays, " MRays/sec (excludes secondary/shadow rays)");
+    rlt::log(device, device.logger, "  Frame checksum:     ", std::hex, checksum, std::dec);
+    std::cout << "CSV,dynamic," << BACKEND_NAME << "," << SHADING_NAME << "," << AA_GRID << "," << MB_SAMPLES << ","
+              << (SPEC::HAS_DEPTH ? "rgbd" : "rgb") << "," << (CONSUME ? 1 : 0) << "," << TILE << ","
+              << NUM_CAMERAS << "," << SPEC::CAM_WIDTH << "," << SPEC::CAM_HEIGHT << "," << num_steps << ","
+              << mean_ms << "," << p50_ms << "," << p99_ms << "," << fps << "," << mrays << ","
+              << std::hex << checksum << std::dec << std::endl;
+
+    rlt::free(device, renderer);
+    return 0;
+}

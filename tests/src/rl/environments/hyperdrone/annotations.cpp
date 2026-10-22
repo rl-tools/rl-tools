@@ -11,7 +11,7 @@
 #include <string>
 
 namespace rlt = rl_tools;
-namespace rro = rlt::rendering::raytracing::outputs;
+namespace rro = rlt::hyperlux::outputs;
 namespace l2f = rlt::rl::environments::l2f;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -66,12 +66,12 @@ namespace test_hyperdrone_annotations {
         static constexpr TI INSTANCES_PER_WORLD = 2;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
-        using SHADING = rlt::rendering::raytracing::Low;
+        using SHADING = rlt::hyperlux::Low;
     };
     using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
     using ENVIRONMENT = rlt::rl::environments::HyperDrone<WORLD, 1>;
     using ANNOTATIONS = typename WORLD::ANNOTATIONS;
-    using GLB = rlt::rendering::datasets::procthor::GLB;
+    using GLB = rlt::hyperlux::datasets::procthor::GLB;
 }
 
 using namespace test_hyperdrone_annotations;
@@ -146,8 +146,8 @@ TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, YAW_SCENE_LIGHTING_ADAPTER) {
     dataset.references.push_back(SCENE_PATH);
     yaw::Scenes::Corpus corpus;
     enumerate(device, dataset, corpus);
-    rendering::Bundle<T> normal, adapted;
-    ASSERT_TRUE((load<rendering::High, true>(device, static_cast<const GLB&>(dataset), corpus, 0, normal)));
+    hyperlux::Bundle<T> normal, adapted;
+    ASSERT_TRUE((load<hyperlux::High, true>(device, static_cast<const GLB&>(dataset), corpus, 0, normal)));
     ASSERT_EQ(normal.scene.lights.size(), (size_t)5);
     size_t normal_unlit = 0;
     for(const auto& object: normal.scene.objects){
@@ -156,7 +156,7 @@ TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, YAW_SCENE_LIGHTING_ADAPTER) {
         }
     }
     ASSERT_GT(normal_unlit, (size_t)0);
-    ASSERT_TRUE((load<rendering::High, true>(device, dataset, corpus, 0, adapted)));
+    ASSERT_TRUE((load<hyperlux::High, true>(device, dataset, corpus, 0, adapted)));
     ASSERT_EQ(adapted.scene.lights.size(), normal.scene.lights.size() + 3);
     const float directions[3][3] = {{-0.70710678f, 0, 0.70710678f}, {0, -0.70710678f, 0.70710678f}, {0, 0.70710678f, 0.70710678f}};
     const float intensities[3] = {0.4f, 0.3f, 0.2f};
@@ -168,10 +168,10 @@ TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, YAW_SCENE_LIGHTING_ADAPTER) {
         }
     }
     for(size_t light = 0; light < normal.scene.lights.size(); light++){
-        EXPECT_EQ(std::memcmp(&normal.scene.lights[light], &adapted.scene.lights[light + 3], sizeof(rendering::SceneLight)), 0);
+        EXPECT_EQ(std::memcmp(&normal.scene.lights[light], &adapted.scene.lights[light + 3], sizeof(hyperlux::SceneLight)), 0);
     }
-    EXPECT_EQ(normal.scene.environment.mode, rendering::Scene::Environment::Mode::DEFAULT);
-    EXPECT_EQ(adapted.scene.environment.mode, rendering::Scene::Environment::Mode::SOLID);
+    EXPECT_EQ(normal.scene.environment.mode, hyperlux::Scene::Environment::Mode::DEFAULT);
+    EXPECT_EQ(adapted.scene.environment.mode, hyperlux::Scene::Environment::Mode::SOLID);
     for(size_t axis = 0; axis < 3; axis++){
         EXPECT_FLOAT_EQ(adapted.scene.environment.ambient[axis], 0.5f);
         EXPECT_FLOAT_EQ(adapted.scene.environment.horizon[axis], 0.0f);
@@ -199,7 +199,7 @@ TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, PARAMETER_KEYING) {
     rlt::init(device);
     const GLB dataset{scene_directory(), {}};
     const std::string cache_directory = fresh_cache_directory("rl_tools_annotations_cache_keying");
-    const rlt::rendering::datasets::annotations::Cache cache{cache_directory};
+    const rlt::hyperlux::datasets::annotations::Cache cache{cache_directory};
 
     ENVIRONMENT env;
     rlt::malloc(device, env);
@@ -208,13 +208,13 @@ TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, PARAMETER_KEYING) {
 
     // different parameters are different cache entries; each warm read is bit-identical to the
     // uncached scan with the same parameters
-    rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> parameters{};
+    rlt::hyperlux::datasets::annotations::FreeSpaceParameters<T, TI> parameters{};
     for (const TI min_required : {(TI)20, (TI)100}) {
         parameters.min_required_positions = min_required;
         ANNOTATIONS cold, warm, uncached;
-        rlt::rendering::datasets::annotations::annotate(device, cold, slot.metadata, slot.renderer, parameters, cache);
-        rlt::rendering::datasets::annotations::annotate(device, warm, slot.metadata, slot.renderer, parameters, cache);
-        rlt::rendering::datasets::annotations::annotate(device, uncached, slot.metadata, slot.renderer, parameters);
+        rlt::hyperlux::datasets::annotations::annotate(device, cold, slot.metadata, slot.renderer, parameters, cache);
+        rlt::hyperlux::datasets::annotations::annotate(device, warm, slot.metadata, slot.renderer, parameters, cache);
+        rlt::hyperlux::datasets::annotations::annotate(device, uncached, slot.metadata, slot.renderer, parameters);
         EXPECT_EQ(cold.num_positions, (TI)min_required);
         EXPECT_TRUE(annotations_equal(cold, warm));
         EXPECT_TRUE(annotations_equal(cold, uncached));
@@ -225,26 +225,26 @@ TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, PARAMETER_KEYING) {
 
 namespace test_probe_batch_independence {
     template <TI T_NUM_CAMERAS, bool SPARSE = false>
-    struct PROBE_CONFIG: rlt::rendering::raytracing::config::Default<T, TI> {
+    struct PROBE_CONFIG: rlt::hyperlux::config::Default<T, TI> {
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
         static constexpr TI NUM_CAMERAS = T_NUM_CAMERAS;
         static constexpr TI NUM_PROBES = 8;
-        using SHADING = rlt::rendering::raytracing::Low;
+        using SHADING = rlt::hyperlux::Low;
         using OUTPUTS = rro::List<rlt::utils::typing::conditional_t<SPARSE, rro::Cameras<rro::cameras::Every<3, 1>, rro::Probes>, rro::Probes>>;
     };
 
     template <TI NUM_CAMERAS, bool SPARSE = false, typename SPEC>
-    void annotate_standalone(DEVICE& device, rlt::rendering::datasets::annotations::FreeSpace<SPEC>& annotations){
-        using RENDERER = rlt::rendering::raytracing::Renderer<rlt::rendering::raytracing::Specification<PROBE_CONFIG<NUM_CAMERAS, SPARSE>>>;
+    void annotate_standalone(DEVICE& device, rlt::hyperlux::datasets::annotations::FreeSpace<SPEC>& annotations){
+        using RENDERER = rlt::HyperLux<rlt::hyperlux::Specification<PROBE_CONFIG<NUM_CAMERAS, SPARSE>>>;
         RENDERER renderer;
-        rlt::rendering::Bundle<T> bundle;
-        ASSERT_TRUE((rlt::load<rlt::rendering::raytracing::Low, true>(device, bundle, SCENE_PATH)));
+        rlt::hyperlux::Bundle<T> bundle;
+        ASSERT_TRUE((rlt::load<rlt::hyperlux::Low, true>(device, bundle, SCENE_PATH)));
         rlt::malloc(device, renderer);
         rlt::init(device, renderer, bundle);
         rlt::generate_probe_directions(device, renderer);
-        rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> parameters{};
-        rlt::rendering::datasets::annotations::annotate(device, annotations, bundle.metadata, renderer, parameters);
+        rlt::hyperlux::datasets::annotations::FreeSpaceParameters<T, TI> parameters{};
+        rlt::hyperlux::datasets::annotations::annotate(device, annotations, bundle.metadata, renderer, parameters);
         rlt::free(device, renderer);
     }
 }

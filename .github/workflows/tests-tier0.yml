@@ -96,8 +96,8 @@ jobs:
         # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
         run: ctest --build-config ${{ matrix.build_type }} --output-on-failure --label-exclude '^procthor-golden$'
 
-  raytracing:
-    name: Raytracing ${{ matrix.backend }}
+  hyperlux:
+    name: HyperLux ${{ matrix.backend }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -107,15 +107,15 @@ jobs:
             cmake_backend: GENERIC
             benchmark_config: ""
             packages: git-lfs cmake
-            backend_targets: test_rendering_raytracing_overlay_scenarios_generic
+            backend_targets: test_hyperlux_overlay_scenarios_generic
           - backend: vulkan
             cmake_backend: VULKAN
-            benchmark_config: -DRL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS=16
+            benchmark_config: -DRL_TOOLS_HYPERLUX_SIM_BENCHMARK_NUM_ENVS=16
             packages: libvulkan-dev glslang-tools mesa-vulkan-drivers git-lfs cmake python3-venv
-            backend_targets: test_rendering_raytracing_overlay_scenarios_vulkan test_rendering_raytracing_golden_comparison_vulkan test_rendering_raytracing_runtime_vulkan
+            backend_targets: test_hyperlux_overlay_scenarios_vulkan test_hyperlux_golden_comparison_vulkan test_hyperlux_runtime_vulkan
           - backend: webgpu
             cmake_backend: WEBGPU
-            benchmark_config: -DRL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS=16
+            benchmark_config: -DRL_TOOLS_HYPERLUX_SIM_BENCHMARK_NUM_ENVS=16
             packages: libvulkan1 mesa-vulkan-drivers cmake python3-venv
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: "5"
@@ -124,7 +124,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install raytracing dependencies
+      - name: Install HyperLux dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y ${{ matrix.packages }}
@@ -146,24 +146,24 @@ jobs:
 
       - name: Configure CMake
         run: >
-          cmake -S . -B build-raytracing-${{ matrix.backend }}
+          cmake -S . -B build-hyperlux-${{ matrix.backend }}
           -DCMAKE_BUILD_TYPE=Release
           -DRL_TOOLS_BACKEND_DISABLE_CUDA=ON
           -DRL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO=ON
-          -DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=${{ matrix.cmake_backend }}
-          -DRL_TOOLS_RENDERING_RAYTRACING_ENABLE_WASM_GOLDENS=${{ matrix.backend != 'webgpu' }}
+          -DRL_TOOLS_HYPERLUX_BACKEND=${{ matrix.cmake_backend }}
+          -DRL_TOOLS_HYPERLUX_ENABLE_WASM_GOLDENS=${{ matrix.backend != 'webgpu' }}
           ${{ matrix.benchmark_config }}
-          -DRL_TOOLS_REQUIRE_RAYTRACING_GOLDENS=${{ matrix.backend != 'webgpu' }}
+          -DRL_TOOLS_REQUIRE_HYPERLUX_GOLDENS=${{ matrix.backend != 'webgpu' }}
 
-      - name: Build raytracing tests
+      - name: Build HyperLux tests
         if: matrix.backend != 'webgpu'
         run: >
-          cmake --build build-raytracing-${{ matrix.backend }}
+          cmake --build build-hyperlux-${{ matrix.backend }}
           --target
-          test_rendering_raytracing_golden_io
-          test_rendering_raytracing_golden_comparison_cpu
-          test_rendering_raytracing_golden_comparison_wasm
-          rendering_raytracing_golden_wasm
+          test_hyperlux_golden_io
+          test_hyperlux_golden_comparison_cpu
+          test_hyperlux_golden_comparison_wasm
+          hyperlux_golden_wasm
           conta
           ${{ matrix.backend_targets }}
           --parallel 5
@@ -171,61 +171,61 @@ jobs:
       - name: Build render benchmarks
         if: matrix.backend != 'generic'
         run: >
-          cmake --build build-raytracing-${{ matrix.backend }} --parallel 5 --target
-          rendering_raytracing_sim_benchmark_medium
-          rendering_raytracing_sim_benchmark_high
-          rendering_raytracing_sim_benchmark_low
-          rendering_raytracing_sim_benchmark_very_high
-          rendering_raytracing_sim_benchmark_sweep
-          rendering_raytracing_procthor_frame_medium
-          rendering_raytracing_procthor_frame_high
-          rendering_raytracing_procthor_frame_low
-          rendering_raytracing_procthor_frame_very_high
-          rendering_raytracing_paper_benchmark
-          test_rendering_raytracing_paper_physics
-          test_rendering_raytracing_paper_physics_cpu
+          cmake --build build-hyperlux-${{ matrix.backend }} --parallel 5 --target
+          hyperlux_sim_benchmark_medium
+          hyperlux_sim_benchmark_high
+          hyperlux_sim_benchmark_low
+          hyperlux_sim_benchmark_very_high
+          hyperlux_sim_benchmark_sweep
+          hyperlux_procthor_frame_medium
+          hyperlux_procthor_frame_high
+          hyperlux_procthor_frame_low
+          hyperlux_procthor_frame_very_high
+          hyperlux_paper_benchmark
+          test_hyperlux_paper_physics
+          test_hyperlux_paper_physics_cpu
 
       - name: Test headless render benchmark contract
         if: matrix.backend != 'generic'
-        run: env -u DISPLAY -u WAYLAND_DISPLAY .venv/bin/python tests/src/rendering/raytracing/benchmark.py --build-dir build-raytracing-${{ matrix.backend }} --backend ${{ matrix.backend }}
+        run: env -u DISPLAY -u WAYLAND_DISPLAY .venv/bin/python tests/src/hyperlux/benchmark.py --build-dir build-hyperlux-${{ matrix.backend }} --backend ${{ matrix.backend }}
 
       - name: Test golden I/O
         if: matrix.backend != 'webgpu'
-        working-directory: build-raytracing-${{ matrix.backend }}
+        working-directory: build-hyperlux-${{ matrix.backend }}
         run: ctest -L '^golden-io$' --no-tests=error --output-on-failure --timeout 20 -j5
 
       - name: Test overlay scenarios
         if: matrix.backend != 'webgpu'
-        working-directory: build-raytracing-${{ matrix.backend }}
+        working-directory: build-hyperlux-${{ matrix.backend }}
         run: ctest -L '^overlay$' --no-tests=error --output-on-failure --timeout 20 -j5
 
       - name: Test paper physics contract and CPU driver
         if: matrix.backend != 'generic'
-        working-directory: build-raytracing-${{ matrix.backend }}
+        working-directory: build-hyperlux-${{ matrix.backend }}
         run: ctest -L '^paper-benchmark$' --no-tests=error --output-on-failure --timeout 20 -j5
 
       - name: Test headless Vulkan runtime lifetime
         if: matrix.backend == 'vulkan'
-        working-directory: build-raytracing-${{ matrix.backend }}
-        run: env -u DISPLAY -u WAYLAND_DISPLAY ctest -L '^raytracing-runtime$' --no-tests=error --output-on-failure --timeout 60 -j1
+        working-directory: build-hyperlux-${{ matrix.backend }}
+        run: env -u DISPLAY -u WAYLAND_DISPLAY ctest -L '^hyperlux-runtime$' --no-tests=error --output-on-failure --timeout 60 -j1
 
       - name: Download pinned May paper scene
         if: matrix.backend != 'generic'
         run: >
-          .venv/bin/python src/rendering/raytracing/benchmark/download_paper_scene.py
-          --destination build-raytracing-${{ matrix.backend }}/paper-benchmark/ProcTHOR-Train-1.glb
+          .venv/bin/python src/hyperlux/benchmark/download_paper_scene.py
+          --destination build-hyperlux-${{ matrix.backend }}/paper-benchmark/ProcTHOR-Train-1.glb
 
       - name: Test headless paper benchmark contract
         if: matrix.backend != 'generic'
         run: >
-          env -u DISPLAY -u WAYLAND_DISPLAY .venv/bin/python tests/src/rendering/raytracing/paper_benchmark.py
-          --build-dir build-raytracing-${{ matrix.backend }} --backend ${{ matrix.backend }} --with-procthor --timeout 120
+          env -u DISPLAY -u WAYLAND_DISPLAY .venv/bin/python tests/src/hyperlux/paper_benchmark.py
+          --build-dir build-hyperlux-${{ matrix.backend }} --backend ${{ matrix.backend }} --with-procthor --timeout 120
 
-      # ProcTHOR corpus (tests/src/rendering/raytracing/GOLDEN_LEDGER.md): the wasm reference
+      # ProcTHOR corpus (tests/src/hyperlux/GOLDEN_LEDGER.md): the wasm reference
       # (bit-exact), generic CPU and lavapipe against their floors; OptiX comparisons require an OptiX host
       - name: Test ProcTHOR goldens
         if: matrix.backend != 'webgpu'
-        working-directory: build-raytracing-${{ matrix.backend }}
+        working-directory: build-hyperlux-${{ matrix.backend }}
         run: ctest -L '^procthor-golden$' --no-tests=error --output-on-failure --timeout 300 -j5
 
       # the comparators write render-<backend>.png and diff-*.png next to the goldens
@@ -233,8 +233,8 @@ jobs:
         if: always() && matrix.backend != 'webgpu'
         uses: actions/upload-artifact@v4
         with:
-          name: raytracing-golden-artifacts-${{ matrix.backend }}
+          name: hyperlux-golden-artifacts-${{ matrix.backend }}
           path: |
-            tests/data/rendering/raytracing/goldens/**/render-*.png
-            tests/data/rendering/raytracing/goldens/**/diff-*.png
+            tests/data/hyperlux/goldens/**/render-*.png
+            tests/data/hyperlux/goldens/**/diff-*.png
           if-no-files-found: ignore

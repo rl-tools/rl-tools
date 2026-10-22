@@ -50,7 +50,7 @@ namespace rl_tools{
             }
         }
         template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
-        __global__ void pose_kernel(DEVICE device, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, const Tensor<RESET_SPEC> reset_mask, rendering::raytracing::Camera<typename SPEC::T>* cameras, rendering::raytracing::Camera<typename SPEC::T>* cameras_open, rendering::raytracing::Camera<typename SPEC::T>* prev_cameras, typename SPEC::TI history_step, typename SPEC::T aspect){
+        __global__ void pose_kernel(DEVICE device, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, const Tensor<RESET_SPEC> reset_mask, hyperlux::Camera<typename SPEC::T>* cameras, hyperlux::Camera<typename SPEC::T>* cameras_open, hyperlux::Camera<typename SPEC::T>* prev_cameras, typename SPEC::TI history_step, typename SPEC::T aspect){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             using WORLD = World<SPEC>;
@@ -78,7 +78,7 @@ namespace rl_tools{
             }
         }
         template <typename DEVICE, typename SPEC, typename RESET_SPEC>
-        __global__ void reset_render_state_kernel(DEVICE device, const Tensor<RESET_SPEC> reset_mask, bool first, const rendering::raytracing::Camera<typename SPEC::T>* current, rendering::raytracing::Camera<typename SPEC::T>* previous, rendering::raytracing::PoseSink<typename World<SPEC>::RENDERER_SPEC> sink, typename SPEC::TI* episode_start, typename SPEC::TI history_step){
+        __global__ void reset_render_state_kernel(DEVICE device, const Tensor<RESET_SPEC> reset_mask, bool first, const hyperlux::Camera<typename SPEC::T>* current, hyperlux::Camera<typename SPEC::T>* previous, hyperlux::PoseSink<typename World<SPEC>::RENDERER_SPEC> sink, typename SPEC::TI* episode_start, typename SPEC::TI history_step){
             using TI = typename SPEC::TI;
             using WORLD = World<SPEC>;
             const TI instance = threadIdx.x + blockIdx.x * blockDim.x;
@@ -92,7 +92,7 @@ namespace rl_tools{
                             previous[camera] = current[camera];
                         }
                         if constexpr(WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){
-                            advance_flow(device, sink, rendering::raytracing::OverlayIndex{instance});
+                            advance_flow(device, sink, hyperlux::OverlayIndex{instance});
                         }
                     }
                 }
@@ -111,9 +111,9 @@ namespace rl_tools{
         // one agent's drone region: posed through the parts of its mesh and, with several meshes,
         // the object column swapped to that mesh (host truth keeps the init mesh, see overlay_structure)
         template <typename DEVICE, typename SPEC, typename STRUCTURE>
-        RL_TOOLS_FUNCTION_PLACEMENT void drone_entity_rows(DEVICE& device, const rendering::raytracing::PoseSink<typename World<SPEC>::RENDERER_SPEC>& sink, const DroneMeshes<SPEC, STRUCTURE>& meshes, typename SPEC::TI mesh, rendering::raytracing::OverlayIndex overlay, typename SPEC::TI first_slot, typename SPEC::TI parts, const rendering::raytracing::Pose& pose, const float* coordinates_open, const float* coordinates_close){
+        RL_TOOLS_FUNCTION_PLACEMENT void drone_entity_rows(DEVICE& device, const hyperlux::PoseSink<typename World<SPEC>::RENDERER_SPEC>& sink, const DroneMeshes<SPEC, STRUCTURE>& meshes, typename SPEC::TI mesh, hyperlux::OverlayIndex overlay, typename SPEC::TI first_slot, typename SPEC::TI parts, const hyperlux::Pose& pose, const float* coordinates_open, const float* coordinates_close){
             using TI = typename SPEC::TI;
-            const rendering::raytracing::OverlayPlacement placement{first_slot, parts, meshes.first_parts[mesh]};
+            const hyperlux::OverlayPlacement placement{first_slot, parts, meshes.first_parts[mesh]};
             if constexpr (World<SPEC>::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
                 set_pose(device, sink, overlay, placement, pose, pose, coordinates_open, coordinates_close);
             }
@@ -130,7 +130,7 @@ namespace rl_tools{
         // every agent's drone region follows its own drone entry; the body is posed at
         // shutter close and only the props blur
         template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename BODIES_SPEC, typename STRUCTURE>
-        __global__ void drone_rows_kernel(DEVICE device, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, const Tensor<BODIES_SPEC> bodies, typename SPEC::TI slot_offset, typename SPEC::TI parts, rendering::raytracing::PoseSink<typename World<SPEC>::RENDERER_SPEC> sink, DroneMeshes<SPEC, STRUCTURE> meshes){
+        __global__ void drone_rows_kernel(DEVICE device, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, const Tensor<BODIES_SPEC> bodies, typename SPEC::TI slot_offset, typename SPEC::TI parts, hyperlux::PoseSink<typename World<SPEC>::RENDERER_SPEC> sink, DroneMeshes<SPEC, STRUCTURE> meshes){
             using TI = typename DEVICE::index_t;
             using WORLD = World<SPEC>;
             constexpr TI ENTRIES = WORLD::INSTANCES * WORLD::N_AGENTS;
@@ -146,7 +146,7 @@ namespace rl_tools{
                 float coordinates_open[WORLD::DYNAMICS_ENV::ACTION_DIM], coordinates_close[WORLD::DYNAMICS_ENV::ACTION_DIM];
                 _drone_coordinates<DEVICE, SPEC>(device, instance_parameters, agent_i, agent_state, body.rotorcraft, coordinates_open, coordinates_close);
                 const float scale = rotor_scale(device, body.rotorcraft, instance_parameters.agents[agent_i].dynamics.dynamics.rotor_positions, WORLD::DYNAMICS_ENV::ACTION_DIM);
-                drone_entity_rows<DEVICE, SPEC>(device, sink, meshes, body.mesh, rendering::raytracing::OverlayIndex{instance_i}, slot_offset + agent_i * parts, parts, make_pose(base, scale), coordinates_open, coordinates_close);
+                drone_entity_rows<DEVICE, SPEC>(device, sink, meshes, body.mesh, hyperlux::OverlayIndex{instance_i}, slot_offset + agent_i * parts, parts, make_pose(base, scale), coordinates_open, coordinates_close);
             }
         }
         // Fuse no-flow episode bookkeeping into scatter or step to avoid a separate kernel launch.
@@ -206,7 +206,7 @@ namespace rl_tools{
             }
         }
         template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename NEXT_STATE_SPEC, typename RESET_SPEC, typename RNG>
-        __global__ void step_kernel(DEVICE device, typename World<SPEC>::DYNAMICS_ENV dynamics, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, const Tensor<ACTION_SPEC> actions, Tensor<NEXT_STATE_SPEC> next_states, RNG rng, rendering::raytracing::Camera<typename SPEC::T>* prev_cameras, const Tensor<RESET_SPEC> reset_mask, typename SPEC::TI* episode_start, typename SPEC::TI history_step){
+        __global__ void step_kernel(DEVICE device, typename World<SPEC>::DYNAMICS_ENV dynamics, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, const Tensor<ACTION_SPEC> actions, Tensor<NEXT_STATE_SPEC> next_states, RNG rng, hyperlux::Camera<typename SPEC::T>* prev_cameras, const Tensor<RESET_SPEC> reset_mask, typename SPEC::TI* episode_start, typename SPEC::TI history_step){
             using TI = typename DEVICE::index_t;
             using WORLD = World<SPEC>;
             constexpr TI INSTANCES = WORLD::INSTANCES;
@@ -353,11 +353,11 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
         auto& renderer = get_renderer(device, world);
-        rendering::raytracing::Camera<typename SPEC::T>* previous_cameras = nullptr;
+        hyperlux::Camera<typename SPEC::T>* previous_cameras = nullptr;
         if constexpr(rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_FLOW){
             previous_cameras = data(cameras_previous(device, renderer));
         }
-        rendering::raytracing::PoseSink<typename WORLD::RENDERER_SPEC> sink;
+        hyperlux::PoseSink<typename WORLD::RENDERER_SPEC> sink;
         if constexpr(WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){
             sink = pose_sink(device, renderer);
         }
@@ -396,7 +396,7 @@ namespace rl_tools{
             {
                 constexpr TI BLOCKSIZE = 256;
                 constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES * WORLD::N_OBSERVATION_VIEWS * CAM_PIXELS, BLOCKSIZE);
-                rl::environments::hyperdrone::cuda::scatter_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, data(output(device, renderer, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>{})), history_row, parameters, data(world.episode_start), world.render_reset, world.history_step);
+                rl::environments::hyperdrone::cuda::scatter_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, data(output(device, renderer, hyperlux::outputs::RGB<hyperlux::outputs::format::Float32>{})), history_row, parameters, data(world.episode_start), world.render_reset, world.history_step);
             }
         }
         check_status(device);

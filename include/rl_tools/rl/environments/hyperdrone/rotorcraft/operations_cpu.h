@@ -6,21 +6,21 @@
 
 #include "rotorcraft.h"
 #include "operations_generic.h"
-#include "../../../../rendering/scene.h"
-#include "../../../../rendering/transforms.h"
+#include "../../../../hyperlux/scene.h"
+#include "../../../../hyperlux/transforms.h"
 
 #include <vector>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace rl::environments::hyperdrone::rotorcraft::detail {
-        inline bool part_bounds(const rendering::Object& object, float low[3], float high[3]){
+        inline bool part_bounds(const hyperlux::Object& object, float low[3], float high[3]){
             bool first = true;
             for(const auto& mesh : object.meshes){
                 for(size_t vertex_i = 0; vertex_i + 2 < mesh.vertices.size(); vertex_i += 3){
                     for(unsigned dim = 0; dim < 3; dim++){
                         const float value = mesh.vertices[vertex_i + dim];
-                        if(!rendering::is_finite(value)){
+                        if(!hyperlux::is_finite(value)){
                             return false;
                         }
                         low[dim] = first || value < low[dim] ? value : low[dim];
@@ -38,30 +38,30 @@ namespace rl_tools {
             float hub[3];   // hub in the assembly frame
         };
 
-        inline bool is_prop(const rendering::ObjectAssembly& assembly, size_t part_i){
+        inline bool is_prop(const hyperlux::ObjectAssembly& assembly, size_t part_i){
             return assembly.objects[assembly.parts[part_i].object].name.rfind("prop_", 0) == 0;
         }
 
-        inline bool is_body(const rendering::ObjectAssembly& assembly, size_t part_i){
+        inline bool is_body(const hyperlux::ObjectAssembly& assembly, size_t part_i){
             return assembly.objects[assembly.parts[part_i].object].name == "body";
         }
 
-        inline bool locate_hub(const rendering::ObjectAssembly::Part& part, Prop& prop){
-            rendering::transform_point(part.transform, prop.pivot, prop.hub);
-            return rendering::is_finite(prop.hub, 3);
+        inline bool locate_hub(const hyperlux::ObjectAssembly::Part& part, Prop& prop){
+            hyperlux::transform_point(part.transform, prop.pivot, prop.hub);
+            return hyperlux::is_finite(prop.hub, 3);
         }
 
         // the body/prop_* convention from the geometry: the first part is "body", a prop_* part
         // has geometry and its hub is the centre of it (node origins need not sit at the rotor
         // hubs in real assets), at most Rotorcraft::MAX_PROPS props
-        inline bool collect_props(const rendering::ObjectAssembly& assembly, std::vector<Prop>& props){
+        inline bool collect_props(const hyperlux::ObjectAssembly& assembly, std::vector<Prop>& props){
             props.clear();
             if(assembly.parts.empty() || !is_body(assembly, 0)){
                 return false;
             }
             for(size_t part_i = 0; part_i < assembly.parts.size(); part_i++){
                 const auto& part = assembly.parts[part_i];
-                if(!rendering::is_finite(part.transform, 12)){
+                if(!hyperlux::is_finite(part.transform, 12)){
                     return false;
                 }
                 if(is_prop(assembly, part_i)){
@@ -84,7 +84,7 @@ namespace rl_tools {
 
         // the props as articulate wrote them: every prop_* part turns about +z as its prop index,
         // every other part is fixed
-        inline bool articulated_props(const rendering::ObjectAssembly& assembly, std::vector<Prop>& props){
+        inline bool articulated_props(const hyperlux::ObjectAssembly& assembly, std::vector<Prop>& props){
             props.clear();
             if(assembly.parts.empty() || !is_body(assembly, 0)){
                 return false;
@@ -93,12 +93,12 @@ namespace rl_tools {
                 const auto& part = assembly.parts[part_i];
                 const auto& joint = part.joint;
                 if(!is_prop(assembly, part_i)){
-                    if(joint.type != rendering::Joint::Type::FIXED || (is_body(assembly, part_i) && part_i != 0)){
+                    if(joint.type != hyperlux::Joint::Type::FIXED || (is_body(assembly, part_i) && part_i != 0)){
                         return false;
                     }
                     continue;
                 }
-                if(joint.type != rendering::Joint::Type::REVOLUTE || joint.axis[0] != 0 || joint.axis[1] != 0 || joint.axis[2] != 1 || joint.coordinate != props.size() || props.size() == Rotorcraft::MAX_PROPS){
+                if(joint.type != hyperlux::Joint::Type::REVOLUTE || joint.axis[0] != 0 || joint.axis[1] != 0 || joint.axis[2] != 1 || joint.coordinate != props.size() || props.size() == Rotorcraft::MAX_PROPS){
                     return false;
                 }
                 Prop prop{part_i, {joint.pivot[0], joint.pivot[1], joint.pivot[2]}, {}};
@@ -125,17 +125,17 @@ namespace rl_tools {
     // leaving the assembly unchanged. Joints bind when the assembly enters the pool, so articulate
     // before add
     template <typename DEVICE>
-    bool articulate(DEVICE& device, rendering::ObjectAssembly& assembly){
+    bool articulate(DEVICE& device, hyperlux::ObjectAssembly& assembly){
         std::vector<rl::environments::hyperdrone::rotorcraft::detail::Prop> props;
         if(!rl::environments::hyperdrone::rotorcraft::detail::collect_props(assembly, props)){
             return false;
         }
         for(auto& part : assembly.parts){
-            part.joint = rendering::Joint{};
+            part.joint = hyperlux::Joint{};
         }
         for(size_t prop_i = 0; prop_i < props.size(); prop_i++){
             auto& joint = assembly.parts[props[prop_i].part].joint;
-            joint.type = rendering::Joint::Type::REVOLUTE;
+            joint.type = hyperlux::Joint::Type::REVOLUTE;
             joint.axis[0] = 0;
             joint.axis[1] = 0;
             joint.axis[2] = 1;
@@ -150,7 +150,7 @@ namespace rl_tools {
     // the Quad-X convention of an articulated assembly; false unless its joints are the ones
     // articulate writes
     template <typename DEVICE>
-    bool init(DEVICE& device, rl::environments::hyperdrone::Rotorcraft& rotorcraft, const rendering::ObjectAssembly& assembly){
+    bool init(DEVICE& device, rl::environments::hyperdrone::Rotorcraft& rotorcraft, const hyperlux::ObjectAssembly& assembly){
         std::vector<rl::environments::hyperdrone::rotorcraft::detail::Prop> props;
         if(!rl::environments::hyperdrone::rotorcraft::detail::articulated_props(assembly, props)){
             return false;
@@ -169,7 +169,7 @@ namespace rl_tools {
     // the XY plane after normalizing both layouts by their wheelbase (a bijection, else false) and
     // the prop spins against the rotor's reaction torque
     template <typename DEVICE, typename T, typename TI>
-    bool init(DEVICE& device, rl::environments::hyperdrone::Rotorcraft& rotorcraft, const rendering::ObjectAssembly& assembly, const T rotor_positions[][3], const T rotor_torque_directions[][3], TI num_rotors){
+    bool init(DEVICE& device, rl::environments::hyperdrone::Rotorcraft& rotorcraft, const hyperlux::ObjectAssembly& assembly, const T rotor_positions[][3], const T rotor_torque_directions[][3], TI num_rotors){
         std::vector<rl::environments::hyperdrone::rotorcraft::detail::Prop> props;
         if(!rl::environments::hyperdrone::rotorcraft::detail::articulated_props(assembly, props) || props.size() != (size_t)num_rotors){
             return false;
@@ -180,7 +180,7 @@ namespace rl_tools {
             return false;
         }
         const float scale = (float)(dynamics_wheelbase / (T)asset_wheelbase);
-        if(!rendering::is_finite(scale) || scale <= 0){
+        if(!hyperlux::is_finite(scale) || scale <= 0){
             return false;
         }
         rl::environments::hyperdrone::Rotorcraft fitted{};
@@ -200,7 +200,7 @@ namespace rl_tools {
                 }
             }
             const T torque = rotor_torque_directions[nearest][2];
-            if(matched[nearest] || !rendering::is_finite(rotor_torque_directions[nearest], 3) || torque == 0){
+            if(matched[nearest] || !hyperlux::is_finite(rotor_torque_directions[nearest], 3) || torque == 0){
                 return false;
             }
             matched[nearest] = true;

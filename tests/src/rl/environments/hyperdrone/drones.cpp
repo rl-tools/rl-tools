@@ -23,11 +23,11 @@ namespace test_drones {
     };
     using BLUR_WORLD = rlt::rl::environments::hyperdrone::World<BLUR_SPEC>;
 
-    rlt::rendering::raytracing::Object quad(const char* name, float x, float y){
-        rlt::rendering::raytracing::Mesh mesh;
+    rlt::hyperlux::Object quad(const char* name, float x, float y){
+        rlt::hyperlux::Mesh mesh;
         mesh.vertices = {x - 0.02f, y - 0.01f, 0, x + 0.02f, y - 0.01f, 0, x + 0.02f, y + 0.01f, 0, x - 0.02f, y + 0.01f, 0};
         mesh.indices = {0, 1, 2, 0, 2, 3};
-        rlt::rendering::raytracing::Object object;
+        rlt::hyperlux::Object object;
         object.name = name;
         object.meshes.push_back(mesh);
         return object;
@@ -46,9 +46,9 @@ namespace test_drones {
             rlt::malloc(device, shared.library);
             rlt::malloc(device, world);
             shared.drones = drones;
-            rlt::rendering::datasets::procthor::GLB dataset{{}, std::vector<std::string>(scenes, SCENE_PATH)};
+            rlt::hyperlux::datasets::procthor::GLB dataset{{}, std::vector<std::string>(scenes, SCENE_PATH)};
             typename decltype(dataset)::Corpus corpus;
-            rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+            rlt::hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
             rlt::init(device, world, shared, dataset, corpus, 0, scenes, 0);
             rlt::malloc(device, rng);
             rlt::init(device, rng, 1337);
@@ -109,7 +109,7 @@ namespace test_drones {
             const float pivot[3] = {(low[0] + high[0]) / 2, (low[1] + high[1]) / 2, 0};
             std::array<float, 3> hub;
             const TI slot_i = instance_i * TEST_WORLD::SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE + world.drone_slot_offset + part_i;
-            rlt::rendering::transform_point(renderer.transforms_staging.data() + slot_i * 12, pivot, hub.data());
+            rlt::hyperlux::transform_point(renderer.transforms_staging.data() + slot_i * 12, pivot, hub.data());
             hubs.push_back(hub);
         }
         EXPECT_EQ(hubs.size(), 4);
@@ -171,7 +171,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, BODY_SWAP_PRESERVES_WRAPPER_AND
     rlt::rl::environments::hyperdrone::DroneBody<BLUR_SPEC> bodies[2];
     for(TI mesh_i = 0; mesh_i < 2; mesh_i++){
         const float reach = mesh_i == 0 ? 0.1f : 0.12f;
-        rlt::rendering::raytracing::ObjectAssembly assembly;
+        rlt::hyperlux::ObjectAssembly assembly;
         rlt::add(device, assembly, quad("body", 0, 0), identity);
         rlt::add(device, assembly, quad("prop_0", reach, -reach), identity);
         rlt::add(device, assembly, quad("prop_1", -reach, reach), identity);
@@ -188,12 +188,12 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, BODY_SWAP_PRESERVES_WRAPPER_AND
     world.drone_parts = 5;
     world.slots.resize(1);
     auto& renderer = rlt::get_renderer(device, world);
-    rlt::rendering::Bundle<T> bundle;
+    rlt::hyperlux::Bundle<T> bundle;
     rlt::add(device, bundle.scene, quad("background", 0, 0), identity);
-    rlt::rendering::datasets::compute_bounds(device, bundle);
+    rlt::hyperlux::datasets::compute_bounds(device, bundle);
     rlt::malloc(device, renderer);
     rlt::init(device, renderer, bundle, shared.library.pool);
-    const rlt::rendering::raytracing::OverlayIndex overlay{0};
+    const rlt::hyperlux::OverlayIndex overlay{0};
     rlt::spawn(device, renderer, overlay, wrapper);
     for(TI agent_i = 0; agent_i < BLUR_SPEC::N_AGENTS; agent_i++){
         ASSERT_EQ(rlt::spawn(device, renderer, overlay, world.drone_meshes[0]).first_slot, 1 + agent_i * 5);
@@ -289,9 +289,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, TARGET_FRAME_BANK_CARRIES_THE_D
     rlt::malloc(device, world);
     const auto table = one_asset_per_dynamics();
     shared.drones = table.drones;
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    rlt::hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
-    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
     rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
     InstanceTensor<TASK_WORLD::Parameters> parameters;
     InstanceTensor<TASK_WORLD::State> states;

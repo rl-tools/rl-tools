@@ -5,7 +5,7 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT_OPERATIONS_GENERIC_H
 
 #include "rotorcraft.h"
-#include "../../../../rendering/types.h"
+#include "../../../../hyperlux/types.h"
 #include "../../l2f/quaternion_helper.h"
 
 
@@ -15,14 +15,14 @@ namespace rl_tools {
     RL_TOOLS_FUNCTION_PLACEMENT T rotor_wheelbase(DEVICE& device, const T positions[][3], TI count){
         T maximum_squared = 0;
         for(TI rotor_i = 0; rotor_i < count; rotor_i++){
-            if(!rendering::is_finite(positions[rotor_i], 3)){
+            if(!hyperlux::is_finite(positions[rotor_i], 3)){
                 return 0;
             }
             for(TI other_i = 0; other_i < rotor_i; other_i++){
                 const T dx = positions[rotor_i][0] - positions[other_i][0];
                 const T dy = positions[rotor_i][1] - positions[other_i][1];
                 const T squared = dx * dx + dy * dy;
-                if(!rendering::is_finite(squared)){
+                if(!hyperlux::is_finite(squared)){
                     return 0;
                 }
                 maximum_squared = squared > maximum_squared ? squared : maximum_squared;
@@ -35,9 +35,9 @@ namespace rl_tools {
     template <typename DEVICE, typename T, typename TI>
     RL_TOOLS_FUNCTION_PLACEMENT float rotor_scale(DEVICE& device, const rl::environments::hyperdrone::Rotorcraft& rotorcraft, const T positions[][3], TI count){
         const T wheelbase = rotor_wheelbase(device, positions, count);
-        utils::assert_exit(device, wheelbase > 0 && rendering::is_finite(rotorcraft.wheelbase) && rotorcraft.wheelbase > 0, "hyperdrone::rotor_scale: finite positive wheelbases required");
+        utils::assert_exit(device, wheelbase > 0 && hyperlux::is_finite(rotorcraft.wheelbase) && rotorcraft.wheelbase > 0, "hyperdrone::rotor_scale: finite positive wheelbases required");
         const float scale = (float)(wheelbase / (T)rotorcraft.wheelbase);
-        utils::assert_exit(device, rendering::is_finite(scale) && scale > 0, "hyperdrone::rotor_scale: finite positive scale required");
+        utils::assert_exit(device, hyperlux::is_finite(scale) && scale > 0, "hyperdrone::rotor_scale: finite positive scale required");
         return scale;
     }
 

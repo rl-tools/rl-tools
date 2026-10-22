@@ -6,7 +6,7 @@
 #endif
 #include "verbosity.h"
 #include <rl_tools/operations/cpu_mux.h>
-#include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include <rl_tools/hyperlux/operations_cpu_mux.h>
 #include HYPERDRONE_CAMERA_CONFIG_HEADER
 
 #ifndef HYPERDRONE_RENDER_WIDTH
@@ -41,8 +41,8 @@
 #endif
 
 namespace rlt = rl_tools;
-namespace rro = rlt::rendering::raytracing::outputs;
-namespace rrt = rl_tools::rendering::raytracing;
+namespace rro = rlt::hyperlux::outputs;
+namespace rrt = rl_tools::hyperlux;
 
 // Each configuration needs a distinct C++ type in nanobind's shared type registry.
 namespace HYPERDRONE_MODULE_NAME {

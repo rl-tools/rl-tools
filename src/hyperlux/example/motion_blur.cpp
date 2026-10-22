@@ -1,0 +1,230 @@
+
+#include <rl_tools/operations/cpu_mux.h>
+#include <rl_tools/hyperlux/operations_cpu_mux.h>
+#include "../camera_orbit.h"
+#include <rl_tools/hyperlux/datasets/glb/operations_cpu.h>
+
+
+#include <array>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+
+namespace rlt = rl_tools;
+namespace rro = rlt::hyperlux::outputs;
+using rlt::output;
+
+using T = float;
+static constexpr T FOV = 80;
+using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
+using DEVICE = rlt::devices::DEVICE_FACTORY<>;
+
+static constexpr TI CAM_WIDTH = 256;
+static constexpr TI CAM_HEIGHT = 144;
+static constexpr TI NUM_CAMERAS = 1;
+static constexpr TI NUM_PROBES = 1;
+static constexpr TI NUM_PANELS = 6;
+
+template <TI SAMPLES>
+struct RendererConfig: rlt::hyperlux::config::Default<T, TI>{
+    static constexpr TI CAM_WIDTH = ::CAM_WIDTH, CAM_HEIGHT = ::CAM_HEIGHT, NUM_CAMERAS = ::NUM_CAMERAS, NUM_PROBES = ::NUM_PROBES;
+    static constexpr bool ENABLE_MOTION_BLUR = SAMPLES > 1;
+    static constexpr TI MOTION_BLUR_SAMPLES = SAMPLES;
+};
+template <TI SAMPLES>
+using RendererSpec = rlt::hyperlux::Specification<RendererConfig<SAMPLES>>;
+
+struct Options {
+    std::string scene_path = "tests/data/ProcTHOR-Train-1.glb";
+    std::string output_path = "raytracing_motion_blur_levels.mp4";
+    int frames = 120;
+    double fps = 30.0;
+};
+
+Options parse_options(int argc, char** argv) {
+    Options options;
+    for (int i = 1; i < argc; i++) {
+        if ((std::strcmp(argv[i], "--scene") == 0 || std::strcmp(argv[i], "-s") == 0) && i + 1 < argc) {
+            options.scene_path = argv[++i];
+        }
+        else if ((std::strcmp(argv[i], "--output") == 0 || std::strcmp(argv[i], "-o") == 0) && i + 1 < argc) {
+            options.output_path = argv[++i];
+        }
+        else if (std::strcmp(argv[i], "--frames") == 0 && i + 1 < argc) {
+            options.frames = std::atoi(argv[++i]);
+        }
+        else if (std::strcmp(argv[i], "--fps") == 0 && i + 1 < argc) {
+            options.fps = std::atof(argv[++i]);
+        }
+        else if (std::strcmp(argv[i], "--help") == 0 || std::strcmp(argv[i], "-h") == 0) {
+            std::cout << "Usage: " << argv[0] << " [--scene <path.glb>] [--output <path.mp4>] [--frames <n>] [--fps <fps>]\n";
+            std::exit(0);
+        }
+        else {
+            std::cerr << "Unknown argument: " << argv[i] << std::endl;
+            std::exit(1);
+        }
+    }
+    return options;
+}
+
+template <typename SPEC>
+void setup_renderer(DEVICE& device, rlt::HyperLux<SPEC>& renderer, const rlt::hyperlux::Bundle<T>& bundle) {
+    rlt::malloc(device, renderer);
+    rlt::init(device, renderer, bundle);
+
+    const T up[3] = {0, 0, 1};
+    camera_orbit::write(device, renderer, bundle.metadata.center, (bundle.metadata.max_ray_length / 2), up, FOV);
+}
+
+rlt::hyperlux::Camera<T> make_orbit_camera(const rlt::hyperlux::SceneMetadata<T>& metadata, T angle) {
+    const T center[3] = {
+        metadata.center[0],
+        metadata.center[1],
+        metadata.center[2]
+    };
+    const T camera_radius = (metadata.max_ray_length / 2);
+    const T radius = camera_radius > T{0} ? camera_radius * T{0.65} : T{3};
+    const T position[3] = {
+        center[0] + radius * std::cos(angle),
+        center[1] + radius * std::sin(angle),
+        center[2] + metadata.half_extent[2] * T{0.25} + radius * T{0.15}
+    };
+    const T look_at[3] = {
+        center[0],
+        center[1],
+        center[2] + metadata.half_extent[2] * T{0.10}
+    };
+    const T up[3] = {0, 0, 1};
+    const T aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
+    return rlt::make_camera_data(position, look_at, up, FOV, aspect);
+}
+
+template <typename SPEC>
+void render_panel(DEVICE& device, rlt::HyperLux<SPEC>& renderer, const rlt::hyperlux::Camera<T>& camera_open, const rlt::hyperlux::Camera<T>& camera_close, std::vector<uint32_t>& panel) {
+    auto camera_close_staging = camera_close;
+    rlt::Tensor<typename decltype(renderer.cameras)::SPEC> camera_alias;
+    camera_alias._data = &camera_close_staging;
+    rlt::copy(device, renderer.device, camera_alias, rlt::cameras(device, renderer));
+    if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+        auto camera_open_staging = camera_open;
+        camera_alias._data = &camera_open_staging;
+        rlt::copy(device, renderer.device, camera_alias, rlt::cameras_open(device, renderer));
+    }
+
+    rlt::render(device, renderer);
+
+    panel.resize(static_cast<size_t>(CAM_WIDTH) * static_cast<size_t>(CAM_HEIGHT));
+    rlt::Tensor<rro::TensorSpecification<SPEC, rro::RGB<>>> frame_alias;
+    frame_alias._data = panel.data();
+    rlt::copy(renderer.device, device, rlt::output(device, renderer, rro::RGB<>{}), frame_alias);
+}
+
+void copy_panel(const std::vector<uint32_t>& panel, std::vector<uint32_t>& frame, TI panel_i) {
+    constexpr TI OUT_WIDTH = CAM_WIDTH * NUM_PANELS;
+    for (TI y = 0; y < CAM_HEIGHT; y++) {
+        const uint32_t* src = panel.data() + static_cast<size_t>(y) * CAM_WIDTH;
+        uint32_t* dst = frame.data() + static_cast<size_t>(y) * OUT_WIDTH + static_cast<size_t>(panel_i) * CAM_WIDTH;
+        std::memcpy(dst, src, static_cast<size_t>(CAM_WIDTH) * sizeof(uint32_t));
+    }
+}
+
+int main(int argc, char** argv) {
+    const Options options = parse_options(argc, argv);
+
+    DEVICE device;
+    rlt::init(device);
+
+    rlt::HyperLux<RendererSpec<1>> renderer_1;
+    rlt::HyperLux<RendererSpec<2>> renderer_2;
+    rlt::HyperLux<RendererSpec<4>> renderer_4;
+    rlt::HyperLux<RendererSpec<8>> renderer_8;
+    rlt::HyperLux<RendererSpec<16>> renderer_16;
+    rlt::HyperLux<RendererSpec<32>> renderer_32;
+
+    rlt::hyperlux::Bundle<T> bundle;
+    if (!rlt::load<rlt::hyperlux::Medium, true>(device, bundle, options.scene_path)) {
+        std::cerr << "Failed to load scene: " << options.scene_path << std::endl;
+        return 1;
+    }
+    setup_renderer(device, renderer_1, bundle);
+    setup_renderer(device, renderer_2, bundle);
+    setup_renderer(device, renderer_4, bundle);
+    setup_renderer(device, renderer_8, bundle);
+    setup_renderer(device, renderer_16, bundle);
+    setup_renderer(device, renderer_32, bundle);
+
+    constexpr TI OUT_WIDTH = CAM_WIDTH * NUM_PANELS;
+    constexpr TI OUT_HEIGHT = CAM_HEIGHT;
+
+    std::ostringstream ffmpeg_cmd;
+    ffmpeg_cmd
+        << "ffmpeg -y -f rawvideo -pixel_format rgba "
+        << "-video_size " << OUT_WIDTH << "x" << OUT_HEIGHT << " "
+        << "-framerate " << options.fps << " -i - "
+        << "-an -c:v libx264 -pix_fmt yuv420p "
+        << options.output_path;
+
+    FILE* mp4_pipe = popen(ffmpeg_cmd.str().c_str(), "w");
+    if (mp4_pipe == nullptr) {
+        std::cerr << "Failed to start ffmpeg." << std::endl;
+        return 1;
+    }
+
+    std::cout << "Writing " << options.output_path << std::endl;
+    std::cout << "Panels left-to-right: 1, 2, 4, 8, 16, 32 samples" << std::endl;
+
+    std::vector<uint32_t> panel;
+    std::vector<uint32_t> frame(static_cast<size_t>(OUT_WIDTH) * static_cast<size_t>(OUT_HEIGHT));
+
+    const T angle_per_frame = T{0.030};
+    const T shutter_angle = T{0.220};
+
+    for (int frame_i = 0; frame_i < options.frames; frame_i++) {
+        const T close_angle = static_cast<T>(frame_i) * angle_per_frame;
+        const auto camera_open = make_orbit_camera(bundle.metadata, close_angle - shutter_angle);
+        const auto camera_close = make_orbit_camera(bundle.metadata, close_angle);
+
+        render_panel(device, renderer_1, camera_open, camera_close, panel);
+        copy_panel(panel, frame, 0);
+        render_panel(device, renderer_2, camera_open, camera_close, panel);
+        copy_panel(panel, frame, 1);
+        render_panel(device, renderer_4, camera_open, camera_close, panel);
+        copy_panel(panel, frame, 2);
+        render_panel(device, renderer_8, camera_open, camera_close, panel);
+        copy_panel(panel, frame, 3);
+        render_panel(device, renderer_16, camera_open, camera_close, panel);
+        copy_panel(panel, frame, 4);
+        render_panel(device, renderer_32, camera_open, camera_close, panel);
+        copy_panel(panel, frame, 5);
+
+        const size_t bytes = frame.size() * sizeof(uint32_t);
+        const size_t written = std::fwrite(frame.data(), 1, bytes, mp4_pipe);
+        if (written != bytes) {
+            std::cerr << "Failed writing frame " << frame_i << " to ffmpeg." << std::endl;
+            pclose(mp4_pipe);
+            return 1;
+        }
+    }
+
+    const int ffmpeg_status = pclose(mp4_pipe);
+    if (ffmpeg_status != 0) {
+        std::cerr << "ffmpeg exited with status " << ffmpeg_status << std::endl;
+        return 1;
+    }
+
+    rlt::free(device, renderer_32);
+    rlt::free(device, renderer_16);
+    rlt::free(device, renderer_8);
+    rlt::free(device, renderer_4);
+    rlt::free(device, renderer_2);
+    rlt::free(device, renderer_1);
+
+    std::cout << "video written: " << options.output_path << std::endl;
+    return 0;
+}

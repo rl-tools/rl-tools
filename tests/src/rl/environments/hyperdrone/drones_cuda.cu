@@ -8,7 +8,7 @@
 
 #include "drones_test.h"
 
-using DEVICE_GPU_SPEC = rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
+using DEVICE_GPU_SPEC = rlt::hyperlux::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
 using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<DEVICE_GPU_SPEC>;
 using RNG_GPU = typename DEVICE_GPU::SPEC::RANDOM::ENGINE<>;
 
@@ -49,9 +49,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES_CUDA, TARGET_FRAME_BANK_CARRIES_
     rlt::malloc(device_gpu, world);
     const auto table = one_asset_per_dynamics();
     shared.drones = table.drones;
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    rlt::hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
-    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
     rlt::init(device_gpu, world, shared, dataset, corpus, 0, 1, 0);
     InstanceTensor<TASK_WORLD::Parameters> parameters, parameters_gpu, setups;
     InstanceTensor<TASK_WORLD::State> states_gpu;
@@ -154,9 +154,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES_CUDA, SAMPLE_AND_RENDER_MATCH_CP
     shared.drones = one_asset_per_dynamics().drones;
     rlt::malloc(device_gpu, world_gpu);
     rlt::malloc(device, world_cpu);
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    rlt::hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
-    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
     rlt::init(device_gpu, world_gpu, shared, dataset, corpus, 0, 1, 0);
     rlt::init(device, world_cpu, shared, dataset, corpus, 0, 1, 0);
     ASSERT_EQ(shared.num_drones, 4);

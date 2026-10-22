@@ -29,7 +29,7 @@ namespace hyperdrone_user {
         static constexpr std::size_t MAX_DRONES = 3;
         static constexpr std::size_t CAM_WIDTH = 16;
         static constexpr std::size_t CAM_HEIGHT = 16;
-        using SHADING = rl_tools::rendering::raytracing::Low;
+        using SHADING = rl_tools::hyperlux::Low;
     };
     using WORLD = rl_tools::rl::environments::hyperdrone::World<SPEC>;
 }

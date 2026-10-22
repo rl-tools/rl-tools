@@ -70,14 +70,14 @@ namespace test_agent_parameters {
         alias._data = rows.data();
         rlt::copy(renderer.device, device, renderer.transforms, alias);
         std::vector<float> expected(rows.size()), motion;
-        rlt::rendering::raytracing::PoseSink<typename WORLD::RENDERER_SPEC> sink;
+        rlt::hyperlux::PoseSink<typename WORLD::RENDERER_SPEC> sink;
         sink.transforms = expected.data();
         if constexpr(WORLD::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
             motion.resize(WORLD::RENDERER_SPEC::MOTION_BLUR_SAMPLES * rows.size());
             sink.transforms_motion = motion.data();
         }
         sink.parts = renderer.asset_parts.data();
-        std::vector<rlt::rendering::Camera<typename WORLD::T>> cameras(WORLD::INSTANCES * WORLD::N_VIEWS);
+        std::vector<rlt::hyperlux::Camera<typename WORLD::T>> cameras(WORLD::INSTANCES * WORLD::N_VIEWS);
         rlt::Tensor<typename decltype(renderer.cameras)::SPEC> camera_alias;
         camera_alias._data = cameras.data();
         rlt::copy(renderer.device, device, rlt::cameras(render_device, renderer), camera_alias);
@@ -101,8 +101,8 @@ namespace test_agent_parameters {
                 rlt::coordinates(device, body.rotorcraft, agent.rotor_phase, joint_coordinates);
                 using rlt::rotor_scale;
                 const float scale = rotor_scale(device, body.rotorcraft, parameters.agents[agent_i].dynamics.dynamics.rotor_positions, (TI)WORLD::DYNAMICS_ENV::ACTION_DIM);
-                const rlt::rendering::raytracing::OverlayPlacement placement{world.drone_slot_offset + agent_i * world.drone_parts, world.drone_parts, renderer.assets[world.drone_meshes[body.mesh].index].first_part};
-                rlt::set_pose(device, sink, rlt::rendering::raytracing::OverlayIndex{instance_i}, placement, rlt::make_pose(base, scale), joint_coordinates);
+                const rlt::hyperlux::OverlayPlacement placement{world.drone_slot_offset + agent_i * world.drone_parts, world.drone_parts, renderer.assets[world.drone_meshes[body.mesh].index].first_part};
+                rlt::set_pose(device, sink, rlt::hyperlux::OverlayIndex{instance_i}, placement, rlt::make_pose(base, scale), joint_coordinates);
                 for(TI part_i = 0; part_i < world.drone_parts; part_i++){
                     const TI slot = instance_i * SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE + world.drone_slot_offset + agent_i * world.drone_parts + part_i;
                     for(TI element = 0; element < 12; element++){
@@ -115,12 +115,12 @@ namespace test_agent_parameters {
     template <typename DEVICE, typename WORLD>
     void check_semantics(DEVICE& device, WORLD& world, const typename WORLD::SharedContext& shared){
         using namespace rlt;
-        namespace outputs = rendering::raytracing::outputs;
+        namespace outputs = hyperlux::outputs;
         using SEMANTIC = outputs::Segmentation<outputs::format::UInt32, outputs::labels::Semantic>;
         using TI = typename WORLD::TI;
         const auto& scene = shared.library.scenes[world.slots[world.active_slot].scene_id];
         const uint32_t scene_instances = (uint32_t)scene.instances.size();
-        const uint32_t agent_class = rendering::segmentation::AGENT;
+        const uint32_t agent_class = hyperlux::segmentation::AGENT;
         const auto& taxonomy = shared.segmentation_taxonomy;
         if(taxonomy){
             EXPECT_EQ(taxonomy->classes.at(agent_class), "Agent");

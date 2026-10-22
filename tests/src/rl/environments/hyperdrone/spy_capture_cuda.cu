@@ -1,7 +1,7 @@
 #define RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rl/environments/hyperdrone/presets.h>
-#include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include <rl_tools/hyperlux/operations_cpu_mux.h>
 #include <rl_tools/rl/environments/hyperdrone/spy/capture_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/spy/capture_cuda.h>
 #include <gtest/gtest.h>
@@ -13,7 +13,7 @@
 namespace {
     using namespace rl_tools;
     namespace hd = rl::environments::hyperdrone;
-    namespace rt = rendering::raytracing;
+    namespace rt = hyperlux;
     struct WorldConfig: hd::presets::X500FPV<float, size_t> {
         using OBSERVATION = hd::NoObservation;
         static constexpr size_t N_CAMERA_AGENTS = 1;
@@ -23,7 +23,7 @@ namespace {
         static constexpr size_t CAM_HEIGHT = 5;
         static constexpr size_t HISTORY_LENGTH = 1;
         static constexpr size_t MAX_ENTITY_SLOTS_PER_INSTANCE = 2;
-        using CAMERA_PROFILE = rendering::raytracing::outputs::List<rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>;
+        using CAMERA_PROFILE = hyperlux::outputs::List<hyperlux::outputs::RGB<hyperlux::outputs::format::Float32>>;
         using CAMERA_OUTPUTS = hd::CameraOutputs<CAMERA_PROFILE, CAMERA_PROFILE>;
         static constexpr size_t NUM_PROBES = 1;
         static constexpr bool SELF_VISIBLE = false;
@@ -52,7 +52,7 @@ namespace {
         std::array<float*, 2> device_histories{};
         rt::Scene scene;
         rt::AssetPool pool;
-        rendering::SceneMetadata<float> metadata;
+        hyperlux::SceneMetadata<float> metadata;
         metadata.max_ray_length = 10;
         for(size_t member = 0; member < 2; member++) {
             auto& world = environment.worlds[member];
@@ -152,7 +152,7 @@ namespace {
             auto& renderer = world.slots[0].renderer;
             rt::Scene scene;
             rt::AssetPool pool;
-            rendering::SceneMetadata<float> metadata;
+            hyperlux::SceneMetadata<float> metadata;
             metadata.max_ray_length = 10;
             malloc(cpu, renderer);
             init(cpu, renderer, scene, pool, metadata);

@@ -29,4 +29,4 @@ set_target_properties(rl_tools_wgpu_native PROPERTIES
 )
 
 target_link_libraries(rl_tools_full INTERFACE assimp::assimp rl_tools_wgpu_native)
-target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_RENDERING_ENABLE_RAYTRACING RL_TOOLS_RENDERING_RAYTRACING_BACKEND_WEBGPU)
+target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_ENABLE_HYPERLUX RL_TOOLS_HYPERLUX_BACKEND_WEBGPU)

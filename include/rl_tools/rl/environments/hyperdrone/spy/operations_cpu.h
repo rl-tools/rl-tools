@@ -5,9 +5,9 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SPY_OPERATIONS_CPU_H
 
 #include "spy.h"
-#include "../../../../rendering/raytracing/spy/operations_cpu_spectator.h"
+#include "../../../../hyperlux/spy/operations_cpu_spectator.h"
 #include "capture_cpu.h"
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
 #include "capture_optix.h"
 #if defined(__CUDACC__)
 #include "capture_cuda.h"
@@ -80,7 +80,7 @@ namespace rl_tools {
         job.camera = make_camera_data(view.position, look, up, T(80), T(CONFIG::SPECTATOR_CONFIG::CAM_WIDTH) / T(CONFIG::SPECTATOR_CONFIG::CAM_HEIGHT));
         if constexpr(WORLD::RENDERER_SPEC::ENABLE_OVERLAYS) {
             job.num_overlays = 1;
-            job.overlay_indices[0] = rendering::raytracing::OverlayIndex{0};
+            job.overlay_indices[0] = hyperlux::OverlayIndex{0};
             job.overlays[0] = buffer.geometry.overlay;
         }
         submit_spy_spectator(device, state.spectator, job);
@@ -97,7 +97,7 @@ namespace rl_tools {
         }
         stop_spy_spectator(device, state.spectator);
         free_spy_capture(device, state, typename CONFIG::BACKEND{});
-        rendering::raytracing::spy::ui::destroy(state.window);
+        hyperlux::spy::ui::destroy(state.window);
         delete spy.state;
         spy.state = nullptr;
     }
@@ -150,14 +150,14 @@ namespace rl_tools {
                 }
             }
         }
-        state.window = rendering::raytracing::spy::ui::create("HyperDrone spy", labels, CONFIG::ATLAS_WIDTH, CONFIG::ATLAS_HEIGHT, state.columns, state.rows, CONFIG::SPECTATOR_CONFIG::CAM_WIDTH, CONFIG::SPECTATOR_CONFIG::CAM_HEIGHT);
+        state.window = hyperlux::spy::ui::create("HyperDrone spy", labels, CONFIG::ATLAS_WIDTH, CONFIG::ATLAS_HEIGHT, state.columns, state.rows, CONFIG::SPECTATOR_CONFIG::CAM_WIDTH, CONFIG::SPECTATOR_CONFIG::CAM_HEIGHT);
         start_spy_spectator(device, state.spectator);
         state.open = true;
     }
 
     template <typename DEVICE, typename CONFIG>
     bool update(DEVICE& device, rl::environments::hyperdrone::Spy<CONFIG>& spy, typename CONFIG::ENVIRONMENT& environment) {
-        namespace ui = rendering::raytracing::spy::ui;
+        namespace ui = hyperlux::spy::ui;
         using WORLD = typename CONFIG::WORLD;
         using T = typename CONFIG::T;
         if(spy.state == nullptr || !spy.state->open) {

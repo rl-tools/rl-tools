@@ -1,0 +1,2 @@
+target_link_libraries(rl_tools_full INTERFACE assimp::assimp)
+target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_ENABLE_HYPERLUX RL_TOOLS_HYPERLUX_BACKEND_GENERIC)

@@ -2,7 +2,7 @@
 #include <rl_tools/rl/environments/hyperdrone/presets.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/controllers/raptor/operations_cpu.h>
-#include <rl_tools/rendering/datasets/procthor/catalog.h>
+#include <rl_tools/hyperlux/datasets/procthor/catalog.h>
 
 #include <emscripten.h>
 
@@ -22,17 +22,17 @@ namespace rl_tools::rl::environments::hyperdrone::web {
     struct Config: presets::X500FPV<T, TI> {
         using OBSERVATION = NoObservation;
         using SHADING = T_SHADING;
-        static_assert(utils::typing::is_same_v<SHADING, rendering::raytracing::Low>
-            || utils::typing::is_same_v<SHADING, rendering::raytracing::Medium>
-            || utils::typing::is_same_v<SHADING, rendering::raytracing::High>
-            || utils::typing::is_same_v<SHADING, rendering::raytracing::VeryHigh>);
+        static_assert(utils::typing::is_same_v<SHADING, hyperlux::Low>
+            || utils::typing::is_same_v<SHADING, hyperlux::Medium>
+            || utils::typing::is_same_v<SHADING, hyperlux::High>
+            || utils::typing::is_same_v<SHADING, hyperlux::VeryHigh>);
         static_assert(T_MOTION_BLUR_SAMPLES == 1 || T_MOTION_BLUR_SAMPLES == 4);
         static_assert(T_ANTI_ALIASING_GRID_SIZE == 1 || T_ANTI_ALIASING_GRID_SIZE == 2);
         static_assert(T_RESOLUTION_SCALE == 1 || T_RESOLUTION_SCALE == 2);
         static_assert(T_N_AGENTS == 1 || T_N_AGENTS == 8);
-        static constexpr const char* FIDELITY = utils::typing::is_same_v<SHADING, rendering::raytracing::Low> ? "low"
-            : utils::typing::is_same_v<SHADING, rendering::raytracing::Medium> ? "medium"
-            : utils::typing::is_same_v<SHADING, rendering::raytracing::High> ? "high" : "very-high";
+        static constexpr const char* FIDELITY = utils::typing::is_same_v<SHADING, hyperlux::Low> ? "low"
+            : utils::typing::is_same_v<SHADING, hyperlux::Medium> ? "medium"
+            : utils::typing::is_same_v<SHADING, hyperlux::High> ? "high" : "very-high";
         static constexpr TI INSTANCES_PER_WORLD = 1;
         static constexpr TI N_AGENTS = T_N_AGENTS;
         static constexpr TI N_CAMERA_AGENTS = 1;
@@ -42,17 +42,17 @@ namespace rl_tools::rl::environments::hyperdrone::web {
         static constexpr TI CAM_HEIGHT = 270 * T_RESOLUTION_SCALE;
         static constexpr TI NUM_PROBES = 64;
         using CAMERA_OUTPUTS = CameraOutputs<
-            rendering::raytracing::outputs::List<
-                rendering::raytracing::outputs::RGB<>,
-                rendering::raytracing::outputs::Depth<rendering::raytracing::outputs::format::RGBA8>,
-                rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::RGBA8, rendering::raytracing::outputs::labels::Semantic>,
-                rendering::raytracing::outputs::Segmentation<rendering::raytracing::outputs::format::UInt32, rendering::raytracing::outputs::labels::Semantic>,
-                rendering::raytracing::outputs::Normals<rendering::raytracing::outputs::format::RGBA8>,
-                rendering::raytracing::outputs::Flow<rendering::raytracing::outputs::direction::Backward, rendering::raytracing::outputs::format::RGBA8>,
-                rendering::raytracing::outputs::Probes>,
-            rendering::raytracing::outputs::List<
-                rendering::raytracing::outputs::RGB<>,
-                rendering::raytracing::outputs::Probes>>;
+            hyperlux::outputs::List<
+                hyperlux::outputs::RGB<>,
+                hyperlux::outputs::Depth<hyperlux::outputs::format::RGBA8>,
+                hyperlux::outputs::Segmentation<hyperlux::outputs::format::RGBA8, hyperlux::outputs::labels::Semantic>,
+                hyperlux::outputs::Segmentation<hyperlux::outputs::format::UInt32, hyperlux::outputs::labels::Semantic>,
+                hyperlux::outputs::Normals<hyperlux::outputs::format::RGBA8>,
+                hyperlux::outputs::Flow<hyperlux::outputs::direction::Backward, hyperlux::outputs::format::RGBA8>,
+                hyperlux::outputs::Probes>,
+            hyperlux::outputs::List<
+                hyperlux::outputs::RGB<>,
+                hyperlux::outputs::Probes>>;
         static constexpr bool ENABLE_MOTION_BLUR = T_MOTION_BLUR_SAMPLES > 1;
         static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;
         static constexpr bool ENABLE_ANTI_ALIASING = T_ANTI_ALIASING_GRID_SIZE > 1;
@@ -91,8 +91,8 @@ namespace rl_tools::rl::environments::hyperdrone::web {
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1, WORLD::ACTION_DIM>>> actions;
         Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, 1>>> reset_mask;
         controllers::raptor::Target<T> targets[CONFIG::N_AGENTS];
-        rendering::datasets::annotations::FreeSpacePosition<T> spawn;
-        std::vector<rendering::datasets::annotations::FreeSpacePosition<T>> other_spawns;
+        hyperlux::datasets::annotations::FreeSpacePosition<T> spawn;
+        std::vector<hyperlux::datasets::annotations::FreeSpacePosition<T>> other_spawns;
         uint32_t seed = 1337;
         T position_offset = 0.3;
         T velocity_target = 0.7;
@@ -181,7 +181,7 @@ namespace rl_tools {
             drone.cameras[1].mount.pose.orientation[0] = math::cos(device.math, half_pitch);
             drone.cameras[1].mount.pose.orientation[2] = math::sin(device.math, half_pitch);
         }
-        rendering::datasets::procthor::GLB dataset{{}, {scene_path}};
+        hyperlux::datasets::procthor::GLB dataset{{}, {scene_path}};
         init(device, state.environment, dataset);
         const auto& world = state.environment.worlds[0];
         state.spawn = world.slots[world.active_slot].annotations.positions[0];
@@ -214,7 +214,7 @@ namespace rl_tools {
                 const TI attempts = state.other_spawns.empty() ? SPAWN_ATTEMPTS : 1;
                 for(TI attempt = 0; attempt < attempts && !found; attempt++) {
                     const auto candidate = state.other_spawns.empty()
-                        ? rendering::datasets::annotations::sample_free_position(device, world.slots[world.active_slot].annotations, state.rng)
+                        ? hyperlux::datasets::annotations::sample_free_position(device, world.slots[world.active_slot].annotations, state.rng)
                         : state.other_spawns[agent_i - 1];
                     T offset[3];
                     for(TI dim = 0; dim < 3; dim++) {
@@ -320,9 +320,9 @@ namespace rl_tools {
         }
     }
     template <typename CONFIG>
-    void render(web::DEVICE& device, web::State<CONFIG>& state, web::Buffer<CONFIG>& buffer, rendering::raytracing::backends::webgpu::Canvas (&canvases)[web::VIEWS]) {
+    void render(web::DEVICE& device, web::State<CONFIG>& state, web::Buffer<CONFIG>& buffer, hyperlux::backends::webgpu::Canvas (&canvases)[web::VIEWS]) {
         using namespace web;
-        namespace outputs = rendering::raytracing::outputs;
+        namespace outputs = hyperlux::outputs;
         render_launch(device, state.environment, state.parameters, state.states, state.reset_mask);
         set_all(device, state.reset_mask, false);
         auto& renderer = get_renderer(device, state.environment.worlds[0]);
@@ -429,7 +429,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE const char* demo_configurations() {
 extern "C" EMSCRIPTEN_KEEPALIVE const char* demo_scenes() {
     static const std::string catalog = [] {
         auto scenes = nlohmann::json::array();
-        for(const auto& scene: rl_tools::rendering::datasets::procthor::Train200::SCENES) {
+        for(const auto& scene: rl_tools::hyperlux::datasets::procthor::Train200::SCENES) {
             scenes.push_back({{"name", scene.id}, {"reference", scene.reference}});
         }
         return scenes.dump();
@@ -444,7 +444,7 @@ static int run(const char* scene_path, const char* policy_path, int max_frames, 
     init(device);
     web::State<CONFIG> state;
     web::Buffer<CONFIG> buffer;
-    rendering::raytracing::backends::webgpu::Canvas canvases[web::VIEWS];
+    hyperlux::backends::webgpu::Canvas canvases[web::VIEWS];
     malloc(device, state);
     status("Loading RAPTOR ...");
     if(!load(device, state.pilot, std::string(policy_path))) {
@@ -604,7 +604,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
         models[drone.dynamics_index] = true;
         for(web::TI dim = 0; dim < 3; dim++) {
             const auto& value = entry.at("fpv_position").at(dim);
-            if(!value.is_number() || !rl_tools::rendering::is_finite(drone.fpv_position[dim] = value.get<web::T>())) {
+            if(!value.is_number() || !rl_tools::hyperlux::is_finite(drone.fpv_position[dim] = value.get<web::T>())) {
                 status("The airframe camera position is invalid");
                 return 1;
             }
@@ -614,12 +614,12 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
     if(session.contains("position")) {
         if(!session.at("position").is_array() || session.at("position").size() != 3
             || !session.contains("yaw") || !session.at("yaw").is_number()
-            || !rl_tools::rendering::is_finite(session.at("yaw").get<web::T>())) {
+            || !rl_tools::hyperlux::is_finite(session.at("yaw").get<web::T>())) {
             status("The starting pose is invalid");
             return 1;
         }
         for(const auto& value: session.at("position")) {
-            if(!value.is_number() || !rl_tools::rendering::is_finite(value.get<web::T>())) {
+            if(!value.is_number() || !rl_tools::hyperlux::is_finite(value.get<web::T>())) {
                 status("The starting pose is invalid");
                 return 1;
             }
@@ -637,7 +637,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
                 return 1;
             }
             for(const auto& value: position) {
-                if(!value.is_number() || !rl_tools::rendering::is_finite(value.get<web::T>())) {
+                if(!value.is_number() || !rl_tools::hyperlux::is_finite(value.get<web::T>())) {
                     status("The other drone starting positions are invalid");
                     return 1;
                 }

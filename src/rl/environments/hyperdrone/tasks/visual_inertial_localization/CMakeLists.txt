@@ -1,18 +1,18 @@
 # the task carries its own autopilot (RAPTOR, weights resolved through conta at init)
-if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
+if(RL_TOOLS_ENABLE_HYPERLUX)
     add_executable(rl_environments_hyperdrone_tasks_visual_inertial_localization visual_inertial_localization.cpp)
     target_link_libraries(rl_environments_hyperdrone_tasks_visual_inertial_localization
         PRIVATE
         RLtools::RLtools
-        rendering_raytracing_backend
-        rendering_raytracing_stb
+        hyperlux_backend
+        hyperlux_stb
     )
     add_executable(rl_environments_hyperdrone_tasks_visual_inertial_localization_export export.cpp)
     target_link_libraries(rl_environments_hyperdrone_tasks_visual_inertial_localization_export
         PRIVATE
         RLtools::RLtools
-        rendering_raytracing_backend
-        rendering_raytracing_stb
+        hyperlux_backend
+        hyperlux_stb
     )
 endif()
 
@@ -24,7 +24,7 @@ target_link_libraries(rl_environments_hyperdrone_tasks_visual_inertial_localizat
 # OpenVINS baseline: gated on the out-of-tree OpenVINS build (src/vio/openvins/setup.sh);
 # the resulting binary is GPL-3.0 — internal benchmarking only, never distribute
 set(RL_TOOLS_OPENVINS_ROOT "${CMAKE_SOURCE_DIR}/src/vio/openvins")
-if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND EXISTS "${RL_TOOLS_OPENVINS_ROOT}/prefix/lib/libov_msckf_lib.so")
+if(RL_TOOLS_ENABLE_HYPERLUX AND EXISTS "${RL_TOOLS_OPENVINS_ROOT}/prefix/lib/libov_msckf_lib.so")
     find_package(OpenCV REQUIRED COMPONENTS core imgproc calib3d features2d video)
     find_package(Eigen3 REQUIRED)
     find_package(Boost REQUIRED) # the OpenVINS headers include boost/filesystem and boost/date_time
@@ -37,8 +37,8 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND EXISTS "${RL_TOOLS_OPENVINS_ROOT}/pr
     target_link_libraries(rl_environments_hyperdrone_tasks_visual_inertial_localization_openvins
         PRIVATE
         RLtools::RLtools
-        rendering_raytracing_backend
-        rendering_raytracing_stb
+        hyperlux_backend
+        hyperlux_stb
         "${RL_TOOLS_OPENVINS_ROOT}/prefix/lib/libov_msckf_lib.so"
         ${OpenCV_LIBS}
         Eigen3::Eigen

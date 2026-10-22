@@ -151,7 +151,7 @@ def test_unnamed_and_nonsemantic(tmp_path):
 def test_custom_world_metadata(tmp_path):
     source = (Path(__file__).parent / "user_spec_header.h").read_text()
     source = source.replace("        static constexpr TI MAX_DRONES = 3;", """
-        using CAMERA_OUTPUTS = rl_tools::rl::environments::hyperdrone::CameraOutputs<rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>, rl_tools::rendering::raytracing::outputs::Segmentation<rl_tools::rendering::raytracing::outputs::format::UInt32, rl_tools::rendering::raytracing::outputs::labels::Semantic>, rl_tools::rendering::raytracing::outputs::Probes>>;
+        using CAMERA_OUTPUTS = rl_tools::rl::environments::hyperdrone::CameraOutputs<rl_tools::hyperlux::outputs::List<rl_tools::hyperlux::outputs::RGB<rl_tools::hyperlux::outputs::format::Float32>, rl_tools::hyperlux::outputs::Segmentation<rl_tools::hyperlux::outputs::format::UInt32, rl_tools::hyperlux::outputs::labels::Semantic>, rl_tools::hyperlux::outputs::Probes>>;
 """)
     header = tmp_path / "semantic.h"
     header.write_text(source)

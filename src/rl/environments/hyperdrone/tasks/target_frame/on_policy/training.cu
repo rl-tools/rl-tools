@@ -24,7 +24,7 @@
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cuda.h>
-#include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
+#include <rl_tools/hyperlux/datasets/procthor/operations_cpu.h>
 
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
@@ -97,7 +97,7 @@ using LOGGER = rlt::devices::logging::CPU;
 #endif
 using DEV_SPEC = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, LOGGER>;
 using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
-using DEVICE_GPU_SPEC = rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
+using DEVICE_GPU_SPEC = rlt::hyperlux::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
 using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<DEVICE_GPU_SPEC>;
 
 #include "config.h"
@@ -442,7 +442,7 @@ int main(int argc, char** argv){
     rlt::init(device);
     rlt::init(device_gpu);
     device.logger.verbosity = rlt::devices::logging::Verbosity::warning;
-    rlt::rendering::datasets::procthor::GLB scene_dataset{{}, resolve_training_scenes(device, argc > 1 ? argv[1] : nullptr)};
+    rlt::hyperlux::datasets::procthor::GLB scene_dataset{{}, resolve_training_scenes(device, argc > 1 ? argv[1] : nullptr)};
     std::mt19937 scene_rng(seed);
     std::vector<TI> scene_permutation(N_TOTAL_SCENES);
     std::iota(scene_permutation.begin(), scene_permutation.end(), 0);
@@ -455,8 +455,8 @@ int main(int argc, char** argv){
     rlt::init(device, extrack_config, extrack_paths, seed);
     metra::log_raw("hyperdrone/target_frame/on_policy/target", "\"" RL_TOOLS_HYPERDRONE_TARGET_NAME "\"");
     metra::log_raw("hyperdrone/target_frame/on_policy/scene_references", nlohmann::json(scene_dataset.references).dump());
-    if(argc == 1 || std::string(argv[1]) == rlt::rendering::datasets::procthor::Train200::NAME){
-        metra::log_raw("hyperdrone/target_frame/on_policy/dataset", nlohmann::json(rlt::rendering::datasets::procthor::Train200::NAME).dump());
+    if(argc == 1 || std::string(argv[1]) == rlt::hyperlux::datasets::procthor::Train200::NAME){
+        metra::log_raw("hyperdrone/target_frame/on_policy/dataset", nlohmann::json(rlt::hyperlux::datasets::procthor::Train200::NAME).dump());
     }
     metra::log("hyperdrone/target_frame/on_policy/seed", static_cast<double>(seed));
 
@@ -488,7 +488,7 @@ int main(int argc, char** argv){
     HYPERDRONE& env = *env_storage;
     rlt::malloc(device_gpu, env);
     typename decltype(scene_dataset)::Corpus scene_corpus;
-    rlt::rendering::datasets::procthor::enumerate(device, scene_dataset, scene_corpus);
+    rlt::hyperlux::datasets::procthor::enumerate(device, scene_dataset, scene_corpus);
     if(static_cast<TI>(scene_corpus.references.size()) < N_TOTAL_SCENES){
         std::cerr << "Need at least " << N_TOTAL_SCENES << " GLB scenes, found " << scene_corpus.references.size() << std::endl;
         return 1;

@@ -1,5 +1,5 @@
 #pragma once
-#include <rl_tools/rendering/raytracing/outputs/outputs.h>
+#include <rl_tools/hyperlux/outputs/outputs.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -10,7 +10,7 @@
 #include <vector>
 
 namespace hyperdrone {
-    namespace camera_outputs = rl_tools::rendering::raytracing::outputs;
+    namespace camera_outputs = rl_tools::hyperlux::outputs;
 
     struct OutputDescriptor {
         std::string quantity;
@@ -126,15 +126,15 @@ namespace hyperdrone {
         if constexpr(std::is_same<OUTPUT, camera_outputs::Probes>::value){
             result.layout.axes = {"camera", "probe"};
             result.layout.dtype = "record";
-            result.layout.item_size = sizeof(rl_tools::rendering::CollisionResult);
+            result.layout.item_size = sizeof(rl_tools::hyperlux::CollisionResult);
             for(const auto& field: {std::string("distance"), std::string("hit")}){
                 OutputLayout layout = result.layout;
                 layout.dtype = field == "distance" ? "float32" : "int32";
-                layout.offset = field == "distance" ? offsetof(rl_tools::rendering::CollisionResult, distance) : offsetof(rl_tools::rendering::CollisionResult, hit);
+                layout.offset = field == "distance" ? offsetof(rl_tools::hyperlux::CollisionResult, distance) : offsetof(rl_tools::hyperlux::CollisionResult, hit);
                 layout.item_size = sizeof(float);
                 output_contiguous_strides(layout);
                 for(auto& stride: layout.strides){
-                    stride *= sizeof(rl_tools::rendering::CollisionResult) / layout.item_size;
+                    stride *= sizeof(rl_tools::hyperlux::CollisionResult) / layout.item_size;
                 }
                 result.fields.emplace_back(field, std::move(layout));
             }

@@ -1,0 +1,18 @@
+if(RL_TOOLS_ENABLE_HYPERLUX)
+    FetchContent_Declare(
+        stb
+        GIT_REPOSITORY https://github.com/nothings/stb.git
+        GIT_TAG        f1c79c02822848a9bed4315b12c8c8f3761e1296
+        EXCLUDE_FROM_ALL
+    )
+    rl_tools_fetchcontent_makeavailable_quiet(stb)
+
+    add_library(hyperlux_stb INTERFACE)
+    target_include_directories(hyperlux_stb SYSTEM INTERFACE ${stb_SOURCE_DIR})
+
+    add_subdirectory(procthor2glb)
+    add_subdirectory(backends)
+    add_subdirectory(benchmark EXCLUDE_FROM_ALL)
+    add_subdirectory(example)
+    add_subdirectory(datasets) # the AI2ThorHab smoke tool needs the backends' assimp/stb wiring
+endif()

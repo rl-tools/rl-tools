@@ -2,7 +2,7 @@
 
 namespace camera_sampling_test {
     namespace hd = rl_tools::rl::environments::hyperdrone;
-    namespace out = rl_tools::rendering::raytracing::outputs;
+    namespace out = rl_tools::hyperlux::outputs;
     using rl_tools::get;
     using rl_tools::instance_rng;
 

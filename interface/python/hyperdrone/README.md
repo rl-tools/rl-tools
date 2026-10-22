@@ -72,7 +72,7 @@ build toolchain for GENERIC + cpu.
 Each component, variant, Python interpreter path and ABI, and native CPU instruction set gets its own build tree (`render-optix-*`, `dynamics-cuda-*`, ...); switching never invalidates another's cache. All configure/build steps run under a per-tree file lock, so many worker processes can share one cache safely. CMake FetchContent sources and native build state live in `<cache>/.dependencies`; the native build does not write generated files into an editable checkout or installed package. CUDA trees also distinguish the native GPU architecture or explicit `CUDAARCHS` target.
 
 At the default verbosity, each successful renderer allocation reports the selected backend on
-stderr, for example `#rl_tools::rendering::raytracing: backend=metal`. The
+stderr, for example `#rl_tools::hyperlux: backend=metal`. The
 `Renderer.backend` and `HyperDrone.render_backend` properties provide the same
 lowercase name from the compiled renderer type.
 `hyperdrone.set_verbosity(level)` selects the native log level, `error`, `warning`, `info`
@@ -145,7 +145,7 @@ spy.close()
 
 Long-running commands need explicit `spy.update()` calls to process GUI events. Interactive polling requires terminal IPython's full prompt and no other active `%gui` integration; notebooks and the plain Python shell use explicit polling. Scene geometry and the asset pool remain fixed after initialization. The viewer uses the same optional GLFW/OpenGL dependencies and camera controls as the [environment spy](#native-spy).
 
-C++ uses `raytracing::Spy<raytracing::spy::Config<RENDERER>>` with device-first `malloc`, `init(device, spy, renderer, scene, pool, metadata, camera)`, `update(device, spy, renderer)` and `free`, linking `RLtools::RaytracingSpy`. Pass the scene and pool used to initialize the source renderer and keep all three alive until freeing the spy; camera poses and placements remain editable, while scene and pool geometry stay fixed.
+C++ uses `hyperlux::Spy<hyperlux::spy::Config<RENDERER>>` with device-first `malloc`, `init(device, spy, renderer, scene, pool, metadata, camera)`, `update(device, spy, renderer)` and `free`, linking `RLtools::HyperLuxSpy`. Pass the scene and pool used to initialize the source renderer and keep all three alive until freeing the spy; camera poses and placements remain editable, while scene and pool geometry stay fixed.
 
 ### Output buffers and DLPack
 
@@ -326,12 +326,12 @@ compiles and flies its header. The environment's raytracing backend follows
 Custom C++ World specifications declare one output list per mount in `CAMERA_OUTPUTS`; the mount count is derived from that list. For example, inside a specification:
 
 ```cpp
-using OUTPUT_PROFILE = rl_tools::rendering::raytracing::outputs::List<
-    rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>,
-    rl_tools::rendering::raytracing::outputs::Depth<>,
-    rl_tools::rendering::raytracing::outputs::Probes>;
-using DIAGNOSTIC_PROFILE = rl_tools::rendering::raytracing::outputs::List<
-    rl_tools::rendering::raytracing::outputs::Depth<>>;
+using OUTPUT_PROFILE = rl_tools::hyperlux::outputs::List<
+    rl_tools::hyperlux::outputs::RGB<rl_tools::hyperlux::outputs::format::Float32>,
+    rl_tools::hyperlux::outputs::Depth<>,
+    rl_tools::hyperlux::outputs::Probes>;
+using DIAGNOSTIC_PROFILE = rl_tools::hyperlux::outputs::List<
+    rl_tools::hyperlux::outputs::Depth<>>;
 using CAMERA_OUTPUTS = rl_tools::rl::environments::hyperdrone::CameraOutputs<OUTPUT_PROFILE, DIAGNOSTIC_PROFILE>;
 using OBSERVATION = rl_tools::rl::environments::hyperdrone::ImageObservation<0>;
 ```
@@ -368,11 +368,11 @@ env.close()
 
 Click a camera tile to select its member, instance, agent and camera, then click the spectator for mouse look. WASD moves, Q/E moves down/up, Shift accelerates, and Esc releases the mouse; the spectator pose is retained for each world independently. The spectator has its own renderer; camera capture and spectator refresh are capped at 20 Hz, and GUI work at 60 Hz. They still consume GPU bandwidth and rendering capacity. Use `with` or explicitly close the spy on the main thread before environment teardown. The Gymnasium adapter also exposes `env.spy()`; call `update()` after `reset()` or `step()`.
 
-The optional native dependencies are GLFW and desktop OpenGL (on Ubuntu: `libglfw3-dev`, `libgl1-mesa-dev`); CMake fetches the pinned Dear ImGui release with git. After adding dependencies to an existing build, run `cmake /path/to/cache/environment-<backend>-<tag>`, unset `HYPERDRONE_SKIP_BUILD`, and restart Python; constructing the next environment rebuilds its native module. The build directory lives under `HYPERDRONE_CACHE_DIR` (default `~/.cache/hyperdrone`); CMake reports `Raytracing spy` availability. Set `RL_TOOLS_RENDERING_RAYTRACING_DISABLE_SPY=ON` to disable both native viewers. Ordinary environments remain usable when these dependencies are absent; `env.spy()` then explains the missing build feature. No display or window is opened until `env.spy()` is called.
+The optional native dependencies are GLFW and desktop OpenGL (on Ubuntu: `libglfw3-dev`, `libgl1-mesa-dev`); CMake fetches the pinned Dear ImGui release with git. After adding dependencies to an existing build, run `cmake /path/to/cache/environment-<backend>-<tag>`, unset `HYPERDRONE_SKIP_BUILD`, and restart Python; constructing the next environment rebuilds its native module. The build directory lives under `HYPERDRONE_CACHE_DIR` (default `~/.cache/hyperdrone`); CMake reports `Raytracing spy` availability. Set `RL_TOOLS_HYPERLUX_DISABLE_SPY=ON` to disable both native viewers. Ordinary environments remain usable when these dependencies are absent; `env.spy()` then explains the missing build feature. No display or window is opened until `env.spy()` is called.
 
 Run `python -m hyperdrone.examples.spy` to watch four X500 drones with rigged bodies and spinning propellers hold position with RAPTOR in the shared ProcTHOR scene; optionally pass a local GLB path as the positional argument.
 
-C++ uses `hyperdrone::Spy<hyperdrone::spy::Config<ENVIRONMENT>>` with device-first `malloc`, `init`, `update` and `free`; link `RLtools::RaytracingSpy` and close the spy before freeing its environment. The [C++ example](../../../src/rl/environments/hyperdrone/spy/example.cpp) builds as `example_hyperdrone_spy` when the GUI dependencies are available. Both interfaces share the same capture, spectator and window implementation.
+C++ uses `hyperdrone::Spy<hyperdrone::spy::Config<ENVIRONMENT>>` with device-first `malloc`, `init`, `update` and `free`; link `RLtools::HyperLuxSpy` and close the spy before freeing its environment. The [C++ example](../../../src/rl/environments/hyperdrone/spy/example.cpp) builds as `example_hyperdrone_spy` when the GUI dependencies are available. Both interfaces share the same capture, spectator and window implementation.
 
 ### Visual-inertial localization
 

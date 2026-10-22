@@ -83,7 +83,7 @@ int main(){
     rlt::init(device);
     // dataset configuration: one scene per World, from the conta-published ProcTHOR pair
     // (resolved from the content-addressed store, downloaded on first use)
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {
+    rlt::hyperlux::datasets::procthor::GLB dataset{{}, {
         "conta:28d17959b463626d64257f0d9ea8e47daae68409", // ai2thor-hab/glb/ProcTHOR-Train-0.glb
         "conta:75d1d67a17ecd16bc3a214baa895240da8060df7", // ai2thor-hab/glb/ProcTHOR-Train-1.glb
     }};
@@ -91,7 +91,7 @@ int main(){
     ENVIRONMENT env;
     rlt::malloc(device, env);
     // the annotation cache persists the free-space scans across runs
-    env.shared.annotation_cache.directory = rlt::rendering::datasets::annotations::default_cache_directory();
+    env.shared.annotation_cache.directory = rlt::hyperlux::datasets::annotations::default_cache_directory();
     rlt::init(device, env, dataset);
 
     RNG rng;

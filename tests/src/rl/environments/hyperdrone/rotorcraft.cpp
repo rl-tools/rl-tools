@@ -1,6 +1,6 @@
 #include <rl_tools/operations/cpu_mux.h>
-#include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
-#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
+#include <rl_tools/hyperlux/operations_cpu_mux.h>
+#include <rl_tools/hyperlux/datasets/glb/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/rotorcraft/operations_cpu.h>
 #include <rl_tools/rl/environments/l2f/multirotor.h>
 
@@ -26,11 +26,11 @@ using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using T = float;
 using TI = typename DEVICE::index_t;
 using ROTORCRAFT = rlt::rl::environments::hyperdrone::Rotorcraft;
-using ASSEMBLY = rlt::rendering::raytracing::ObjectAssembly;
+using ASSEMBLY = rlt::hyperlux::ObjectAssembly;
 
 namespace {
-    rlt::rendering::raytracing::Object quad(const char* name, float center_x, float center_y, float half_size){
-        rlt::rendering::raytracing::Mesh mesh;
+    rlt::hyperlux::Object quad(const char* name, float center_x, float center_y, float half_size){
+        rlt::hyperlux::Mesh mesh;
         mesh.vertices = {
             center_x - half_size, center_y - half_size, 0,
             center_x + half_size, center_y - half_size, 0,
@@ -38,15 +38,15 @@ namespace {
             center_x - half_size, center_y + half_size, 0,
         };
         mesh.indices = {0, 1, 2, 0, 2, 3};
-        rlt::rendering::raytracing::Object object;
+        rlt::hyperlux::Object object;
         object.name = name;
         object.meshes.push_back(mesh);
         return object;
     }
 
     // body plus two props at (0.1, 0.1) and (-0.1, 0.1), lifted by 0.05
-    rlt::rendering::raytracing::ObjectAssembly two_prop_assembly(DEVICE& device){
-        rlt::rendering::raytracing::ObjectAssembly assembly;
+    rlt::hyperlux::ObjectAssembly two_prop_assembly(DEVICE& device){
+        rlt::hyperlux::ObjectAssembly assembly;
         const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
         const float lifted[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0.05f};
         rlt::add(device, assembly, quad("body", 0, 0, 0.1f), identity);
@@ -56,7 +56,7 @@ namespace {
     }
 
     void hub_in_assembly(const ASSEMBLY& assembly, TI part_i, float hub[3]){
-        rlt::rendering::transform_point(assembly.parts[part_i].transform, assembly.parts[part_i].joint.pivot, hub);
+        rlt::hyperlux::transform_point(assembly.parts[part_i].transform, assembly.parts[part_i].joint.pivot, hub);
     }
 
     struct SinkSpec {
@@ -67,19 +67,19 @@ namespace {
 
     // the rows set_pose writes for an assembly: the close state and MOTION_BLUR_SAMPLES samples
     struct Rows {
-        std::vector<rlt::rendering::raytracing::AssetPart> parts;
+        std::vector<rlt::hyperlux::AssetPart> parts;
         std::vector<float> close = std::vector<float>(SINK_SLOTS * 12), samples = std::vector<float>(SinkSpec::MOTION_BLUR_SAMPLES * SINK_SLOTS * 12);
         explicit Rows(const ASSEMBLY& assembly){
-            rlt::rendering::raytracing::detail::flatten_parts(assembly, 0, parts);
+            rlt::hyperlux::detail::flatten_parts(assembly, 0, parts);
         }
-        rlt::rendering::raytracing::PoseSink<SinkSpec> sink(){
-            rlt::rendering::raytracing::PoseSink<SinkSpec> result;
+        rlt::hyperlux::PoseSink<SinkSpec> sink(){
+            rlt::hyperlux::PoseSink<SinkSpec> result;
             result.transforms = close.data();
             result.transforms_motion = samples.data();
             result.parts = parts.data();
             return result;
         }
-        rlt::rendering::raytracing::OverlayPlacement placement() const {
+        rlt::hyperlux::OverlayPlacement placement() const {
             return {0, parts.size(), 0};
         }
         const float* part(TI part_i) const {
@@ -91,13 +91,13 @@ namespace {
     };
     Rows pose(DEVICE& device, const ASSEMBLY& assembly, const float base[12], float scale, const float* coordinates){
         Rows rows(assembly);
-        rlt::set_pose(device, rows.sink(), rlt::rendering::raytracing::OverlayIndex{0}, rows.placement(), rlt::make_pose(base, scale), coordinates);
+        rlt::set_pose(device, rows.sink(), rlt::hyperlux::OverlayIndex{0}, rows.placement(), rlt::make_pose(base, scale), coordinates);
         return rows;
     }
 
-    rlt::rendering::ObjectAssembly transformed_quadrotor(DEVICE& device){
+    rlt::hyperlux::ObjectAssembly transformed_quadrotor(DEVICE& device){
         using rlt::add;
-        rlt::rendering::ObjectAssembly assembly;
+        rlt::hyperlux::ObjectAssembly assembly;
         const float body[12] = {1,0,0,0.03f, 0,1,0,-0.02f, 0,0,1,0.01f};
         add(device, assembly, quad("body", 0, 0, 0.1f), body);
         const float hubs[4][2] = {{0.2f,-0.2f}, {-0.2f,-0.2f}, {-0.2f,0.2f}, {0.2f,0.2f}};
@@ -142,7 +142,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT, AUTHORED_TRANSFORMS_AND_WHE
         EXPECT_EQ(fitted.prop_spin[rotor], torques[rotor][2] > 0 ? -1.0f : 1.0f);
         EXPECT_EQ(physical.prop_spin[rotor], fitted.prop_spin[rotor]);
         float hub[3];
-        rlt::rendering::transform_point(rows.part(rotor + 1), pivot, hub);
+        rlt::hyperlux::transform_point(rows.part(rotor + 1), pivot, hub);
         EXPECT_NEAR(hub[0], rotors[rotor][0], 1e-6f);
         EXPECT_NEAR(hub[1], rotors[rotor][1], 1e-6f);
         EXPECT_NEAR(hub[2], 0.02f, 1e-6f);
@@ -175,15 +175,15 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT, ROTOR_SCALE_PRESERVES_BODY_
         const float scale = rotor_scale(device, rotorcraft, current_rotors, TI(4));
         EXPECT_NEAR(scale, factor * 0.5f, 1e-6f);
         Rows rows(assembly);
-        rlt::set_pose(device, rows.sink(), rlt::rendering::raytracing::OverlayIndex{0}, rows.placement(), rlt::make_pose(base_open, scale), rlt::make_pose(base_close, scale), phases_open, phases_close);
+        rlt::set_pose(device, rows.sink(), rlt::hyperlux::OverlayIndex{0}, rows.placement(), rlt::make_pose(base_open, scale), rlt::make_pose(base_close, scale), phases_open, phases_close);
         for(TI sample_i = 0; sample_i <= 4; sample_i++){
             const float* transforms = sample_i == 4 ? rows.part(0) : rows.sample(sample_i, 0);
             float base[12];
             const float time = sample_i == 4 ? 1.0f : (float(sample_i) + 0.5f) / 4;
-            rlt::rendering::screw_interpolate(base_open, base_close, time, base);
+            rlt::hyperlux::screw_interpolate(base_open, base_close, time, base);
             const float body_origin[3] = {factor * 0.015f, factor * -0.01f, factor * 0.005f};
             float expected_body[3];
-            rlt::rendering::transform_point(base, body_origin, expected_body);
+            rlt::hyperlux::transform_point(base, body_origin, expected_body);
             for(TI axis = 0; axis < 3; axis++){
                 EXPECT_NEAR(transforms[axis * 4 + 3], expected_body[axis], 1e-5f);
                 float squared_norm = 0;
@@ -195,8 +195,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT, ROTOR_SCALE_PRESERVES_BODY_
             for(TI rotor = 0; rotor < 4; rotor++){
                 const float local_hub[3] = {current_rotors[rotor][0], current_rotors[rotor][1], factor * 0.02f};
                 float expected_hub[3], actual_hub[3];
-                rlt::rendering::transform_point(base, local_hub, expected_hub);
-                rlt::rendering::transform_point(transforms + (rotor + 1) * 12, pivot, actual_hub);
+                rlt::hyperlux::transform_point(base, local_hub, expected_hub);
+                rlt::hyperlux::transform_point(transforms + (rotor + 1) * 12, pivot, actual_hub);
                 for(TI axis = 0; axis < 3; axis++){
                     EXPECT_NEAR(actual_hub[axis], expected_hub[axis], 1e-5f);
                 }
@@ -282,12 +282,12 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT, REJECTS_INVALID_WHEELBASE_G
     EXPECT_TRUE(rejects(assembly, invalid_rotors));
     auto invalid = assembly;
     std::memcpy(&invalid.objects[1].meshes[0].vertices[0], &nan_bits, sizeof(float));
-    EXPECT_FALSE(rlt::rendering::is_finite(invalid.objects[1].meshes[0].vertices[0]));
+    EXPECT_FALSE(rlt::hyperlux::is_finite(invalid.objects[1].meshes[0].vertices[0]));
     EXPECT_TRUE(rejects(invalid, nullptr));
     EXPECT_TRUE(rejects(invalid, rotors));
     invalid = assembly;
     std::memcpy(&invalid.parts[1].transform[3], &infinity_bits, sizeof(float));
-    EXPECT_FALSE(rlt::rendering::is_finite(invalid.parts[1].transform[3]));
+    EXPECT_FALSE(rlt::hyperlux::is_finite(invalid.parts[1].transform[3]));
     EXPECT_TRUE(rejects(invalid, nullptr));
     EXPECT_TRUE(rejects(invalid, rotors));
     invalid = assembly;
@@ -303,18 +303,18 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT, INIT_X500){
     }
     DEVICE device;
     ASSEMBLY assembly;
-    ASSERT_TRUE((rlt::load<rlt::rendering::raytracing::High, true>(device, assembly, DRONE_PATH)));
+    ASSERT_TRUE((rlt::load<rlt::hyperlux::High, true>(device, assembly, DRONE_PATH)));
     ASSERT_TRUE(rlt::articulate(device, assembly));
     ROTORCRAFT rotorcraft;
     ASSERT_TRUE(rlt::init(device, rotorcraft, assembly));
     EXPECT_EQ(rlt::num_coordinates(device, assembly), 4);
-    EXPECT_TRUE(assembly.parts[0].joint.type == rlt::rendering::Joint::Type::FIXED);
+    EXPECT_TRUE(assembly.parts[0].joint.type == rlt::hyperlux::Joint::Type::FIXED);
     EXPECT_EQ(rotorcraft.num_props, 4);
     T direction_sum = 0;
     for(TI part_i = 1; part_i < assembly.parts.size(); part_i++){
         const auto& joint = assembly.parts[part_i].joint;
         const TI prop = part_i - 1;
-        EXPECT_TRUE(joint.type == rlt::rendering::Joint::Type::REVOLUTE);
+        EXPECT_TRUE(joint.type == rlt::hyperlux::Joint::Type::REVOLUTE);
         EXPECT_EQ(joint.coordinate, prop);
         EXPECT_EQ(joint.axis[2], (T)1);
         EXPECT_EQ(rotorcraft.prop_rotor[prop], prop);
@@ -335,7 +335,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT, MATCH_X500_ROTORS){
     }
     DEVICE device;
     ASSEMBLY assembly;
-    ASSERT_TRUE((rlt::load<rlt::rendering::raytracing::High, true>(device, assembly, DRONE_PATH)));
+    ASSERT_TRUE((rlt::load<rlt::hyperlux::High, true>(device, assembly, DRONE_PATH)));
     ASSERT_TRUE(rlt::articulate(device, assembly));
     auto heuristic = assembly;
     constexpr auto dynamics = rlt::rl::environments::l2f::parameters::dynamics::x500::real<T, TI>;
@@ -344,7 +344,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT, MATCH_X500_ROTORS){
     ASSERT_EQ(rlt::num_coordinates(device, assembly), 4);
     // the asset's prop_0..3 sit at rotors 0, 2, 3, 1 of the x500 model
     const TI expected_rotor_of_part[5] = {0, 0, 2, 3, 1};
-    EXPECT_TRUE(assembly.parts[0].joint.type == rlt::rendering::Joint::Type::FIXED);
+    EXPECT_TRUE(assembly.parts[0].joint.type == rlt::hyperlux::Joint::Type::FIXED);
     for(TI part_i = 1; part_i < 5; part_i++){
         const TI rotor_i = expected_rotor_of_part[part_i];
         const TI prop = part_i - 1;
@@ -391,8 +391,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT, SPIN_ABOUT_PIVOT){
     const float hub[3] = {0.1f, 0.1f, 0};
     const float blade_tip[3] = {0.15f, 0.1f, 0};
     float hub_world[3], tip_world[3];
-    rlt::rendering::transform_point(rows.part(1), hub, hub_world);
-    rlt::rendering::transform_point(rows.part(1), blade_tip, tip_world);
+    rlt::hyperlux::transform_point(rows.part(1), hub, hub_world);
+    rlt::hyperlux::transform_point(rows.part(1), blade_tip, tip_world);
     EXPECT_NEAR(hub_world[0], 2.1f, 1e-5f);
     EXPECT_NEAR(hub_world[1], 0.1f, 1e-5f);
     EXPECT_NEAR(hub_world[2], 1.05f, 1e-5f);
@@ -400,8 +400,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT, SPIN_ABOUT_PIVOT){
     EXPECT_NEAR(tip_world[1], 0.05f, 1e-5f);
     const float hub_mirror[3] = {-0.1f, 0.1f, 0};
     const float tip_mirror[3] = {-0.05f, 0.1f, 0};
-    rlt::rendering::transform_point(rows.part(2), hub_mirror, hub_world);
-    rlt::rendering::transform_point(rows.part(2), tip_mirror, tip_world);
+    rlt::hyperlux::transform_point(rows.part(2), hub_mirror, hub_world);
+    rlt::hyperlux::transform_point(rows.part(2), tip_mirror, tip_world);
     EXPECT_NEAR(hub_world[0], 1.9f, 1e-5f);
     EXPECT_NEAR(hub_world[1], 0.1f, 1e-5f);
     EXPECT_NEAR(tip_world[0], 1.9f, 1e-5f);
@@ -433,11 +433,11 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT, MATCH_ROTORS){
     const auto rows = pose(device, assembly, base, 1, joint_coordinates);
     const float tip[3] = {-0.05f, 0.1f, 0};
     float tip_world[3];
-    rlt::rendering::transform_point(rows.part(2), tip, tip_world);
+    rlt::hyperlux::transform_point(rows.part(2), tip, tip_world);
     EXPECT_NEAR(tip_world[0], -0.05f, 1e-5f);
     EXPECT_NEAR(tip_world[1], 0.1f, 1e-5f);
     const float tip_moving[3] = {0.15f, 0.1f, 0};
-    rlt::rendering::transform_point(rows.part(1), tip_moving, tip_world);
+    rlt::hyperlux::transform_point(rows.part(1), tip_moving, tip_world);
     EXPECT_NEAR(tip_world[0], 0.1f, 1e-5f);
     EXPECT_NEAR(tip_world[1], 0.15f, 1e-5f);
 
@@ -512,13 +512,13 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_ROTORCRAFT, INIT_RIGGED_CORPUS){
     const std::string directory = DRONE_PATH.substr(0, DRONE_PATH.rfind('/'));
     for(const char* name : {"arpl.glb", "crazyflie.glb", "crazyflie_brushless.glb", "soft.glb", "x500.glb"}){
         ASSEMBLY assembly;
-        ASSERT_TRUE((rlt::load<rlt::rendering::raytracing::High, true>(device, assembly, directory + "/" + name))) << name;
+        ASSERT_TRUE((rlt::load<rlt::hyperlux::High, true>(device, assembly, directory + "/" + name))) << name;
         ASSERT_TRUE(rlt::articulate(device, assembly)) << name;
         ROTORCRAFT rotorcraft;
         ASSERT_TRUE(rlt::init(device, rotorcraft, assembly)) << name;
         EXPECT_EQ(rlt::num_coordinates(device, assembly), 4) << name;
         EXPECT_EQ(assembly.parts.size(), 5) << name;
-        rlt::rendering::raytracing::AssetPool pool;
+        rlt::hyperlux::AssetPool pool;
         EXPECT_TRUE(rlt::can_add(device, pool, assembly)) << name;
     }
 }

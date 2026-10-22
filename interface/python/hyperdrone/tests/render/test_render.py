@@ -31,11 +31,11 @@ print(f"HYPERDRONE_TEST_BACKEND={second.backend}")
         env=os.environ.copy(),
     )
     expected_backend = render._backend().lower()
-    announcement = f"#rl_tools::rendering::raytracing: backend={expected_backend}"
+    announcement = f"#rl_tools::hyperlux: backend={expected_backend}"
     announcements = [
         line
         for line in result.stderr.splitlines()
-        if line.startswith("#rl_tools::rendering::raytracing: backend=")
+        if line.startswith("#rl_tools::hyperlux: backend=")
     ]
     assert announcements == [announcement, announcement]
     backend_markers = [
@@ -74,7 +74,7 @@ del quiet, loud
         text=True,
         env=os.environ.copy(),
     )
-    prefix = "#rl_tools::rendering::raytracing: "
+    prefix = "#rl_tools::hyperlux: "
     messages = [line.removeprefix(prefix) for line in result.stderr.splitlines()
                 if line.startswith((prefix + "Generated", prefix + "backend="))]
     assert messages == ["Generated 1 probe directions per camera", f"backend={render._backend().lower()}",
@@ -760,10 +760,10 @@ def test_scene_verbosity(load, tmp_path, capfd):
     try:
         hyperdrone.set_verbosity("warning")
         load(path, fidelity="low")
-        assert "#rl_tools::rendering::datasets:" not in capfd.readouterr().err
+        assert "#rl_tools::hyperlux::datasets:" not in capfd.readouterr().err
         hyperdrone.set_verbosity("info")
         load(path, fidelity="low")
-        assert "#rl_tools::rendering::datasets: Loaded" in capfd.readouterr().err
+        assert "#rl_tools::hyperlux::datasets: Loaded" in capfd.readouterr().err
     finally:
         hyperdrone.set_verbosity(previous)
 

@@ -6,7 +6,7 @@
 #include <array>
 #include <cstring>
 
-namespace rl_tools::rendering::raytracing::spy::ui {
+namespace rl_tools::hyperlux::spy::ui {
     struct Window {
         Input input;
         std::vector<std::string> labels;
@@ -60,7 +60,7 @@ namespace rl_tools::rendering::raytracing::spy::ui {
 namespace {
     using namespace rl_tools;
     namespace hd = rl::environments::hyperdrone;
-    namespace rt = rendering::raytracing;
+    namespace rt = hyperlux;
     namespace ui = rt::spy::ui;
 
     struct WorldConfig: hd::presets::X500FPV<float, size_t> {
@@ -72,7 +72,7 @@ namespace {
         static constexpr size_t CAM_HEIGHT = 3;
         static constexpr size_t HISTORY_LENGTH = 1;
         static constexpr size_t MAX_ENTITY_SLOTS_PER_INSTANCE = 16;
-        using CAMERA_PROFILE = rendering::raytracing::outputs::List<rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>;
+        using CAMERA_PROFILE = hyperlux::outputs::List<hyperlux::outputs::RGB<hyperlux::outputs::format::Float32>>;
         using CAMERA_OUTPUTS = hd::CameraOutputs<CAMERA_PROFILE, CAMERA_PROFILE>;
         using OBSERVATION = hd::ImageObservation<0, 1>;
         static constexpr size_t NUM_PROBES = 1;
@@ -153,9 +153,9 @@ namespace {
             world.scene_version++;
             auto& renderer = world.slots[scene].renderer;
             render(device, renderer);
-            Tensor<rl_tools::rendering::raytracing::outputs::TensorSpecification<World::RENDERER_SPEC, rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>>> observation_alias;
+            Tensor<rl_tools::hyperlux::outputs::TensorSpecification<World::RENDERER_SPEC, rl_tools::hyperlux::outputs::RGB<rl_tools::hyperlux::outputs::format::Float32>>> observation_alias;
             observation_alias._data = history.data();
-            copy(renderer.device, device, output(device, renderer, rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>{}), observation_alias);
+            copy(renderer.device, device, output(device, renderer, rl_tools::hyperlux::outputs::RGB<rl_tools::hyperlux::outputs::format::Float32>{}), observation_alias);
             world.history_step++;
             world.render_pending = false;
         }

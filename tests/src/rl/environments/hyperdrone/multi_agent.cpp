@@ -15,7 +15,7 @@
 #include "multicamera_test.h"
 
 namespace rlt = rl_tools;
-namespace rro = rlt::rendering::raytracing::outputs;
+namespace rro = rlt::hyperlux::outputs;
 namespace l2f = rlt::rl::environments::l2f;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -76,7 +76,7 @@ namespace test_multi_agent {
         static constexpr TI MAX_DRONES = 2;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
-        using SHADING = rlt::rendering::raytracing::Low;
+        using SHADING = rlt::hyperlux::Low;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 16;
         static constexpr bool SELF_VISIBLE = true;
         using CAMERA_PROFILE = rro::List<rro::RGB<rro::format::Float32>, rro::Segmentation<rro::format::UInt32, rro::labels::Instance>, rro::Segmentation<rro::format::UInt32, rro::labels::Semantic>, rro::Probes>;
@@ -186,7 +186,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT, HETEROGENEOUS_AGENTS_STEP_
     shared.drones[1].parameters.dynamics.dynamics = l2f::parameters::dynamics::registry<l2f::parameters::dynamics::REGISTRY::arpl, PARAMETERS_SPEC>;
     shared.drones[0].parameters.cameras[0].fov = 60;
     shared.drones[1].parameters.cameras[0].fov = 70;
-    rlt::rendering::datasets::glb::Dataset dataset{{}, {SCENE_PATH}};
+    rlt::hyperlux::datasets::glb::Dataset dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
     rlt::enumerate(device, dataset, corpus);
     rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);

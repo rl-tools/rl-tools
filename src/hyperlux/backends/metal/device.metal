@@ -1,0 +1,1110 @@
+// Metal device programs for the RLtools raytracing renderer.
+// This file is a function-for-function mirror of backends/optix/device_impl.h — keep the shading
+// logic in sync; the golden-image parity suite is the drift detector.
+// Struct layouts (LaunchParams, MeshRecord) and buffer/function-constant indices must match
+// include/rl_tools/hyperlux/backends/metal/context.h.
+#include <metal_stdlib>
+#include <metal_raytracing>
+
+using namespace metal;
+using namespace metal::raytracing;
+
+constant bool fc_srgb_output [[function_constant(0)]];
+constant bool fc_motion_blur [[function_constant(1)]];
+constant int fc_motion_samples [[function_constant(2)]];
+constant int fc_aa_grid [[function_constant(3)]];
+constant bool fc_checker_background [[function_constant(4)]];
+constant bool fc_load_textures [[function_constant(5)]];
+constant bool fc_normal_shading [[function_constant(6)]];
+constant bool fc_metallic_reflections [[function_constant(7)]];
+constant bool fc_pbr_shading [[function_constant(8)]];
+constant bool fc_punctual_light_shadows [[function_constant(9)]];
+constant int fc_overlay_count [[function_constant(10)]];
+constant bool fc_has_rgb32f [[function_constant(12)]];
+// dynamic motion blur: the motion loop runs at submit level (one dispatch per sample against
+// per-sample overlay structure state); each pass reads its shutter time from the SHUTTER
+// binding and adds its linear mean into the accumulation buffers, resolved by resolve_outputs
+constant bool fc_dynamic_motion_blur [[function_constant(13)]];
+constant bool fc_resolve_rgb [[function_constant(14)]];
+constant uint fc_output_mask [[function_constant(15)]];
+constant float fc_depth_scale [[function_constant(16)]];
+constant float fc_flow_scale [[function_constant(17)]];
+constant float fc_flow_forward_scale [[function_constant(18)]];
+constant bool fc_all_cameras [[function_constant(19)]];
+constant bool fc_rgb8 = (fc_output_mask & (1u << 0u)) != 0u;
+constant bool fc_depth_raw = (fc_output_mask & (1u << 2u)) != 0u;
+constant bool fc_depth_color = (fc_output_mask & (1u << 3u)) != 0u;
+constant bool fc_instance_raw = (fc_output_mask & (1u << 4u)) != 0u;
+constant bool fc_instance_color = (fc_output_mask & (1u << 5u)) != 0u;
+constant bool fc_semantic_raw = (fc_output_mask & (1u << 6u)) != 0u;
+constant bool fc_semantic_color = (fc_output_mask & (1u << 7u)) != 0u;
+constant bool fc_normals_raw = (fc_output_mask & (1u << 8u)) != 0u;
+constant bool fc_normals_color = (fc_output_mask & (1u << 9u)) != 0u;
+constant bool fc_flow_raw = (fc_output_mask & (1u << 10u)) != 0u;
+constant bool fc_flow_color = (fc_output_mask & (1u << 11u)) != 0u;
+constant bool fc_flow_status_raw = (fc_output_mask & (1u << 12u)) != 0u;
+constant bool fc_flow_status_color = (fc_output_mask & (1u << 13u)) != 0u;
+constant bool fc_forward_raw = (fc_output_mask & (1u << 14u)) != 0u;
+constant bool fc_forward_color = (fc_output_mask & (1u << 15u)) != 0u;
+constant bool fc_forward_status_raw = (fc_output_mask & (1u << 16u)) != 0u;
+constant bool fc_forward_status_color = (fc_output_mask & (1u << 17u)) != 0u;
+constant bool fc_probes = (fc_output_mask & (1u << 18u)) != 0u;
+constant bool fc_resolve_rgb32f = fc_resolve_rgb && fc_has_rgb32f;
+constant bool fc_resolve_rgb8 = fc_resolve_rgb && fc_rgb8;
+
+struct LaunchParams{
+    uint fb_width;
+    uint fb_height;
+    uint cam_width;
+    uint cam_height;
+    uint grid_cols;
+    uint num_cameras;
+    uint num_probes;
+    uint num_scene_lights;
+    float max_dist;
+    packed_float3 ambient_color;
+    packed_float3 miss_color_0;
+    packed_float3 miss_color_1;
+    uint first_overlay_instance;
+    uint num_overlay_slots;
+    float padding[1];
+};
+static_assert(sizeof(LaunchParams) == 84, "LaunchParams layout must match context.h");
+
+struct MeshRecord{
+    device const packed_int3* index;
+    device const packed_float3* vertices;
+    device const packed_float2* tex_coord;
+    device const packed_float3* normal;
+    texture2d<float> texture;
+    texture2d<float> normal_map;
+    texture2d<float> metallic_roughness_map;
+    texture2d<float> emissive_map;
+    texture2d<float> occlusion_map;
+    packed_float3 color;
+    float metallic;
+    float roughness;
+    float opacity;
+    packed_float3 emissive;
+    float alpha_cutoff;
+    int alpha_mode;
+    int has_texture;
+    int has_normal_map;
+    int has_metallic_roughness_map;
+    int has_emissive_map;
+    int has_occlusion_map;
+    int unlit;
+    int padding[1];
+};
+static_assert(sizeof(MeshRecord) == 144, "MeshRecord layout must match context.h");
+
+struct SceneLight{
+    int type; // 0=directional, 1=point, 2=spot
+    packed_float3 position;
+    packed_float3 direction;
+    packed_float3 color;
+    float attenuation_constant;
+    float attenuation_linear;
+    float attenuation_quadratic;
+    float cos_inner_cone;
+    float cos_outer_cone;
+    float radius;
+};
+static_assert(sizeof(SceneLight) == 64, "SceneLight layout must match hyperlux/types.h");
+
+struct Camera{
+    packed_float3 pos;
+    packed_float3 dir_00;
+    packed_float3 dir_du;
+    packed_float3 dir_dv;
+};
+static_assert(sizeof(Camera) == 48, "Camera layout must match hyperlux/types.h");
+
+struct InstanceData{
+    float object_to_world[12]; // 3x4 row-major [R|t]
+    float world_to_object[12];
+    int identity;
+    int padding[3];
+};
+static_assert(sizeof(InstanceData) == 112, "InstanceData layout must match context.h");
+
+inline float3 transform_point(device const float* m, float3 p){
+    return float3(m[0]*p.x + m[1]*p.y + m[2]*p.z + m[3],
+                  m[4]*p.x + m[5]*p.y + m[6]*p.z + m[7],
+                  m[8]*p.x + m[9]*p.y + m[10]*p.z + m[11]);
+}
+
+// normals transform with the inverse-transpose: multiply by the world_to_object columns
+inline float3 transform_normal(device const float* m, float3 n){
+    return float3(m[0]*n.x + m[4]*n.y + m[8]*n.z,
+                  m[1]*n.x + m[5]*n.y + m[9]*n.z,
+                  m[2]*n.x + m[6]*n.y + m[10]*n.z);
+}
+
+// world point → screen fraction through the linear camera model: solves
+// dir_00 + screen_x·dir_du + screen_y·dir_dv = lambda·(point − pos) by Cramer's rule;
+// returns false for a degenerate basis or a point at/behind the camera (lambda <= 0)
+inline bool project_camera(device const Camera& cam, float3 point, thread float& screen_x, thread float& screen_y){
+    const float3 direction = point - float3(cam.pos);
+    const float3 dir_du = float3(cam.dir_du);
+    const float3 dir_dv = float3(cam.dir_dv);
+    const float3 negative_direction = -direction;
+    const float3 cross_dv_negative_direction = cross(dir_dv, negative_direction);
+    const float det = dot(dir_du, cross_dv_negative_direction);
+    if (det > -1e-12f && det < 1e-12f)
+        return false;
+    const float inv_det = 1.f / det;
+    const float3 b = -float3(cam.dir_00);
+    screen_x = dot(b, cross_dv_negative_direction) * inv_det;
+    screen_y = dot(dir_du, cross(b, negative_direction)) * inv_det;
+    const float lambda = dot(dir_du, cross(dir_dv, b)) * inv_det;
+    return lambda > 0.f;
+}
+
+struct CollisionResult{
+    float distance;
+    int hit;
+};
+static_assert(sizeof(CollisionResult) == 8, "CollisionResult layout must match hyperlux/types.h");
+
+constexpr sampler tex_sampler(address::repeat, filter::linear, coord::normalized);
+
+inline uint make_8bit(float f){
+    return (uint)min(255, max(0, (int)(f * 256.0f)));
+}
+
+inline uint make_rgba(float3 color){
+    return (make_8bit(color.x) << 0) | (make_8bit(color.y) << 8) | (make_8bit(color.z) << 16) | (0xffu << 24);
+}
+
+inline float linear_to_srgb(float x){
+    if (x <= 0.0031308f) return 12.92f * x;
+    return 1.055f * pow(x, 1.f / 2.4f) - 0.055f;
+}
+
+inline uint make_srgb_rgba_from_linear(float3 color){
+    color.x = linear_to_srgb(fmin(fmax(color.x, 0.f), 1.f));
+    color.y = linear_to_srgb(fmin(fmax(color.y, 0.f), 1.f));
+    color.z = linear_to_srgb(fmin(fmax(color.z, 0.f), 1.f));
+    return make_rgba(color);
+}
+
+inline uint make_linear_rgba_from_linear(float3 color){
+    color.x = fmin(fmax(color.x, 0.f), 1.f);
+    color.y = fmin(fmax(color.y, 0.f), 1.f);
+    color.z = fmin(fmax(color.z, 0.f), 1.f);
+    return make_rgba(color);
+}
+
+inline float3 lerp_camera_vec(float3 a, float3 b, float t){
+    return (1.f - t) * a + t * b;
+}
+
+// per-camera work gates over the camera table's output-slot masks (outputs.h)
+constant uint RGB_SLOTS = 0x3u;
+constant uint DEPTH_SLOTS = 0xCu;
+constant uint SEGMENTATION_SLOTS = 0xF0u;
+constant uint NORMALS_SLOTS = 0x300u;
+constant uint FLOW_BACKWARD_SLOTS = 0x3C00u;
+constant uint FLOW_BACKWARD_VISIBILITY_SLOTS = 0x3800u;
+constant uint FLOW_FORWARD_SLOTS = 0x3C000u;
+constant uint FLOW_FORWARD_VISIBILITY_SLOTS = 0x38000u;
+constant uint CAMERA_TABLE_STRIDE = 20u;
+constant uint NO_ROW = 0xFFFFFFFFu;
+
+struct PixelLaunchContext{
+    int cam_idx;
+    int local_x;
+    int local_y;
+    int fb_offset; // frame-buffer order, for the internal motion-blur accumulator
+    uint pixel;    // within the camera
+    uint outputs;  // the camera's output-slot mask; zero outside the grid
+    bool valid;
+};
+
+inline PixelLaunchContext pixel_launch_context(constant LaunchParams& params, device const uint* camera_table, uint2 pixel_id){
+    const int tile_col = (int)(pixel_id.x / params.cam_width);
+    const int tile_row = (int)(pixel_id.y / params.cam_height);
+    const int cam_idx  = tile_row * (int)params.grid_cols + tile_col;
+    const int local_x = (int)pixel_id.x - tile_col * (int)params.cam_width;
+    const int local_y = (int)pixel_id.y - tile_row * (int)params.cam_height;
+    const int fb_offset = cam_idx * (int)params.cam_width * (int)params.cam_height + local_y * (int)params.cam_width + local_x;
+    const bool valid = cam_idx < (int)params.num_cameras;
+    return {cam_idx, local_x, local_y, fb_offset, (uint)(local_y * (int)params.cam_width + local_x), valid ? (fc_all_cameras ? fc_output_mask : camera_table[(uint)cam_idx * CAMERA_TABLE_STRIDE]) : 0u, valid};
+}
+
+inline bool selected(thread const PixelLaunchContext& ctx, uint slot){
+    return (ctx.outputs & (1u << slot)) != 0u;
+}
+
+// element index of the pixel in an output: the camera's row, then the pixel within it
+inline uint output_element(constant LaunchParams& params, device const uint* camera_table, thread const PixelLaunchContext& ctx, uint slot){
+    if(fc_all_cameras){
+        return (uint)ctx.fb_offset;
+    }
+    return camera_table[(uint)ctx.cam_idx * CAMERA_TABLE_STRIDE + 1u + slot] * params.cam_width * params.cam_height + ctx.pixel;
+}
+
+struct OverlayStructure{
+    instance_acceleration_structure structure;
+    uint num_active;
+    uint padding;
+};
+
+struct TraceContext{
+    instance_acceleration_structure accel;
+    device const MeshRecord* meshes;
+    device const SceneLight* scene_lights;
+    device const uint* instance_record_base;
+    device const InstanceData* instance_data;
+    device const OverlayStructure* overlays;
+    device const uint* attachments;
+    constant LaunchParams* params;
+    uint2 pixel_id;
+    int camera;
+};
+
+// min-t composition of the shared world and the overlays attached to this camera; at
+// fc_overlay_count == 0 the loop specializes away and this is a plain intersect
+inline intersection_result<triangle_data, instancing> intersect_composed(
+    instance_acceleration_structure accel,
+    device const OverlayStructure* overlays,
+    device const uint* attachments,
+    int camera,
+    ray r,
+    bool accept_any)
+{
+    intersector<triangle_data, instancing> i;
+    i.assume_geometry_type(geometry_type::triangle);
+    i.force_opacity(forced_opacity::opaque);
+    i.accept_any_intersection(accept_any);
+    intersection_result<triangle_data, instancing> best = i.intersect(r, accel);
+    for (int k = 0; k < fc_overlay_count; k++) {
+        if (accept_any && best.type != intersection_type::none) {
+            return best;
+        }
+        const uint overlay = attachments[camera * fc_overlay_count + k];
+        if (overlay == 0xFFFFFFFFu) continue;
+        device const OverlayStructure& entry = overlays[overlay];
+        if (entry.num_active == 0) continue;
+        ray clamped = r;
+        if (best.type != intersection_type::none) {
+            clamped.max_distance = best.distance;
+        }
+        intersection_result<triangle_data, instancing> hit = i.intersect(clamped, entry.structure);
+        if (hit.type != intersection_type::none && (best.type == intersection_type::none || hit.distance < best.distance)) {
+            best = hit;
+        }
+    }
+    return best;
+}
+
+inline float3 miss_color(thread const TraceContext& ctx){
+    if (fc_checker_background) {
+        int checker_pattern = ((int)ctx.pixel_id.x / 8) ^ ((int)ctx.pixel_id.y / 8);
+        return (checker_pattern & 1) ? float3(ctx.params->miss_color_1) : float3(ctx.params->miss_color_0);
+    }
+    return float3(ctx.params->miss_color_0);
+}
+
+inline bool trace_shadow_occluded(thread const TraceContext& ctx, float3 pos, float3 direction, float max_dist){
+    ray r(pos, direction, 1e-3f, max_dist);
+    intersection_result<triangle_data, instancing> hit = intersect_composed(ctx.accel, ctx.overlays, ctx.attachments, ctx.camera, r, true);
+    return hit.type != intersection_type::none;
+}
+
+
+template <int DEPTH>
+struct RGBTracer;
+
+// Bounded depth-1 "recursion": the ENABLED=false specialization does not reference RGBTracer, so
+// template instantiation terminates (mirrors the optixGetPayload_2()-based depth in device_impl.h).
+template <int DEPTH, bool ENABLED>
+struct SecondaryTrace{
+    static float3 trace(thread const TraceContext& ctx, float3 origin, float3 direction, float tmin){
+        return RGBTracer<DEPTH>::trace(ctx, origin, direction, tmin, 1e20f);
+    }
+};
+
+template <int DEPTH>
+struct SecondaryTrace<DEPTH, false>{
+    static float3 trace(thread const TraceContext&, float3, float3, float){
+        return float3(0.f);
+    }
+};
+
+template <int DEPTH>
+inline float3 shade_basic(thread const TraceContext& ctx, thread const ray& r, thread const intersection_result<triangle_data, instancing>& hit){
+    constexpr bool SECONDARY = DEPTH < 1;
+    device const MeshRecord& self = ctx.meshes[ctx.instance_record_base[hit.user_instance_id] + hit.geometry_id];
+    device const InstanceData& instance = ctx.instance_data[hit.user_instance_id];
+
+    float3 base_color = float3(self.color);
+    float3 normal_geometric = float3(0.f, 0.f, 1.f);
+    float3 ray_dir = float3(0.f);
+
+    if (fc_load_textures || fc_normal_shading || fc_metallic_reflections) {
+        const int prim_id = hit.primitive_id;
+        const int3 index = int3(self.index[prim_id]);
+
+        if (fc_normal_shading || fc_metallic_reflections) {
+            float3 vertex_a = float3(self.vertices[index.x]);
+            float3 vertex_b = float3(self.vertices[index.y]);
+            float3 vertex_c = float3(self.vertices[index.z]);
+            if (!instance.identity) {
+                vertex_a = transform_point(instance.object_to_world, vertex_a);
+                vertex_b = transform_point(instance.object_to_world, vertex_b);
+                vertex_c = transform_point(instance.object_to_world, vertex_c);
+            }
+            normal_geometric = normalize(cross(vertex_b - vertex_a, vertex_c - vertex_a));
+            ray_dir = r.direction;
+        }
+
+        if (fc_load_textures) {
+            if (self.has_texture && self.tex_coord != nullptr) {
+                const float2 bary = hit.triangle_barycentric_coord;
+                const float2 tc
+                    = (1.f - bary.x - bary.y) * float2(self.tex_coord[index.x])
+                    +        bary.x           * float2(self.tex_coord[index.y])
+                    +               bary.y    * float2(self.tex_coord[index.z]);
+                float4 tex_color = self.texture.sample(tex_sampler, tc);
+                base_color = tex_color.xyz * float3(self.color);
+            }
+        }
+    }
+
+    if(self.unlit != 0){
+        return base_color;
+    }
+
+    float3 direct = base_color;
+    if (fc_normal_shading) {
+        direct = (.2f + .8f * fabs(dot(ray_dir, normal_geometric))) * base_color;
+    }
+
+    if (fc_metallic_reflections) {
+        if (SECONDARY && self.metallic > 0.f) {
+            float3 hit_point = r.origin + ray_dir * hit.distance;
+            float3 n = dot(ray_dir, normal_geometric) > 0.f ? -normal_geometric : normal_geometric;
+            float3 reflect_dir = ray_dir - 2.f * dot(ray_dir, n) * n;
+
+            float3 reflected_color = SecondaryTrace<DEPTH + 1, SECONDARY>::trace(ctx, hit_point, reflect_dir, 1e-3f);
+
+            float cos_theta = fabs(dot(ray_dir, n));
+            float fresnel = self.metallic * (0.04f + 0.96f * pow(1.f - cos_theta, 5.f));
+            return direct * ((1.f - fresnel) + fresnel * reflected_color);
+        }
+        return direct;
+    }
+    return direct;
+}
+
+template <int DEPTH>
+inline float3 shade_pbr(thread const TraceContext& ctx, thread const ray& r, thread const intersection_result<triangle_data, instancing>& hit){
+    constexpr bool SECONDARY = DEPTH < 1;
+    device const MeshRecord& self = ctx.meshes[ctx.instance_record_base[hit.user_instance_id] + hit.geometry_id];
+    device const InstanceData& instance = ctx.instance_data[hit.user_instance_id];
+
+    const int prim_id = hit.primitive_id;
+    const int3 index = int3(self.index[prim_id]);
+    float3 vertex_a = float3(self.vertices[index.x]);
+    float3 vertex_b = float3(self.vertices[index.y]);
+    float3 vertex_c = float3(self.vertices[index.z]);
+    if (!instance.identity) {
+        vertex_a = transform_point(instance.object_to_world, vertex_a);
+        vertex_b = transform_point(instance.object_to_world, vertex_b);
+        vertex_c = transform_point(instance.object_to_world, vertex_c);
+    }
+    const float2 bary = hit.triangle_barycentric_coord;
+    const float w0 = 1.f - bary.x - bary.y;
+
+    const float3 edge1 = vertex_b - vertex_a;
+    const float3 edge2 = vertex_c - vertex_a;
+    const float3 normal_geometric = normalize(cross(edge1, edge2));
+
+    float3 N;
+    if (self.normal != nullptr) {
+        float3 normal_interpolated = w0 * float3(self.normal[index.x]) + bary.x * float3(self.normal[index.y]) + bary.y * float3(self.normal[index.z]);
+        if (!instance.identity) {
+            normal_interpolated = transform_normal(instance.world_to_object, normal_interpolated);
+        }
+        N = normalize(normal_interpolated);
+    } else {
+        N = normal_geometric;
+    }
+
+    const float3 ray_dir = r.direction;
+    if (dot(ray_dir, N) > 0.f) N = -N;
+
+    const float2 tc = (self.tex_coord != nullptr)
+        ? w0 * float2(self.tex_coord[index.x]) + bary.x * float2(self.tex_coord[index.y]) + bary.y * float2(self.tex_coord[index.z])
+        : float2(0.f);
+
+    float3 base_color = float3(self.color);
+    float alpha = self.opacity;
+    if (self.has_texture && self.tex_coord != nullptr) {
+        float4 tex_color = self.texture.sample(tex_sampler, tc);
+        base_color = tex_color.xyz * float3(self.color);
+        alpha *= tex_color.w;
+    }
+
+    float3 hit_point = r.origin + ray_dir * hit.distance;
+
+    float3 color = base_color;
+    if(self.unlit == 0){
+        float metallic = self.metallic;
+        float roughness = self.roughness;
+        if (self.has_metallic_roughness_map && self.tex_coord != nullptr) {
+            float4 mr_sample = self.metallic_roughness_map.sample(tex_sampler, tc);
+            roughness = mr_sample.y * self.roughness;
+            metallic = mr_sample.z * self.metallic;
+        }
+
+        if (self.has_normal_map && self.tex_coord != nullptr) {
+            const float2 tc0 = float2(self.tex_coord[index.x]);
+            const float2 tc1 = float2(self.tex_coord[index.y]);
+            const float2 tc2 = float2(self.tex_coord[index.z]);
+            const float2 duv1 = tc1 - tc0;
+            const float2 duv2 = tc2 - tc0;
+            float det = duv1.x * duv2.y - duv2.x * duv1.y;
+            if (fabs(det) > 1e-8f) {
+                float inv_det = 1.f / det;
+                float3 T = normalize(inv_det * (duv2.y * edge1 - duv1.y * edge2));
+                T = normalize(T - dot(T, N) * N);
+                float3 B = cross(N, T);
+                float4 nm_sample = self.normal_map.sample(tex_sampler, float2(w0 * tc0.x + bary.x * tc1.x + bary.y * tc2.x, w0 * tc0.y + bary.x * tc1.y + bary.y * tc2.y));
+                float3 n_tangent = float3(nm_sample.x * 2.f - 1.f, -(nm_sample.y * 2.f - 1.f), nm_sample.z * 2.f - 1.f);
+                N = normalize(T * n_tangent.x + B * n_tangent.y + N * n_tangent.z);
+            }
+        }
+
+        roughness = fmax(roughness, 0.04f);
+        float roughness_alpha = roughness * roughness;
+        float k = (roughness + 1.f) * (roughness + 1.f) / 8.f;
+
+        float3 V = -ray_dir;
+        float NdotV = fmax(dot(N, V), 1e-4f);
+        float3 F0 = float3(0.04f) * (1.f - metallic) + base_color * metallic;
+
+        float3 Lo = float3(0.f);
+        for (int li = 0; li < (int)ctx.params->num_scene_lights; li++) {
+            device const SceneLight& light = ctx.scene_lights[li];
+            float3 Lc = float3(light.color);
+            float3 L;
+            float attenuation = 1.f;
+            float light_distance = 1e20f;
+            float light_size = light.radius;
+
+            if (light.type == 0) {
+                L = float3(light.direction);
+            } else {
+                float3 to_light = float3(light.position) - hit_point;
+                float dist = length(to_light);
+                light_distance = fmax(dist - 1e-3f, 0.f);
+                light_size = fmin(light.radius / fmax(dist, 1e-6f), 1.f);
+                L = to_light * (1.f / fmax(dist, 1e-6f));
+                attenuation = 1.f / (light.attenuation_constant + light.attenuation_linear * dist + light.attenuation_quadratic * dist * dist);
+                if (light.type == 2) {
+                    float3 spot_dir = float3(light.direction);
+                    float cos_angle = dot(-L, spot_dir);
+                    float denom = light.cos_inner_cone - light.cos_outer_cone;
+                    float spot_t = (cos_angle - light.cos_outer_cone) / (fabs(denom) > 1e-6f ? denom : 1e-6f);
+                    attenuation *= fmax(fmin(spot_t, 1.f), 0.f);
+                }
+            }
+
+            float NdotL = fmax(dot(N, L), 0.f);
+            if (NdotL <= 0.f) continue;
+            if (fc_punctual_light_shadows) {
+                if (light.type != 0 && trace_shadow_occluded(ctx, hit_point + N * 2e-3f, L, light_distance)) continue;
+            }
+
+            float3 H = normalize(V + L);
+            float NdotH = fmax(dot(N, H), 0.f);
+            float VdotH = fmax(dot(V, H), 0.f);
+
+            // a light's angular size widens its highlight (the half vector moves half as far as the light direction)
+            float light_alpha = fmin(roughness_alpha + 0.5f * light_size, 1.f);
+            float light_alpha2 = light_alpha * light_alpha;
+            float denom_D = NdotH * NdotH * (light_alpha2 - 1.f) + 1.f;
+            float D = light_alpha2 / (3.14159265f * denom_D * denom_D);
+
+            float G1_V = NdotV / (NdotV * (1.f - k) + k);
+            float G1_L = NdotL / (NdotL * (1.f - k) + k);
+            float G = G1_V * G1_L;
+
+            float pow5 = pow(1.f - VdotH, 5.f);
+            float3 F = F0 + (float3(1.f) - F0) * pow5;
+
+            float3 specular = D * G * F * (1.f / (4.f * NdotV * NdotL + 1e-4f));
+            float3 kd = (float3(1.f) - F) * (1.f - metallic);
+            float3 diffuse = kd * base_color * (1.f / 3.14159265f);
+
+            Lo = Lo + (diffuse + specular) * Lc * (attenuation * NdotL);
+        }
+
+        float occlusion = 1.f;
+        if (self.has_occlusion_map && self.tex_coord != nullptr) {
+            float4 ao_sample = self.occlusion_map.sample(tex_sampler, tc);
+            occlusion = ao_sample.x;
+        }
+
+        float3 emissive_color = float3(0.f);
+        if (self.has_emissive_map && self.tex_coord != nullptr) {
+            float4 em_sample = self.emissive_map.sample(tex_sampler, tc);
+            emissive_color = em_sample.xyz * float3(self.emissive);
+        } else {
+            emissive_color = float3(self.emissive);
+        }
+
+        float3 ambient = float3(ctx.params->ambient_color) * base_color * ((1.f - metallic) * occlusion);
+        color = ambient + Lo + emissive_color;
+
+        if (SECONDARY && metallic > 0.1f) {
+            float3 reflect_dir = ray_dir - 2.f * dot(ray_dir, N) * N;
+
+            float3 reflected_color = SecondaryTrace<DEPTH + 1, SECONDARY>::trace(ctx, hit_point, reflect_dir, 1e-3f);
+
+            float fresnel_refl = F0.x + (1.f - F0.x) * pow(1.f - fmax(dot(V, N), 0.f), 5.f);
+            float reflection_weight = fresnel_refl * (1.f - roughness);
+            color = color * (1.f - reflection_weight) + reflected_color * reflection_weight;
+        }
+
+    }
+
+    bool transparent = (self.alpha_mode == 2 && alpha < 0.99f) || (self.alpha_mode == 1 && alpha < self.alpha_cutoff);
+    if (SECONDARY && transparent) {
+        float3 behind_color = SecondaryTrace<DEPTH + 1, SECONDARY>::trace(ctx, hit_point, ray_dir, 1e-5f);
+
+        if (self.alpha_mode == 1) {
+            color = behind_color;
+        } else {
+            color = color * alpha + behind_color * (1.f - alpha);
+        }
+    }
+
+    return color;
+}
+
+template <int DEPTH>
+struct RGBTracer{
+    static float3 trace(thread const TraceContext& ctx, float3 origin, float3 direction, float tmin, float tmax){
+        ray r(origin, direction, tmin, tmax);
+        intersection_result<triangle_data, instancing> hit = intersect_composed(ctx.accel, ctx.overlays, ctx.attachments, ctx.camera, r, false);
+        if (hit.type == intersection_type::none) {
+            return miss_color(ctx);
+        }
+        if (fc_pbr_shading) {
+            return shade_pbr<DEPTH>(ctx, r, hit);
+        }
+        return shade_basic<DEPTH>(ctx, r, hit);
+    }
+};
+
+kernel void render_rgb(
+    constant LaunchParams& params [[buffer(0)]],
+    device const Camera* cameras_close [[buffer(1)]],
+    device const Camera* cameras_open [[buffer(2)]],
+    device uint* fb [[buffer(3), function_constant(fc_rgb8)]],
+    device const MeshRecord* meshes [[buffer(4)]],
+    device const SceneLight* scene_lights [[buffer(5)]],
+    instance_acceleration_structure accel [[buffer(8)]],
+    device const uint* instance_record_base [[buffer(9)]],
+    device const InstanceData* instance_data [[buffer(10)]],
+    device const OverlayStructure* overlays [[buffer(11)]],
+    device const uint* overlay_attachments [[buffer(12)]],
+    device float* rgb_float [[buffer(14), function_constant(fc_has_rgb32f)]],
+    device float* rgb_accumulation [[buffer(15), function_constant(fc_dynamic_motion_blur)]],
+    constant float& shutter [[buffer(17), function_constant(fc_dynamic_motion_blur)]],
+    device const uint* camera_table [[buffer(23)]],
+    uint2 pixel_id [[thread_position_in_grid]])
+{
+    const PixelLaunchContext ctx = pixel_launch_context(params, camera_table, pixel_id);
+    if ((ctx.outputs & RGB_SLOTS) == 0u) {
+        return;
+    }
+
+    TraceContext trace_ctx{accel, meshes, scene_lights, instance_record_base, instance_data, overlays, overlay_attachments, &params, pixel_id, ctx.cam_idx};
+
+    float3 accumulated = float3(0.f);
+    const float inv_aa_grid = 1.f / float(fc_aa_grid);
+    const int motion_samples = fc_dynamic_motion_blur ? 1 : fc_motion_samples;
+    for (int motion_i = 0; motion_i < motion_samples; motion_i++) {
+        float3 pos;
+        float3 dir_00;
+        float3 dir_du;
+        float3 dir_dv;
+        if (fc_motion_blur) {
+            device const Camera& cam_open = cameras_open[ctx.cam_idx];
+            device const Camera& cam_close = cameras_close[ctx.cam_idx];
+            const float shutter_t = fc_dynamic_motion_blur ? shutter : (float(motion_i) + .5f) * (1.f / float(fc_motion_samples));
+            pos = lerp_camera_vec(float3(cam_open.pos), float3(cam_close.pos), shutter_t);
+            dir_00 = lerp_camera_vec(float3(cam_open.dir_00), float3(cam_close.dir_00), shutter_t);
+            dir_du = lerp_camera_vec(float3(cam_open.dir_du), float3(cam_close.dir_du), shutter_t);
+            dir_dv = lerp_camera_vec(float3(cam_open.dir_dv), float3(cam_close.dir_dv), shutter_t);
+        }
+        else {
+            device const Camera& cam = cameras_close[ctx.cam_idx];
+            pos = float3(cam.pos);
+            dir_00 = float3(cam.dir_00);
+            dir_du = float3(cam.dir_du);
+            dir_dv = float3(cam.dir_dv);
+        }
+        for (int aa_y = 0; aa_y < fc_aa_grid; aa_y++) {
+            for (int aa_x = 0; aa_x < fc_aa_grid; aa_x++) {
+                const float2 screen = (float2(ctx.local_x, ctx.local_y) + float2((float(aa_x) + .5f) * inv_aa_grid, (float(aa_y) + .5f) * inv_aa_grid)) / float2(params.cam_width, params.cam_height);
+                const float3 direction = normalize(dir_00 + screen.x * dir_du + screen.y * dir_dv);
+                accumulated += RGBTracer<0>::trace(trace_ctx, pos, direction, 0.f, 1e30f);
+            }
+        }
+    }
+    const int samples = motion_samples * fc_aa_grid * fc_aa_grid;
+    const float3 color = accumulated * (1.f / float(samples));
+    if (fc_dynamic_motion_blur) {
+        // one pass of the launch-level motion loop: add this pass's linear mean (each thread
+        // owns its pixel — no atomics); resolve_outputs averages and quantizes
+        rgb_accumulation[ctx.fb_offset * 3 + 0] += color.x;
+        rgb_accumulation[ctx.fb_offset * 3 + 1] += color.y;
+        rgb_accumulation[ctx.fb_offset * 3 + 2] += color.z;
+        return;
+    }
+    if (fc_has_rgb32f && selected(ctx, 1u)) {
+        // the rgb_float is the frame-buffer color before 8-bit quantization
+        float3 obs_color = clamp(color, 0.f, 1.f);
+        if (fc_srgb_output) {
+            obs_color = float3(linear_to_srgb(obs_color.x), linear_to_srgb(obs_color.y), linear_to_srgb(obs_color.z));
+        }
+        const uint element = output_element(params, camera_table, ctx, 1u);
+        rgb_float[element * 3 + 0] = obs_color.x;
+        rgb_float[element * 3 + 1] = obs_color.y;
+        rgb_float[element * 3 + 2] = obs_color.z;
+    }
+    if (fc_rgb8 && selected(ctx, 0u)) {
+        if (fc_srgb_output) {
+            fb[output_element(params, camera_table, ctx, 0u)] = make_srgb_rgba_from_linear(color);
+        }
+        else {
+            fb[output_element(params, camera_table, ctx, 0u)] = make_linear_rgba_from_linear(color);
+        }
+    }
+}
+
+inline uint packed_color(uint3 color){
+    return 0xFF000000u | color.x | (color.y << 8u) | (color.z << 16u);
+}
+
+inline float3 hue_color(float hue){
+    const float x = 1.f - abs((hue - 2.f * floor(hue * .5f)) - 1.f);
+    switch(uint(hue) % 6u){
+        case 0u: { return float3(1.f, x, 0.f); }
+        case 1u: { return float3(x, 1.f, 0.f); }
+        case 2u: { return float3(0.f, 1.f, x); }
+        case 3u: { return float3(0.f, x, 1.f); }
+        case 4u: { return float3(x, 0.f, 1.f); }
+        default: { return float3(1.f, 0.f, x); }
+    }
+}
+
+inline uint segmentation_color(uint id){
+    if(id == 0xFFFFFFFFu){
+        return 0xFF000000u;
+    }
+    const float scaled = float(id) * .61803398875f;
+    return packed_color(uint3(hue_color((scaled - floor(scaled)) * 6.f) * 255.f));
+}
+
+// Keep the CPU encoder's two f32 roundings and f64 half-up bias without Metal reassociation.
+inline uint normal_channel(float normal){
+    const uint bits = as_type<uint>(clamp(normal, -1.f, 1.f) * .5f + .5f);
+    if(bits < 0x3B000000u){
+        return 0u;
+    }
+    const uint product = ((bits & 0x7FFFFFu) | 0x800000u) * 255u;
+    const uint shift = product >= 0x80000000u ? 8u : 7u;
+    const uint whole = product >> shift;
+    const uint remainder = product & ((1u << shift) - 1u);
+    const uint midpoint = 1u << (shift - 1u);
+    const uint rounded = whole + uint(remainder > midpoint || (remainder == midpoint && (whole & 1u) != 0u));
+    const uint integer_shift = 150u - (bits >> 23u) - shift;
+    return (rounded + (1u << (integer_shift - 1u))) >> integer_shift;
+}
+
+inline uint normal_color(float3 normal){
+    return packed_color(uint3(normal_channel(normal.x), normal_channel(normal.y), normal_channel(normal.z)));
+}
+
+inline uint status_color(uint status){
+    switch(status){
+        case 0u: { return 0xFFFFFFFFu; }
+        case 1u: { return 0xFF000000u; }
+        case 2u: { return 0xFFFF00FFu; }
+        case 3u: { return 0xFFFF4020u; }
+        case 4u: { return 0xFF0090FFu; }
+        default: { return 0xFF0000FFu; }
+    }
+}
+
+inline uint flow_color(float2 flow, float scale){
+    if(all(flow == float2(0.f)) || scale <= 0.f){
+        return 0xFFFFFFFFu;
+    }
+    const float saturation = min(sqrt(flow.x * flow.x + flow.y * flow.y) / scale, 1.f);
+    const float angle = flow.x == 0.f ? (flow.y > 0.f ? 1.57079632679489661923f : -1.57079632679489661923f) : atan2(flow.y, flow.x);
+    const float hue = (angle / 6.28318530717958647692f + .5f) * 6.f;
+    return packed_color(uint3((float3(1.f) - saturation * (float3(1.f) - hue_color(hue))) * 255.f));
+}
+
+kernel void render_depth(
+    constant LaunchParams& params [[buffer(0)]],
+    device const Camera* cameras_close [[buffer(1)]],
+    device uint* depth_out [[buffer(3), function_constant(fc_depth_raw)]],
+    device uint* depth_color_out [[buffer(16), function_constant(fc_depth_color)]],
+    instance_acceleration_structure accel [[buffer(8)]],
+    device const OverlayStructure* overlays [[buffer(11)]],
+    device const uint* overlay_attachments [[buffer(12)]],
+    device const uint* camera_table [[buffer(23)]],
+    uint2 pixel_id [[thread_position_in_grid]])
+{
+    const PixelLaunchContext ctx = pixel_launch_context(params, camera_table, pixel_id);
+    if((ctx.outputs & DEPTH_SLOTS) == 0u){
+        return;
+    }
+    device const Camera& cam = cameras_close[ctx.cam_idx];
+    const float2 screen = (float2(ctx.local_x, ctx.local_y) + float2(.5f)) / float2(params.cam_width, params.cam_height);
+    const float3 direction = normalize(float3(cam.dir_00) + screen.x * float3(cam.dir_du) + screen.y * float3(cam.dir_dv));
+    const float3 normal = normalize(cross(float3(cam.dir_du), float3(cam.dir_dv)));
+    ray r(float3(cam.pos), direction, 0.f, 1e30f);
+    const auto hit = intersect_composed(accel, overlays, overlay_attachments, ctx.cam_idx, r, false);
+    float depth = as_type<float>(0x7f800000u);
+    if(hit.type != intersection_type::none){
+        depth = hit.distance * abs(dot(direction, normal));
+    }
+    if(fc_depth_raw && selected(ctx, 2u)){
+        depth_out[output_element(params, camera_table, ctx, 2u)] = as_type<uint>(depth);
+    }
+    if(fc_depth_color && selected(ctx, 3u)){
+        const uint shade = uint(clamp(depth / fc_depth_scale, 0.f, 1.f) * 255.f);
+        depth_color_out[output_element(params, camera_table, ctx, 3u)] = packed_color(uint3(shade));
+    }
+}
+
+// divides the accumulated linear radiance by the sample count and writes the declared outputs
+// with the same transfer curve + quantization as the single-dispatch path
+kernel void resolve_outputs(
+    constant LaunchParams& params [[buffer(0)]],
+    device uint* fb [[buffer(3), function_constant(fc_resolve_rgb8)]],
+    device float* rgb_float [[buffer(14), function_constant(fc_resolve_rgb32f)]],
+    device const float* rgb_accumulation [[buffer(15), function_constant(fc_resolve_rgb)]],
+    device const uint* camera_table [[buffer(23)]],
+    uint2 pixel_id [[thread_position_in_grid]])
+{
+    const PixelLaunchContext ctx = pixel_launch_context(params, camera_table, pixel_id);
+    if ((ctx.outputs & RGB_SLOTS) == 0u) {
+        return;
+    }
+    const float inv_samples = 1.f / float(fc_motion_samples);
+    if (fc_resolve_rgb) {
+        const float3 color = float3(
+            rgb_accumulation[ctx.fb_offset * 3 + 0],
+            rgb_accumulation[ctx.fb_offset * 3 + 1],
+            rgb_accumulation[ctx.fb_offset * 3 + 2]) * inv_samples;
+        if (fc_resolve_rgb32f && selected(ctx, 1u)) {
+            float3 obs_color = clamp(color, 0.f, 1.f);
+            if (fc_srgb_output) {
+                obs_color = float3(linear_to_srgb(obs_color.x), linear_to_srgb(obs_color.y), linear_to_srgb(obs_color.z));
+            }
+            const uint element = output_element(params, camera_table, ctx, 1u);
+            rgb_float[element * 3 + 0] = obs_color.x;
+            rgb_float[element * 3 + 1] = obs_color.y;
+            rgb_float[element * 3 + 2] = obs_color.z;
+        }
+        if (fc_resolve_rgb8 && selected(ctx, 0u)) {
+            if (fc_srgb_output) {
+                fb[output_element(params, camera_table, ctx, 0u)] = make_srgb_rgba_from_linear(color);
+            }
+            else {
+                fb[output_element(params, camera_table, ctx, 0u)] = make_linear_rgba_from_linear(color);
+            }
+        }
+    }
+}
+
+// single-sample by design: instance labels cannot be averaged, so anti-aliasing and motion blur
+// do not apply (shutter-close camera, pixel-center ray)
+kernel void render_segmentation(
+    constant LaunchParams& params [[buffer(0)]],
+    device const Camera* cameras_close [[buffer(1)]],
+    device uint* segmentation_out [[buffer(3), function_constant(fc_instance_raw)]],
+    device uint* segmentation_color_out [[buffer(16), function_constant(fc_instance_color)]],
+    device uint* semantic_out [[buffer(20), function_constant(fc_semantic_raw)]],
+    device uint* semantic_color_out [[buffer(18), function_constant(fc_semantic_color)]],
+    instance_acceleration_structure accel [[buffer(8)]],
+    device const OverlayStructure* overlays [[buffer(11)]],
+    device const uint* overlay_attachments [[buffer(12)]],
+    device const uint* instance_classes [[buffer(13)]],
+    device const uint* camera_table [[buffer(23)]],
+    uint2 pixel_id [[thread_position_in_grid]])
+{
+    const PixelLaunchContext ctx = pixel_launch_context(params, camera_table, pixel_id);
+    if ((ctx.outputs & SEGMENTATION_SLOTS) == 0u) {
+        return;
+    }
+
+    device const Camera& cam = cameras_close[ctx.cam_idx];
+    const float2 screen = (float2(ctx.local_x, ctx.local_y) + float2(0.5f, 0.5f)) / float2(params.cam_width, params.cam_height);
+    const float3 direction = normalize(float3(cam.dir_00) + screen.x * float3(cam.dir_du) + screen.y * float3(cam.dir_dv));
+
+    ray r(float3(cam.pos), direction, 0.f, 1e30f);
+    intersection_result<triangle_data, instancing> hit = intersect_composed(accel, overlays, overlay_attachments, ctx.cam_idx, r, false);
+    const uint id = hit.type == intersection_type::none ? 0xFFFFFFFFu : uint(hit.user_instance_id);
+    if(fc_instance_raw && selected(ctx, 4u)){
+        segmentation_out[output_element(params, camera_table, ctx, 4u)] = id;
+    }
+    if(fc_instance_color && selected(ctx, 5u)){
+        segmentation_color_out[output_element(params, camera_table, ctx, 5u)] = segmentation_color(id);
+    }
+    if((fc_semantic_raw && selected(ctx, 6u)) || (fc_semantic_color && selected(ctx, 7u))){
+        const uint semantic = id == 0xFFFFFFFFu ? id : instance_classes[id];
+        if(fc_semantic_raw && selected(ctx, 6u)){
+            semantic_out[output_element(params, camera_table, ctx, 6u)] = semantic;
+        }
+        if(fc_semantic_color && selected(ctx, 7u)){
+            semantic_color_out[output_element(params, camera_table, ctx, 7u)] = segmentation_color(semantic);
+        }
+    }
+}
+
+// single-sample by design: unit normals cannot be averaged, so anti-aliasing and motion blur
+// do not apply (shutter-close camera, pixel-center ray); world-frame geometric normal,
+// oriented against the ray, zero on miss
+kernel void render_normals(
+    constant LaunchParams& params [[buffer(0)]],
+    device const Camera* cameras_close [[buffer(1)]],
+    device float* normals_out [[buffer(3), function_constant(fc_normals_raw)]],
+    device uint* normals_color_out [[buffer(16), function_constant(fc_normals_color)]],
+    device const MeshRecord* meshes [[buffer(4)]],
+    instance_acceleration_structure accel [[buffer(8)]],
+    device const uint* instance_record_base [[buffer(9)]],
+    device const InstanceData* instance_data [[buffer(10)]],
+    device const OverlayStructure* overlays [[buffer(11)]],
+    device const uint* overlay_attachments [[buffer(12)]],
+    device const uint* camera_table [[buffer(23)]],
+    uint2 pixel_id [[thread_position_in_grid]])
+{
+    const PixelLaunchContext ctx = pixel_launch_context(params, camera_table, pixel_id);
+    if ((ctx.outputs & NORMALS_SLOTS) == 0u) {
+        return;
+    }
+
+    device const Camera& cam = cameras_close[ctx.cam_idx];
+    const float2 screen = (float2(ctx.local_x, ctx.local_y) + float2(0.5f, 0.5f)) / float2(params.cam_width, params.cam_height);
+    const float3 direction = normalize(float3(cam.dir_00) + screen.x * float3(cam.dir_du) + screen.y * float3(cam.dir_dv));
+
+    ray r(float3(cam.pos), direction, 0.f, 1e30f);
+    intersection_result<triangle_data, instancing> hit = intersect_composed(accel, overlays, overlay_attachments, ctx.cam_idx, r, false);
+    float3 normal = float3(0.f);
+    if (hit.type != intersection_type::none) {
+        device const MeshRecord& self = meshes[instance_record_base[hit.user_instance_id] + hit.geometry_id];
+        device const InstanceData& instance = instance_data[hit.user_instance_id];
+        const int3 index = int3(self.index[hit.primitive_id]);
+        float3 vertex_a = float3(self.vertices[index.x]);
+        float3 vertex_b = float3(self.vertices[index.y]);
+        float3 vertex_c = float3(self.vertices[index.z]);
+        if (!instance.identity) {
+            vertex_a = transform_point(instance.object_to_world, vertex_a);
+            vertex_b = transform_point(instance.object_to_world, vertex_b);
+            vertex_c = transform_point(instance.object_to_world, vertex_c);
+        }
+        normal = normalize(cross(vertex_b - vertex_a, vertex_c - vertex_a));
+        if (dot(direction, normal) > 0.f) {
+            normal = -normal;
+        }
+    }
+    if(fc_normals_raw && selected(ctx, 8u)){
+        const uint element = output_element(params, camera_table, ctx, 8u);
+        normals_out[element * 3 + 0] = normal.x;
+        normals_out[element * 3 + 1] = normal.y;
+        normals_out[element * 3 + 2] = normal.z;
+    }
+    if(fc_normals_color && selected(ctx, 9u)){
+        normals_color_out[output_element(params, camera_table, ctx, 9u)] = normal_color(normal);
+    }
+}
+
+// FlowStatus codes (rl_tools/hyperlux/types.h)
+constant uint FLOW_STATUS_VALID = 0u;
+constant uint FLOW_STATUS_MISS = 1u;
+constant uint FLOW_STATUS_BEHIND = 2u;
+constant uint FLOW_STATUS_OUT_OF_FRAME = 3u;
+constant uint FLOW_STATUS_OCCLUDED = 4u;
+constant float FLOW_VISIBILITY_EPSILON = 1e-4f;
+
+// two-instant flow, one direction per kernel (mirror of the generic render_flow_frame):
+// single-sample from the source pixel centre against the source instant's overlay structures;
+// the hit point is carried to the target instant by its slot's delta, projected through the
+// target camera, and tested for visibility from the target camera against the target instant
+// with the relative margin FLOW_VISIBILITY_EPSILON. Status priority MISS, BEHIND, OUT_OF_FRAME,
+// OCCLUDED, VALID; the vector is zero for MISS and BEHIND and the geometric flow otherwise
+inline void flow_pixel(
+    bool source_previous,
+    constant LaunchParams& params,
+    device const Camera* cameras_close,
+    device const Camera* cameras_previous,
+    device float* flow_out,
+    device uint* flow_status_out,
+    device uint* flow_color_out,
+    device uint* flow_status_color_out,
+    instance_acceleration_structure accel,
+    device const OverlayStructure* overlays,
+    device const OverlayStructure* overlays_previous,
+    device const uint* overlay_attachments,
+    device const float* flow_deltas,
+    device const uint* camera_table,
+    thread const PixelLaunchContext& ctx)
+{
+    device const Camera& cam = source_previous ? cameras_previous[ctx.cam_idx] : cameras_close[ctx.cam_idx];
+    device const Camera& cam_target = source_previous ? cameras_close[ctx.cam_idx] : cameras_previous[ctx.cam_idx];
+    device const OverlayStructure* overlays_source = source_previous ? overlays_previous : overlays;
+    device const OverlayStructure* overlays_target = source_previous ? overlays : overlays_previous;
+    const uint source_first_overlay_instance = params.first_overlay_instance + (source_previous ? params.num_overlay_slots * (1u + (fc_dynamic_motion_blur ? (uint)fc_motion_samples : 0u)) : 0u);
+    const uint delta_slab = source_previous ? params.num_overlay_slots * 12u : 0u;
+    const float2 screen = (float2(ctx.local_x, ctx.local_y) + float2(0.5f, 0.5f)) / float2(params.cam_width, params.cam_height);
+    const float3 direction = normalize(float3(cam.dir_00) + screen.x * float3(cam.dir_du) + screen.y * float3(cam.dir_dv));
+
+    ray r(float3(cam.pos), direction, 0.f, 1e30f);
+    intersection_result<triangle_data, instancing> hit = intersect_composed(accel, overlays_source, overlay_attachments, ctx.cam_idx, r, false);
+    float2 flow = float2(0.f);
+    uint status = FLOW_STATUS_MISS;
+    if (hit.type != intersection_type::none) {
+        float3 point = float3(cam.pos) + direction * hit.distance;
+        if (fc_overlay_count > 0 && (uint)hit.user_instance_id >= source_first_overlay_instance) {
+            point = transform_point(flow_deltas + delta_slab + ((uint)hit.user_instance_id - source_first_overlay_instance) * 12, point);
+        }
+        float target_x, target_y;
+        if (!project_camera(cam_target, point, target_x, target_y)) {
+            status = FLOW_STATUS_BEHIND;
+        } else {
+            flow = float2(target_x * (float)params.cam_width - ((float)ctx.local_x + 0.5f),
+                          target_y * (float)params.cam_height - ((float)ctx.local_y + 0.5f));
+            if (target_x < 0.f || target_x >= 1.f || target_y < 0.f || target_y >= 1.f) {
+                status = FLOW_STATUS_OUT_OF_FRAME;
+            } else if((source_previous ? (fc_forward_color || fc_forward_status_raw || fc_forward_status_color) : (fc_flow_color || fc_flow_status_raw || fc_flow_status_color)) && (ctx.outputs & (source_previous ? FLOW_FORWARD_VISIBILITY_SLOTS : FLOW_BACKWARD_VISIBILITY_SLOTS)) != 0u){
+                const float3 to_point = point - float3(cam_target.pos);
+                const float len = length(to_point);
+                const float3 visibility_direction = to_point * (1.f / len);
+                ray visibility(float3(cam_target.pos), visibility_direction, 0.f, len * (1.f - FLOW_VISIBILITY_EPSILON));
+                intersection_result<triangle_data, instancing> occluder = intersect_composed(accel, overlays_target, overlay_attachments, ctx.cam_idx, visibility, true);
+                status = occluder.type != intersection_type::none ? FLOW_STATUS_OCCLUDED : FLOW_STATUS_VALID;
+            }
+        }
+    }
+    const uint first_slot = source_previous ? 14u : 10u; // vector, color, status, status color
+    if((source_previous ? fc_forward_raw : fc_flow_raw) && selected(ctx, first_slot)){
+        const uint element = output_element(params, camera_table, ctx, first_slot);
+        flow_out[element * 2 + 0] = flow.x;
+        flow_out[element * 2 + 1] = flow.y;
+    }
+    if((source_previous ? fc_forward_status_raw : fc_flow_status_raw) && selected(ctx, first_slot + 2u)){
+        flow_status_out[output_element(params, camera_table, ctx, first_slot + 2u)] = status;
+    }
+    if((source_previous ? fc_forward_color : fc_flow_color) && selected(ctx, first_slot + 1u)){
+        flow_color_out[output_element(params, camera_table, ctx, first_slot + 1u)] = status == FLOW_STATUS_VALID ? flow_color(flow, source_previous ? fc_flow_forward_scale : fc_flow_scale) : status_color(status);
+    }
+    if((source_previous ? fc_forward_status_color : fc_flow_status_color) && selected(ctx, first_slot + 3u)){
+        flow_status_color_out[output_element(params, camera_table, ctx, first_slot + 3u)] = status_color(status);
+    }
+}
+
+kernel void render_flow(
+    constant LaunchParams& params [[buffer(0)]],
+    device const Camera* cameras_close [[buffer(1)]],
+    device float* flow_out [[buffer(3), function_constant(fc_flow_raw)]],
+    device uint* flow_color_out [[buffer(16), function_constant(fc_flow_color)]],
+    device uint* flow_status_color_out [[buffer(18), function_constant(fc_flow_status_color)]],
+    instance_acceleration_structure accel [[buffer(8)]],
+    device const OverlayStructure* overlays [[buffer(11)]],
+    device const uint* overlay_attachments [[buffer(12)]],
+    device const float* flow_deltas [[buffer(19)]],
+    device uint* flow_status_out [[buffer(20), function_constant(fc_flow_status_raw)]],
+    device const Camera* cameras_previous [[buffer(21)]],
+    device const OverlayStructure* overlays_previous [[buffer(22)]],
+    device const uint* camera_table [[buffer(23)]],
+    uint2 pixel_id [[thread_position_in_grid]])
+{
+    const PixelLaunchContext ctx = pixel_launch_context(params, camera_table, pixel_id);
+    if ((ctx.outputs & FLOW_BACKWARD_SLOTS) == 0u) {
+        return;
+    }
+    flow_pixel(false, params, cameras_close, cameras_previous, flow_out, flow_status_out, flow_color_out, flow_status_color_out, accel, overlays, overlays_previous, overlay_attachments, flow_deltas, camera_table, ctx);
+}
+
+kernel void render_flow_forward(
+    constant LaunchParams& params [[buffer(0)]],
+    device const Camera* cameras_close [[buffer(1)]],
+    device float* flow_out [[buffer(3), function_constant(fc_forward_raw)]],
+    device uint* flow_color_out [[buffer(16), function_constant(fc_forward_color)]],
+    device uint* flow_status_color_out [[buffer(18), function_constant(fc_forward_status_color)]],
+    instance_acceleration_structure accel [[buffer(8)]],
+    device const OverlayStructure* overlays [[buffer(11)]],
+    device const uint* overlay_attachments [[buffer(12)]],
+    device const float* flow_deltas [[buffer(19)]],
+    device uint* flow_status_out [[buffer(20), function_constant(fc_forward_status_raw)]],
+    device const Camera* cameras_previous [[buffer(21)]],
+    device const OverlayStructure* overlays_previous [[buffer(22)]],
+    device const uint* camera_table [[buffer(23)]],
+    uint2 pixel_id [[thread_position_in_grid]])
+{
+    const PixelLaunchContext ctx = pixel_launch_context(params, camera_table, pixel_id);
+    if ((ctx.outputs & FLOW_FORWARD_SLOTS) == 0u) {
+        return;
+    }
+    flow_pixel(true, params, cameras_close, cameras_previous, flow_out, flow_status_out, flow_color_out, flow_status_color_out, accel, overlays, overlays_previous, overlay_attachments, flow_deltas, camera_table, ctx);
+}
+
+kernel void render_collision(
+    constant LaunchParams& params [[buffer(0)]],
+    device const Camera* cameras [[buffer(1)]],
+    device const packed_float3* probe_directions [[buffer(6)]],
+    device CollisionResult* results [[buffer(7)]],
+    instance_acceleration_structure accel [[buffer(8)]],
+    device const OverlayStructure* overlays [[buffer(11)]],
+    device const uint* overlay_attachments [[buffer(12)]],
+    device const uint* camera_table [[buffer(23)]],
+    uint2 idx [[thread_position_in_grid]])
+{
+    const int cam_idx   = (int)idx.x;
+    const int probe_idx = (int)idx.y;
+
+    if (cam_idx >= (int)params.num_cameras || probe_idx >= (int)params.num_probes)
+        return;
+    const uint row = fc_all_cameras ? (uint)cam_idx : camera_table[(uint)cam_idx * CAMERA_TABLE_STRIDE + 1u + 18u];
+    if (row == NO_ROW) {
+        return;
+    }
+
+    device const Camera& cam = cameras[cam_idx];
+
+    const float3 forward = normalize(float3(cam.dir_00) + 0.5f * float3(cam.dir_du) + 0.5f * float3(cam.dir_dv));
+    float3 dir;
+    if (probe_idx == 0) {
+        dir = forward;
+    } else {
+        const float3 local = float3(probe_directions[probe_idx]);
+        const float3 left = -normalize(float3(cam.dir_du));
+        const float3 up = -normalize(float3(cam.dir_dv));
+        dir = normalize(local.x * forward + local.y * left + local.z * up);
+    }
+
+    ray r(float3(cam.pos), dir, 1e-3f, params.max_dist);
+    intersection_result<triangle_data, instancing> hit = intersect_composed(accel, overlays, overlay_attachments, cam_idx, r, false);
+
+    CollisionResult result;
+    if (hit.type == intersection_type::none) {
+        result.distance = as_type<float>(0x7f800000u);
+        result.hit = 0;
+    } else {
+        result.distance = hit.distance;
+        result.hit = 1;
+    }
+    results[row * params.num_probes + (uint)probe_idx] = result;
+}

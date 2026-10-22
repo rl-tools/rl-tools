@@ -10,7 +10,7 @@
 #include <vector>
 
 namespace rlt = rl_tools;
-namespace rro = rlt::rendering::raytracing::outputs;
+namespace rro = rlt::hyperlux::outputs;
 namespace l2f = rlt::rl::environments::l2f;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -36,7 +36,7 @@ namespace test_drones {
         static constexpr TI INSTANCES_PER_WORLD = 4;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
-        using SHADING = rlt::rendering::raytracing::Low;
+        using SHADING = rlt::hyperlux::Low;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 8;
         static constexpr bool SELF_VISIBLE = true;
         using CAMERA_OUTPUTS = rlt::rl::environments::hyperdrone::CameraOutputs<rro::List<rro::RGB<rro::format::Float32>, rro::Segmentation<rro::format::UInt32, rro::labels::Instance>, rro::Probes>>;

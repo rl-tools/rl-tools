@@ -29,7 +29,7 @@ jobs:
           path: ${{ matrix.source }}
       - name: Build reference
         run: |
-          cmake -S "$GOLDEN_SOURCE/tests/src/rendering/raytracing/wasm" -B "$GOLDEN_BUILD" -DCMAKE_BUILD_TYPE=Release -DFETCHCONTENT_BASE_DIR="$GOLDEN_SOURCE/.dependencies/wasm"
+          cmake -S "$GOLDEN_SOURCE/tests/src/hyperlux/wasm" -B "$GOLDEN_BUILD" -DCMAKE_BUILD_TYPE=Release -DFETCHCONTENT_BASE_DIR="$GOLDEN_SOURCE/.dependencies/wasm"
           cmake --build "$GOLDEN_BUILD" -j5
       - name: Render reference outputs
         run: |

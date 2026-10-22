@@ -1,8 +1,8 @@
 if(NOT RL_TOOLS_DISABLE_TAR)
     add_executable(test_rl_environments_hyperdrone_controllers controllers.cpp)
     target_link_libraries(test_rl_environments_hyperdrone_controllers PRIVATE RLtools::RLtools GTest::gtest_main)
-    if(TARGET rendering_raytracing_backend)
-        target_link_libraries(test_rl_environments_hyperdrone_controllers PRIVATE rendering_raytracing_backend rendering_raytracing_stb)
+    if(TARGET hyperlux_backend)
+        target_link_libraries(test_rl_environments_hyperdrone_controllers PRIVATE hyperlux_backend hyperlux_stb)
     endif()
     gtest_discover_tests(test_rl_environments_hyperdrone_controllers)
     add_executable(test_rl_environments_hyperdrone_raptor raptor.cpp)
@@ -30,29 +30,29 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA)
     gtest_discover_tests(test_rl_environments_hyperdrone_yaw_cuda)
 endif()
 
-if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
+if(RL_TOOLS_ENABLE_HYPERLUX)
     add_executable(test_rl_environments_hyperdrone_spy_capture spy_capture.cpp)
-    target_link_libraries(test_rl_environments_hyperdrone_spy_capture PRIVATE RLtools::RLtools RLtools::Test rendering_raytracing_backend)
+    target_link_libraries(test_rl_environments_hyperdrone_spy_capture PRIVATE RLtools::RLtools RLtools::Test hyperlux_backend)
     gtest_discover_tests(test_rl_environments_hyperdrone_spy_capture)
     add_executable(test_rl_environments_hyperdrone_spy_lifecycle spy_lifecycle.cpp)
-    target_link_libraries(test_rl_environments_hyperdrone_spy_lifecycle PRIVATE RLtools::RLtools RLtools::Test rendering_raytracing_backend)
+    target_link_libraries(test_rl_environments_hyperdrone_spy_lifecycle PRIVATE RLtools::RLtools RLtools::Test hyperlux_backend)
     gtest_discover_tests(test_rl_environments_hyperdrone_spy_lifecycle PROPERTIES TIMEOUT 90)
     if(RL_TOOLS_BACKEND_ENABLE_CUDA AND TARGET owl::owl)
         add_executable(test_rl_environments_hyperdrone_spy_capture_cuda spy_capture_cuda.cu)
-        target_link_libraries(test_rl_environments_hyperdrone_spy_capture_cuda PRIVATE RLtools::RLtools RLtools::Test owl::owl rendering_raytracing_device_ptx assimp::assimp rendering_raytracing_stb)
+        target_link_libraries(test_rl_environments_hyperdrone_spy_capture_cuda PRIVATE RLtools::RLtools RLtools::Test owl::owl hyperlux_device_ptx assimp::assimp hyperlux_stb)
         set_target_properties(test_rl_environments_hyperdrone_spy_capture_cuda PROPERTIES CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED ON)
         gtest_discover_tests(test_rl_environments_hyperdrone_spy_capture_cuda)
     endif()
 endif()
 
-if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
+if(RL_TOOLS_ENABLE_HYPERLUX AND RL_TOOLS_TEST_DATA_PATH)
     add_executable(test_rl_environments_hyperdrone_rotorcraft rotorcraft.cpp)
     target_link_libraries(test_rl_environments_hyperdrone_rotorcraft
         PRIVATE
             RLtools::RLtools
             RLtools::Test
-            rendering_raytracing_backend
-            rendering_raytracing_stb
+            hyperlux_backend
+            hyperlux_stb
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_rotorcraft)
     add_executable(test_rl_environments_hyperdrone_world world.cpp)
@@ -60,8 +60,8 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
         PRIVATE
             RLtools::RLtools
             RLtools::Test
-            rendering_raytracing_backend
-            rendering_raytracing_stb
+            hyperlux_backend
+            hyperlux_stb
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_world)
     add_executable(test_rl_environments_hyperdrone_annotations annotations.cpp)
@@ -69,8 +69,8 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
         PRIVATE
             RLtools::RLtools
             RLtools::Test
-            rendering_raytracing_backend
-            rendering_raytracing_stb
+            hyperlux_backend
+            hyperlux_stb
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_annotations)
     add_executable(test_rl_environments_hyperdrone_target_frame target_frame.cpp)
@@ -78,8 +78,8 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
         PRIVATE
             RLtools::RLtools
             RLtools::Test
-            rendering_raytracing_backend
-            rendering_raytracing_stb
+            hyperlux_backend
+            hyperlux_stb
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_target_frame)
     add_executable(test_rl_environments_hyperdrone_moving_gate moving_gate.cpp)
@@ -87,11 +87,11 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
         PRIVATE
             RLtools::RLtools
             RLtools::Test
-            rendering_raytracing_backend
-            rendering_raytracing_backend_depth
-            rendering_raytracing_backend_segmentation
-            rendering_raytracing_backend_normals
-            rendering_raytracing_stb
+            hyperlux_backend
+            hyperlux_backend_depth
+            hyperlux_backend_segmentation
+            hyperlux_backend_normals
+            hyperlux_stb
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_moving_gate)
     add_executable(test_rl_environments_hyperdrone_visual_inertial_localization visual_inertial_localization.cpp)
@@ -99,8 +99,8 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
         PRIVATE
             RLtools::RLtools
             RLtools::Test
-            rendering_raytracing_backend
-            rendering_raytracing_stb
+            hyperlux_backend
+            hyperlux_stb
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_visual_inertial_localization)
     add_executable(test_rl_environments_hyperdrone_segmentation_determinism segmentation_determinism.cpp)
@@ -108,9 +108,9 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
         PRIVATE
             RLtools::RLtools
             RLtools::Test
-            rendering_raytracing_backend
-            rendering_raytracing_backend_segmentation
-            rendering_raytracing_stb
+            hyperlux_backend
+            hyperlux_backend_segmentation
+            hyperlux_stb
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_segmentation_determinism)
     add_executable(test_rl_environments_hyperdrone_self_visible self_visible.cpp)
@@ -118,9 +118,9 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
         PRIVATE
             RLtools::RLtools
             RLtools::Test
-            rendering_raytracing_backend
-            rendering_raytracing_backend_segmentation
-            rendering_raytracing_stb
+            hyperlux_backend
+            hyperlux_backend_segmentation
+            hyperlux_stb
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_self_visible)
     add_executable(test_rl_environments_hyperdrone_multi_agent multi_agent.cpp)
@@ -128,9 +128,9 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
         PRIVATE
             RLtools::RLtools
             RLtools::Test
-            rendering_raytracing_backend
-            rendering_raytracing_backend_segmentation
-            rendering_raytracing_stb
+            hyperlux_backend
+            hyperlux_backend_segmentation
+            hyperlux_stb
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_multi_agent)
     add_executable(test_rl_environments_hyperdrone_presets presets.cpp)
@@ -138,8 +138,8 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
         PRIVATE
             RLtools::RLtools
             RLtools::Test
-            rendering_raytracing_backend
-            rendering_raytracing_stb
+            hyperlux_backend
+            hyperlux_stb
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_presets)
     add_executable(test_rl_environments_hyperdrone_episodes episodes.cpp)
@@ -147,8 +147,8 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
         PRIVATE
             RLtools::RLtools
             RLtools::Test
-            rendering_raytracing_backend
-            rendering_raytracing_stb
+            hyperlux_backend
+            hyperlux_stb
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_episodes)
     add_executable(test_rl_environments_hyperdrone_on_policy_runner_batched on_policy_runner_batched.cpp)
@@ -156,8 +156,8 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
         PRIVATE
             RLtools::RLtools
             RLtools::Test
-            rendering_raytracing_backend
-            rendering_raytracing_stb
+            hyperlux_backend
+            hyperlux_stb
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_on_policy_runner_batched)
     # golden-rollout generator for the Python binding (run deliberately from the repo root)
@@ -184,14 +184,14 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
     target_link_libraries(test_rl_environments_hyperdrone_python_golden
         PRIVATE
             RLtools::RLtools
-            rendering_raytracing_backend
-            rendering_raytracing_stb
+            hyperlux_backend
+            hyperlux_stb
     )
     add_executable(test_rl_environments_hyperdrone_user_task_header user_task_header.cpp ${HYPERDRONE_PYTHON_ENVIRONMENT_NATIVE}/impl.cpp)
     get_target_property(HYPERDRONE_USER_TASK_DEFINES test_rl_environments_hyperdrone_python_golden COMPILE_DEFINITIONS)
     list(FILTER HYPERDRONE_USER_TASK_DEFINES EXCLUDE REGEX "^HYPERDRONE_MODULE_NAME=")
     target_compile_definitions(test_rl_environments_hyperdrone_user_task_header PRIVATE ${HYPERDRONE_USER_TASK_DEFINES} HYPERDRONE_MODULE_NAME=hyperdrone_user_task HYPERDRONE_ENVIRONMENT_SPEC_HEADER=${PROJECT_SOURCE_DIR}/interface/python/hyperdrone/tests/environment/user_task_header.h)
-    target_link_libraries(test_rl_environments_hyperdrone_user_task_header PRIVATE RLtools::RLtools RLtools::Test rendering_raytracing_backend rendering_raytracing_stb)
+    target_link_libraries(test_rl_environments_hyperdrone_user_task_header PRIVATE RLtools::RLtools RLtools::Test hyperlux_backend hyperlux_stb)
     gtest_discover_tests(test_rl_environments_hyperdrone_user_task_header)
     if(RL_TOOLS_BACKEND_ENABLE_CUDA AND TARGET owl::owl)
         add_executable(test_rl_environments_hyperdrone_rotorcraft_cuda rotorcraft_cuda.cu)
@@ -200,9 +200,9 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
                 RLtools::RLtools
                 RLtools::Test
                 owl::owl
-                rendering_raytracing_device_ptx
+                hyperlux_device_ptx
                 assimp::assimp
-                rendering_raytracing_stb
+                hyperlux_stb
         )
         set_target_properties(test_rl_environments_hyperdrone_rotorcraft_cuda PROPERTIES
             CUDA_STANDARD 17
@@ -215,9 +215,9 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
                 RLtools::RLtools
                 RLtools::Test
                 owl::owl
-                rendering_raytracing_device_ptx
+                hyperlux_device_ptx
                 assimp::assimp
-                rendering_raytracing_stb
+                hyperlux_stb
         )
         set_target_properties(test_rl_environments_hyperdrone_world_cuda PROPERTIES
             CUDA_STANDARD 17
@@ -230,9 +230,9 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
                 RLtools::RLtools
                 RLtools::Test
                 owl::owl
-                rendering_raytracing_device_ptx
+                hyperlux_device_ptx
                 assimp::assimp
-                rendering_raytracing_stb
+                hyperlux_stb
         )
         set_target_properties(test_rl_environments_hyperdrone_target_frame_cuda PROPERTIES
             CUDA_STANDARD 17
@@ -245,9 +245,9 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
                 RLtools::RLtools
                 RLtools::Test
                 owl::owl
-                rendering_raytracing_device_ptx
+                hyperlux_device_ptx
                 assimp::assimp
-                rendering_raytracing_stb
+                hyperlux_stb
         )
         set_target_properties(test_rl_environments_hyperdrone_multi_agent_cuda PROPERTIES
             CUDA_STANDARD 17
@@ -260,9 +260,9 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
                 RLtools::RLtools
                 RLtools::Test
                 owl::owl
-                rendering_raytracing_device_ptx
+                hyperlux_device_ptx
                 assimp::assimp
-                rendering_raytracing_stb
+                hyperlux_stb
         )
         set_target_properties(test_rl_environments_hyperdrone_self_visible_cuda PROPERTIES
             CUDA_STANDARD 17
@@ -275,10 +275,10 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
                 RLtools::RLtools
                 RLtools::Test
                 owl::owl
-                rendering_raytracing_device_ptx
-                rendering_raytracing_device_normals_ptx
+                hyperlux_device_ptx
+                hyperlux_device_normals_ptx
                 assimp::assimp
-                rendering_raytracing_stb
+                hyperlux_stb
         )
         set_target_properties(test_rl_environments_hyperdrone_moving_gate_cuda PROPERTIES
             CUDA_STANDARD 17
@@ -291,9 +291,9 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
                 RLtools::RLtools
                 RLtools::Test
                 owl::owl
-                rendering_raytracing_device_ptx
+                hyperlux_device_ptx
                 assimp::assimp
-                rendering_raytracing_stb
+                hyperlux_stb
         )
         set_target_properties(test_rl_environments_hyperdrone_episodes_cuda PROPERTIES
             CUDA_STANDARD 17
@@ -306,9 +306,9 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
                 RLtools::RLtools
                 RLtools::Test
                 owl::owl
-                rendering_raytracing_device_ptx
+                hyperlux_device_ptx
                 assimp::assimp
-                rendering_raytracing_stb
+                hyperlux_stb
         )
         set_target_properties(test_rl_environments_hyperdrone_benchmark_cuda PROPERTIES
             CUDA_STANDARD 17
@@ -318,15 +318,15 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
     endif()
 endif()
 
-if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
+if(RL_TOOLS_ENABLE_HYPERLUX)
     add_executable(test_rl_environments_hyperdrone_drones drones.cpp)
     target_link_libraries(test_rl_environments_hyperdrone_drones
         PRIVATE
             RLtools::RLtools
             RLtools::Test
-            rendering_raytracing_backend
-            rendering_raytracing_backend_segmentation
-            rendering_raytracing_stb
+            hyperlux_backend
+            hyperlux_backend_segmentation
+            hyperlux_stb
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_drones)
     if(RL_TOOLS_BACKEND_ENABLE_CUDA AND TARGET owl::owl)
@@ -336,9 +336,9 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
                 RLtools::RLtools
                 RLtools::Test
                 owl::owl
-                rendering_raytracing_device_ptx
+                hyperlux_device_ptx
                 assimp::assimp
-                rendering_raytracing_stb
+                hyperlux_stb
         )
         set_target_properties(test_rl_environments_hyperdrone_drones_cuda PROPERTIES
             CUDA_STANDARD 17

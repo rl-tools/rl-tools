@@ -110,7 +110,7 @@ mkdir -p "$DEPS_DIR" "$BUILD_DIR"
         if [[ "$resolution" == 960x540 ]]; then
             scale=2
         fi
-        printf '%s        Config<rendering::raytracing::%s, %s, %s, %s, %s>' "$separator" "$shading" "$motion_samples" "$aa_grid" "$scale" "$agents"
+        printf '%s        Config<hyperlux::%s, %s, %s, %s, %s>' "$separator" "$shading" "$motion_samples" "$aa_grid" "$scale" "$agents"
         separator=$',\n'
     done
     printf '\n%s\n' '    >;' '}'
@@ -137,7 +137,7 @@ cmake --install "$ASSIMP_BUILD/_deps/assimp-build"
 ASSIMP_ZLIB="$(ls "$ASSIMP_INSTALL"/lib/libzlibstatic*.a 2>/dev/null | head -1 || true)"
 
 STB_DIR="$DEPS_DIR/stb"
-STB_REVISION=f1c79c02822848a9bed4315b12c8c8f3761e1296 # same pin as src/rendering/raytracing/CMakeLists.txt
+STB_REVISION=f1c79c02822848a9bed4315b12c8c8f3761e1296 # same pin as src/hyperlux/CMakeLists.txt
 if [ ! -f "$STB_DIR/stb_image.h" ]; then
     git clone https://github.com/nothings/stb.git "$STB_DIR"
     git -C "$STB_DIR" checkout "$STB_REVISION"
@@ -150,9 +150,9 @@ if [ ! -f "$JSON_DIR/include/nlohmann/json.hpp" ]; then
     git -C "$JSON_DIR" checkout "$JSON_REVISION"
 fi
 
-cmake -DINPUT_FILE="$REPO_ROOT/src/rendering/raytracing/backends/webgpu/device.wgsl" \
+cmake -DINPUT_FILE="$REPO_ROOT/src/hyperlux/backends/webgpu/device.wgsl" \
       -DOUTPUT_FILE="$DEPS_DIR/device_wgsl.cpp" \
-      -DSYMBOL_NAME=rl_tools_rendering_raytracing_webgpu_device_source \
+      -DSYMBOL_NAME=rl_tools_hyperlux_webgpu_device_source \
       -P "$REPO_ROOT/cmake/scripts/embed_text.cmake"
 
 em++ --std=c++17 -O3 -fexceptions \
@@ -161,8 +161,8 @@ em++ --std=c++17 -O3 -fexceptions \
     -I "$STB_DIR" \
     -I "$JSON_DIR/include" \
     -I "$ASSIMP_INSTALL/include" \
-    -DRL_TOOLS_RENDERING_ENABLE_RAYTRACING \
-    -DRL_TOOLS_RENDERING_RAYTRACING_BACKEND_WEBGPU \
+    -DRL_TOOLS_ENABLE_HYPERLUX \
+    -DRL_TOOLS_HYPERLUX_BACKEND_WEBGPU \
     --use-port=emdawnwebgpu \
     -sASYNCIFY=1 \
     -sASYNCIFY_STACK_SIZE=131072 \

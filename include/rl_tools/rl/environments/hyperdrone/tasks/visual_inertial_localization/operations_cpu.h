@@ -130,7 +130,7 @@ namespace rl_tools {
         template <typename DEVICE, typename TASK_SPEC>
         void _load_autopilot(DEVICE& device, World<TASK_SPEC>& world){
             std::string path;
-            utils::assert_exit(device, rendering::datasets::resolve_reference(device, world.autopilot_policy_path, path), "hyperdrone::tasks::visual_inertial_localization: cannot resolve the autopilot checkpoint");
+            utils::assert_exit(device, hyperlux::datasets::resolve_reference(device, world.autopilot_policy_path, path), "hyperdrone::tasks::visual_inertial_localization: cannot resolve the autopilot checkpoint");
             utils::assert_exit(device, load(device, world.controller, path), "hyperdrone::tasks::visual_inertial_localization: the autopilot checkpoint does not match the RAPTOR architecture");
         }
         template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RNG>

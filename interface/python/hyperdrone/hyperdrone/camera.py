@@ -203,7 +203,7 @@ def camera_config_header(cameras, observation=None, *, environment=False):
     cameras = validate_cameras(cameras)
     observation_indices = validate_observation(cameras, observation)
     outputs = sorted({output for camera in cameras for output in camera.outputs}, key=_output_key)
-    lines = ["#pragma once", '#include <rl_tools/rendering/raytracing/outputs/outputs.h>', "namespace hyperdrone_camera_config {", "    namespace out = rl_tools::rendering::raytracing::outputs;", f"    constexpr unsigned int SCHEMA_VERSION = {CAMERA_SCHEMA_VERSION};"]
+    lines = ["#pragma once", '#include <rl_tools/hyperlux/outputs/outputs.h>', "namespace hyperdrone_camera_config {", "    namespace out = rl_tools::hyperlux::outputs;", f"    constexpr unsigned int SCHEMA_VERSION = {CAMERA_SCHEMA_VERSION};"]
     aliases = {}
     formats = {"float32": "Float32", "rgba8": "RGBA8", "uint32": "UInt32"}
     for index, output in enumerate(outputs):

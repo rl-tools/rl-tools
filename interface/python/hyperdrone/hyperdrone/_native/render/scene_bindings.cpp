@@ -1,4 +1,4 @@
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
 #include "cuda_staging.h"
 #endif
 
@@ -11,11 +11,11 @@
 
 #include "verbosity.h"
 #include <rl_tools/operations/cpu_mux.h>
-#include <rl_tools/rendering/raytracing/operations_cpu_common.h>
-#include <rl_tools/rendering/raytracing/primitives/operations_cpu.h>
+#include <rl_tools/hyperlux/operations_cpu_common.h>
+#include <rl_tools/hyperlux/primitives/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/rotorcraft/operations_cpu.h>
-#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
-#include <rl_tools/rendering/datasets/procthor/catalog.h>
+#include <rl_tools/hyperlux/datasets/glb/operations_cpu.h>
+#include <rl_tools/hyperlux/datasets/procthor/catalog.h>
 
 #include "bindings.h"
 #include <nanobind/stl/optional.h>
@@ -28,7 +28,7 @@
 
 namespace nb = nanobind;
 namespace rlt = rl_tools;
-namespace rrt = rl_tools::rendering::raytracing;
+namespace rrt = rl_tools::hyperlux;
 
 using hyperdrone::FloatArray;
 using hyperdrone::Transform;
@@ -43,24 +43,24 @@ using rlt::segmentation_taxonomy;
 using rlt::assign_segmentation_class;
 using rlt::remap_segmentation_classes;
 
-static rlt::rendering::Joint::Type parse_joint_type(const std::string& name){
+static rlt::hyperlux::Joint::Type parse_joint_type(const std::string& name){
     if(name == "fixed"){
-        return rlt::rendering::Joint::Type::FIXED;
+        return rlt::hyperlux::Joint::Type::FIXED;
     }
     if(name == "revolute"){
-        return rlt::rendering::Joint::Type::REVOLUTE;
+        return rlt::hyperlux::Joint::Type::REVOLUTE;
     }
     if(name == "prismatic"){
-        return rlt::rendering::Joint::Type::PRISMATIC;
+        return rlt::hyperlux::Joint::Type::PRISMATIC;
     }
     throw std::invalid_argument("hyperdrone: unknown joint type \"" + name + "\" (fixed, revolute, prismatic)");
 }
 
-static const char* joint_type_name(rlt::rendering::Joint::Type type){
+static const char* joint_type_name(rlt::hyperlux::Joint::Type type){
     switch(type){
-        case rlt::rendering::Joint::Type::FIXED: return "fixed";
-        case rlt::rendering::Joint::Type::REVOLUTE: return "revolute";
-        case rlt::rendering::Joint::Type::PRISMATIC: return "prismatic";
+        case rlt::hyperlux::Joint::Type::FIXED: return "fixed";
+        case rlt::hyperlux::Joint::Type::REVOLUTE: return "revolute";
+        case rlt::hyperlux::Joint::Type::PRISMATIC: return "prismatic";
     }
     throw std::logic_error("hyperdrone: joint type without a name");
 }
@@ -92,7 +92,7 @@ static size_t part_index(const rrt::ObjectAssembly& assembly, nb::handle part){
 
 // the Python-facing "Scene" is a Bundle: the composed scene plus its loader/computed
 // metadata (bounds, max ray length), which the renderer consumes at init
-using SceneBundle = rlt::rendering::Bundle<float>;
+using SceneBundle = rlt::hyperlux::Bundle<float>;
 
 template <typename TARGET, typename... MODES>
 static bool load_dispatch(TARGET& target, const std::string& path, int fidelity, bool rgb, const MODES&... modes){
@@ -118,11 +118,11 @@ static std::map<uint32_t, std::string> class_names(const TARGET& target){
     return taxonomy ? taxonomy->classes : std::map<uint32_t, std::string>{};
 }
 
-static std::shared_ptr<const rlt::rendering::SegmentationTaxonomy> make_taxonomy(const std::string& name, const std::map<uint32_t, std::string>& classes){
+static std::shared_ptr<const rlt::hyperlux::SegmentationTaxonomy> make_taxonomy(const std::string& name, const std::map<uint32_t, std::string>& classes){
     if(name.empty() && classes.empty()){
         return nullptr;
     }
-    return std::make_shared<const rlt::rendering::SegmentationTaxonomy>(rlt::rendering::SegmentationTaxonomy{name, classes});
+    return std::make_shared<const rlt::hyperlux::SegmentationTaxonomy>(rlt::hyperlux::SegmentationTaxonomy{name, classes});
 }
 
 template <typename TARGET>
@@ -197,8 +197,8 @@ static rrt::Mesh make_mesh(FloatArray vertices, nb::ndarray<const int32_t, nb::c
 void register_rotorcraft_bindings(nb::module_& m);
 
 static void register_dataset_bindings(nb::module_& m){
-    using SCENE = rlt::rendering::datasets::procthor::SceneReference;
-    using DATASET = rlt::rendering::datasets::procthor::Train200;
+    using SCENE = rlt::hyperlux::datasets::procthor::SceneReference;
+    using DATASET = rlt::hyperlux::datasets::procthor::Train200;
     nb::class_<SCENE>(m, "SceneReference")
         .def_ro("id", &SCENE::id)
         .def_ro("reference", &SCENE::reference);
@@ -238,11 +238,11 @@ static void register_dataset_bindings(nb::module_& m){
 
 NB_MODULE(hyperdrone_render_core, m){
     m.doc() = "Shared scene types and camera utilities for the RLtools raytracer";
-    m.attr("AGENT_SEGMENTATION_CLASS") = rlt::rendering::segmentation::AGENT;
+    m.attr("AGENT_SEGMENTATION_CLASS") = rlt::hyperlux::segmentation::AGENT;
     m.def("_set_verbosity", &hyperdrone::set_verbosity);
     register_rotorcraft_bindings(m);
     register_dataset_bindings(m);
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
     m.attr("HAS_CUDA") = true;
     hyperdrone::register_cuda_staging(m);
 #else
@@ -344,13 +344,13 @@ NB_MODULE(hyperdrone_render_core, m){
             return index;
         }, nb::arg("object"), nb::arg("transform"), nb::arg("parent").none() = nb::none(), "Append a part: geometry in the part frame, placed by transform within the assembly; its joint moves it (and its children) relative to parent, an earlier part (index or object name).")
         .def("set_joint", [](rrt::ObjectAssembly& assembly, nb::object part, const std::string& type, Vec3 axis, Vec3 pivot, size_t coordinate){
-            rlt::rendering::Joint joint;
+            rlt::hyperlux::Joint joint;
             joint.type = parse_joint_type(type);
             std::memcpy(joint.axis, axis.data(), sizeof(joint.axis));
             std::memcpy(joint.pivot, pivot.data(), sizeof(joint.pivot));
             joint.coordinate = coordinate;
             const float norm = std::sqrt(axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
-            if(joint.type != rlt::rendering::Joint::Type::FIXED && (!rlt::rendering::is_finite(joint.axis, 3) || !rlt::rendering::is_finite(joint.pivot, 3) || !std::isfinite(norm) || norm <= 0)){
+            if(joint.type != rlt::hyperlux::Joint::Type::FIXED && (!rlt::hyperlux::is_finite(joint.axis, 3) || !rlt::hyperlux::is_finite(joint.pivot, 3) || !std::isfinite(norm) || norm <= 0)){
                 throw std::invalid_argument("hyperdrone: a joint needs a finite nonzero axis and a finite pivot");
             }
             assembly.parts[part_index(assembly, part)].joint = joint;
@@ -420,7 +420,7 @@ NB_MODULE(hyperdrone_render_core, m){
             {
                 nb::gil_scoped_release release;
                 success = preserve_instances
-                    ? load_dispatch(bundle, path, fidelity, rgb, rlt::Mode<rlt::mode::rendering::SceneRoots<>>{})
+                    ? load_dispatch(bundle, path, fidelity, rgb, rlt::Mode<rlt::mode::hyperlux::SceneRoots<>>{})
                     : load_dispatch(bundle, path, fidelity, rgb);
             }
             if(!success){

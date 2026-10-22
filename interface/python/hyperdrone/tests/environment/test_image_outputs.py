@@ -231,8 +231,8 @@ def _check_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, devic
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 16;
         static constexpr bool ENABLE_MOTION_BLUR = true;
         static constexpr TI MOTION_BLUR_SAMPLES = 2;
-        using OUTPUT_PROFILE = rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::RGB<rl_tools::rendering::raytracing::outputs::format::Float32>, rl_tools::rendering::raytracing::outputs::Depth<>, rl_tools::rendering::raytracing::outputs::Normals<>, rl_tools::rendering::raytracing::outputs::Flow<>, rl_tools::rendering::raytracing::outputs::FlowStatus<>>;
-        using DEPTH_PROFILE = rl_tools::rendering::raytracing::outputs::List<rl_tools::rendering::raytracing::outputs::Depth<>>;
+        using OUTPUT_PROFILE = rl_tools::hyperlux::outputs::List<rl_tools::hyperlux::outputs::RGB<rl_tools::hyperlux::outputs::format::Float32>, rl_tools::hyperlux::outputs::Depth<>, rl_tools::hyperlux::outputs::Normals<>, rl_tools::hyperlux::outputs::Flow<>, rl_tools::hyperlux::outputs::FlowStatus<>>;
+        using DEPTH_PROFILE = rl_tools::hyperlux::outputs::List<rl_tools::hyperlux::outputs::Depth<>>;
         using CAMERA_OUTPUTS = rl_tools::rl::environments::hyperdrone::CameraOutputs<DEPTH_PROFILE, OUTPUT_PROFILE, DEPTH_PROFILE>;
         using OBSERVATION = rl_tools::rl::environments::hyperdrone::ImageObservation<1>;
 """).replace("        static constexpr TI N_CAMERA_AGENTS = 1;", "")

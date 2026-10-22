@@ -4,7 +4,7 @@ namespace rl_tools{
     template<typename DEVICE>
     auto resolve_training_scenes(DEVICE& device, const char* scene_arg){
         using namespace rl::environments::hyperdrone::tasks::target_frame::on_policy;
-        using DATASET = rendering::datasets::procthor::Train200;
+        using DATASET = hyperlux::datasets::procthor::Train200;
         std::vector<std::string> scene_paths;
         if(scene_arg == nullptr || std::string(scene_arg) == DATASET::NAME){
             utils::assert_exit(device, N_TOTAL_SCENES <= DATASET::NUM_SCENES, "Train200 has fewer scenes than N_TOTAL_SCENES");

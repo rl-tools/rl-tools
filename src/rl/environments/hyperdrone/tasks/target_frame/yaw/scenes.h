@@ -1,23 +1,23 @@
 #pragma once
 
-#include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
+#include <rl_tools/hyperlux/datasets/procthor/operations_cpu.h>
 
 namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::yaw{
-    struct Scenes: rendering::datasets::procthor::GLB{};
+    struct Scenes: hyperlux::datasets::procthor::GLB{};
 }
 
 namespace rl_tools{
     template<typename DEVICE>
     void enumerate(DEVICE& device, const rl::environments::hyperdrone::tasks::target_frame::yaw::Scenes& dataset, rl::environments::hyperdrone::tasks::target_frame::yaw::Scenes::Corpus& corpus){
-        enumerate(device, static_cast<const rendering::datasets::procthor::GLB&>(dataset), corpus);
+        enumerate(device, static_cast<const hyperlux::datasets::procthor::GLB&>(dataset), corpus);
     }
 
-    template<typename SHADING = rendering::High, bool HAS_RGB = true, typename DEVICE, typename T, typename MODE = mode::Default<>>
-    bool load(DEVICE& device, const rl::environments::hyperdrone::tasks::target_frame::yaw::Scenes&, const rl::environments::hyperdrone::tasks::target_frame::yaw::Scenes::Corpus& corpus, size_t index, rendering::Bundle<T>& bundle, const Mode<MODE>& = Mode<MODE>{}){
-        using rendering::datasets::resolve_reference;
-        using rendering::datasets::compute_bounds;
-        using rendering::datasets::content_hash;
-        static_assert(!mode::is<MODE, mode::rendering::SceneRoots>, "Yaw scenes use welded geometry");
+    template<typename SHADING = hyperlux::High, bool HAS_RGB = true, typename DEVICE, typename T, typename MODE = mode::Default<>>
+    bool load(DEVICE& device, const rl::environments::hyperdrone::tasks::target_frame::yaw::Scenes&, const rl::environments::hyperdrone::tasks::target_frame::yaw::Scenes::Corpus& corpus, size_t index, hyperlux::Bundle<T>& bundle, const Mode<MODE>& = Mode<MODE>{}){
+        using hyperlux::datasets::resolve_reference;
+        using hyperlux::datasets::compute_bounds;
+        using hyperlux::datasets::content_hash;
+        static_assert(!mode::is<MODE, mode::hyperlux::SceneRoots>, "Yaw scenes use welded geometry");
         utils::assert_exit(device, index < corpus.references.size(), "yaw::Scenes: corpus index out of range");
         utils::assert_exit(device, bundle.scene.objects.empty() && bundle.scene.instances.empty() && bundle.scene.lights.empty(), "yaw::Scenes: bundle must be empty");
         std::string path;
@@ -28,7 +28,7 @@ namespace rl_tools{
             return false;
         }
         constexpr float inv_sqrt2 = 0.70710678f;
-        const rendering::SceneLight fill[] = {
+        const hyperlux::SceneLight fill[] = {
             {0, {0,0,0}, {-inv_sqrt2, 0.f, inv_sqrt2}, {0.4f, 0.4f, 0.4f}, 0,0,0, 0,0},
             {0, {0,0,0}, {0.f, -inv_sqrt2, inv_sqrt2}, {0.3f, 0.3f, 0.3f}, 0,0,0, 0,0},
             {0, {0,0,0}, {0.f, inv_sqrt2, inv_sqrt2}, {0.2f, 0.2f, 0.2f}, 0,0,0, 0,0}
@@ -37,7 +37,7 @@ namespace rl_tools{
         for(auto& light: bundle.scene.lights){
             light.radius = 0;
         }
-        bundle.scene.environment.mode = rendering::Scene::Environment::Mode::SOLID;
+        bundle.scene.environment.mode = hyperlux::Scene::Environment::Mode::SOLID;
         for(unsigned int channel = 0; channel < 3; channel++){
             bundle.scene.environment.ambient[channel] = 0.5f;
             bundle.scene.environment.horizon[channel] = 0.0f;

@@ -8,7 +8,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::yaw{
 #endif
     using DEV_SPEC = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, LOGGER>;
     using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
-    using DEVICE_COMPUTE_SPEC = rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
+    using DEVICE_COMPUTE_SPEC = rlt::hyperlux::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
     using DEVICE_COMPUTE = rlt::devices::DEVICE_FACTORY_CUDA<DEVICE_COMPUTE_SPEC>;
     using DEVICE_GPU = DEVICE_COMPUTE;
     using T = float;
@@ -112,7 +112,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::yaw{
     static constexpr TI CHECKPOINT_CADENCE = 1000;
 #endif
     static constexpr TI N_TOTAL_SCENES = N_TRAIN_SCENES + N_VALIDATION_SCENES;
-    using SCENE_DATASET = rlt::rendering::datasets::procthor::Train200;
+    using SCENE_DATASET = rlt::hyperlux::datasets::procthor::Train200;
     static constexpr TI N_ACTIVE_SCENES = 2;
     static constexpr TI N_ENVIRONMENTS_PER_SCENE = 64;
     static constexpr TI N_ENVIRONMENTS = N_ACTIVE_SCENES * N_ENVIRONMENTS_PER_SCENE;
@@ -142,7 +142,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::yaw{
     static constexpr T TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE = static_cast<T>(10) / static_cast<T>(180) * rlt::math::PI<T>;
     static constexpr T BRIGHTNESS_RANDOMIZATION_RANGE = 0.5;
     static constexpr T TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE = 0.25;
-    using RENDER_SHADING = rlt::rendering::raytracing::High;
+    using RENDER_SHADING = rlt::hyperlux::High;
     static constexpr bool RENDER_ENABLE_MOTION_BLUR = true;
     static constexpr TI RENDER_MOTION_BLUR_SAMPLES = 2;
     static constexpr bool RENDER_ENABLE_ANTI_ALIASING = true;
@@ -184,7 +184,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::yaw{
     };
     using TASK_WORLD = rlt::rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
     using HYPERDRONE = rlt::rl::environments::HyperDrone<TASK_WORLD, N_ACTIVE_SCENES>;
-#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
+#ifdef RL_TOOLS_HYPERLUX_ENABLE_SPY
     using SPY = rlt::rl::environments::hyperdrone::Spy<rlt::rl::environments::hyperdrone::spy::Config<HYPERDRONE>>;
 #endif
     using ENVIRONMENT = TASK_WORLD;

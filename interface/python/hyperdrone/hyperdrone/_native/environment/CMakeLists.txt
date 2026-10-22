@@ -18,7 +18,7 @@ set(RL_TOOLS_DISABLE_GIT_DIFF ON CACHE BOOL "" FORCE)
 set(RL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO ON CACHE BOOL "" FORCE)
 set(RL_TOOLS_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
 # an explicit backend selection hard-requires raytracing inside the rl_tools subtree
-set(RL_TOOLS_RENDERING_RAYTRACING_BACKEND ${HYPERDRONE_VARIANT} CACHE STRING "" FORCE)
+set(RL_TOOLS_HYPERLUX_BACKEND ${HYPERDRONE_VARIANT} CACHE STRING "" FORCE)
 if(HYPERDRONE_VARIANT STREQUAL "OPTIX")
     # a normal variable before enable_language shadows the compiler default it caches, also in
     # trees configured before; CUDAARCHS overrides
@@ -35,8 +35,8 @@ endif()
 
 unset(FETCHCONTENT_SOURCE_DIR_ASSIMP CACHE)
 add_subdirectory(${RLTOOLS_ROOT} rl_tools EXCLUDE_FROM_ALL)
-set(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED ${HYPERDRONE_VARIANT})
-add_subdirectory(${RLTOOLS_ROOT}/src/rendering/raytracing/backends rl_tools_rt_backends EXCLUDE_FROM_ALL)
+set(RL_TOOLS_HYPERLUX_BACKEND_RESOLVED ${HYPERDRONE_VARIANT})
+add_subdirectory(${RLTOOLS_ROOT}/src/hyperlux/backends rl_tools_rt_backends EXCLUDE_FROM_ALL)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -55,15 +55,15 @@ hyperdrone_jit_find_nanobind()
 function(hyperdrone_component_libraries DEFINES OUT_LIBRARIES)
     hyperdrone_jit_parse_defines("${DEFINES}" CONFIG)
     if(DEFINED CONFIG_HYPERDRONE_ENVIRONMENT_SPEC_HEADER)
-        set(${OUT_LIBRARIES} rendering_raytracing_backend rendering_raytracing_backend_depth rendering_raytracing_backend_segmentation rendering_raytracing_backend_normals PARENT_SCOPE)
+        set(${OUT_LIBRARIES} hyperlux_backend hyperlux_backend_depth hyperlux_backend_segmentation hyperlux_backend_normals PARENT_SCOPE)
     elseif(CONFIG_HYPERDRONE_CAMERA_BACKEND_REQUIREMENT STREQUAL "normals")
-        set(${OUT_LIBRARIES} rendering_raytracing_backend_normals PARENT_SCOPE)
+        set(${OUT_LIBRARIES} hyperlux_backend_normals PARENT_SCOPE)
     elseif(CONFIG_HYPERDRONE_CAMERA_BACKEND_REQUIREMENT STREQUAL "segmentation")
-        set(${OUT_LIBRARIES} rendering_raytracing_backend_segmentation PARENT_SCOPE)
+        set(${OUT_LIBRARIES} hyperlux_backend_segmentation PARENT_SCOPE)
     elseif(CONFIG_HYPERDRONE_CAMERA_BACKEND_REQUIREMENT STREQUAL "depth")
-        set(${OUT_LIBRARIES} rendering_raytracing_backend_depth PARENT_SCOPE)
+        set(${OUT_LIBRARIES} hyperlux_backend_depth PARENT_SCOPE)
     else()
-        set(${OUT_LIBRARIES} rendering_raytracing_backend PARENT_SCOPE)
+        set(${OUT_LIBRARIES} hyperlux_backend PARENT_SCOPE)
     endif()
 endfunction()
 
@@ -75,8 +75,8 @@ if(HYPERDRONE_VARIANT STREQUAL "OPTIX")
 endif()
 
 set(hyperdrone_environment_libraries RLtools::RLtools hyperdrone_environment_stb)
-if(TARGET RLtools::RaytracingSpy)
-    list(APPEND hyperdrone_environment_libraries RLtools::RaytracingSpy rendering_raytracing_backend)
+if(TARGET RLtools::HyperLuxSpy)
+    list(APPEND hyperdrone_environment_libraries RLtools::HyperLuxSpy hyperlux_backend)
 endif()
 
 hyperdrone_jit_add_configs(

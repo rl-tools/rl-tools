@@ -150,12 +150,12 @@ namespace rl_tools {
                 }
             }
             render(device, renderer);
-            using RGB_SPEC = rendering::raytracing::outputs::TensorSpecification<typename WORLD::RENDERER_SPEC, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>;
+            using RGB_SPEC = hyperlux::outputs::TensorSpecification<typename WORLD::RENDERER_SPEC, hyperlux::outputs::RGB<hyperlux::outputs::format::Float32>>;
             std::vector<float> observation_staging(RGB_SPEC::SIZE);
             {
-                Tensor<rendering::raytracing::outputs::TensorSpecification<typename WORLD::RENDERER_SPEC, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>>> observation_alias;
+                Tensor<hyperlux::outputs::TensorSpecification<typename WORLD::RENDERER_SPEC, hyperlux::outputs::RGB<hyperlux::outputs::format::Float32>>> observation_alias;
                 observation_alias._data = observation_staging.data();
-                copy(renderer.device, device, output(device, renderer, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>{}), observation_alias);
+                copy(renderer.device, device, output(device, renderer, hyperlux::outputs::RGB<hyperlux::outputs::format::Float32>{}), observation_alias);
             }
             for (TI setup_i = 0; setup_i < WORLD::INSTANCES; setup_i++) {
                 if (mask != nullptr && !mask[setup_i]) {

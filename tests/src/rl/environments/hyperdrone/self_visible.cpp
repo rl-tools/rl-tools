@@ -10,7 +10,7 @@
 #include <vector>
 
 namespace rlt = rl_tools;
-namespace rro = rlt::rendering::raytracing::outputs;
+namespace rro = rlt::hyperlux::outputs;
 namespace l2f = rlt::rl::environments::l2f;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -67,7 +67,7 @@ namespace test_self_visible {
         static constexpr TI INSTANCES_PER_WORLD = 2;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
-        using SHADING = rlt::rendering::raytracing::Low;
+        using SHADING = rlt::hyperlux::Low;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 8;
         static constexpr bool SELF_VISIBLE = true;
         using CAMERA_OUTPUTS = rlt::rl::environments::hyperdrone::CameraOutputs<rro::List<rro::RGB<rro::format::Float32>, rro::Segmentation<rro::format::UInt32, rro::labels::Instance>, rro::Probes>>;
@@ -130,9 +130,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE, OWN_DRONE_AND_ARTICULATIO
     rlt::malloc(device, shared.library);
     rlt::malloc(device, world);
     shared.drones.push_back({DRONE_PATH, {}});
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    rlt::hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
-    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
     rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
 
     ASSERT_TRUE(world.entity_kinds.empty());

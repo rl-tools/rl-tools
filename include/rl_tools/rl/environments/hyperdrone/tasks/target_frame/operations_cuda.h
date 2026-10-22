@@ -22,7 +22,7 @@ namespace rl_tools{
             }
         }
         template <typename DEVICE, typename TASK_SPEC, typename SETUPS_SPEC>
-        __global__ void bank_camera_kernel(DEVICE device, Tensor<SETUPS_SPEC> setups, rendering::raytracing::Camera<typename TASK_SPEC::T>* cameras, rendering::raytracing::Camera<typename TASK_SPEC::T>* cameras_open, typename TASK_SPEC::T aspect){
+        __global__ void bank_camera_kernel(DEVICE device, Tensor<SETUPS_SPEC> setups, hyperlux::Camera<typename TASK_SPEC::T>* cameras, hyperlux::Camera<typename TASK_SPEC::T>* cameras_open, typename TASK_SPEC::T aspect){
             using TI = typename DEVICE::index_t;
             using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
             constexpr TI INSTANCES = World<TASK_SPEC>::INSTANCES;
@@ -40,7 +40,7 @@ namespace rl_tools{
             }
         }
         template <typename DEVICE, typename TASK_SPEC, typename SETUPS_SPEC, typename BODIES_SPEC, typename STRUCTURE>
-        __global__ void bank_drone_rows_kernel(DEVICE device, Tensor<SETUPS_SPEC> setups, const Tensor<BODIES_SPEC> bodies, typename TASK_SPEC::TI slot_offset, typename TASK_SPEC::TI parts, rendering::raytracing::PoseSink<typename TASK_SPEC::NEXT_WORLD::RENDERER_SPEC> sink, hyperdrone::cuda::DroneMeshes<typename TASK_SPEC::NEXT_WORLD::SPEC, STRUCTURE> meshes){
+        __global__ void bank_drone_rows_kernel(DEVICE device, Tensor<SETUPS_SPEC> setups, const Tensor<BODIES_SPEC> bodies, typename TASK_SPEC::TI slot_offset, typename TASK_SPEC::TI parts, hyperlux::PoseSink<typename TASK_SPEC::NEXT_WORLD::RENDERER_SPEC> sink, hyperdrone::cuda::DroneMeshes<typename TASK_SPEC::NEXT_WORLD::SPEC, STRUCTURE> meshes){
             using T = typename TASK_SPEC::T;
             using TI = typename DEVICE::index_t;
             using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
@@ -54,7 +54,7 @@ namespace rl_tools{
                 make_body_transform(device, orientation, position, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, base);
                 const auto& body = get_ref(device, bodies, setup.agents[0].drone);
                 const auto pose = make_pose(base, rotor_scale(device, body.rotorcraft, setup.agents[0].dynamics.dynamics.rotor_positions, NEXT_WORLD::DYNAMICS_ENV::ACTION_DIM));
-                hyperdrone::cuda::drone_entity_rows<DEVICE, typename NEXT_WORLD::SPEC>(device, sink, meshes, body.mesh, rendering::raytracing::OverlayIndex{setup_i}, slot_offset, parts, pose, nullptr, nullptr);
+                hyperdrone::cuda::drone_entity_rows<DEVICE, typename NEXT_WORLD::SPEC>(device, sink, meshes, body.mesh, hyperlux::OverlayIndex{setup_i}, slot_offset, parts, pose, nullptr, nullptr);
             }
         }
         template <typename DEVICE, typename TASK_SPEC, typename SETUPS_SPEC>
@@ -226,7 +226,7 @@ namespace rl_tools{
             {
                 constexpr TI BLOCKSIZE = 256;
                 constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(WORLD::INSTANCES * CAM_PIXELS, BLOCKSIZE);
-                cuda::targets_scatter_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, data(output(device, renderer, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>{})), setups, mask, data(frames));
+                cuda::targets_scatter_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, data(output(device, renderer, hyperlux::outputs::RGB<hyperlux::outputs::format::Float32>{})), setups, mask, data(frames));
             }
             check_status(device);
         }

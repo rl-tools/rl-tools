@@ -59,7 +59,7 @@ int main(int argc, char** argv){
     int result = 0;
     TI step_i = 0;
     try{
-        rlt::rendering::datasets::glb::Dataset dataset{};
+        rlt::hyperlux::datasets::glb::Dataset dataset{};
         dataset.references = {argv[1]};
         init(device, environment, dataset);
         init(device, rng, SEED);

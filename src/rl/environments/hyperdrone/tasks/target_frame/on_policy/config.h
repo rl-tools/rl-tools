@@ -144,7 +144,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::on_policy
     static constexpr T CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_Y = static_cast<T>(5.0) / static_cast<T>(180) * rlt::math::PI<T>;
     static constexpr T CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_Z = static_cast<T>(5.0) / static_cast<T>(180) * rlt::math::PI<T>;
     static constexpr T TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE = static_cast<T>(10.0) / static_cast<T>(180) * rlt::math::PI<T>;
-    using RENDER_SHADING = rlt::rendering::raytracing::High;
+    using RENDER_SHADING = rlt::hyperlux::High;
     static constexpr bool RENDER_ENABLE_MOTION_BLUR = false;
     static constexpr TI RENDER_MOTION_BLUR_SAMPLES = 1;
     static constexpr bool RENDER_ENABLE_ANTI_ALIASING = true;

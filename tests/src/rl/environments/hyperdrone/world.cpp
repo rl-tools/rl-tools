@@ -12,7 +12,7 @@
 #include <vector>
 
 namespace rlt = rl_tools;
-namespace rro = rlt::rendering::raytracing::outputs;
+namespace rro = rlt::hyperlux::outputs;
 using rlt::output;
 namespace l2f = rlt::rl::environments::l2f;
 
@@ -69,7 +69,7 @@ namespace test_hyperdrone_world {
         static constexpr TI INSTANCES_PER_WORLD = 2;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
-        using SHADING = rlt::rendering::raytracing::Low;
+        using SHADING = rlt::hyperlux::Low;
         static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = 0.05;
         static constexpr T CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE = 0.01;
         static constexpr T CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE = 0.05;
@@ -270,9 +270,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, CAMERA_PARAMETER_SAMPLING){
     world.parameters.agents[0].cameras[0].mount.pose.position[0] = 0.1;
     world.parameters.agents[0].cameras[0].mount.pose.position[1] = -0.2;
     world.parameters.agents[0].cameras[0].mount.pose.position[2] = 0.3;
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    rlt::hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
-    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
     init(device, world, shared, dataset, corpus, 0, 1, 0);
     ASSERT_EQ(shared.num_drones, 1);
     EXPECT_FLOAT_EQ(shared.drones[0].parameters.cameras[0].fov, 68);
@@ -317,7 +317,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, SEEDED_ROLLOUT_DETERMINISM){
     rlt::init(device);
     ENVIRONMENT env;
     rlt::malloc(device, env);
-    rlt::init(device, env, rlt::rendering::datasets::procthor::GLB{scene_directory(), {}});
+    rlt::init(device, env, rlt::hyperlux::datasets::procthor::GLB{scene_directory(), {}});
     for(TI world_i = 0; world_i < N_WORLDS; world_i++){
         EXPECT_EQ(env.worlds[world_i].slots.size(), 1);
         EXPECT_EQ(env.worlds[world_i].slots[0].corpus_index, world_i);
@@ -360,9 +360,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, RENDER_PATH_EQUIVALENCE){
     typename SINGLE_WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);
     rlt::malloc(device, world);
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    rlt::hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
-    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
     rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
 
     RNG rng;
@@ -379,7 +379,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, RENDER_PATH_EQUIVALENCE){
     // manual composition of the same inputs
     constexpr TI NUM_CAMERAS = WORLD_SPEC::INSTANCES_PER_WORLD;
     const T aspect = (T)WORLD_SPEC::CAM_WIDTH / (T)WORLD_SPEC::CAM_HEIGHT;
-    std::vector<rlt::rendering::raytracing::Camera<T>> manual_cameras(NUM_CAMERAS);
+    std::vector<rlt::hyperlux::Camera<T>> manual_cameras(NUM_CAMERAS);
     for(TI instance_i = 0; instance_i < NUM_CAMERAS; instance_i++){
         typename WORLD::Parameters instance_parameters = rlt::get(device, tensors.parameters, instance_i);
         typename WORLD::State state = rlt::get(device, tensors.states, instance_i);
@@ -426,9 +426,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, SCENE_ROTATION){
     typename WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);
     rlt::malloc(device, world);
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
+    rlt::hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
-    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
     rlt::init(device, world, shared, dataset, corpus, 0, 2, 0);
     EXPECT_EQ(world.active_slot, 0);
     rlt::rotate_scene(device, world);
@@ -528,9 +528,9 @@ namespace test_hyperdrone_acquisition {
         malloc(device, reset_mask);
         malloc(device, actions);
         malloc(device, observations);
-        rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
+        hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
         typename decltype(dataset)::Corpus corpus;
-        rendering::datasets::procthor::enumerate(device, dataset, corpus);
+        hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
         init(device, world, shared, dataset, corpus, 0, 2, 0);
         EXPECT_EQ(data(world.prev_cameras) != nullptr, IMAGE);
         EXPECT_EQ(data(world.camera_staging_open) != nullptr, IMAGE);
@@ -738,9 +738,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, SPARSE_OBSERVATION_AND_INTERNAL_
     malloc(device, shared.library);
     malloc(device, world);
     world.parameters.agents[0].cameras[2].fov = 100;
-    rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
-    rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
     init(device, world, shared, dataset, corpus, 0, 1, 0);
     RNG rng;
     malloc(device, rng);

@@ -16,7 +16,7 @@ namespace rlt = rl_tools;
 namespace l2f = rlt::rl::environments::l2f;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
-using DEVICE_GPU_SPEC = rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
+using DEVICE_GPU_SPEC = rlt::hyperlux::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
 using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<DEVICE_GPU_SPEC>;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using RNG_GPU = typename DEVICE_GPU::SPEC::RANDOM::ENGINE<>;
@@ -65,15 +65,15 @@ namespace test_target_frame_cuda {
         static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
     };
     struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS> {
-        using RGB = rlt::rendering::raytracing::outputs::RGB<rlt::rendering::raytracing::outputs::format::Float32>;
-        using CAMERA_OUTPUTS = rlt::rl::environments::hyperdrone::CameraOutputs<rlt::rendering::raytracing::outputs::List<rlt::rendering::raytracing::outputs::RGB<>>, rlt::rendering::raytracing::outputs::List<RGB, rlt::rendering::raytracing::outputs::Flow<>, rlt::rendering::raytracing::outputs::FlowStatus<>>, rlt::rendering::raytracing::outputs::List<RGB, rlt::rendering::raytracing::outputs::Depth<>>>;
+        using RGB = rlt::hyperlux::outputs::RGB<rlt::hyperlux::outputs::format::Float32>;
+        using CAMERA_OUTPUTS = rlt::rl::environments::hyperdrone::CameraOutputs<rlt::hyperlux::outputs::List<rlt::hyperlux::outputs::RGB<>>, rlt::hyperlux::outputs::List<RGB, rlt::hyperlux::outputs::Flow<>, rlt::hyperlux::outputs::FlowStatus<>>, rlt::hyperlux::outputs::List<RGB, rlt::hyperlux::outputs::Depth<>>>;
         using OBSERVATION = rlt::rl::environments::hyperdrone::ImageObservation<1>;
         static constexpr TI N_CAMERA_AGENTS = 1;
         static constexpr TI INSTANCES_PER_WORLD = 4;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
         static constexpr TI HISTORY_LENGTH = 4;
-        using SHADING = rlt::rendering::raytracing::Low;
+        using SHADING = rlt::hyperlux::Low;
         static constexpr T BRIGHTNESS_RANDOMIZATION_RANGE = 0.25;
     };
     using BASE_WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
@@ -245,9 +245,9 @@ void bank_and_stack_semantics(){
     typename BASE_WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);
     rlt::malloc(device_gpu, world);
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
+    rlt::hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
-    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
     rlt::init(device_gpu, world, shared, dataset, corpus, 0, 2, 0);
     EXPECT_TRUE(rlt::rl::environments::hyperdrone::tasks::target_frame::_bank_due(world));
 
@@ -447,9 +447,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, CPU_CUDA_BANK_CONSIS
     rlt::init(device_gpu);
     typename BASE_WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    rlt::hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
-    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
     WORLD world_cpu, world_gpu;
     rlt::malloc(device, world_cpu);
     rlt::malloc(device_gpu, world_gpu);

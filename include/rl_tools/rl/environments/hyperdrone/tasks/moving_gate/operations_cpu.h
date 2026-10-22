@@ -71,7 +71,7 @@ namespace rl_tools {
         RL_TOOLS_FUNCTION_PLACEMENT void _sample_gate(DEVICE& device, const typename World<TASK_SPEC>::NEXT_WORLD::ANNOTATIONS& annotations, typename World<TASK_SPEC>::Parameters& parameters, typename World<TASK_SPEC>::State& state, RNG& rng){
             using T = typename TASK_SPEC::T;
             constexpr T TWO_PI = (T)2 * math::PI<T>;
-            auto gate_position = rendering::datasets::annotations::sample_free_position(device, annotations, rng);
+            auto gate_position = hyperlux::datasets::annotations::sample_free_position(device, annotations, rng);
             parameters.gate_center[0] = gate_position.position[0];
             parameters.gate_center[1] = gate_position.position[1];
             parameters.gate_center[2] = gate_position.position[2];
@@ -151,9 +151,9 @@ namespace rl_tools {
                 constexpr T TWO_PI = (T)2 * math::PI<T>;
                 T phase_open = state.gate_phase - TWO_PI * instance_parameters.gate_frequency * dt * instance_parameters.shutter_fraction;
                 rl::environments::hyperdrone::tasks::moving_gate::gate_pose(device, instance_parameters, phase_open, pose_open);
-                set_pose(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, make_pose(pose_open), make_pose(pose));
+                set_pose(device, renderer, hyperlux::OverlayIndex{instance_i}, placement, make_pose(pose_open), make_pose(pose));
             } else {
-                set_pose(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, make_pose(pose));
+                set_pose(device, renderer, hyperlux::OverlayIndex{instance_i}, placement, make_pose(pose));
             }
         }
     }

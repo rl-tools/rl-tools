@@ -1,6 +1,6 @@
 #define RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include <rl_tools/operations/cpu_mux.h>
-#include <rl_tools/rendering/raytracing/renderer.h>
+#include <rl_tools/hyperlux/hyperlux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_cuda.h>
 #include <rl_tools/nn/optimizers/adam/operations_cuda.h>
 #include <rl_tools/nn/optimizers/sgd/instance/operations_cuda.h>
@@ -19,13 +19,13 @@ namespace test_device_extension {
     };
     using HOST_SPEC = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, Logger>;
     using HOST = rlt::devices::CPU<HOST_SPEC>;
-    using GPU_SPEC = rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, HOST>;
+    using GPU_SPEC = rlt::hyperlux::device::Specification<rlt::devices::DefaultCUDASpecification, HOST>;
     using GPU = rlt::devices::CUDA<GPU_SPEC>;
     using TAG = rlt::devices::cuda::TAG<GPU, true>;
     static_assert(!std::is_copy_constructible<HOST>::value);
     static_assert(!std::is_copy_constructible<GPU>::value);
     static_assert(std::is_trivially_copyable<TAG>::value && TAG::TAG && TAG::KERNEL);
-    static_assert(!rlt::rendering::raytracing::device::HasRendering<TAG>::value);
+    static_assert(!rlt::hyperlux::device::HasRendering<TAG>::value);
 
     template <bool ADAM, bool MASTER>
     void optimizer_updates() {

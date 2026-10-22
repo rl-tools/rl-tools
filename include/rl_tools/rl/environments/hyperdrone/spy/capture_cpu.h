@@ -97,7 +97,7 @@ namespace rl_tools {
             auto& renderer = world.slots[world.active_slot].renderer;
             state.buffer.geometry.camera = data(cameras(device, renderer))[camera];
             if constexpr(WORLD::RENDERER_SPEC::ENABLE_OVERLAYS) {
-                copy(device, renderer, rendering::raytracing::OverlayIndex{instance}, state.buffer.geometry.overlay);
+                copy(device, renderer, hyperlux::OverlayIndex{instance}, state.buffer.geometry.overlay);
             }
         }
     }

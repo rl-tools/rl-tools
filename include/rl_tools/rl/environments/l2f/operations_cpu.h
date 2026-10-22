@@ -1933,7 +1933,7 @@ function get_desired_onboard_dims(parameters){
     throw new Error("get_desired_onboard_dims: parameters.visual is missing cam_width/cam_height")
 }
 
-// parameters.visual.fov is the horizontal FOV in degrees, matching rendering::make_camera_data
+// parameters.visual.fov is the horizontal FOV in degrees, matching hyperlux::make_camera_data
 function onboard_vertical_fov_degrees(horizontal_fov_degrees, aspect){
     const horizontal_fov = horizontal_fov_degrees * Math.PI / 180
     return 2 * Math.atan(Math.tan(horizontal_fov / 2) / aspect) * 180 / Math.PI

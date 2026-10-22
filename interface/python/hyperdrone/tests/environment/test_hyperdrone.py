@@ -109,10 +109,10 @@ def test_environment_verbosity(scene_directory, capfd, monkeypatch):
                     assert environment.render_backend == backend
                 output = capfd.readouterr().err
                 if level == "warning":
-                    assert "#rl_tools::rendering::" not in output
+                    assert "#rl_tools::hyperlux::" not in output
                 else:
-                    assert f"#rl_tools::rendering::raytracing: backend={backend}" in output
-                    assert "#rl_tools::rendering::datasets: Loaded" in output
+                    assert f"#rl_tools::hyperlux: backend={backend}" in output
+                    assert "#rl_tools::hyperlux::datasets: Loaded" in output
             finally:
                 environment.close()
                 capfd.readouterr()
@@ -1104,7 +1104,7 @@ namespace hyperdrone_user {
         static constexpr bool ENABLE_MOTION_BLUR = true;
         static constexpr std::size_t MOTION_BLUR_SAMPLES = 4;
         static constexpr bool SELF_VISIBLE = false;
-        using SHADING = rl_tools::rendering::raytracing::Low;
+        using SHADING = rl_tools::hyperlux::Low;
     };
     using WORLD = rl_tools::rl::environments::hyperdrone::World<SPEC>;
 }
@@ -1158,7 +1158,7 @@ namespace hyperdrone_user {
         static constexpr std::size_t CAM_WIDTH = 16;
         static constexpr std::size_t CAM_HEIGHT = 16;
         static constexpr bool SELF_VISIBLE = false;
-        using SHADING = rl_tools::rendering::raytracing::Low;
+        using SHADING = rl_tools::hyperlux::Low;
     };
     using BASE = rl_tools::rl::environments::hyperdrone::World<SPEC>;
     using TASK = rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localization::Specification<BASE>;

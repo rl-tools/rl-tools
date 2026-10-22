@@ -13,11 +13,11 @@
 #include <rl_tools/rl/environments/hyperdrone/tasks/moving_gate/operations_cuda.h>
 #endif
 #endif
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
 #include <cuda_runtime.h>
 #include "../common/cuda_device.h"
 #endif
-#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
+#ifdef RL_TOOLS_HYPERLUX_ENABLE_SPY
 #include <rl_tools/rl/environments/hyperdrone/spy/operations_cpu.h>
 #if HYPERDRONE_ENVIRONMENT_DEVICE_CUDA
 #include <rl_tools/rl/environments/hyperdrone/spy/operations_cuda.h>
@@ -44,16 +44,16 @@ namespace HYPERDRONE_MODULE_NAME {
     using rl_tools::data;
     using rl_tools::render_sync;
     using rl_tools::probe_sync;
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
     using rl_tools::collision_stream;
 #endif
 
 #if HYPERDRONE_ENVIRONMENT_DEVICE_CUDA
-    using DEVICE = rlt::devices::CUDA<rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, HOST_DEVICE>>;
+    using DEVICE = rlt::devices::CUDA<rlt::hyperlux::device::Specification<rlt::devices::DefaultCUDASpecification, HOST_DEVICE>>;
     // one curand state per instance across all members (the composite partitions them per member)
     using RNG = rlt::devices::random::CUDA::ENGINE<rlt::devices::random::CUDA::Specification<TI, TOTAL>>;
 #endif
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
     using CurrentDevice = hyperdrone::CurrentCudaDevice;
 #else
     struct CurrentDevice {
@@ -92,7 +92,7 @@ namespace HYPERDRONE_MODULE_NAME {
             }
             value.cameras.erase(std::lower_bound(value.cameras.begin(), value.cameras.end(), WORLD::N_VIEWS), value.cameras.end());
             value.block_count = NUM_WORLDS;
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
             value.device_type = 2;
 #endif
         }
@@ -107,7 +107,7 @@ namespace HYPERDRONE_MODULE_NAME {
         DEVICE device{};
         ENV env{};
         RNG rng{};
-#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
+#ifdef RL_TOOLS_HYPERLUX_ENABLE_SPY
         rlt::rl::environments::hyperdrone::Spy<rlt::rl::environments::hyperdrone::spy::Config<ENV>> spy{};
         bool spy_open = false;
 #endif
@@ -286,8 +286,8 @@ namespace HYPERDRONE_MODULE_NAME {
                 const auto& drone = drones[drone_i];
                 const std::string name = "hyperdrone: drone " + std::to_string(drone_i) + " (" + drone.asset + ")";
                 std::string path;
-                rlt::rendering::raytracing::ObjectAssembly assembly;
-                if(drone.asset.empty() || !rlt::rendering::datasets::resolve_reference(impl.host(), drone.asset, path) || !rlt::load<typename SPEC::SHADING, WORLD::RENDERER_SPEC::HAS_RGB>(impl.host(), assembly, path)){
+                rlt::hyperlux::ObjectAssembly assembly;
+                if(drone.asset.empty() || !rlt::hyperlux::datasets::resolve_reference(impl.host(), drone.asset, path) || !rlt::load<typename SPEC::SHADING, WORLD::RENDERER_SPEC::HAS_RGB>(impl.host(), assembly, path)){
                     throw std::invalid_argument(name + ": failed to load the asset");
                 }
                 rlt::rl::environments::hyperdrone::Rotorcraft rotorcraft;
@@ -337,7 +337,7 @@ namespace HYPERDRONE_MODULE_NAME {
             rlt::init(impl->host());
         }
         rlt::init(impl->device);
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
         cudaGetDevice(&impl->device_id);
 #endif
         for(auto& metadata: impl->outputs){
@@ -420,7 +420,7 @@ namespace HYPERDRONE_MODULE_NAME {
         }
         const TI drone_parts = check_drones(*impl);
         if constexpr (HasGateAssetPath<WORLD>::VALUE){
-            rlt::rendering::raytracing::ObjectAssembly assembly;
+            rlt::hyperlux::ObjectAssembly assembly;
             if(!rlt::load<typename WORLD::SPEC::SHADING, WORLD::RENDERER_SPEC::HAS_RGB>(impl->host(), assembly, assets.at("gate")) || assembly.parts.empty()){
                 throw std::invalid_argument("hyperdrone: failed to load the gate asset");
             }
@@ -520,7 +520,7 @@ namespace HYPERDRONE_MODULE_NAME {
                     if constexpr (WORLD::SPEC::SELF_VISIBLE){
                         const T wheelbase = rotor_wheelbase(impl->host(), agent.dynamics.dynamics.rotor_positions, (TI)WORLD::DYNAMICS_ENV::ACTION_DIM);
                         const float scale = (float)(wheelbase / impl->env.shared.drone_bodies[agent.drone].rotorcraft.wheelbase);
-                        if(wheelbase <= 0 || !rlt::rendering::is_finite(scale) || scale <= 0){
+                        if(wheelbase <= 0 || !rlt::hyperlux::is_finite(scale) || scale <= 0){
                             throw std::invalid_argument("hyperdrone: rotor_positions must define a finite positive wheelbase and visual scale");
                         }
                     }
@@ -743,7 +743,7 @@ namespace HYPERDRONE_MODULE_NAME {
     }
 
     void Environment::output_read(size_t index, void* destination, int destination_device, const std::string& field, uintptr_t consumer_stream){
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
         using rlt::stream;
 #endif
         const auto& metadata = impl->outputs.at(index);
@@ -761,7 +761,7 @@ namespace HYPERDRONE_MODULE_NAME {
                 auto& renderer = get_renderer(impl->device, impl->env.worlds[member]);
                 auto& source = output(impl->device, renderer, OUTPUT{});
                 auto* target = static_cast<unsigned char*>(destination) + member * bytes;
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
                 const auto producer = PROBES ? collision_stream(impl->device, renderer) : stream(impl->device, renderer);
                 const auto consumer = reinterpret_cast<cudaStream_t>(consumer_stream);
                 if(destination_device == 2){
@@ -770,7 +770,7 @@ namespace HYPERDRONE_MODULE_NAME {
                 const auto kind = destination_device == 2 ? cudaMemcpyDeviceToDevice : cudaMemcpyDeviceToHost;
                 cudaError_t status;
                 if constexpr (PROBES){
-                    status = cudaMemcpy2DAsync(target, layout.item_size, reinterpret_cast<const unsigned char*>(data(source)) + layout.offset, sizeof(rlt::rendering::CollisionResult), layout.item_size, count, kind, producer);
+                    status = cudaMemcpy2DAsync(target, layout.item_size, reinterpret_cast<const unsigned char*>(data(source)) + layout.offset, sizeof(rlt::hyperlux::CollisionResult), layout.item_size, count, kind, producer);
                 }
                 else {
                     status = cudaMemcpyAsync(target, data(source), bytes, kind, producer);
@@ -792,7 +792,7 @@ namespace HYPERDRONE_MODULE_NAME {
                     probe_sync(impl->device, renderer);
                     const auto* values = reinterpret_cast<const unsigned char*>(data(source)) + layout.offset;
                     for(size_t item = 0; item < count; item++){
-                        std::memcpy(target + item * layout.item_size, values + item * sizeof(rlt::rendering::CollisionResult), layout.item_size);
+                        std::memcpy(target + item * layout.item_size, values + item * sizeof(rlt::hyperlux::CollisionResult), layout.item_size);
                     }
                 }
                 else {
@@ -808,7 +808,7 @@ namespace HYPERDRONE_MODULE_NAME {
         if(member >= NUM_WORLDS){
             throw std::out_of_range("hyperdrone: output block index out of range");
         }
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
         using rlt::stream;
 #endif
         const auto& metadata = impl->outputs.at(index);
@@ -826,7 +826,7 @@ namespace HYPERDRONE_MODULE_NAME {
             auto& renderer = get_renderer(impl->device, impl->env.worlds[member]);
             auto& source = output(impl->device, renderer, OUTPUT{});
             result.pointer = reinterpret_cast<unsigned char*>(data(source)) + result.layout.offset;
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
             const auto producer = PROBES ? collision_stream(impl->device, renderer) : stream(impl->device, renderer);
             const auto event = renderer.backend->ordering_event;
             const int device_id = impl->device_id;
@@ -917,7 +917,7 @@ namespace HYPERDRONE_MODULE_NAME {
             probe_sync(impl->device, renderer);
         }
     }
-#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
+#ifdef RL_TOOLS_HYPERLUX_ENABLE_SPY
     template <typename DEVICE, typename CONFIG>
     void allocate_spy(DEVICE& device, rlt::rl::environments::hyperdrone::Spy<CONFIG>& spy, typename CONFIG::ENVIRONMENT& environment){
         if constexpr (!CONFIG::WORLD::RENDERER_SPEC::HAS_RGB){
@@ -939,7 +939,7 @@ namespace HYPERDRONE_MODULE_NAME {
     }
 #endif
     void Environment::spy_open(){
-#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
+#ifdef RL_TOOLS_HYPERLUX_ENABLE_SPY
         const CurrentDevice current(impl->device_id);
         if(impl->spy_open){
             throw std::runtime_error("hyperdrone: this environment already has an open spy");
@@ -951,7 +951,7 @@ namespace HYPERDRONE_MODULE_NAME {
 #endif
     }
     bool Environment::spy_update(){
-#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
+#ifdef RL_TOOLS_HYPERLUX_ENABLE_SPY
         const CurrentDevice current(impl->device_id);
         if(impl->spy_open){
             using rlt::update;
@@ -964,7 +964,7 @@ namespace HYPERDRONE_MODULE_NAME {
         return false;
     }
     void Environment::spy_close(){
-#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
+#ifdef RL_TOOLS_HYPERLUX_ENABLE_SPY
         const CurrentDevice current(impl->device_id);
         if(impl->spy_open){
             using rlt::free;

@@ -11,11 +11,11 @@
 
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
 #include <rl_tools/random/operations_generic_array.h>
-#include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
-#include <rl_tools/rendering/datasets/operations_cpu.h>
-#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
-#include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
-#include <rl_tools/rendering/datasets/annotations/operations_cpu.h>
+#include <rl_tools/hyperlux/operations_cpu_mux.h>
+#include <rl_tools/hyperlux/datasets/operations_cpu.h>
+#include <rl_tools/hyperlux/datasets/glb/operations_cpu.h>
+#include <rl_tools/hyperlux/datasets/procthor/operations_cpu.h>
+#include <rl_tools/hyperlux/datasets/annotations/operations_cpu.h>
 
 #include <algorithm>
 #include <filesystem>
@@ -95,14 +95,14 @@ namespace rl_tools {
     // flattens the pool (wrapper init overloads register before forwarding, the World's own
     // drones register before its slots build)
     template <typename DEVICE, typename SPEC>
-    rendering::raytracing::AssetHandle register_pool_asset(DEVICE& device, rl::environments::hyperdrone::SharedContext<SPEC>& shared, const std::string& path) {
+    hyperlux::AssetHandle register_pool_asset(DEVICE& device, rl::environments::hyperdrone::SharedContext<SPEC>& shared, const std::string& path) {
         auto& render_device = get_rendering_device(device);
         for (size_t asset_i = 0; asset_i < shared.pool_asset_paths.size(); asset_i++) {
             if (shared.pool_asset_paths[asset_i] == path) {
                 return shared.pool_asset_handles[asset_i];
             }
         }
-        rendering::raytracing::ObjectAssembly assembly;
+        hyperlux::ObjectAssembly assembly;
         bool loaded = load<typename SPEC::SHADING, rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_RGB>(render_device, assembly, path);
         utils::assert_exit(device, loaded, "hyperdrone::register_pool_asset: failed to load the asset");
         auto handle = add(render_device, shared.library.pool, assembly);
@@ -151,15 +151,15 @@ namespace rl_tools {
             for (auto& drone : shared.drones) {
                 std::string path, content_hash;
                 utils::assert_exit(device, !drone.asset.empty(), "hyperdrone::SharedContext: every drone needs an asset when SELF_VISIBLE");
-                utils::assert_exit(device, rendering::datasets::resolve_reference(render_device, drone.asset, path), "hyperdrone::SharedContext: failed to resolve the drone asset");
-                utils::assert_exit(device, rendering::datasets::content_hash(render_device, path, content_hash), "hyperdrone::SharedContext: failed to hash the drone asset");
+                utils::assert_exit(device, hyperlux::datasets::resolve_reference(render_device, drone.asset, path), "hyperdrone::SharedContext: failed to resolve the drone asset");
+                utils::assert_exit(device, hyperlux::datasets::content_hash(render_device, path, content_hash), "hyperdrone::SharedContext: failed to hash the drone asset");
                 drone.asset = path;
                 rl::environments::hyperdrone::DroneBody<SPEC> body;
                 while (body.mesh < (TI)content_hashes.size() && content_hashes[body.mesh] != content_hash) {
                     body.mesh++;
                 }
                 if (body.mesh == (TI)content_hashes.size()) {
-                    rendering::raytracing::ObjectAssembly assembly;
+                    hyperlux::ObjectAssembly assembly;
                     const bool loaded = load<typename SPEC::SHADING, rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_RGB>(render_device, assembly, path);
                     utils::assert_exit(device, loaded, "hyperdrone::SharedContext: failed to load the drone asset");
                     utils::assert_exit(device, articulate(render_device, assembly), "hyperdrone::SharedContext: a drone asset needs a body part and prop_* parts with geometry");
@@ -246,16 +246,16 @@ namespace rl_tools {
             auto& slot = world.slots[slot_i];
             slot.corpus_index = first_scene + slot_i;
             malloc(render_device, slot.renderer, shared.library);
-            rendering::Bundle<T> bundle;
-            using LOAD_MODE = utils::typing::conditional_t<rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_SEGMENTATION, mode::rendering::SceneRoots<>, mode::Default<>>;
+            hyperlux::Bundle<T> bundle;
+            using LOAD_MODE = utils::typing::conditional_t<rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_SEGMENTATION, mode::hyperlux::SceneRoots<>, mode::Default<>>;
             const bool scene_loaded = load<typename SPEC::SHADING, rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_RGB>(render_device, dataset, corpus, slot.corpus_index, bundle, Mode<LOAD_MODE>{});
             utils::assert_exit(device, scene_loaded, "hyperdrone::World: failed to load scene");
             slot.metadata = bundle.metadata;
             slot.scene_id = insert(render_device, shared.library, bundle);
             init(render_device, slot.renderer, shared.library, slot.scene_id);
             generate_probe_directions(render_device, slot.renderer);
-            rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
-            rendering::datasets::annotations::annotate(render_device, slot.annotations, slot.metadata, slot.renderer, free_space_parameters, shared.annotation_cache);
+            hyperlux::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
+            hyperlux::datasets::annotations::annotate(render_device, slot.annotations, slot.metadata, slot.renderer, free_space_parameters, shared.annotation_cache);
             utils::assert_exit(device, slot.annotations.num_positions > 0, "hyperdrone::World: scene has no valid indoor positions");
             if constexpr (WORLD::RENDERER_CONFIG::NUM_OVERLAYS > 0) {
                 // pinned deterministic spawn order (instance-major, registration order, then the
@@ -264,7 +264,7 @@ namespace rl_tools {
                 // no pending rows behind, so the per-step producers own their rows from the first
                 // frame on
                 for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
-                    const rendering::raytracing::OverlayIndex overlay{instance_i};
+                    const hyperlux::OverlayIndex overlay{instance_i};
                     for (TI view_i = 0; view_i < WORLD::N_VIEWS; view_i++) {
                         attach(render_device, slot.renderer, instance_i * WORLD::N_VIEWS + view_i, overlay);
                     }
@@ -274,7 +274,7 @@ namespace rl_tools {
                     }
                     if constexpr (SPEC::SELF_VISIBLE) {
                         for (TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++) {
-                            const auto placement = spawn(render_device, slot.renderer, overlay, world.drone_meshes[0], rendering::raytracing::Pose{}, nullptr, rendering::segmentation::AGENT);
+                            const auto placement = spawn(render_device, slot.renderer, overlay, world.drone_meshes[0], hyperlux::Pose{}, nullptr, hyperlux::segmentation::AGENT);
                             utils::assert_exit(device, placement.first_slot == world.drone_slot_offset + agent_i * world.drone_parts, "hyperdrone::World: drone placement deviates from the drone region");
                         }
                     }
@@ -486,16 +486,16 @@ namespace rl_tools {
             coordinates(device, rotorcraft, phases_close, close);
         }
         template <typename SPEC>
-        rendering::raytracing::OverlayPlacement _entity_placement(const World<SPEC>& world, const typename World<SPEC>::EntityKind& kind) {
+        hyperlux::OverlayPlacement _entity_placement(const World<SPEC>& world, const typename World<SPEC>::EntityKind& kind) {
             return {kind.slot_offset, kind.num_parts, world.slots[world.active_slot].renderer.assets[kind.asset.index].first_part};
         }
         // the host counterpart of the device drone rows: swaps the agent's region to the mesh of
         // the instance's drone entry (a no-op when it already holds it) and poses it; the body
         // sits at the shutter-close pose, the props sweep from the open to the close coordinates
         template <typename DEVICE, typename SPEC, typename RENDERER>
-        void _drone_rows(DEVICE& device, const World<SPEC>& world, RENDERER& renderer, typename SPEC::TI instance_i, typename SPEC::TI agent_i, const DroneBody<SPEC>& body, const rendering::raytracing::Pose& pose, const float* coordinates_open, const float* coordinates_close) {
-            const rendering::raytracing::OverlayIndex overlay{instance_i};
-            const rendering::raytracing::OverlayPlacement region{world.drone_slot_offset + agent_i * world.drone_parts, world.drone_parts, 0};
+        void _drone_rows(DEVICE& device, const World<SPEC>& world, RENDERER& renderer, typename SPEC::TI instance_i, typename SPEC::TI agent_i, const DroneBody<SPEC>& body, const hyperlux::Pose& pose, const float* coordinates_open, const float* coordinates_close) {
+            const hyperlux::OverlayIndex overlay{instance_i};
+            const hyperlux::OverlayPlacement region{world.drone_slot_offset + agent_i * world.drone_parts, world.drone_parts, 0};
             const auto placement = replace(device, renderer, overlay, region, world.drone_meshes[body.mesh]);
             if constexpr (World<SPEC>::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
                 set_pose(device, renderer, overlay, placement, pose, pose, coordinates_open, coordinates_close);
@@ -515,7 +515,7 @@ namespace rl_tools {
         template <typename DEVICE, typename SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT void _sample_scene_placement(DEVICE& device, const typename World<SPEC>::ANNOTATIONS& annotations, Parameters<SPEC>& parameters, RNG& rng) {
             using T = typename SPEC::T;
-            auto indoor_pos = rendering::datasets::annotations::sample_free_position(device, annotations, rng);
+            auto indoor_pos = hyperlux::datasets::annotations::sample_free_position(device, annotations, rng);
             parameters.scene_translation[0] = indoor_pos.position[0];
             parameters.scene_translation[1] = indoor_pos.position[1];
             parameters.scene_translation[2] = indoor_pos.position[2];
@@ -842,7 +842,7 @@ namespace rl_tools {
                         set(device, world.camera_staging_previous, get(device, world.camera_staging_close, camera_i), camera_i);
                     }
                     if constexpr (WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){
-                        advance_flow(device, renderer, rendering::raytracing::OverlayIndex{instance_i});
+                        advance_flow(device, renderer, hyperlux::OverlayIndex{instance_i});
                     }
                 }
             }
@@ -894,7 +894,7 @@ namespace rl_tools {
 
         if constexpr (WORLD::HAS_IMAGE_OBSERVATION){
             const TI history_slot = (world.history_step - 1) % SPEC::HISTORY_LENGTH;
-            auto& rgb = output(device, renderer, rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>{});
+            auto& rgb = output(device, renderer, hyperlux::outputs::RGB<hyperlux::outputs::format::Float32>{});
             auto history_row = view(device, world.history, history_slot);
             constexpr bool CONTIGUOUS = []() {
                 if (WORLD::RGB_ROWS::COUNT != WORLD::N_OBSERVATION_CAMERAS_PER_AGENT) {
@@ -977,9 +977,9 @@ namespace rl_tools {
     void init_segmentation_taxonomy(DEVICE& device, rl::environments::hyperdrone::SharedContext<SPEC>& shared, const DATASET&){
         if constexpr (rl::environments::hyperdrone::World<SPEC>::RENDERER_SPEC::HAS_SEMANTIC_SEGMENTATION){
             auto& render_device = get_rendering_device(device);
-            std::shared_ptr<const rendering::SegmentationTaxonomy> taxonomy;
+            std::shared_ptr<const hyperlux::SegmentationTaxonomy> taxonomy;
             std::string taxonomy_source;
-            std::vector<rendering::Object*> objects;
+            std::vector<hyperlux::Object*> objects;
             const std::string expected = DATASET::SEGMENTATION_TAXONOMY;
             auto collect = [&](auto& container, const std::string& source, bool scene){
                 auto entries = segmentation_objects(render_device, container);
@@ -1009,8 +1009,8 @@ namespace rl_tools {
             shared.segmentation_taxonomy = taxonomy;
             if constexpr (SPEC::SELF_VISIBLE) {
                 if(taxonomy){
-                    auto with_agent = std::make_shared<rendering::SegmentationTaxonomy>(*taxonomy);
-                    with_agent->classes[rendering::segmentation::AGENT] = "Agent";
+                    auto with_agent = std::make_shared<hyperlux::SegmentationTaxonomy>(*taxonomy);
+                    with_agent->classes[hyperlux::segmentation::AGENT] = "Agent";
                     shared.segmentation_taxonomy = std::move(with_agent);
                 }
             }

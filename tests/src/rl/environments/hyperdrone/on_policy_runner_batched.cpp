@@ -75,7 +75,7 @@ namespace test_hyperdrone_on_policy_runner_batched {
         static constexpr TI INSTANCES_PER_WORLD = 2;
         static constexpr TI CAM_WIDTH = 16;
         static constexpr TI CAM_HEIGHT = 16;
-        using SHADING = rlt::rendering::raytracing::Low;
+        using SHADING = rlt::hyperlux::Low;
     };
     using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
     constexpr TI N_WORLDS = 2;
@@ -118,7 +118,7 @@ struct Fixture: ::testing::Test {
         rlt::init(device);
         env = new ENVIRONMENT;
         rlt::malloc(device, *env);
-        rlt::init(device, *env, rlt::rendering::datasets::procthor::GLB{{}, {SCENE_PATH, SCENE_PATH}});
+        rlt::init(device, *env, rlt::hyperlux::datasets::procthor::GLB{{}, {SCENE_PATH, SCENE_PATH}});
     }
     void TearDown() override {
         if(env != nullptr){

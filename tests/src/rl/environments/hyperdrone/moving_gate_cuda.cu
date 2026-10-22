@@ -17,7 +17,7 @@ namespace rlt = rl_tools;
 namespace l2f = rlt::rl::environments::l2f;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
-using DEVICE_GPU_SPEC = rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
+using DEVICE_GPU_SPEC = rlt::hyperlux::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
 using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<DEVICE_GPU_SPEC>;
 using RNG_GPU = typename DEVICE_GPU::SPEC::RANDOM::ENGINE<>;
 using T = float;
@@ -71,7 +71,7 @@ namespace test_moving_gate_cuda {
         static constexpr TI INSTANCES_PER_WORLD = 2;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
-        using SHADING = rlt::rendering::raytracing::Low;
+        using SHADING = rlt::hyperlux::Low;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 8;
     };
     using BASE_WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
@@ -189,9 +189,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MOVING_GATE_CUDA, DEVICE_ENTITY_MECHANI
     rlt::malloc(device, shared.library);
     rlt::malloc(device_gpu, world);
     world.gate_asset_path = GATE_PATH;
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    rlt::hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
-    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
     rlt::init(device_gpu, world, shared, dataset, corpus, 0, 1, 0);
 
     RNG_GPU rng;
@@ -253,7 +253,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MOVING_GATE_CUDA, DEVICE_ENTITY_MECHANI
             rlt::rl::environments::hyperdrone::tasks::moving_gate::gate_pose(device, instance_parameters, state.gate_phase, pose);
             for(TI part = 0; part < kind.num_parts; part++){
                 float expected[12];
-                rlt::rendering::compose_transforms(pose, renderer.asset_parts[record.first_part + part].origin, expected);
+                rlt::hyperlux::compose_transforms(pose, renderer.asset_parts[record.first_part + part].origin, expected);
                 for(TI element = 0; element < 12; element++){
                     EXPECT_NEAR(rows[(instance_i * MAX_SLOTS + kind.slot_offset + part) * 12 + element], expected[element], 1e-4) << "instance " << instance_i << " part " << part << " element " << element;
                 }

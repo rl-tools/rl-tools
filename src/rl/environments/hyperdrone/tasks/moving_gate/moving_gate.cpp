@@ -99,9 +99,9 @@ int main(int argc, char** argv){
     rlt::malloc(device, shared.library);
     rlt::malloc(device, world);
     world.gate_asset_path = gate_path;
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {scene_path}};
+    rlt::hyperlux::datasets::procthor::GLB dataset{{}, {scene_path}};
     typename decltype(dataset)::Corpus corpus;
-    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
     rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
 
     RNG rng;

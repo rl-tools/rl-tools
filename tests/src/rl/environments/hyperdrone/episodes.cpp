@@ -70,7 +70,7 @@ namespace test_hyperdrone_episodes {
         static constexpr TI INSTANCES_PER_WORLD = 2;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
-        using SHADING = rlt::rendering::raytracing::Low;
+        using SHADING = rlt::hyperlux::Low;
     };
     using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
     constexpr TI N_WORLDS = 2;
@@ -148,7 +148,7 @@ struct Fixture: ::testing::Test {
         rlt::init(device);
         env = new ENVIRONMENT;
         rlt::malloc(device, *env);
-        rlt::init(device, *env, rlt::rendering::datasets::procthor::GLB{scene_directory(), {}});
+        rlt::init(device, *env, rlt::hyperlux::datasets::procthor::GLB{scene_directory(), {}});
     }
     void TearDown() override {
         if(env != nullptr){

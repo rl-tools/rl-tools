@@ -13,11 +13,11 @@
 #include <vector>
 
 namespace rlt = rl_tools;
-namespace rro = rlt::rendering::raytracing::outputs;
+namespace rro = rlt::hyperlux::outputs;
 namespace l2f = rlt::rl::environments::l2f;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
-using DEVICE_GPU_SPEC = rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
+using DEVICE_GPU_SPEC = rlt::hyperlux::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
 using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<DEVICE_GPU_SPEC>;
 using RNG_GPU = typename DEVICE_GPU::SPEC::RANDOM::ENGINE<>;
 using T = float;
@@ -72,7 +72,7 @@ namespace test_self_visible_cuda {
         static constexpr TI INSTANCES_PER_WORLD = 2;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
-        using SHADING = rlt::rendering::raytracing::Low;
+        using SHADING = rlt::hyperlux::Low;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 8;
         static constexpr bool SELF_VISIBLE = true;
         using CAMERA_OUTPUTS = rlt::rl::environments::hyperdrone::CameraOutputs<rro::List<rro::RGB<rro::format::Float32>, rro::Segmentation<rro::format::UInt32, rro::labels::Instance>, rro::Probes>>;
@@ -145,9 +145,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, OWN_DRONE_AND_ARTICU
     rlt::malloc(device, shared.library);
     rlt::malloc(device_gpu, world);
     shared.drones.push_back({DRONE_PATH, {}});
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    rlt::hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
-    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
     rlt::init(device_gpu, world, shared, dataset, corpus, 0, 1, 0);
 
     ASSERT_TRUE(world.entity_kinds.empty());
@@ -197,14 +197,14 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, OWN_DRONE_AND_ARTICU
         rlt::Tensor<typename decltype(renderer.transforms)::SPEC> alias;
         alias._data = rows.data();
         rlt::copy(renderer.device, device, renderer.transforms, alias);
-        rlt::rendering::raytracing::PoseSink<typename WORLD::RENDERER_SPEC> sink;
+        rlt::hyperlux::PoseSink<typename WORLD::RENDERER_SPEC> sink;
         sink.transforms = expected.data();
         if constexpr(WORLD::RENDERER_SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
             motion.resize(WORLD::RENDERER_SPEC::MOTION_BLUR_SAMPLES * rows.size());
             sink.transforms_motion = motion.data();
         }
         sink.parts = renderer.asset_parts.data();
-        const rlt::rendering::raytracing::OverlayPlacement placement{world.drone_slot_offset, world.drone_parts, renderer.assets[world.drone_meshes[body.mesh].index].first_part};
+        const rlt::hyperlux::OverlayPlacement placement{world.drone_slot_offset, world.drone_parts, renderer.assets[world.drone_meshes[body.mesh].index].first_part};
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             const typename WORLD::Parameters instance_parameters = rlt::get(device, parameters, instance_i);
             const typename WORLD::State state = rlt::get(device, states, instance_i);
@@ -214,7 +214,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, OWN_DRONE_AND_ARTICU
             rlt::rl::environments::hyperdrone::_drone_coordinates<DEVICE, WORLD_SPEC>(device, instance_parameters, (TI)0, state, body.rotorcraft, coordinates_open, coordinates_close);
             using rlt::rotor_scale;
             const float scale = rotor_scale(device, body.rotorcraft, instance_parameters.agents[0].dynamics.dynamics.rotor_positions, (TI)WORLD::DYNAMICS_ENV::ACTION_DIM);
-            rlt::set_pose(device, sink, rlt::rendering::raytracing::OverlayIndex{instance_i}, placement, rlt::make_pose(base, scale), coordinates_close);
+            rlt::set_pose(device, sink, rlt::hyperlux::OverlayIndex{instance_i}, placement, rlt::make_pose(base, scale), coordinates_close);
             for(TI part = 0; part < world.drone_parts; part++){
                 for(TI element = 0; element < 12; element++){
                     const TI index = (instance_i * MAX_SLOTS + world.drone_slot_offset + part) * 12 + element;
@@ -319,7 +319,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, HYPERDRONE_FAN_OUT){
     auto& device = device_gpu.rendering;
     rlt::init(device);
     rlt::init(device_gpu);
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH, SCENE_PATH}};
+    rlt::hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH, SCENE_PATH}};
     auto fanned_owner = std::make_unique<FanOutRollout>();
     auto memberwise_owner = std::make_unique<FanOutRollout>();
     FanOutRollout& fanned = *fanned_owner;

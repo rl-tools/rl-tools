@@ -68,7 +68,7 @@ namespace test_moving_gate {
         static constexpr TI INSTANCES_PER_WORLD = 2;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
-        using SHADING = rlt::rendering::raytracing::Low;
+        using SHADING = rlt::hyperlux::Low;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 8;
     };
     using BASE_WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
@@ -163,9 +163,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MOVING_GATE, ENTITY_MECHANISM_AND_TASK)
     rlt::malloc(device, shared.library);
     rlt::malloc(device, world);
     world.gate_asset_path = GATE_PATH;
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    rlt::hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
-    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
     rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
 
     ASSERT_EQ(world.entity_kinds.size(), 1);

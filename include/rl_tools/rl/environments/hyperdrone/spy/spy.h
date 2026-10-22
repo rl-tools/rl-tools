@@ -5,8 +5,8 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SPY_SPY_H
 
 #include "../world.h"
-#include "../../../../rendering/raytracing/spy/spectator.h"
-#include "../../../../rendering/raytracing/spy/ui.h"
+#include "../../../../hyperlux/spy/spectator.h"
+#include "../../../../hyperlux/spy/ui.h"
 #include <array>
 #include <thread>
 #include <vector>
@@ -18,14 +18,14 @@ namespace rl_tools::rl::environments::hyperdrone {
         struct Config {
             using ENVIRONMENT = T_ENVIRONMENT;
             using WORLD = typename ENVIRONMENT::WORLD;
-            using RGB_FLOAT = rendering::raytracing::outputs::RGB<rendering::raytracing::outputs::format::Float32>;
-            using RGB_PACKED = rendering::raytracing::outputs::RGB<>;
+            using RGB_FLOAT = hyperlux::outputs::RGB<hyperlux::outputs::format::Float32>;
+            using RGB_PACKED = hyperlux::outputs::RGB<>;
             using FLOAT_ROWS = world::OutputRows<typename WORLD::RENDERER_SPEC, RGB_FLOAT, WORLD::N_CAMERAS_PER_AGENT>;
             using PACKED_ROWS = world::OutputRows<typename WORLD::RENDERER_SPEC, RGB_PACKED, WORLD::N_CAMERAS_PER_AGENT>;
             using T = typename WORLD::T;
             using TI = typename WORLD::TI;
             using BACKEND = typename WORLD::RENDERER::BACKEND;
-            struct SPECTATOR_CONFIG: rendering::raytracing::spy::SpectatorConfig<typename WORLD::RENDERER_CONFIG> {
+            struct SPECTATOR_CONFIG: hyperlux::spy::SpectatorConfig<typename WORLD::RENDERER_CONFIG> {
                 static constexpr TI NUM_OVERLAYS = WORLD::RENDERER_SPEC::ENABLE_OVERLAYS ? 1 : 0;
                 static constexpr TI MAX_OVERLAYS_PER_CAMERA = NUM_OVERLAYS;
             };
@@ -56,7 +56,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         struct CaptureStorage {};
 
         template <>
-        struct CaptureStorage<rendering::raytracing::backends::Optix> {
+        struct CaptureStorage<hyperlux::backends::Optix> {
             struct State;
             State* state = nullptr;
         };
@@ -65,10 +65,10 @@ namespace rl_tools::rl::environments::hyperdrone {
         // the spectator's snapshot type (the capacities agree by SpectatorConfig)
         template <typename CONFIG>
         struct Geometry {
-            using SPECTATOR_SPEC = rendering::raytracing::Specification<typename CONFIG::SPECTATOR_CONFIG>;
+            using SPECTATOR_SPEC = hyperlux::Specification<typename CONFIG::SPECTATOR_CONFIG>;
             static_assert(SPECTATOR_SPEC::MAX_OVERLAY_INSTANCES == CONFIG::WORLD::RENDERER_SPEC::MAX_OVERLAY_INSTANCES);
-            rendering::raytracing::Camera<typename CONFIG::T> camera{};
-            rendering::raytracing::OverlaySnapshot<SPECTATOR_SPEC> overlay{};
+            hyperlux::Camera<typename CONFIG::T> camera{};
+            hyperlux::OverlaySnapshot<SPECTATOR_SPEC> overlay{};
         };
 
         template <typename CONFIG>
@@ -79,8 +79,8 @@ namespace rl_tools::rl::environments::hyperdrone {
             Geometry<CONFIG> geometry{};
             CaptureStorage<typename CONFIG::BACKEND> capture;
             std::array<Frame, CONFIG::ENVIRONMENT::N_WORLDS> frames{};
-            rendering::raytracing::spy::SpectatorJob<rendering::raytracing::Specification<typename CONFIG::SPECTATOR_CONFIG>> job;
-            rendering::raytracing::spy::SpectatorImage image;
+            hyperlux::spy::SpectatorJob<hyperlux::Specification<typename CONFIG::SPECTATOR_CONFIG>> job;
+            hyperlux::spy::SpectatorImage image;
             size_t selected_camera = 0;
             bool selected_valid = false;
             bool pending = false;
@@ -88,10 +88,10 @@ namespace rl_tools::rl::environments::hyperdrone {
 
         template <typename CONFIG>
         struct State {
-            rendering::raytracing::spy::ui::Window* window = nullptr;
+            hyperlux::spy::ui::Window* window = nullptr;
             typename CONFIG::ENVIRONMENT* environment = nullptr;
             Buffer<CONFIG> buffer;
-            rendering::raytracing::spy::Spectator<typename CONFIG::SPECTATOR_CONFIG> spectator;
+            hyperlux::spy::Spectator<typename CONFIG::SPECTATOR_CONFIG> spectator;
             std::vector<View<typename CONFIG::T>> views;
             std::array<Frame, CONFIG::ENVIRONMENT::N_WORLDS> displayed_frames{};
             std::thread::id owner;

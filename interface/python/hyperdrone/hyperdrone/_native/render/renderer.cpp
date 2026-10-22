@@ -1,8 +1,8 @@
 #include "renderer_config.h"
-#include <rl_tools/rendering/datasets/operations_cpu.h>
-#include <rendering/raytracing/camera_orbit.h>
-#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
-#include <rl_tools/rendering/raytracing/spy/operations_cpu.h>
+#include <rl_tools/hyperlux/datasets/operations_cpu.h>
+#include <hyperlux/camera_orbit.h>
+#ifdef RL_TOOLS_HYPERLUX_ENABLE_SPY
+#include <rl_tools/hyperlux/spy/operations_cpu.h>
 #endif
 
 #include "bindings.h"
@@ -13,7 +13,7 @@
 #include <nanobind/stl/unique_ptr.h>
 #include <nanobind/stl/vector.h>
 
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
 #include "cuda_device.h"
 #include "cuda_staging.h"
 #include "set_pose_device.h"
@@ -35,7 +35,7 @@
 using hyperdrone::FloatArray;
 using rl_tools::data;
 using rl_tools::output;
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
 using rl_tools::stream;
 using rl_tools::collision_stream;
 #endif
@@ -44,7 +44,7 @@ namespace hyperdrone {
     inline rrt::Pose make_pose(const float base[12], float scale){
         rrt::Pose pose;
         std::copy(base, base + 12, pose.base);
-        if(!rlt::rendering::is_finite(pose.base, 12) || !rlt::rendering::is_finite(scale) || scale <= 0){
+        if(!rlt::hyperlux::is_finite(pose.base, 12) || !rlt::hyperlux::is_finite(scale) || scale <= 0){
             throw std::invalid_argument("hyperdrone: a pose needs a finite base and a finite positive scale");
         }
         pose.scale = scale;
@@ -64,7 +64,7 @@ namespace hyperdrone {
         if(coordinates->ndim() != 1 || coordinates->shape(0) != num_coordinates){
             throw std::invalid_argument("hyperdrone: coordinates must have shape (" + std::to_string(num_coordinates) + ",), the asset's num_coordinates");
         }
-        if(!rlt::rendering::is_finite(coordinates->data(), (unsigned)num_coordinates)){
+        if(!rlt::hyperlux::is_finite(coordinates->data(), (unsigned)num_coordinates)){
             throw std::invalid_argument("hyperdrone: coordinates must be finite");
         }
         return num_coordinates > 0 ? coordinates->data() : nullptr;
@@ -126,14 +126,14 @@ namespace HYPERDRONE_MODULE_NAME {
         std::vector<size_t> member_coordinates; // per member: its asset's num_coordinates
         size_t num_coordinates = 0;             // the largest among the members
         size_t host_pose_writes = ~(size_t)0;   // the renderer's count when the batch last took over its rows
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
         size_t* placements_device = nullptr;
 #endif
         PlacementBatch() = default;
         PlacementBatch(const PlacementBatch&) = delete;
         PlacementBatch& operator=(const PlacementBatch&) = delete;
         ~PlacementBatch(){
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
             cudaFree(placements_device);
 #endif
         }
@@ -147,11 +147,11 @@ namespace HYPERDRONE_MODULE_NAME {
     template <typename T_SPEC>
     struct Renderer {
         using SPEC = T_SPEC;
-        using RENDERER = rrt::Renderer<SPEC>;
+        using RENDERER = rl_tools::HyperLux<SPEC>;
         using BACKEND = typename RENDERER::BACKEND;
         DEVICE device;
         RENDERER renderer;
-        rlt::rendering::SceneMetadata<T> scene_metadata;
+        rlt::hyperlux::SceneMetadata<T> scene_metadata;
         bool initialized = false;
         bool flow_initialized = false;
         bool images_acquired = false;
@@ -160,14 +160,14 @@ namespace HYPERDRONE_MODULE_NAME {
         // host pose writes so far: a placement batch takes over its members' rows from the host
         // staging only after one
         size_t host_pose_writes = 0;
-#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
+#ifdef RL_TOOLS_HYPERLUX_ENABLE_SPY
         rrt::Spy<rrt::spy::Config<RENDERER>> spy{};
         const rrt::Scene* spy_scene = nullptr;
         rrt::AssetPool empty_pool;
         const rrt::AssetPool* spy_pool = nullptr;
         bool spy_is_open = false;
 #endif
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
         using CudaFloats = nanobind::ndarray<const float, nanobind::c_contig, nanobind::device::cuda>;
         // device inputs the render stream has yet to read, oldest first: the imported arrays themselves, not their Python producers, because a DLPack import owns its storage independently of the producer (an exporter may hand its only reference to the import). Each call's arrays stay with the event recorded after their last GPU reader and are released once it completes: on the next device input, on a synchronizing verb, or at teardown after the renderer synchronizes
         struct DeviceInputs {
@@ -192,7 +192,7 @@ namespace HYPERDRONE_MODULE_NAME {
         Renderer(){
             rlt::init(device);
             rlt::malloc(device, renderer);
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
             cudaPointerAttributes attributes{};
             if(cudaPointerGetAttributes(&attributes, rlt::data(rlt::cameras(device, renderer))) != cudaSuccess){
                 rlt::free(device, renderer);
@@ -202,7 +202,7 @@ namespace HYPERDRONE_MODULE_NAME {
 #endif
         }
         ~Renderer(){
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
             {
                 nanobind::gil_scoped_release release;
                 rlt::synchronize(device, renderer);
@@ -223,13 +223,13 @@ namespace HYPERDRONE_MODULE_NAME {
             return rrt::backends::name<BACKEND>();
         }
 
-        void init(rlt::rendering::Bundle<T>* bundle, const rrt::AssetPool* pool) {
+        void init(rlt::hyperlux::Bundle<T>* bundle, const rrt::AssetPool* pool) {
             if(initialized){
                 throw std::runtime_error("hyperdrone: renderer is already initialized; create a new Renderer for a different scene");
             }
             // the bundle may have been composed via add() (no loader-filled metadata) or
             // extended after load; recomputing is deterministic and idempotent for pure loads
-            rlt::rendering::datasets::compute_bounds(device, *bundle);
+            rlt::hyperlux::datasets::compute_bounds(device, *bundle);
             scene_metadata = bundle->metadata;
             if(pool != nullptr){
                 if constexpr (SPEC::ENABLE_OVERLAYS){
@@ -247,7 +247,7 @@ namespace HYPERDRONE_MODULE_NAME {
             else {
                 rlt::init(device, renderer, *bundle);
             }
-#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
+#ifdef RL_TOOLS_HYPERLUX_ENABLE_SPY
             spy_scene = &bundle->scene;
             spy_pool = pool == nullptr ? &empty_pool : pool;
 #endif
@@ -275,7 +275,7 @@ namespace HYPERDRONE_MODULE_NAME {
                 throw std::runtime_error("hyperdrone: renderer is not initialized (call init(scene) first)");
             }
         }
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
         void await_producer(unsigned long long producer_stream, cudaStream_t render_stream){
             rlt::devices::cuda::order_after(renderer.backend->ordering_event, (cudaStream_t)producer_stream, render_stream);
         }
@@ -308,7 +308,7 @@ namespace HYPERDRONE_MODULE_NAME {
         // how many of the oldest calls with borrowed inputs the render stream is done with
         size_t release_inputs() {
             size_t released = 0;
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
             while(!inputs_in_flight.empty() && cudaEventQuery(inputs_in_flight.front().ready) == cudaSuccess){
                 spare_events.push_back(inputs_in_flight.front().ready);
                 inputs_in_flight.pop_front();
@@ -317,7 +317,7 @@ namespace HYPERDRONE_MODULE_NAME {
 #endif
             return released;
         }
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
         void retain_inputs(std::initializer_list<CudaFloats> arrays) {
             cudaEvent_t event = nullptr;
             try {
@@ -350,8 +350,8 @@ namespace HYPERDRONE_MODULE_NAME {
 #endif
 
         void spy_open(size_t camera) {
-#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#ifdef RL_TOOLS_HYPERLUX_ENABLE_SPY
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
             const hyperdrone::CurrentCudaDevice current(device_id);
 #endif
             require_init();
@@ -377,8 +377,8 @@ namespace HYPERDRONE_MODULE_NAME {
         }
 
         bool spy_update() {
-#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#ifdef RL_TOOLS_HYPERLUX_ENABLE_SPY
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
             const hyperdrone::CurrentCudaDevice current(device_id);
 #endif
             if(spy_is_open){
@@ -393,8 +393,8 @@ namespace HYPERDRONE_MODULE_NAME {
         }
 
         void spy_close() {
-#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SPY
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#ifdef RL_TOOLS_HYPERLUX_ENABLE_SPY
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
             const hyperdrone::CurrentCudaDevice current(device_id);
 #endif
             if(spy_is_open){
@@ -417,7 +417,7 @@ namespace HYPERDRONE_MODULE_NAME {
         }
 
         void set_cameras_device(const float* cameras, unsigned long long producer_stream) {
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
             require_init();
             // enqueued on the render stream: orders after the previous launch (no overwrite
             // hazard) and before the next one; a foreign producer stream is awaited via an
@@ -579,7 +579,7 @@ namespace HYPERDRONE_MODULE_NAME {
 
         void output_order(size_t index, uintptr_t consumer){
             require_output(index);
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
             const hyperdrone::CurrentCudaDevice current(device_id);
             auto producer = output_layouts.at(index).descriptor.quantity == "probes" ? collision_stream(device, renderer) : stream(device, renderer);
             rlt::devices::cuda::order_after(renderer.backend->ordering_event, producer, reinterpret_cast<cudaStream_t>(consumer));
@@ -598,7 +598,7 @@ namespace HYPERDRONE_MODULE_NAME {
             const auto& layout = hyperdrone::output_layout(metadata, field);
             void* source = output_pointer(index, field);
             const bool probe_field = metadata.descriptor.quantity == "probes";
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
             const hyperdrone::CurrentCudaDevice current(device_id);
             auto producer = probe_field ? collision_stream(device, renderer) : stream(device, renderer);
             if(destination_device == 2){
@@ -638,7 +638,7 @@ namespace HYPERDRONE_MODULE_NAME {
         }
 
         int buffer_device_type() const {
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
             return 2;
 #else
             return 1;
@@ -704,7 +704,7 @@ namespace HYPERDRONE_MODULE_NAME {
                 if(overlay >= SPEC::NUM_OVERLAYS || asset >= renderer.assets.size()){
                     throw std::invalid_argument("hyperdrone: overlay or asset index out of range");
                 }
-                if(!rlt::rendering::segmentation::placement_class_valid(segmentation_class)){
+                if(!rlt::hyperlux::segmentation::placement_class_valid(segmentation_class)){
                     throw std::invalid_argument("hyperdrone: reserved segmentation class");
                 }
                 if(!can_spawn(overlay, asset)){
@@ -795,7 +795,7 @@ namespace HYPERDRONE_MODULE_NAME {
                     batch->member_coordinates.push_back(width);
                     batch->num_coordinates = std::max(batch->num_coordinates, width);
                 }
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
                 if(!batch->placements.empty()){
                     const size_t bytes = batch->placements.size() * sizeof(size_t);
                     if(cudaMalloc(&batch->placements_device, bytes) != cudaSuccess || cudaMemcpy(batch->placements_device, batch->placements.data(), bytes, cudaMemcpyHostToDevice) != cudaSuccess){
@@ -827,7 +827,7 @@ namespace HYPERDRONE_MODULE_NAME {
                         closed.push_back(hyperdrone::make_pose(bases_close + b * 12, scales_close != nullptr ? scales_close[b] : scale_close));
                     }
                     for(const float* table : {coordinates, coordinates_close}){
-                        if(table != nullptr && !rlt::rendering::is_finite(table + b * columns, (unsigned)batch.member_coordinates[b])){
+                        if(table != nullptr && !rlt::hyperlux::is_finite(table + b * columns, (unsigned)batch.member_coordinates[b])){
                             throw std::invalid_argument("hyperdrone: coordinates must be finite");
                         }
                     }
@@ -852,7 +852,7 @@ namespace HYPERDRONE_MODULE_NAME {
         // the device form: one kernel over the batch on the render stream after the producer
         // stream; the members' rows leave the host staging (the device owns them from here on)
         void set_pose_batch_device(PlacementBatch& batch, const float* bases, const float* scales, float scale, const float* coordinates, size_t columns, const float* bases_close, const float* scales_close, float scale_close, const float* coordinates_close, unsigned long long producer_stream) {
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
             if constexpr (SPEC::ENABLE_OVERLAYS){
                 require_init();
                 check_owner(batch);
@@ -907,7 +907,7 @@ namespace HYPERDRONE_MODULE_NAME {
             throw std::runtime_error("hyperdrone: device-resident pose input requires the OptiX backend and overlays");
         }
         unsigned long long render_stream() {
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
             require_init();
             return (unsigned long long)rlt::stream(device, renderer);
 #else
@@ -915,7 +915,7 @@ namespace HYPERDRONE_MODULE_NAME {
 #endif
         }
         void set_motion_blur_cameras_device(const float* cameras_open, const float* cameras_close, unsigned long long producer_stream) {
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
             if constexpr (SPEC::ENABLE_MOTION_BLUR){
                 require_init();
                 cudaStream_t render_stream = rlt::stream(device, renderer);
@@ -1026,7 +1026,7 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
         .def("detach", [](Renderer& self, size_t camera, size_t overlay){ self.detach(camera, overlay); })
         .def("can_spawn", [](Renderer& self, size_t overlay, size_t asset){ return self.can_spawn(overlay, asset); })
         .def("spawn", [](Renderer& self, size_t overlay, size_t asset, Transform base, float scale, std::optional<FloatArray> coordinates, std::optional<uint32_t> segmentation_class){
-            rrt::OverlayPlacement placement = self.spawn(overlay, asset, hyperdrone::make_pose(base, scale), hyperdrone::check_coordinates(coordinates, self.asset_coordinates(asset)), segmentation_class.value_or(rlt::rendering::segmentation::INHERIT));
+            rrt::OverlayPlacement placement = self.spawn(overlay, asset, hyperdrone::make_pose(base, scale), hyperdrone::check_coordinates(coordinates, self.asset_coordinates(asset)), segmentation_class.value_or(rlt::hyperlux::segmentation::INHERIT));
             return nb::make_tuple(placement.first_slot, placement.num_parts, placement.first_part);
         }, nb::arg("overlay"), nb::arg("asset"), nb::arg("base"), nb::arg("scale"), nb::arg("coordinates").none(), nb::arg("segmentation_class").none() = nb::none())
         .def("despawn", [](Renderer& self, size_t overlay, std::array<size_t, 3> placement){
@@ -1048,7 +1048,7 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
         }, nb::arg("batch"), nb::arg("bases"), nb::arg("scales").none(), nb::arg("scale"), nb::arg("coordinates").none(), nb::arg("bases_close").none(), nb::arg("scales_close").none(), nb::arg("scale_close"), nb::arg("coordinates_close").none())
         .def("render_stream", [](Renderer& self){ return (uintptr_t)self.render_stream(); });
 
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
     using CudaFloats = Renderer::CudaFloats;
     renderer_class
         .def("set_cameras_device", [](Renderer& self, nb::ndarray<const float, nb::c_contig, nb::device::cuda> cameras, uintptr_t stream){
