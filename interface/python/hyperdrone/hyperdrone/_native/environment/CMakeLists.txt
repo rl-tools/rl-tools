@@ -78,6 +78,10 @@ set(hyperdrone_environment_libraries RLtools::RLtools hyperdrone_environment_stb
 if(TARGET RLtools::HyperLuxSpy)
     list(APPEND hyperdrone_environment_libraries RLtools::HyperLuxSpy hyperlux_backend)
 endif()
+if(HYPERLUX_VARIANT STREQUAL "OPTIX")
+    find_package(CUDAToolkit REQUIRED)
+    list(APPEND hyperdrone_environment_libraries CUDA::cudart)
+endif()
 
 hyperlux_jit_add_configs(
     COMPONENT environment

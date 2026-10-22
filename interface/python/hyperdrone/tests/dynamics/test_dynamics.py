@@ -289,8 +289,8 @@ def test_device_default_and_validation(monkeypatch):
             dynamics.Sim(count)
 
 
-def test_import_does_not_register_cuda_provider():
-    run = subprocess.run([sys.executable, "-c", "from hyperlux import _cuda; from hyperdrone import dynamics; assert not _cuda._providers"], capture_output=True, text=True)
+def test_import_registers_no_cuda_staging():
+    run = subprocess.run([sys.executable, "-c", "from hyperlux import _cuda; from hyperdrone import dynamics; assert _cuda._buffer_type is None"], capture_output=True, text=True)
     assert run.returncode == 0, run.stdout + run.stderr
 
 
@@ -329,7 +329,8 @@ def test_cpu_cuda_sampled_resets_are_identical():
 CUDA_HANDOFF = r'''
 import ctypes, gc, json, time
 import numpy as np
-from hyperdrone import dynamics, _cuda
+from hyperdrone import dynamics
+from hyperlux import _cuda
 
 runtime = ctypes.CDLL("libcudart.so")
 runtime.cudaSetDevice.argtypes = [ctypes.c_int]

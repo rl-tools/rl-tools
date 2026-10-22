@@ -1,6 +1,9 @@
 #include "environment.h"
 #include "bindings.h"
 #include "output_bindings.h"
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
+#include "cuda_staging.h"
+#endif
 #include <nanobind/stl/optional.h>
 #include <nanobind/stl/map.h>
 #include <nanobind/stl/string.h>
@@ -78,6 +81,9 @@ NB_MODULE(HYPERLUX_MODULE_NAME, m){
 
     m.doc() = "JIT-specialized RLtools hyperdrone environment";
     hyperlux::bind_output_blocks(m);
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
+    hyperlux::register_cuda_staging(m);
+#endif
     m.attr("observation_layout") = layout_dict(observation_layout());
     m.attr("observation_layout_privileged") = layout_dict(observation_layout_privileged());
     m.attr("CUDA_WORLD") = CUDA_WORLD;

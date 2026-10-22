@@ -30,13 +30,17 @@ def test_import_loads_no_native_module_and_nothing_from_hyperdrone():
     assert not any(name.startswith("hyperlux_") for name in modules)
 
 
-def test_infrastructure_imports_no_renderer_modules():
-    renderer = ("hyperlux._renderer", "hyperlux._component", "hyperlux._scene", "hyperlux._sampling", "hyperlux.datasets", "hyperlux.primitives")
+def test_infrastructure_import_builds_nothing_and_registers_nothing():
     for module in ("hyperlux._jit", "hyperlux._cuda", "hyperlux.camera", "hyperlux._output_buffers", "hyperlux._dlpack", "hyperlux._outputs"):
-        source = sys.modules.get(module) or __import__(module, fromlist=["_"])
-        text = open(source.__file__).read()
-        for name in renderer:
-            assert name.rsplit(".", 1)[1] not in text, (module, name)
+        result = subprocess.run([sys.executable, "-c", f"""
+import json, sys
+import {module}
+from hyperlux import _cuda
+print(json.dumps([sorted(name for name in sys.modules if name.startswith("hyperlux_")), _cuda._buffer_type is None]))
+"""], capture_output=True, text=True, check=True)
+        native, unregistered = json.loads(result.stdout)
+        assert native == [], (module, native)
+        assert unregistered, module
 
 
 def test_manual_spy_works_without_ipython_or_its_adapter():

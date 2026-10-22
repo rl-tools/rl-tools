@@ -1,35 +1,27 @@
-"""hyperlux._cuda — CUDA staging helpers shared by render and dynamics.
+"""hyperlux._cuda — CUDA staging helpers shared by every native component.
 
-The native CudaBuffer class is compiled into every CUDA-capable component core
-(render on OptiX, dynamics on CUDA). This package defines the Python-side views and
-resolves a provider registered by render or a CUDA Sim, keeping the dependency direction render/dynamics -> _cuda.
+The native CudaBuffer class is compiled into every CUDA-capable module (the renderer core on
+OptiX, hyperdrone's CUDA dynamics core and OptiX environment); nanobind shares one binding across
+them. The first loaded module that exposes it hands the class to this package through the
+extension-loading hook, so staging works in renderer-only, dynamics-only, environment-only and
+mixed processes alike, and never builds a component on its own.
 """
 import numpy as np
 
-_providers = []
+_buffer_type = None
 
 
-def register_provider(load_core):
-    """Register a zero-argument core loader that may expose CudaBuffer."""
-    if load_core not in _providers:
-        _providers.append(load_core)
+def register_extension(extension):
+    global _buffer_type
+    buffer_type = getattr(extension, "CudaBuffer", None)
+    if buffer_type is not None:
+        _buffer_type = buffer_type
 
 
-def _core():
-    errors = []
-    for load_core in _providers:
-        try:
-            core = load_core()
-        except Exception as error:  # provider may fail to build on this machine
-            errors.append(str(error))
-            continue
-        if getattr(core, "HAS_CUDA", False):
-            return core
-    detail = ("; ".join(errors)) if errors else "no CUDA-capable component core is available"
-    raise RuntimeError(
-        "hyperlux: CUDA staging needs a CUDA-capable component (render on the OptiX "
-        f"backend, or a CUDA Sim); initialize one first ({detail})"
-    )
+def _buffer():
+    if _buffer_type is None:
+        raise RuntimeError("hyperlux: CUDA staging needs a loaded CUDA-capable native module (a renderer on the OptiX backend, a CUDA Sim or an OptiX environment); initialize one first")
+    return _buffer_type
 
 
 class CudaView:
@@ -54,7 +46,7 @@ class TensorSet:
     along axis 0 as a zero-copy DLPack CUDA tensor (e.g. one camera set per slice)."""
 
     def __init__(self, array):
-        self._buffer = _core().CudaBuffer(np.ascontiguousarray(array, dtype=np.float32))
+        self._buffer = _buffer()(np.ascontiguousarray(array, dtype=np.float32))
 
     @property
     def shape(self):

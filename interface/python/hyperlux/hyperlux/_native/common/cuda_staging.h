@@ -1,8 +1,8 @@
 #pragma once
 // GPU staging buffer for device-resident inputs: uploads a host float32 array once; slices
 // along axis 0 are handed out as DLPack CUDA views (e.g. one pre-sampled camera set per
-// slice). Registered by every CUDA-capable component core so hyperlux._cuda can resolve a
-// provider from whichever domain package is in use.
+// slice). Registered by every CUDA-capable module so hyperlux._cuda picks the class up from
+// whichever one a process loads first.
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/vector.h>
@@ -56,7 +56,7 @@ namespace hyperlux {
         }
     };
 
-    // the render and dynamics cores share this type: whichever module registers it second
+    // all CUDA-capable modules share this type: whichever registers it after the first
     // re-exports the existing binding instead of registering a duplicate
     inline void register_cuda_staging(nanobind::module_& m){
         namespace nb = nanobind;

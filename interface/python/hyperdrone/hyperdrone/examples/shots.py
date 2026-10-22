@@ -1,6 +1,6 @@
 """Recorded episode starts for HyperDrone.ipynb; coordinates use the pinned scene hashes."""
 
-HYPERLUX_SHOTS = {
+HYPERDRONE_SHOTS = {
     "flight": [
         {"scene": "75d1d67a17ecd16bc3a214baa895240da8060df7", "drone": [0],
          "scene_translation": [-13.922904968261719, -15.025325775146484, 1.3523533344268799], "scene_yaw": [0.4156714379787445, -0.909514844417572],

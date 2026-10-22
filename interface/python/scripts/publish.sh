@@ -39,11 +39,15 @@ fi
 "${PYTHON}" -m build "${PYTHON_DIR}/hyperdrone" --outdir "${RELEASE_DIR}"
 "${PYTHON}" -m twine check "${RELEASE_DIR}"/*
 
-# rehearsal: the pin must resolve against the pair just built (or the published hyperlux)
+# rehearsal: install the wheels just built (a hyperdrone post-release takes hyperlux from the index)
 SCRATCH="$(mktemp -d)"
 trap 'rm -rf "${SCRATCH}"' EXIT
 python3 -m venv "${SCRATCH}/venv"
-"${SCRATCH}/venv/bin/pip" install -q --find-links "${RELEASE_DIR}" "hyperdrone==${VERSION}"
+if [[ "${MODE}" == "--hyperdrone-only" ]]; then
+    "${SCRATCH}/venv/bin/pip" install -q "${RELEASE_DIR}"/hyperdrone-*.whl
+else
+    "${SCRATCH}/venv/bin/pip" install -q "${RELEASE_DIR}"/hyperlux-*.whl "${RELEASE_DIR}"/hyperdrone-*.whl
+fi
 "${SCRATCH}/venv/bin/python" -c "import hyperdrone, hyperlux; assert hyperlux.__version__ == '${HYPERLUX_VERSION}', hyperlux.__version__"
 echo "Release artifacts: ${RELEASE_DIR}"
 

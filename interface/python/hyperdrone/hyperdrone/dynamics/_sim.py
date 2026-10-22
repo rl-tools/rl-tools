@@ -2,17 +2,12 @@ import json
 
 import numpy as np
 
-from hyperlux import _cuda
 from hyperlux._dlpack import DLPackBuffer as _DLPackBuffer, is_cuda
 from .._parameters import resolve
 from ._component import ensure_sim_library, load_core, _resolve_device
 from ._config import STATE_COMPONENTS, Config
 
 IDENTITY_MOUNT = np.array([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]], dtype=np.float32)
-
-
-def _load_cuda_core():
-    return load_core("cuda")
 
 
 class SimState:
@@ -58,8 +53,6 @@ class Sim:
         self._sim.init(seed, json.dumps(nominal))
         self._pending_inputs = []
         self.state = SimState(self)
-        if self.device == "cuda":
-            _cuda.register_provider(_load_cuda_core)
 
     @property
     def num_drones(self):

@@ -3,7 +3,6 @@ import platform
 import shutil
 import sys
 
-from . import _cuda
 from . import _jit as jit
 from ._jit._toolchain import cuda_available
 
@@ -45,11 +44,7 @@ def component():
 
 
 def load_core():
-    core = jit.core(component())
-    # the renderer becomes a CUDA staging provider once it is actually loaded, so a package that
-    # only needs dynamics never builds the renderer to stage its buffers
-    _cuda.register_provider(load_core)
-    return core
+    return jit.core(component())
 
 
 def load_renderer(config):

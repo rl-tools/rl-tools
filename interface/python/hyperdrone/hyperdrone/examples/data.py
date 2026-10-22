@@ -1,9 +1,9 @@
 """Shared data resolution and download helpers for runnable examples."""
 
 import conta
-from hyperlux.examples.data import override_path, procthor_scene_path
+from hyperlux.examples.data import PROCTHOR_SCENE, override_path, procthor_scene_path
 
-__all__ = ["RIGGED_MODELS", "procthor_scene_path", "rigged_model_path"]
+__all__ = ["PROCTHOR_SCENE", "RIGGED_MODELS", "procthor_scene_path", "rigged_model_path"]
 
 # body/prop_* assemblies, each a drone table asset (hyperdrone.HyperDrone(drones=...))
 RIGGED_MODELS = {

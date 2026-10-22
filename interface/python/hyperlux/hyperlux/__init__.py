@@ -35,8 +35,10 @@ def _register_extension(extension):
     if hasattr(extension, "_set_verbosity"):
         extension._set_verbosity(_VERBOSITY_LEVELS.index(_verbosity))
         _logging_extensions.append(extension)
+    _cuda.register_extension(extension)
 
 
+from . import _cuda
 from ._outputs import FlowStatus
 from . import datasets, primitives
 from ._component import _backend as backend, component, load_core

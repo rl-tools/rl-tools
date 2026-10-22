@@ -24,7 +24,7 @@ Native components are JIT-compiled per set of compile-time constants (resolution
 From an rl-tools checkout (development):
 
 ```bash
-.venv/bin/pip install -e interface/python/hyperdrone
+.venv/bin/pip install -e interface/python/hyperlux -e interface/python/hyperdrone
 ```
 
 From PyPI or an sdist (`hyperdrone` depends on `hyperlux` of the same version, whose sdist bundles the rl-tools sources):
