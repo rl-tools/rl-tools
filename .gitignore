@@ -76,6 +76,7 @@
 /.venv*
 /**/.ipynb_checkpoints
 /**/*.ipynb
+!/docs/hyperdrone/HyperLuxMinimal.ipynb
 !/interface/python/hyperdrone/hyperdrone/examples/*.ipynb
 !/interface/python/hyperlux/hyperlux/examples/*.ipynb
 /**/*.pth
