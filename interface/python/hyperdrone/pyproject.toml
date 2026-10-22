@@ -7,13 +7,13 @@ name = "hyperdrone"
 dynamic = ["version"]
 authors = [{name = "Jonas Eschmann", email = "jonas.eschmann@gmail.com"}]
 license = {text = "MIT"}
-description = "The fastest drone simulator and renderer (raytracer)."
+description = "The fastest drone simulator: L2F multirotor dynamics and RL environments on the HyperLux raytracer."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["numpy", "nanobind>=2.0", "conta>=0.0.1"]
+dependencies = ["numpy", "nanobind>=2.0", "conta>=0.0.1", "hyperlux==0.1.8"]
 
 [project.optional-dependencies]
-examples = ["scipy>=1.15", "matplotlib", "imageio", "imageio-ffmpeg"]
+examples = ["matplotlib", "imageio", "imageio-ffmpeg"]
 gym = ["gymnasium>=1.0"]
 
 [tool.hatch.build]
@@ -32,7 +32,4 @@ path = "hyperdrone/__init__.py"
 packages = ["hyperdrone"]
 
 [tool.hatch.build.targets.sdist]
-only-include = ["hyperdrone", "hatch_build.py", "README.md", "pyproject.toml"]
-
-[tool.hatch.build.hooks.custom]
-path = "hatch_build.py"
+only-include = ["hyperdrone", "README.md", "pyproject.toml"]

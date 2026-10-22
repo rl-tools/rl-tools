@@ -1,6 +1,12 @@
 import numpy as np
 
-from .render import load_core
+from hyperlux import _jit as jit
+
+from ._components import component
+
+
+def _core():
+    return jit.core(component("rotorcraft", "cpu", core_target="hyperdrone_rotorcraft_core"))
 
 
 def _rotors(value, what):
@@ -14,7 +20,7 @@ def articulate(assembly):
     """Write the joints of a body/prop_* drone asset: part 0 is the body; prop p, the p-th prop_*
     part, spins about +z through its hub, the centre of its geometry, as coordinate p; every other
     part is fixed. Joints bind when the assembly enters the pool, so articulate before add_assembly."""
-    load_core().articulate(assembly)
+    _core().articulate(assembly)
 
 
 class Rotorcraft:
@@ -34,7 +40,7 @@ class Rotorcraft:
         if rotor_positions is not None:
             rotor_positions = _rotors(rotor_positions, "rotor_positions")
             rotor_torque_directions = _rotors(rotor_torque_directions, "rotor_torque_directions")
-        _, self.scale, self.rotor_position_deviation, prop_rotor, prop_spin = load_core().rotorcraft(assembly, rotor_positions, rotor_torque_directions)
+        _, self.scale, self.rotor_position_deviation, prop_rotor, prop_spin = _core().rotorcraft(assembly, rotor_positions, rotor_torque_directions)
         self.prop_rotor = np.asarray(prop_rotor, dtype=np.intp)
         self.prop_spin = np.asarray(prop_spin, dtype=np.float32)
 

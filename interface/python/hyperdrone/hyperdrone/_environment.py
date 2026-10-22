@@ -13,11 +13,13 @@ import numpy as np
 
 import conta
 
-from . import _jit as jit
-from ._dlpack import is_cuda
-from ._outputs import VALID_MOTION_BLUR_SAMPLES
-from .camera import CameraSpec, RGB, ImageObservation, camera_config_header, backend_requirement, validate_cameras, validate_observation
-from ._output_buffers import OutputCollection
+from hyperlux import _jit as jit
+from hyperlux._dlpack import is_cuda
+from hyperlux._outputs import VALID_MOTION_BLUR_SAMPLES
+from hyperlux.camera import CameraSpec, RGB, backend_requirement, validate_cameras
+from .camera import ImageObservation, camera_config_header, validate_observation
+from hyperlux._output_buffers import OutputCollection
+from . import _components
 from ._control import ACTUATIONS, CONTROLS, validate_control
 from ._parameters import resolve
 
@@ -28,18 +30,14 @@ DATASETS = {"glb": 0, "procthor": 1}
 
 
 def _backend():
-    from .render._component import _backend as render_backend
+    from hyperlux._component import _backend as render_backend
 
     return render_backend()
 
 
 def component():
     resolved = _backend()
-    return jit.Component(
-        name="environment",
-        variant=resolved.lower(),
-        needs_cuda=resolved == "optix",
-    )
+    return _components.component("environment", resolved.lower(), needs_cuda=resolved == "optix")
 
 
 _SHADING = {"low": 0, "medium": 1, "high": 2}
@@ -128,7 +126,7 @@ class Config:
 
     def defines(self):
         values = {
-            "HYPERDRONE_CAMERA_BACKEND_REQUIREMENT": backend_requirement(self.cameras),
+            "HYPERLUX_CAMERA_BACKEND_REQUIREMENT": backend_requirement(self.cameras),
             "HYPERDRONE_ENVIRONMENT_DATASET": DATASETS[self.dataset],
             "HYPERDRONE_ENVIRONMENT_NUM_WORLDS": self.num_worlds,
             "HYPERDRONE_ENVIRONMENT_INSTANCES": self.instances_per_world,
@@ -149,7 +147,7 @@ class Config:
         return values
 
     def camera_config(self):
-        return camera_config_header(self.cameras, self.observation, environment=True)
+        return camera_config_header(self.cameras, self.observation)
 
     def canonical(self):
         canonical = " ".join(f"{name}={value}" for name, value in sorted(self.defines().items()))

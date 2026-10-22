@@ -2,8 +2,8 @@ import json
 
 import numpy as np
 
-from .. import _cuda
-from .._dlpack import DLPackBuffer as _DLPackBuffer, is_cuda
+from hyperlux import _cuda
+from hyperlux._dlpack import DLPackBuffer as _DLPackBuffer, is_cuda
 from .._parameters import resolve
 from ._component import ensure_sim_library, load_core, _resolve_device
 from ._config import STATE_COMPONENTS, Config

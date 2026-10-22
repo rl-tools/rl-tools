@@ -5,8 +5,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from hyperdrone import render
-from hyperdrone.camera import CameraSpec, RGB, Depth, Segmentation, Normals, Flow, FlowStatus, Probes, ImageObservation
+import hyperlux
+from hyperlux.camera import CameraSpec, RGB, Depth, Segmentation, Normals, Flow, FlowStatus, Probes
+from hyperdrone.camera import ImageObservation
 from hyperdrone import Config, HyperDrone
 from test_hyperdrone import rigged_asset_path, scene_directory
 
@@ -33,7 +34,7 @@ def test_environment_output_config():
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 @pytest.mark.parametrize("task,cameras", [(None, 1), (None, 2), ("target_frame", 2)])
 def test_environment_capture_and_partial_reset(scene_directory, device, task, cameras):
-    if device == "cuda" and render._backend() != "optix":
+    if device == "cuda" and hyperlux.backend() != "optix":
         pytest.skip("CUDA Worlds require OptiX")
     parameters = {"cameras": {"rear": {"fov": 100, "mount": {"pose": {"position": [0.1, 0.1, 0.1]}}}}} if cameras == 2 else {}
     with closing(HyperDrone(scene_directory, config=replace(CONFIG, device=device, task=task, cameras=profiles(cameras)), parameters=parameters, seed=9)) as env:
@@ -70,7 +71,7 @@ def test_environment_capture_and_partial_reset(scene_directory, device, task, ca
             env.outputs[Flow()].blocks
         env.render()
         moved = env.outputs[Flow()].read()
-        valid = env.outputs[FlowStatus()].read() == render.FlowStatus.VALID
+        valid = env.outputs[FlowStatus()].read() == hyperlux.FlowStatus.VALID
         assert np.max(np.abs(moved[valid])) > 0.01
         for _ in range(5):
             env.step(actions)
@@ -80,7 +81,7 @@ def test_environment_capture_and_partial_reset(scene_directory, device, task, ca
         env.render()
         flow = env.outputs[Flow()].read()
         np.testing.assert_allclose(flow[0], 0, atol=RESET_FLOW_ATOL)
-        assert np.max(np.abs(flow[1][env.outputs[FlowStatus()].read()[1] == render.FlowStatus.VALID])) > 0.001
+        assert np.max(np.abs(flow[1][env.outputs[FlowStatus()].read()[1] == hyperlux.FlowStatus.VALID])) > 0.001
         np.testing.assert_array_equal(flow, env.outputs[Flow()].read())
         env.observe()
         np.testing.assert_array_equal(flow, env.outputs[Flow()].read())
@@ -108,7 +109,7 @@ def test_environment_capture_and_partial_reset(scene_directory, device, task, ca
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_auxiliary_outputs_preserve_policy_observations(scene_directory, device):
-    if device == "cuda" and render._backend() != "optix":
+    if device == "cuda" and hyperlux.backend() != "optix":
         pytest.skip("CUDA Worlds require OptiX")
     config = replace(CONFIG, device=device, observation=ImageObservation(cameras=("front",)))
     mixed = (CameraSpec("front", outputs=OUTPUTS), CameraSpec("diagnostic", outputs=(RGB("float32"), RGB(format="rgba8"))), CameraSpec("down", outputs=(Depth(),)))
@@ -131,7 +132,7 @@ def test_auxiliary_outputs_preserve_policy_observations(scene_directory, device)
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_raw_only_sparse_outputs_and_blocks(scene_directory, device):
-    if device == "cuda" and render._backend() != "optix":
+    if device == "cuda" and hyperlux.backend() != "optix":
         pytest.skip("CUDA Worlds require OptiX")
     cameras = (CameraSpec("left", outputs=(Depth(), FlowStatus(direction="forward"))), CameraSpec("display", outputs=(RGB(format="rgba8"),)), CameraSpec("right", outputs=(Depth(), Probes())))
     config = replace(CONFIG, num_worlds=2, cameras=cameras, observation=None, device=device)
@@ -190,7 +191,7 @@ def test_raw_only_sparse_outputs_and_blocks(scene_directory, device):
 
 
 def test_environment_cuda_image_outputs(scene_directory):
-    if render._backend() != "optix":
+    if hyperlux.backend() != "optix":
         pytest.skip("CUDA arrays require OptiX")
     torch = pytest.importorskip("torch")
     if not torch.cuda.is_available():
@@ -215,7 +216,7 @@ def test_environment_cuda_image_outputs(scene_directory):
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, device):
-    if device == "cuda" and render._backend() != "optix":
+    if device == "cuda" and hyperlux.backend() != "optix":
         pytest.skip("CUDA Worlds require OptiX")
     for instances_per_world in (2, 9):
         _check_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, device, instances_per_world)
@@ -256,7 +257,7 @@ def _check_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, devic
         env.render()
         moved = env.outputs[Flow()].read()
         status = env.outputs[FlowStatus()].read()
-        assert np.any(np.abs(moved[status == render.FlowStatus.VALID]) > 0.001)
+        assert np.any(np.abs(moved[status == hyperlux.FlowStatus.VALID]) > 0.001)
         mask = np.zeros(env.total_instances, dtype=bool)
         mask[::instances_per_world] = True
         if instances_per_world > 2:
@@ -363,10 +364,10 @@ def test_intermittent_capture_preserves_outputs_and_probes(scene_directory, acqu
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_cuda_batched_transport_without_tensor_framework(scene_directory, device):
-    if render._backend() != "optix":
+    if hyperlux.backend() != "optix":
         pytest.skip("CUDA output transport requires OptiX")
     import ctypes
-    from hyperdrone import _cuda
+    from hyperlux import _cuda
 
     runtime = ctypes.CDLL("libcudart.so")
     runtime.cudaStreamCreate.argtypes = [ctypes.POINTER(ctypes.c_void_p)]

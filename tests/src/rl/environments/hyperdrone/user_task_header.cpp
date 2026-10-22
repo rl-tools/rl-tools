@@ -3,7 +3,7 @@
 #include <gtest/gtest.h>
 #include <cstring>
 
-namespace shim = HYPERDRONE_MODULE_NAME;
+namespace shim = HYPERLUX_MODULE_NAME;
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE, USER_TASK_HEADER){
     const std::string root = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH);

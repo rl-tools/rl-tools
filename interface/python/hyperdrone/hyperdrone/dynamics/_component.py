@@ -1,5 +1,7 @@
-from .. import _jit as jit
-from .._jit._toolchain import cuda_available
+from hyperlux import _jit as jit
+from hyperlux._jit._toolchain import cuda_available
+
+from .. import _components
 
 DEVICES = ("cpu", "cuda")
 
@@ -15,12 +17,7 @@ def _resolve_device(device):
 
 def component(device):
     resolved = _resolve_device(device)
-    return jit.Component(
-        name="dynamics",
-        variant=resolved.lower(),
-        core_target="hyperdrone_dynamics_core",
-        needs_cuda=resolved == "cuda",
-    )
+    return _components.component("dynamics", resolved.lower(), core_target="hyperdrone_dynamics_core", needs_cuda=resolved == "cuda")
 
 
 def load_core(device):

@@ -6,12 +6,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from hyperdrone import _cuda as cuda, render
+import hyperlux
+from hyperlux import _cuda as cuda
 from hyperdrone import Config, HyperDrone
-from hyperdrone._jit import source_root
+from hyperlux._jit import source_root
 
 pytestmark = pytest.mark.skipif(
-    render._backend() != "optix",
+    hyperlux.backend() != "optix",
     reason="the device-resident environment needs the OptiX backend",
 )
 

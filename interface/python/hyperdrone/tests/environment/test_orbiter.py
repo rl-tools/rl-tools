@@ -9,7 +9,7 @@ import pytest
 
 from hyperdrone import examples
 from hyperdrone import Config, HyperDrone
-from hyperdrone._jit import cache_root, source_root
+from hyperlux._jit import cache_root, source_root
 
 WRITEFILE = "%%writefile my_task.h\n"
 

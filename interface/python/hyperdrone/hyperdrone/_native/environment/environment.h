@@ -1,5 +1,5 @@
 #pragma once
-#include "../common/verbosity.h"
+#include "verbosity.h"
 #include <rl_tools/operations/cpu_mux.h>
 
 #define HYPERDRONE_ENVIRONMENT_STRINGIFY_INNER(x) #x
@@ -34,23 +34,23 @@
 #include <vector>
 #include <memory>
 #include <functional>
-#include "../common/output.h"
+#include "output.h"
 
-#if !defined(HYPERDRONE_ENVIRONMENT_NUM_WORLDS) || !defined(HYPERDRONE_ENVIRONMENT_INSTANCES) || !defined(HYPERDRONE_ENVIRONMENT_CAM_WIDTH) || !defined(HYPERDRONE_ENVIRONMENT_CAM_HEIGHT) || !defined(HYPERDRONE_ENVIRONMENT_SHADING) || !defined(HYPERDRONE_ENVIRONMENT_MB_SAMPLES) || !defined(HYPERDRONE_ENVIRONMENT_PRESET) || !defined(HYPERDRONE_ENVIRONMENT_TASK) || !defined(HYPERDRONE_ENVIRONMENT_N_AGENTS) || !defined(HYPERDRONE_ENVIRONMENT_N_CAMERA_AGENTS) || !defined(HYPERDRONE_CAMERA_CONFIG_HEADER) || !defined(HYPERDRONE_ENVIRONMENT_DEVICE_CUDA) || !defined(HYPERDRONE_ENVIRONMENT_CONTROL) || !defined(HYPERDRONE_ENVIRONMENT_ACTUATION)
+#if !defined(HYPERDRONE_ENVIRONMENT_NUM_WORLDS) || !defined(HYPERDRONE_ENVIRONMENT_INSTANCES) || !defined(HYPERDRONE_ENVIRONMENT_CAM_WIDTH) || !defined(HYPERDRONE_ENVIRONMENT_CAM_HEIGHT) || !defined(HYPERDRONE_ENVIRONMENT_SHADING) || !defined(HYPERDRONE_ENVIRONMENT_MB_SAMPLES) || !defined(HYPERDRONE_ENVIRONMENT_PRESET) || !defined(HYPERDRONE_ENVIRONMENT_TASK) || !defined(HYPERDRONE_ENVIRONMENT_N_AGENTS) || !defined(HYPERDRONE_ENVIRONMENT_N_CAMERA_AGENTS) || !defined(HYPERLUX_CAMERA_CONFIG_HEADER) || !defined(HYPERDRONE_ENVIRONMENT_DEVICE_CUDA) || !defined(HYPERDRONE_ENVIRONMENT_CONTROL) || !defined(HYPERDRONE_ENVIRONMENT_ACTUATION)
 #error "every HYPERDRONE_ENVIRONMENT_* configuration define must be set (hyperdrone.Config.defines())"
 #endif
 #if HYPERDRONE_ENVIRONMENT_DEVICE_CUDA && !defined(HYPERDRONE_ENVIRONMENT_CUDA)
 #error "a CUDA World needs the OptiX variant"
 #endif
 
-#include HYPERDRONE_CAMERA_CONFIG_HEADER
+#include HYPERLUX_CAMERA_CONFIG_HEADER
 
 namespace rlt = rl_tools;
 namespace rro = rlt::hyperlux::outputs;
 
 // Each configuration needs a distinct C++ type in nanobind's shared type registry.
-namespace HYPERDRONE_MODULE_NAME {
-    using HOST_DEVICE = rlt::devices::DEVICE_FACTORY<hyperdrone::CPUSpecification>;
+namespace HYPERLUX_MODULE_NAME {
+    using HOST_DEVICE = rlt::devices::DEVICE_FACTORY<hyperlux::CPUSpecification>;
     using T = float;
     using TI = HOST_DEVICE::index_t;
     constexpr bool CUDA_WORLD = HYPERDRONE_ENVIRONMENT_DEVICE_CUDA == 1;
@@ -69,7 +69,7 @@ namespace HYPERDRONE_MODULE_NAME {
     using PARAMETERS_TYPE = l2f::ParametersDisturbances<l2f::ParametersSpecification<T, TI, l2f::ParametersBase<PARAMETERS_SPEC>>>;
     struct DYNAMICS_STATIC_PARAMETERS {
         static constexpr auto ACTION_INTERFACE = l2f::parameters::ActionInterface::DIRECT_MOTOR;
-        static constexpr TI EPISODE_STEP_LIMIT = HYPERDRONE_MODULE_NAME::EPISODE_STEP_LIMIT;
+        static constexpr TI EPISODE_STEP_LIMIT = HYPERLUX_MODULE_NAME::EPISODE_STEP_LIMIT;
         static constexpr TI N_SUBSTEPS = 1;
         static constexpr TI ACTION_HISTORY_LENGTH = 1;
         static constexpr TI CLOSED_FORM = false;
@@ -112,8 +112,8 @@ namespace HYPERDRONE_MODULE_NAME {
     struct WORLD_SPEC: PRESET_SPEC {
         using DYNAMICS_STATIC_PARAMETERS = typename hyperdrone::ActuationConfig<HYPERDRONE_ENVIRONMENT_ACTUATION>::template Apply<typename PRESET_SPEC::DYNAMICS_STATIC_PARAMETERS>;
         using CONTROLLER = typename hyperdrone::ControlConfig<HYPERDRONE_ENVIRONMENT_CONTROL>::TYPE;
-        using CAMERA_OUTPUTS = hyperdrone_camera_config::CAMERA_OUTPUTS;
-        using OBSERVATION = hyperdrone_camera_config::OBSERVATION;
+        using CAMERA_OUTPUTS = hyperlux_camera_config::CAMERA_OUTPUTS;
+        using OBSERVATION = hyperlux_camera_config::OBSERVATION;
         static constexpr TI INSTANCES_PER_WORLD = HYPERDRONE_ENVIRONMENT_INSTANCES;
         static constexpr TI N_AGENTS = HYPERDRONE_ENVIRONMENT_N_AGENTS;
         static constexpr TI N_CAMERA_AGENTS = HYPERDRONE_ENVIRONMENT_N_CAMERA_AGENTS;
@@ -181,7 +181,7 @@ namespace HYPERDRONE_MODULE_NAME {
     // with a synchronization. A null reset mask selects every instance.
     struct OutputBlock {
         void* pointer = nullptr;
-        hyperdrone::OutputLayout layout;
+        hyperlux::OutputLayout layout;
         int device_type = 1;
         int device_id = 0;
         std::shared_ptr<void> owner;
@@ -216,7 +216,7 @@ namespace HYPERDRONE_MODULE_NAME {
         void observe(float* out, bool resident);
         void render();
         void probe();
-        const std::vector<hyperdrone::OutputMetadata>& output_metadata() const;
+        const std::vector<hyperlux::OutputMetadata>& output_metadata() const;
         void output_read(size_t index, void* destination, int device_type, const std::string& field, uintptr_t stream);
         OutputBlock output_block(size_t index, size_t block, const std::string& field);
 

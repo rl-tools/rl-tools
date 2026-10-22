@@ -13,8 +13,9 @@ from pathlib import Path
 
 import numpy as np
 
-from hyperdrone import dynamics, render
-from hyperdrone.camera import CameraSpec, Depth, RGB
+from hyperdrone import dynamics
+import hyperlux
+from hyperlux.camera import CameraSpec, Depth, RGB
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-m", "--model", default=None, help="GLB scene (default: procedural room)")
@@ -32,13 +33,13 @@ arguments = parser.parse_args()
 
 
 def build_room(rng, num_pillars=32, half=8.0, height=4.0):
-    scene = render.Scene()
-    room = render.Object(name="room")
+    scene = hyperlux.Scene()
+    room = hyperlux.Object(name="room")
 
     def quad(v0, v1, v2, v3, color):
         vertices = np.array([v0, v1, v2, v3], dtype=np.float32)
         indices = np.array([[0, 1, 2], [0, 2, 3], [0, 2, 1], [0, 3, 2]], dtype=np.int32)
-        room.add_mesh(render.Mesh(vertices, indices, color=color))
+        room.add_mesh(hyperlux.Mesh(vertices, indices, color=color))
 
     quad((-half, -half, 0), (half, -half, 0), (half, half, 0), (-half, half, 0), (0.5, 0.5, 0.5))
     quad((-half, -half, height), (half, -half, height), (half, half, height), (-half, half, height), (0.9, 0.9, 0.9))
@@ -55,18 +56,18 @@ def build_room(rng, num_pillars=32, half=8.0, height=4.0):
         quad((x - r, y - r, 0), (x - r, y + r, 0), (x - r, y + r, height), (x - r, y - r, height), color)
         quad((x + r, y - r, 0), (x + r, y + r, 0), (x + r, y + r, height), (x + r, y - r, height), color)
     scene.add_object(room)
-    scene.add_light(render.SceneLight.directional(direction=(0.3, 0.2, -1.0), color=(1.0, 1.0, 1.0)))
-    scene.add_light(render.SceneLight.directional(direction=(-0.5, 0.4, -0.3), color=(0.4, 0.4, 0.5)))
+    scene.add_light(hyperlux.SceneLight.directional(direction=(0.3, 0.2, -1.0), color=(1.0, 1.0, 1.0)))
+    scene.add_light(hyperlux.SceneLight.directional(direction=(-0.5, 0.4, -0.3), color=(0.4, 0.4, 0.5)))
     return scene
 
 
 if arguments.model and Path(arguments.model).exists():
-    scene = render.load_scene(arguments.model, fidelity="medium")
+    scene = hyperlux.load_scene(arguments.model, fidelity="medium")
 else:
     scene = build_room(np.random.default_rng(0))
 
 sim = dynamics.Sim(num_drones=arguments.drones, parameters={"dynamics": {"dynamics": {"model": arguments.drone_model}}}, device=arguments.device)
-renderer = render.Renderer(width=arguments.width, height=arguments.height,
+renderer = hyperlux.HyperLux(width=arguments.width, height=arguments.height,
                            batch_size=arguments.drones, cameras=(CameraSpec("front", (RGB("rgba8"),)),), fidelity="medium")
 renderer.init(scene)
 
@@ -91,7 +92,7 @@ def world_step(actions):
 print(f"backend={renderer.backend} dynamics={sim.device} drones={arguments.drones} "
       f"device_handoff={'yes' if device_handoff else 'no (host cameras)'}")
 
-sampler = render.ClearanceSampler(scene, clearance=0.5)
+sampler = hyperlux.ClearanceSampler(scene, clearance=0.5)
 positions = sampler.sample(arguments.drones, seed=0)
 sim.reset()
 sim.state["position"] = positions

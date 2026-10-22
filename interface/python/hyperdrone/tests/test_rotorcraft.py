@@ -1,8 +1,9 @@
 import numpy as np
 import pytest
 
-from hyperdrone import Rotorcraft, articulate, render
-from hyperdrone.camera import CameraSpec, Segmentation
+import hyperlux
+from hyperdrone import Rotorcraft, articulate
+from hyperlux.camera import CameraSpec, Segmentation
 
 
 def pose(x=0.0, y=0.0, z=0.0):
@@ -14,14 +15,14 @@ def pose(x=0.0, y=0.0, z=0.0):
 def quad_xy(center_x, center_y, half_size, name):
     vertices = np.array([[center_x - half_size, center_y - half_size, 0], [center_x + half_size, center_y - half_size, 0],
                          [center_x + half_size, center_y + half_size, 0], [center_x - half_size, center_y + half_size, 0]], dtype=np.float32)
-    obj = render.Object(name=name)
-    obj.add_mesh(render.Mesh(vertices, np.array([[0, 1, 2], [0, 2, 3]], dtype=np.int32), color=(1, 1, 1)))
+    obj = hyperlux.Object(name=name)
+    obj.add_mesh(hyperlux.Mesh(vertices, np.array([[0, 1, 2], [0, 2, 3]], dtype=np.int32), color=(1, 1, 1)))
     return obj
 
 
 def two_prop_assembly():
     # body plus props at (0.1, 0.1) front-left and (-0.1, 0.1) rear-left, lifted by 0.05
-    asset = render.ObjectAssembly()
+    asset = hyperlux.ObjectAssembly()
     asset.add_part(quad_xy(0, 0, 0.1, "body"), pose())
     asset.add_part(quad_xy(0.1, 0.1, 0.05, "prop_0"), pose(z=0.05))
     asset.add_part(quad_xy(-0.1, 0.1, 0.05, "prop_1"), pose(z=0.05))
@@ -51,7 +52,7 @@ def test_rotorcraft_convention():
     np.testing.assert_array_equal(rotorcraft.prop_spin, [-1, 1])
     np.testing.assert_array_equal(rotorcraft.coordinates([0.5, 0.25]), [-0.5, 0.25])
     np.testing.assert_array_equal(rotorcraft.coordinates([[0.5, 0.25], [1, 2]]), [[-0.5, 0.25], [-1, 2]])
-    unconventional = render.ObjectAssembly()
+    unconventional = hyperlux.ObjectAssembly()
     unconventional.add_part(quad_xy(1, 0, 0.5, "prop_0"), pose())
     with pytest.raises(ValueError, match="body/prop_"):
         articulate(unconventional)
@@ -86,20 +87,20 @@ def test_rotorcraft_matches_rotors():
 def test_rotorcraft_spins_props_in_the_renderer():
     asset = two_prop_assembly()
     articulate(asset)
-    pool = render.AssetPool()
+    pool = hyperlux.AssetPool()
     handle = pool.add_assembly(asset)
-    scene = render.Scene()
-    scene.add_mesh(render.Mesh(np.array([[5, -5, -5], [5, 5, -5], [5, 5, 5], [5, -5, 5]], np.float32), np.array([[0, 2, 1], [0, 3, 2]], np.int32)))
-    renderer = render.Renderer(64, 64, cameras=(CameraSpec("camera", outputs=(Segmentation(),)),), fidelity="low", num_overlays=1, max_overlay_instances=4, max_overlays_per_camera=1)
+    scene = hyperlux.Scene()
+    scene.add_mesh(hyperlux.Mesh(np.array([[5, -5, -5], [5, 5, -5], [5, 5, 5], [5, -5, 5]], np.float32), np.array([[0, 2, 1], [0, 3, 2]], np.int32)))
+    renderer = hyperlux.HyperLux(64, 64, cameras=(CameraSpec("camera", outputs=(Segmentation(),)),), fidelity="low", num_overlays=1, max_overlay_instances=4, max_overlays_per_camera=1)
     renderer.init(scene, asset_pool=pool)
     renderer.attach(0, 0)
     renderer.set_cameras(renderer.camera(position=(0.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=40.0)[None])
     # the drone faces the camera from 0.6 ahead (its z towards -x), so the props spin in the image plane
     facing = np.array([[0, 0, -1, 0.6], [0, 1, 0, 0], [1, 0, 0, 0]], np.float32)
-    placement = renderer.spawn(0, handle, render.Pose(facing))
+    placement = renderer.spawn(0, handle, hyperlux.Pose(facing))
     ids = []
     for coordinates in ([0, 0], [np.pi / 4, 0], [0, np.pi / 4]):
-        renderer.set_pose(placement, render.Pose(facing), coordinates=coordinates)
+        renderer.set_pose(placement, hyperlux.Pose(facing), coordinates=coordinates)
         renderer.update()
         renderer.render()
         ids.append(renderer.outputs[Segmentation()].read()[0].copy())
@@ -118,8 +119,8 @@ def test_rotorcraft_x500():
         path = conta.resolve(RIGGED_MODELS["x500"])
     except Exception as error:  # noqa: BLE001 - no checkout data and no network
         pytest.skip(f"x500 asset unavailable: {error}")
-    drone = render.load_assembly(path, fidelity="low")
-    convention = render.load_assembly(path, fidelity="low")
+    drone = hyperlux.load_assembly(path, fidelity="low")
+    convention = hyperlux.load_assembly(path, fidelity="low")
     articulate(drone)
     articulate(convention)
     # the x500 registry entry: rotors 0..3 at front-right, rear-right, rear-left, front-left

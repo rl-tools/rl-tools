@@ -1,20 +1,21 @@
 import numpy as np
 import pytest
 
-from hyperdrone import dynamics, render
-from hyperdrone.camera import CameraSpec, RGB, Depth
+from hyperdrone import dynamics
+import hyperlux
+from hyperlux.camera import CameraSpec, RGB, Depth
 
 
 def make_room(half=4.0, height=3.0, pillar=None):
     """A closed box room (normals inward and outward via double-sided quads), optionally
     with one square pillar."""
-    scene = render.Scene()
-    room = render.Object(name="room")
+    scene = hyperlux.Scene()
+    room = hyperlux.Object(name="room")
 
     def quad(v0, v1, v2, v3, color=(0.7, 0.7, 0.7)):
         vertices = np.array([v0, v1, v2, v3], dtype=np.float32)
         indices = np.array([[0, 1, 2], [0, 2, 3], [0, 2, 1], [0, 3, 2]], dtype=np.int32)
-        room.add_mesh(render.Mesh(vertices, indices, color=color))
+        room.add_mesh(hyperlux.Mesh(vertices, indices, color=color))
 
     quad((-half, -half, 0), (half, -half, 0), (half, half, 0), (-half, half, 0))
     quad((-half, -half, height), (half, -half, height), (half, half, height), (-half, half, height))
@@ -29,7 +30,7 @@ def make_room(half=4.0, height=3.0, pillar=None):
         quad((x - r, y - r, 0), (x - r, y + r, 0), (x - r, y + r, height), (x - r, y - r, height), (0.9, 0.3, 0.3))
         quad((x + r, y - r, 0), (x + r, y + r, 0), (x + r, y + r, height), (x + r, y - r, height), (0.9, 0.3, 0.3))
     scene.add_object(room)
-    scene.add_light(render.SceneLight.directional(direction=(0.3, 0.2, -1.0), color=(1.0, 1.0, 1.0)))
+    scene.add_light(hyperlux.SceneLight.directional(direction=(0.3, 0.2, -1.0), color=(1.0, 1.0, 1.0)))
     return scene
 
 
@@ -38,7 +39,7 @@ CLEARANCE = 0.5
 
 @pytest.fixture(scope="module")
 def sampler():
-    return render.ClearanceSampler(make_room(), clearance=CLEARANCE, batch=64, probes=32)
+    return hyperlux.ClearanceSampler(make_room(), clearance=CLEARANCE, batch=64, probes=32)
 
 
 def test_sampling_determinism(sampler):
@@ -66,7 +67,7 @@ def test_sampling_respects_clearance(sampler):
 
 def test_sampling_avoids_obstacles():
     pillar = (1.0, 1.0, 0.5)
-    sampler = render.ClearanceSampler(make_room(pillar=pillar), clearance=CLEARANCE, batch=64, probes=64)
+    sampler = hyperlux.ClearanceSampler(make_room(pillar=pillar), clearance=CLEARANCE, batch=64, probes=64)
     positions = sampler.sample(64, seed=0)
     x, y, r = pillar
     # no sample inside the pillar footprint (plus most of the clearance; probe sets are
@@ -100,9 +101,9 @@ def test_manual_composition_end_to_end():
     num_drones = 4
     scene = make_room()
     sim = dynamics.Sim(num_drones=num_drones, device="cpu")
-    renderer = render.Renderer(width=32, height=32, batch_size=num_drones, cameras=(CameraSpec("camera", outputs=(RGB(format="rgba8"), Depth())),), fidelity="low")
+    renderer = hyperlux.HyperLux(width=32, height=32, batch_size=num_drones, cameras=(CameraSpec("camera", outputs=(RGB(format="rgba8"), Depth())),), fidelity="low")
     spawn, step = compose(scene, sim, renderer)
-    sampler = render.ClearanceSampler(scene, clearance=CLEARANCE, batch=64, probes=32)
+    sampler = hyperlux.ClearanceSampler(scene, clearance=CLEARANCE, batch=64, probes=32)
     positions = sampler.sample(num_drones, seed=0)
     spawn(positions)
 
@@ -124,7 +125,7 @@ def test_manual_composition_camera_tracks_drone():
     num_drones = 2
     scene = make_room()
     sim = dynamics.Sim(num_drones=num_drones, device="cpu")
-    renderer = render.Renderer(width=16, height=16, batch_size=num_drones, cameras=(CameraSpec("camera", outputs=(Depth(),)),), fidelity="low")
+    renderer = hyperlux.HyperLux(width=16, height=16, batch_size=num_drones, cameras=(CameraSpec("camera", outputs=(Depth(),)),), fidelity="low")
     spawn, step = compose(scene, sim, renderer)
     spawn(np.array([[0.0, 0.0, 1.5], [1.0, 0.0, 1.5]], dtype=np.float32))
     actions = np.zeros((num_drones, sim.action_dim), dtype=np.float32)

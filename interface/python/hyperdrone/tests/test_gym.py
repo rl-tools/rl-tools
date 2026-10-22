@@ -7,8 +7,9 @@ import pytest
 gymnasium = pytest.importorskip("gymnasium")
 
 from hyperdrone import Config
-from hyperdrone.camera import CameraSpec, Depth, ImageObservation, RGB
-from hyperdrone._jit import source_root
+from hyperlux.camera import CameraSpec, Depth, RGB
+from hyperdrone.camera import ImageObservation
+from hyperlux._jit import source_root
 
 
 @pytest.fixture(scope="module")

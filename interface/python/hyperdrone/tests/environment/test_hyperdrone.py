@@ -1,3 +1,4 @@
+import hyperlux
 import copy
 import json
 from contextlib import closing
@@ -11,8 +12,9 @@ import pytest
 import conta
 import hyperdrone
 from hyperdrone import Config, HyperDrone
-from hyperdrone.camera import CameraSpec, ImageObservation, RGB, Flow, FlowStatus
-from hyperdrone._jit import source_root
+from hyperlux.camera import CameraSpec, RGB, Flow, FlowStatus
+from hyperdrone.camera import ImageObservation
+from hyperlux._jit import source_root
 
 
 @pytest.fixture(scope="module")
@@ -97,15 +99,15 @@ def test_privileged_reads_do_not_change_trajectory(scene_directory):
 
 
 def test_environment_verbosity(scene_directory, capfd, monkeypatch):
-    previous = hyperdrone.verbosity()
+    previous = hyperlux.verbosity()
     try:
         for level in ("warning", "debug"):
-            hyperdrone.set_verbosity(level)
+            hyperlux.set_verbosity(level)
             environment = HyperDrone(scene_directory, config=CONFIG, seed=0)
             try:
                 backend = environment.render_backend
                 with monkeypatch.context() as context:
-                    context.setenv("HYPERDRONE_RENDER_BACKEND", "INVALID")
+                    context.setenv("HYPERLUX_BACKEND", "INVALID")
                     assert environment.render_backend == backend
                 output = capfd.readouterr().err
                 if level == "warning":
@@ -117,7 +119,7 @@ def test_environment_verbosity(scene_directory, capfd, monkeypatch):
                 environment.close()
                 capfd.readouterr()
     finally:
-        hyperdrone.set_verbosity(previous)
+        hyperlux.set_verbosity(previous)
 
 
 def rollout(scene_directory, seed, steps=3):
@@ -1089,7 +1091,7 @@ def test_drone_asset_conta_reference(monkeypatch, tmp_path):
 
 @pytest.mark.parametrize("history_length", [1, 3])
 def test_step_clock_is_independent_of_image_reads(scene_directory, history_length, tmp_path):
-    from hyperdrone import render
+    import hyperlux
     header = tmp_path / "history_world.h"
     header.write_text("""#pragma once
 #include <rl_tools/rl/environments/hyperdrone/presets.h>
@@ -1109,7 +1111,7 @@ namespace hyperdrone_user {
     using WORLD = rl_tools::rl::environments::hyperdrone::World<SPEC>;
 }
 """.replace("HISTORY_COUNT", str(history_length)))
-    config = Config(spec_header=str(header), device="cuda" if render._backend() == "optix" else "cpu")
+    config = Config(spec_header=str(header), device="cuda" if hyperlux.backend() == "optix" else "cpu")
     records = []
     for read_every_step in (False, True):
         with closing(HyperDrone(scene_directory, config=config, seed=319)) as env:
@@ -1177,7 +1179,7 @@ namespace hyperdrone_user {
 
 
 def test_flow_reference_does_not_depend_on_image_reads(scene_directory):
-    from hyperdrone import render
+    import hyperlux
     config = replace(CONFIG, width=16, height=16, cameras=(CameraSpec("front", (RGB("float32"), Flow(), FlowStatus())),))
     records = []
     for read_every_step in (False, True):
@@ -1192,7 +1194,7 @@ def test_flow_reference_does_not_depend_on_image_reads(scene_directory):
                 if read_every_step:
                     env.observe()
             image, flow, status = env.observe(), env.outputs[Flow()].read(), env.outputs[FlowStatus()].read()
-            assert np.any(status == render.FlowStatus.VALID)
+            assert np.any(status == hyperlux.FlowStatus.VALID)
             records.append((image, flow, status))
     for actual, expected in zip(records[0], records[1]):
         np.testing.assert_array_equal(actual, expected)
@@ -1200,8 +1202,8 @@ def test_flow_reference_does_not_depend_on_image_reads(scene_directory):
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_flow_reference_survives_same_step_reacquisition(scene_directory, device):
-    from hyperdrone import render
-    if device == "cuda" and render._backend() != "optix":
+    import hyperlux
+    if device == "cuda" and hyperlux.backend() != "optix":
         pytest.skip("CUDA Worlds require OptiX")
     config = replace(CONFIG, width=16, height=16, cameras=(CameraSpec("front", (RGB("float32"), Flow(), FlowStatus())),), device=device)
     with closing(HyperDrone(scene_directory, config=config, seed=541)) as env:
@@ -1234,8 +1236,8 @@ def test_flow_reference_survives_same_step_reacquisition(scene_directory, device
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_motion_blur_reset_survives_same_step_reacquisition(scene_directory, device):
-    from hyperdrone import render
-    if device == "cuda" and render._backend() != "optix":
+    import hyperlux
+    if device == "cuda" and hyperlux.backend() != "optix":
         pytest.skip("CUDA Worlds require OptiX")
     config = replace(CONFIG, width=16, height=16, motion_blur_samples=4, device=device)
     with closing(HyperDrone(scene_directory, config=config, seed=673)) as env:

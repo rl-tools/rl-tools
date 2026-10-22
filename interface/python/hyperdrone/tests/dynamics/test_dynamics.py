@@ -1,3 +1,4 @@
+import hyperlux
 import ctypes
 import json
 import math
@@ -289,12 +290,12 @@ def test_device_default_and_validation(monkeypatch):
 
 
 def test_import_does_not_register_cuda_provider():
-    run = subprocess.run([sys.executable, "-c", "from hyperdrone import dynamics, _cuda; assert not _cuda._providers"], capture_output=True, text=True)
+    run = subprocess.run([sys.executable, "-c", "from hyperlux import _cuda; from hyperdrone import dynamics; assert not _cuda._providers"], capture_output=True, text=True)
     assert run.returncode == 0, run.stdout + run.stderr
 
 
 def test_consumer_stream_forwarding():
-    from hyperdrone._dlpack import DLPackBuffer
+    from hyperlux._dlpack import DLPackBuffer
     calls = []
     producer = DLPackBuffer(None, lambda: "capsule", 2, 3, calls.append)
     assert producer.__dlpack_device__() == (2, 3)

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from .. import _jit as jit
+from hyperlux import _jit as jit
 from .._control import ACTUATIONS, CONTROLS, validate_control
 
 MODELS = (

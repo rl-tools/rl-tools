@@ -1,4 +1,4 @@
-"""The C++ generator records a seeded rollout for bit-exact replay on its GENERIC host build. Run with HYPERDRONE_RENDER_BACKEND=GENERIC; other renderer backends are qualified against measured bounds by the raytracing corpus, not claimed byte-identical. Regeneration is deliberate and reviewed."""
+"""The C++ generator records a seeded rollout for bit-exact replay on its GENERIC host build. Run with HYPERLUX_BACKEND=GENERIC; other renderer backends are qualified against measured bounds by the raytracing corpus, not claimed byte-identical. Regeneration is deliberate and reviewed."""
 import json
 import os
 from pathlib import Path
@@ -8,7 +8,7 @@ import pytest
 
 from hyperdrone import Config, HyperDrone
 from hyperdrone._environment import ObservationLayout
-from hyperdrone._jit import source_root
+from hyperlux._jit import source_root
 
 GOLDEN = source_root() / "tests" / "data" / "rl" / "environments" / "hyperdrone" / "python_golden"
 
@@ -47,7 +47,7 @@ def scene_directory(tmp_path_factory):
 
 def test_golden_rollout(scene_directory):
     manifest = json.loads((GOLDEN / "manifest.json").read_text())
-    scalar_defines = {name: value for name, value in CONFIG.defines().items() if name != "HYPERDRONE_CAMERA_BACKEND_REQUIREMENT"}
+    scalar_defines = {name: value for name, value in CONFIG.defines().items() if name != "HYPERLUX_CAMERA_BACKEND_REQUIREMENT"}
     assert scalar_defines == {name: manifest["defines"][name] for name in scalar_defines}, "the test configuration drifted from the golden's — regenerate deliberately"
     env = HyperDrone(scene_directory, config=CONFIG, seed=manifest["seed"])
     try:

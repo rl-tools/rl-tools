@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hyperlux"
+dynamic = ["version"]
+authors = [{name = "Jonas Eschmann", email = "jonas.eschmann@gmail.com"}]
+license = {text = "MIT"}
+description = "HyperLux: the batch raytracer behind HyperDrone (OptiX, Metal, Vulkan, WebGPU, CPU)."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["numpy", "nanobind>=2.0", "conta>=0.0.1"]
+
+[project.optional-dependencies]
+examples = ["scipy>=1.15", "matplotlib", "imageio", "imageio-ffmpeg"]
+
+[tool.hatch.build]
+exclude = [
+    "*.mp4", "*.gif",
+    "*.o", "*.obj", "*.a", "*.lib",
+    "*.so", "*.so.*", "*.dylib", "*.dll", "*.pyd",
+    "__pycache__/", ".build*/", "build/", "build-*/", "cmake-build-*/",
+    "CMakeFiles/", "CMakeCache.txt",
+]
+
+[tool.hatch.version]
+path = "hyperlux/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["hyperlux"]
+
+[tool.hatch.build.targets.sdist]
+only-include = ["hyperlux", "hatch_build.py", "README.md", "pyproject.toml"]
+
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"

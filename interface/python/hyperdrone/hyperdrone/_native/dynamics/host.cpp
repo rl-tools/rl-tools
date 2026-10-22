@@ -197,7 +197,7 @@ NB_MODULE(hyperdrone_dynamics_core, m){
 #if defined(HYPERDRONE_DYNAMICS_CUDA)
     m.attr("HAS_CUDA") = true;
 
-    hyperdrone::register_cuda_staging(m);
+    hyperlux::register_cuda_staging(m);
 
     jit_sim_class
         .def("step_device", [](JitSim& jit, nb::ndarray<const float, nb::c_contig, nb::device::cuda> actions, uintptr_t stream){

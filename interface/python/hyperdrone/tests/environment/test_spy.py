@@ -1,3 +1,4 @@
+import hyperlux
 import gc
 import os
 import threading
@@ -6,7 +7,9 @@ import weakref
 
 import pytest
 
-from hyperdrone.camera import CameraSpec, RGB, ImageObservation
+from hyperlux.camera import CameraSpec, RGB
+
+from hyperdrone.camera import ImageObservation
 from hyperdrone import HyperDrone
 
 
@@ -130,7 +133,9 @@ def test_main_thread_owns_all_window_operations(environment):
 def test_native_spy_preserves_rollout_and_environment_lifecycle(tmp_path, num_cameras_per_agent):
     import numpy as np
 
-    from hyperdrone.camera import CameraSpec, RGB, ImageObservation
+    from hyperlux.camera import CameraSpec, RGB
+
+    from hyperdrone.camera import ImageObservation
     from hyperdrone import Config
     from test_taxonomy import room_glb
 

@@ -15,7 +15,7 @@
 #endif
 #if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
 #include <cuda_runtime.h>
-#include "../common/cuda_device.h"
+#include "cuda_device.h"
 #endif
 #ifdef RL_TOOLS_HYPERLUX_ENABLE_SPY
 #include <rl_tools/rl/environments/hyperdrone/spy/operations_cpu.h>
@@ -34,7 +34,7 @@
 #include <type_traits>
 #include <cstring>
 
-namespace HYPERDRONE_MODULE_NAME {
+namespace HYPERLUX_MODULE_NAME {
     using rl_tools::view_range;
     using rl_tools::render;
     using rl_tools::output;
@@ -54,7 +54,7 @@ namespace HYPERDRONE_MODULE_NAME {
     using RNG = rlt::devices::random::CUDA::ENGINE<rlt::devices::random::CUDA::Specification<TI, TOTAL>>;
 #endif
 #if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
-    using CurrentDevice = hyperdrone::CurrentCudaDevice;
+    using CurrentDevice = hyperlux::CurrentCudaDevice;
 #else
     struct CurrentDevice {
         explicit CurrentDevice(int){}
@@ -68,17 +68,17 @@ namespace HYPERDRONE_MODULE_NAME {
 
     using DECLARED_OUTPUTS = typename WORLD::RENDERER_CONFIG::DECLARED_OUTPUTS;
 
-    std::vector<hyperdrone::OutputMetadata> environment_output_metadata(){
-        auto metadata = hyperdrone::output_metadata_list<typename WORLD::RENDERER_SPEC>(DECLARED_OUTPUTS{});
+    std::vector<hyperlux::OutputMetadata> environment_output_metadata(){
+        auto metadata = hyperlux::output_metadata_list<typename WORLD::RENDERER_SPEC>(DECLARED_OUTPUTS{});
         for(auto& value: metadata){
-            auto reshape = [](hyperdrone::OutputLayout& layout){
+            auto reshape = [](hyperlux::OutputLayout& layout){
                 const size_t views = layout.shape[0] / WORLD::INSTANCES;
                 layout.shape[0] = views;
                 layout.shape.insert(layout.shape.begin(), TOTAL);
                 layout.axes[0] = "view";
                 layout.axes.insert(layout.axes.begin(), "instance");
                 const int64_t element_stride = layout.strides.back();
-                hyperdrone::output_contiguous_strides(layout);
+                hyperlux::output_contiguous_strides(layout);
                 for(auto& stride: layout.strides){
                     stride *= element_stride;
                 }
@@ -116,7 +116,7 @@ namespace HYPERDRONE_MODULE_NAME {
         bool all_sampled = false;
         std::array<bool, NUM_WORLDS> captured{};
         std::array<bool, NUM_WORLDS> probed{};
-        std::vector<hyperdrone::OutputMetadata> outputs = environment_output_metadata();
+        std::vector<hyperlux::OutputMetadata> outputs = environment_output_metadata();
         InstanceTensor<typename WORLD::Parameters> parameters{};
         InstanceTensor<typename WORLD::Parameters> parameters_host{};
         InstanceTensor<typename WORLD::State> states_host{};
@@ -738,7 +738,7 @@ namespace HYPERDRONE_MODULE_NAME {
         }
     }
 
-    const std::vector<hyperdrone::OutputMetadata>& Environment::output_metadata() const {
+    const std::vector<hyperlux::OutputMetadata>& Environment::output_metadata() const {
         return impl->outputs;
     }
 
@@ -747,11 +747,11 @@ namespace HYPERDRONE_MODULE_NAME {
         using rlt::stream;
 #endif
         const auto& metadata = impl->outputs.at(index);
-        const auto& layout = hyperdrone::output_layout(metadata, field);
+        const auto& layout = hyperlux::output_layout(metadata, field);
         const size_t count = layout.size() / NUM_WORLDS;
         const size_t bytes = count * layout.item_size;
         const CurrentDevice current(impl->device_id);
-        hyperdrone::visit_output(index, [&](auto tag){
+        hyperlux::visit_output(index, [&](auto tag){
             using OUTPUT = typename decltype(tag)::TYPE;
             constexpr bool PROBES = std::is_same<OUTPUT, rro::Probes>::value;
             for(TI member = 0; member < NUM_WORLDS; member++){
@@ -813,13 +813,13 @@ namespace HYPERDRONE_MODULE_NAME {
 #endif
         const auto& metadata = impl->outputs.at(index);
         OutputBlock result;
-        result.layout = hyperdrone::output_layout(metadata, field);
+        result.layout = hyperlux::output_layout(metadata, field);
         result.layout.shape[0] = WORLD::INSTANCES;
         result.device_type = metadata.device_type;
         result.device_id = metadata.device_id;
         result.owner = impl;
         const CurrentDevice current(impl->device_id);
-        hyperdrone::visit_output(index, [&](auto tag){
+        hyperlux::visit_output(index, [&](auto tag){
             using OUTPUT = typename decltype(tag)::TYPE;
             constexpr bool PROBES = std::is_same<OUTPUT, rro::Probes>::value;
             impl->require_current(member, PROBES, "exporting");

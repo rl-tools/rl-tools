@@ -1,6 +1,6 @@
 #include "environment.h"
 #include "bindings.h"
-#include "../common/output_bindings.h"
+#include "output_bindings.h"
 #include <nanobind/stl/optional.h>
 #include <nanobind/stl/map.h>
 #include <nanobind/stl/string.h>
@@ -8,7 +8,7 @@
 
 namespace nb = nanobind;
 
-namespace HYPERDRONE_MODULE_NAME {
+namespace HYPERLUX_MODULE_NAME {
     using HostMask = nb::ndarray<const bool, nb::c_contig, nb::device::cpu>;
     using Mask = nb::ndarray<const bool, nb::c_contig>;
     using Actions = nb::ndarray<const float, nb::c_contig>;
@@ -72,12 +72,12 @@ namespace HYPERDRONE_MODULE_NAME {
     }
 }
 
-NB_MODULE(HYPERDRONE_MODULE_NAME, m){
-    using namespace HYPERDRONE_MODULE_NAME;
-    m.def("_set_verbosity", &hyperdrone::set_verbosity);
+NB_MODULE(HYPERLUX_MODULE_NAME, m){
+    using namespace HYPERLUX_MODULE_NAME;
+    m.def("_set_verbosity", &hyperlux::set_verbosity);
 
     m.doc() = "JIT-specialized RLtools hyperdrone environment";
-    hyperdrone::bind_output_blocks(m);
+    hyperlux::bind_output_blocks(m);
     m.attr("observation_layout") = layout_dict(observation_layout());
     m.attr("observation_layout_privileged") = layout_dict(observation_layout_privileged());
     m.attr("CUDA_WORLD") = CUDA_WORLD;
@@ -162,10 +162,10 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
         .def("synchronize", &Environment::synchronize, nb::call_guard<nb::gil_scoped_release>())
         .def("render", &Environment::render, nb::call_guard<nb::gil_scoped_release>())
         .def("probe", &Environment::probe, nb::call_guard<nb::gil_scoped_release>())
-        .def("output_metadata", [](Environment& self){ return hyperdrone::output_metadata_dicts(self.output_metadata()); })
+        .def("output_metadata", [](Environment& self){ return hyperlux::output_metadata_dicts(self.output_metadata()); })
         .def("output_read", [](Environment& self, size_t index, nb::ndarray<nb::c_contig> out, const std::string& field, uintptr_t stream){
             const auto& metadata = self.output_metadata().at(index);
-            hyperdrone::validate_output_array(hyperdrone::output_layout(metadata, field), out);
+            hyperlux::validate_output_array(hyperlux::output_layout(metadata, field), out);
             if(out.device_type() == 2 && (metadata.device_type != 2 || out.device_id() != metadata.device_id)){
                 throw std::invalid_argument("hyperdrone: CUDA output destination must use the renderer's device");
             }
@@ -180,7 +180,7 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
             }
             auto* owner = new std::shared_ptr<void>(std::move(block.owner));
             nb::capsule capsule(owner, [](void* pointer) noexcept { delete static_cast<std::shared_ptr<void>*>(pointer); });
-            return hyperdrone::NativeOutputBlock{std::move(capsule), block.pointer, std::move(block.layout), block.device_type, block.device_id, std::move(block.order_consumer)};
+            return hyperlux::NativeOutputBlock{std::move(capsule), block.pointer, std::move(block.layout), block.device_type, block.device_id, std::move(block.order_consumer)};
         }, nb::arg("index"), nb::arg("block") = 0, nb::arg("field") = "");
     bind_output<&Environment::observe, WORLD::OBSERVATION_DIM>(environment_class, "observe");
     bind_output<&Environment::observe_privileged, WORLD::OBSERVATION_DIM_PRIVILEGED>(environment_class, "observe_privileged");

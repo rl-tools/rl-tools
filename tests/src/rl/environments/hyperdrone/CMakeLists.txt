@@ -162,7 +162,9 @@ if(RL_TOOLS_ENABLE_HYPERLUX AND RL_TOOLS_TEST_DATA_PATH)
     gtest_discover_tests(test_rl_environments_hyperdrone_on_policy_runner_batched)
     # golden-rollout generator for the Python binding (run deliberately from the repo root)
     set(HYPERDRONE_PYTHON_ENVIRONMENT_NATIVE ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../interface/python/hyperdrone/hyperdrone/_native/environment)
+    set(HYPERLUX_PYTHON_NATIVE_COMMON ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../interface/python/hyperlux/hyperlux/_native/common)
     add_executable(test_rl_environments_hyperdrone_python_golden python_golden.cpp ${HYPERDRONE_PYTHON_ENVIRONMENT_NATIVE}/impl.cpp)
+    target_include_directories(test_rl_environments_hyperdrone_python_golden PRIVATE ${HYPERLUX_PYTHON_NATIVE_COMMON})
     target_compile_definitions(test_rl_environments_hyperdrone_python_golden PRIVATE
         HYPERDRONE_ENVIRONMENT_NUM_WORLDS=1
         HYPERDRONE_ENVIRONMENT_INSTANCES=2
@@ -177,9 +179,9 @@ if(RL_TOOLS_ENABLE_HYPERLUX AND RL_TOOLS_TEST_DATA_PATH)
         HYPERDRONE_ENVIRONMENT_N_AGENTS=1
         HYPERDRONE_ENVIRONMENT_N_CAMERA_AGENTS=1
         HYPERDRONE_ENVIRONMENT_DEVICE_CUDA=0
-        HYPERDRONE_CAMERA_CONFIG_HEADER=\"${CMAKE_CURRENT_SOURCE_DIR}/python_camera_config.h\"
+        HYPERLUX_CAMERA_CONFIG_HEADER=\"${CMAKE_CURRENT_SOURCE_DIR}/python_camera_config.h\"
         HYPERDRONE_ENVIRONMENT_DATASET=0
-        HYPERDRONE_MODULE_NAME=hyperdrone_environment_golden
+        HYPERLUX_MODULE_NAME=hyperdrone_environment_golden
     )
     target_link_libraries(test_rl_environments_hyperdrone_python_golden
         PRIVATE
@@ -188,9 +190,10 @@ if(RL_TOOLS_ENABLE_HYPERLUX AND RL_TOOLS_TEST_DATA_PATH)
             hyperlux_stb
     )
     add_executable(test_rl_environments_hyperdrone_user_task_header user_task_header.cpp ${HYPERDRONE_PYTHON_ENVIRONMENT_NATIVE}/impl.cpp)
+    target_include_directories(test_rl_environments_hyperdrone_user_task_header PRIVATE ${HYPERLUX_PYTHON_NATIVE_COMMON})
     get_target_property(HYPERDRONE_USER_TASK_DEFINES test_rl_environments_hyperdrone_python_golden COMPILE_DEFINITIONS)
-    list(FILTER HYPERDRONE_USER_TASK_DEFINES EXCLUDE REGEX "^HYPERDRONE_MODULE_NAME=")
-    target_compile_definitions(test_rl_environments_hyperdrone_user_task_header PRIVATE ${HYPERDRONE_USER_TASK_DEFINES} HYPERDRONE_MODULE_NAME=hyperdrone_user_task HYPERDRONE_ENVIRONMENT_SPEC_HEADER=${PROJECT_SOURCE_DIR}/interface/python/hyperdrone/tests/environment/user_task_header.h)
+    list(FILTER HYPERDRONE_USER_TASK_DEFINES EXCLUDE REGEX "^HYPERLUX_MODULE_NAME=")
+    target_compile_definitions(test_rl_environments_hyperdrone_user_task_header PRIVATE ${HYPERDRONE_USER_TASK_DEFINES} HYPERLUX_MODULE_NAME=hyperdrone_user_task HYPERDRONE_ENVIRONMENT_SPEC_HEADER=${PROJECT_SOURCE_DIR}/interface/python/hyperdrone/tests/environment/user_task_header.h)
     target_link_libraries(test_rl_environments_hyperdrone_user_task_header PRIVATE RLtools::RLtools RLtools::Test hyperlux_backend hyperlux_stb)
     gtest_discover_tests(test_rl_environments_hyperdrone_user_task_header)
     if(RL_TOOLS_BACKEND_ENABLE_CUDA AND TARGET owl::owl)

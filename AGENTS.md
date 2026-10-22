@@ -9,6 +9,8 @@ Before starting any work, read `/infra/AGENTS.md` and follow its instructions. T
 
 Always use the `.venv` virtual environment. If it does not exist, create it with `python3 -m venv .venv`.
 
+Two packages live under `interface/python`: `hyperlux` (the renderer, the scene model and the JIT build infrastructure every native component uses) and `hyperdrone` (dynamics, environments, rigging), which pins `hyperlux` to its own version. Install both editable (`pip install -e interface/python/hyperlux -e interface/python/hyperdrone`); `interface/python/scripts/set_version.py` writes the shared version and `scripts/versions.py` checks it. The suites run separately (`pytest interface/python/hyperlux/tests`, `pytest interface/python/hyperdrone/tests`), both on `HYPERLUX_BACKEND=GENERIC` without a GPU.
+
 ### CMake Configuration
 
 The build auto-configures: features are enabled by default when their prerequisites are available, except WASM goldens, which require `RL_TOOLS_HYPERLUX_ENABLE_WASM_GOLDENS=ON` because of the large toolchain downloads. A configure summary ("RLtools configure summary:") reports each feature as ON/OFF with the reason.

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from hyperdrone import render
+import hyperlux
 
 
 def cuda_available():
@@ -26,14 +26,15 @@ HANDOFF_CHECK = """
 import sys
 sys.path.insert(0, sys.argv[1])
 import numpy as np
-from hyperdrone import dynamics, render
-from hyperdrone.camera import CameraSpec, RGB, Depth
+from hyperdrone import dynamics
+import hyperlux
+from hyperlux.camera import CameraSpec, RGB, Depth
 from test_env import make_room
 
 num_drones = 4
 scene = make_room()
 sim = dynamics.Sim(num_drones=num_drones, device="cuda")
-renderer = render.Renderer(width=32, height=32, batch_size=num_drones, cameras=(CameraSpec("camera", outputs=(RGB(format="rgba8"),)),), fidelity="low")
+renderer = hyperlux.HyperLux(width=32, height=32, batch_size=num_drones, cameras=(CameraSpec("camera", outputs=(RGB(format="rgba8"),)),), fidelity="low")
 renderer.init(scene)
 assert renderer.backend == "optix" and sim.device == "cuda"
 
@@ -64,7 +65,7 @@ print("DEVICE HANDOFF OK")
 
 
 @pytest.mark.skipif(
-    render._backend() != "optix" or not cuda_available(),
+    hyperlux.backend() != "optix" or not cuda_available(),
     reason="device hand-off requires the OptiX render backend and a CUDA driver",
 )
 def test_device_camera_handoff_matches_host():

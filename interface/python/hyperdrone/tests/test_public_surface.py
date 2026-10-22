@@ -1,6 +1,6 @@
-"""The public surface is locked: every name a subpackage exports is listed here, and
-changing the surface means editing this lock in the same commit — deliberate and
-reviewable. Additions fail this test just like removals.
+"""The public surface is locked: every name a module exports is listed here, and changing the
+surface means editing this lock in the same commit — deliberate and reviewable. Additions fail
+this test just like removals.
 """
 import importlib
 import inspect
@@ -8,35 +8,7 @@ import inspect
 import pytest
 
 SURFACE = {
-    "hyperdrone": ["Config", "HyperDrone", "Rotorcraft", "articulate", "set_verbosity", "verbosity"],
-    "hyperdrone.camera": ["CameraSpec", "RGB", "Depth", "Segmentation", "Normals", "Flow", "FlowStatus", "Probes", "ImageObservation", "OutputDescriptor"],
-    "hyperdrone.render": [
-        "AGENT_SEGMENTATION_CLASS",
-        "AssetPool",
-        "FIDELITY",
-        "FlowStatus",
-        "ClearanceSampler",
-        "Config",
-        "Mesh",
-        "Object",
-        "ObjectAssembly",
-        "OverlayPlacement",
-        "PlacementBatch",
-        "Pose",
-        "Renderer",
-        "Scene",
-        "SceneLight",
-        "compose_transforms",
-        "datasets",
-        "load_assembly",
-        "load_object",
-        "load_scene",
-        "make_camera",
-        "make_transform",
-        "primitives",
-    ],
-    "hyperdrone.render.datasets": ["procthor"],
-    "hyperdrone.render.datasets.procthor": ["Train200"],
+    "hyperdrone": ["Config", "HyperDrone", "ImageObservation", "Rotorcraft", "articulate"],
     "hyperdrone.dynamics": [
         "IDENTITY_MOUNT",
         "MODELS",
@@ -68,25 +40,6 @@ def test_removed_env_names_point_to_the_root(name):
 
 
 SIGNATURES = {
-    "hyperdrone.render.Renderer": ("width", "height"),
-    "hyperdrone.render.Config": (),
-    "hyperdrone.render.OverlayPlacement": (),
-    "hyperdrone.render.Pose": ("base",),
-    "hyperdrone.render.ClearanceSampler": ("scene",),
-    "hyperdrone.render.ClearanceSampler.sample": ("count",),
-    "hyperdrone.render.make_camera": ("position", "look_at"),
-    "hyperdrone.render.load_scene": ("path",),
-    "hyperdrone.render.load_object": ("path",),
-    "hyperdrone.render.load_assembly": ("path",),
-    "hyperdrone.render.Renderer.init": ("scene",),
-    "hyperdrone.render.Renderer.camera": ("position", "look_at"),
-    "hyperdrone.render.Renderer.generate_cameras": (),
-    "hyperdrone.render.Renderer.set_cameras": ("cameras",),
-    "hyperdrone.render.Renderer.set_motion_blur_cameras": ("cameras_open", "cameras_close"),
-    "hyperdrone.render.Renderer.spawn": ("overlay", "asset", "pose"),
-    "hyperdrone.render.Renderer.set_pose": ("placement", "pose", "close"),
-    "hyperdrone.render.Renderer.placement_batch": ("placements",),
-    **{f"hyperdrone.render.Renderer.{name}": () for name in ("render", "probe", "spy")},
     "hyperdrone.dynamics.Sim": ("num_drones",),
     "hyperdrone.dynamics.Sim.reset": ("mask",),
     "hyperdrone.dynamics.Sim.step": ("actions",),
@@ -119,29 +72,8 @@ def test_keyword_only_signatures(name, allowed):
     assert all(parameter.kind != parameter.VAR_POSITIONAL for parameter in signature.parameters.values())
 
 
-@pytest.mark.parametrize("name", ["hyperdrone.render.make_camera", "hyperdrone.dynamics.Sim.camera_bases", "hyperdrone.dynamics.Sim.camera_bases_dlpack"])
+@pytest.mark.parametrize("name", ["hyperdrone.dynamics.Sim.camera_bases", "hyperdrone.dynamics.Sim.camera_bases_dlpack"])
 def test_camera_aspect_is_required(name):
     aspect = inspect.signature(_resolve(name)).parameters["aspect"]
     assert aspect.kind is inspect.Parameter.KEYWORD_ONLY
     assert aspect.default is inspect.Parameter.empty
-
-
-def test_native_options_are_keyword_only():
-    import numpy as np
-    from hyperdrone import render
-
-    vertices = np.zeros((3, 3), dtype=np.float32)
-    faces = np.array([[0, 1, 2]], dtype=np.int32)
-    calls = (
-        lambda: render.Mesh(vertices, faces, (1, 0, 0)),
-        lambda: render.Object("object", 7),
-        lambda: render.Scene().set_environment((0, 0, 0), (0, 0, 0)),
-        lambda: render.SceneLight.point((0, 0, 0), (1, 1, 1), (1, 0, 0)),
-        lambda: render.SceneLight.spot((0, 0, 0), (1, 0, 0), (1, 1, 1), 0.9, 0.8),
-        lambda: render.Object().remap_segmentation_classes({}, "custom", {}),
-        lambda: render.ObjectAssembly().remap_segmentation_classes({}, "custom", {}),
-        lambda: render.AssetPool().remap_segmentation_classes({}, "custom", {}),
-    )
-    for call in calls:
-        with pytest.raises(TypeError):
-            call()

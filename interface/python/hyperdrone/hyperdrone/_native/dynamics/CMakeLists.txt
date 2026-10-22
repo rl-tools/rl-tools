@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set(RLTOOLS_ROOT "" CACHE PATH "Path to the rl-tools source root")
-set(HYPERDRONE_VARIANT "CPU" CACHE STRING "Dynamics device (CPU|CUDA)")
+set(HYPERLUX_VARIANT "CPU" CACHE STRING "Dynamics device (CPU|CUDA)")
 
 if(NOT RLTOOLS_ROOT)
     message(FATAL_ERROR "RLTOOLS_ROOT must point to the rl-tools source root")
@@ -19,7 +19,7 @@ set(RL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO ON CACHE BOOL "" FORCE)
 set(RL_TOOLS_DISABLE_HYPERLUX ON CACHE BOOL "" FORCE)
 set(RL_TOOLS_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
 
-if(HYPERDRONE_VARIANT STREQUAL "CUDA")
+if(HYPERLUX_VARIANT STREQUAL "CUDA")
     # a normal variable before enable_language shadows the compiler default it caches, also in
     # trees configured before; CUDAARCHS overrides
     if(NOT DEFINED ENV{CUDAARCHS})
@@ -32,16 +32,16 @@ endif()
 
 add_subdirectory(${RLTOOLS_ROOT} rl_tools EXCLUDE_FROM_ALL)
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/hyperdrone_jit.cmake)
-hyperdrone_jit_find_nanobind()
+include(${HYPERLUX_NATIVE_ROOT}/cmake/hyperlux_jit.cmake)
+hyperlux_jit_find_nanobind()
 
 nanobind_add_module(hyperdrone_dynamics_core host.cpp)
-target_include_directories(hyperdrone_dynamics_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../common)
+target_include_directories(hyperdrone_dynamics_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../common ${HYPERLUX_NATIVE_ROOT}/common)
 target_link_libraries(hyperdrone_dynamics_core PRIVATE RLtools::RLtools ${CMAKE_DL_LIBS})
 set_target_properties(hyperdrone_dynamics_core PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 set(HYPERDRONE_DYNAMICS_EXTRA_LINK "")
-if(HYPERDRONE_VARIANT STREQUAL "CUDA")
+if(HYPERLUX_VARIANT STREQUAL "CUDA")
     find_package(CUDAToolkit REQUIRED)
     target_compile_definitions(hyperdrone_dynamics_core PRIVATE HYPERDRONE_DYNAMICS_CUDA=1)
     target_link_libraries(hyperdrone_dynamics_core PRIVATE CUDA::cudart)
@@ -56,7 +56,7 @@ else()
     endif()
 endif()
 
-hyperdrone_jit_add_configs(
+hyperlux_jit_add_configs(
     COMPONENT dynamics
     SOURCES impl.cpp
     LINK RLtools::RLtools ${HYPERDRONE_DYNAMICS_EXTRA_LINK}

@@ -7,8 +7,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from hyperdrone import render
-from hyperdrone.camera import CameraSpec, RGB, Segmentation
+import hyperlux
+from hyperlux.camera import CameraSpec, RGB, Segmentation
 from hyperdrone import Config, HyperDrone
 
 
@@ -59,7 +59,7 @@ def test_dataset_config():
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_shared_taxonomy_and_rotation(tmp_path, device):
-    if device == "cuda" and render._backend() != "optix":
+    if device == "cuda" and hyperlux.backend() != "optix":
         pytest.skip("CUDA Worlds require OptiX")
     first = room_glb(tmp_path / "first.glb")
     second = room_glb(tmp_path / "second.glb", extent=6)
@@ -155,7 +155,7 @@ def test_custom_world_metadata(tmp_path):
 """)
     header = tmp_path / "semantic.h"
     header.write_text(source)
-    from hyperdrone._jit import source_root
+    from hyperlux._jit import source_root
     asset = source_root() / "tests" / "data" / "x500.glb"
     if not asset.exists():
         pytest.skip("no x500 test asset")
@@ -164,7 +164,7 @@ def test_custom_world_metadata(tmp_path):
                            config=Config(spec_header=str(header), dataset="procthor", device="cpu"))
     try:
         assert env.segmentation_taxonomy == "ai2thor-hab"
-        agent = render.AGENT_SEGMENTATION_CLASS
+        agent = hyperlux.AGENT_SEGMENTATION_CLASS
         assert env.segmentation_classes == {**CLASSES, agent: "Agent"}
         env.reset()
         env.render()
