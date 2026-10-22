@@ -969,7 +969,7 @@ NB_MODULE(HYPERLUX_MODULE_NAME, m){
             }
 #if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
             if(out.device_type() == 2){
-                self.leases.retain(reinterpret_cast<cudaStream_t>(stream), {hyperlux::lease(out)});
+                self.leases.retain(self.device_id, reinterpret_cast<cudaStream_t>(stream), {hyperlux::lease(out)});
             }
 #endif
         }, nb::arg("index"), nb::arg("out").noconvert(), nb::arg("field") = "", nb::arg("stream") = 0)
@@ -1027,7 +1027,7 @@ NB_MODULE(HYPERLUX_MODULE_NAME, m){
             }
             self.check_cameras_dims(cameras.ndim(), dims);
             self.set_cameras_device(cameras.data(), stream);
-            self.leases.retain(rlt::stream(self.device, self.renderer), {hyperlux::lease(cameras)});
+            self.leases.retain(self.device_id, rlt::stream(self.device, self.renderer), {hyperlux::lease(cameras)});
         }, nb::arg("cameras").noconvert(), nb::arg("stream") = 0)
         // benchmark fast path: index a pre-uploaded set without any per-call DLPack traffic
         .def("set_cameras_from_cuda_buffer", [](Renderer& self, hyperlux::CudaBuffer& buffer, size_t index, uintptr_t stream){
@@ -1047,12 +1047,12 @@ NB_MODULE(HYPERLUX_MODULE_NAME, m){
             }
             self.check_cameras_dims(cameras_close.ndim(), dims);
             self.set_motion_blur_cameras_device(cameras_open.data(), cameras_close.data(), stream);
-            self.leases.retain(rlt::stream(self.device, self.renderer), {hyperlux::lease(cameras_open), hyperlux::lease(cameras_close)});
+            self.leases.retain(self.device_id, rlt::stream(self.device, self.renderer), {hyperlux::lease(cameras_open), hyperlux::lease(cameras_close)});
         }, nb::arg("cameras_open").noconvert(), nb::arg("cameras_close").noconvert(), nb::arg("stream") = 0)
         .def("set_pose_batch_device", [](Renderer& self, PlacementBatch& batch, CudaFloats bases, std::optional<CudaFloats> scales, float scale, std::optional<CudaFloats> coordinates, std::optional<CudaFloats> bases_close, std::optional<CudaFloats> scales_close, float scale_close, std::optional<CudaFloats> coordinates_close, uintptr_t stream){
             const size_t columns = hyperlux::check_batch(batch.size(), batch.num_coordinates, bases, scales, coordinates, bases_close, scales_close, coordinates_close);
             self.set_pose_batch_device(batch, bases.data(), hyperlux::pointer(scales), scale, hyperlux::pointer(coordinates), columns, hyperlux::pointer(bases_close), hyperlux::pointer(scales_close), scale_close, hyperlux::pointer(coordinates_close), stream);
-            self.leases.retain(rlt::stream(self.device, self.renderer), {hyperlux::lease(bases), hyperlux::lease(scales), hyperlux::lease(coordinates), hyperlux::lease(bases_close), hyperlux::lease(scales_close), hyperlux::lease(coordinates_close)});
+            self.leases.retain(self.device_id, rlt::stream(self.device, self.renderer), {hyperlux::lease(bases), hyperlux::lease(scales), hyperlux::lease(coordinates), hyperlux::lease(bases_close), hyperlux::lease(scales_close), hyperlux::lease(coordinates_close)});
         }, nb::arg("batch"), nb::arg("bases").noconvert(), nb::arg("scales").none().noconvert(), nb::arg("scale"), nb::arg("coordinates").none().noconvert(), nb::arg("bases_close").none().noconvert(), nb::arg("scales_close").none().noconvert(), nb::arg("scale_close"), nb::arg("coordinates_close").none().noconvert(), nb::arg("stream") = 0);
 #endif
 }

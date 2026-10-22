@@ -46,7 +46,7 @@ namespace HYPERLUX_MODULE_NAME {
     void retain(Environment& self, bool resident, const ARRAY& array){
 #if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
         if(CUDA_WORLD && resident){
-            self.leases.retain(reinterpret_cast<cudaStream_t>(self.stream()), {hyperlux::lease(array)});
+            self.leases.retain(self.device_id(), reinterpret_cast<cudaStream_t>(self.stream()), {hyperlux::lease(array)});
         }
 #endif
     }
@@ -218,7 +218,7 @@ NB_MODULE(HYPERLUX_MODULE_NAME, m){
             }
 #if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
             if(out.device_type() == 2){
-                self.leases.retain(reinterpret_cast<cudaStream_t>(stream), {hyperlux::lease(out)});
+                self.leases.retain(self.device_id(), reinterpret_cast<cudaStream_t>(stream), {hyperlux::lease(out)});
             }
 #endif
         }, nb::arg("index"), nb::arg("out").noconvert(), nb::arg("field") = "", nb::arg("stream") = 0)

@@ -327,7 +327,7 @@ def test_cpu_cuda_sampled_resets_are_identical():
 
 
 CUDA_HANDOFF = r'''
-import ctypes, gc, json, time
+import ctypes, gc, json, sys, time
 import numpy as np
 from hyperdrone import dynamics
 from hyperlux import _cuda
@@ -399,7 +399,7 @@ def test_cuda_consumer_ordering_and_input_lifetime():
 
 
 CUDA_LEASE = r'''
-import ctypes, sys, time
+import ctypes, gc, sys, time, weakref
 import numpy as np
 from hyperdrone import dynamics
 from hyperlux import _cuda
@@ -417,6 +417,11 @@ sim.step(uploaded.view())
 assert sys.getrefcount(uploaded.raw) > base, "the step's actions are leased until it completes"
 sim.synchronize()
 assert sys.getrefcount(uploaded.raw) == base, "synchronize releases completed leases"
+sim.step(sim.state_dlpack("orientation"), stream=sim.stream)
+wrapper = weakref.ref(sim)
+del sim
+gc.collect()
+assert wrapper() is None, "a lease on the sim's own buffers must not keep the wrapper alive"
 print("leases: OK")
 '''
 

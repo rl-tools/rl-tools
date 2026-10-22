@@ -4,6 +4,7 @@
 // producers: a DLPack import owns its storage independently of the producer, which may hand its
 // only reference to the consumer. nanobind-free so nvcc-compiled owners can hold one.
 #include <cuda_runtime.h>
+#include "cuda_device.h"
 
 #include <deque>
 #include <initializer_list>
@@ -45,9 +46,11 @@ namespace hyperlux {
             return released;
         }
 
-        // keeps the arrays alive until the work enqueued on stream so far completes; when the event
-        // cannot be recorded, waits for that work so dropping them is safe
-        void retain(cudaStream_t stream, std::initializer_list<std::shared_ptr<void>> arrays){
+        // keeps the arrays alive until the work enqueued on stream (of the owner's GPU `device`, where
+        // 0 is its default stream) so far completes; when the event cannot be recorded, waits for
+        // that work so dropping them is safe
+        void retain(int device, cudaStream_t stream, std::initializer_list<std::shared_ptr<void>> arrays){
+            const CurrentCudaDevice current(device);
             cudaEvent_t event = nullptr;
             try {
                 if(spare_events.empty()){

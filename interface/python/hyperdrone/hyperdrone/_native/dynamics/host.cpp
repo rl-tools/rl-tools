@@ -235,7 +235,7 @@ NB_MODULE(hyperdrone_dynamics_core, m){
                 throw std::invalid_argument("hyperdrone: actions must have shape (num_drones, action_dim) and dtype float32");
             }
             jit->step(actions.data(), 2, stream);
-            jit.leases.retain(reinterpret_cast<cudaStream_t>(jit->stream()), {hyperlux::lease(actions)});
+            jit.leases.retain(jit->buffer_device_id(), reinterpret_cast<cudaStream_t>(jit->stream()), {hyperlux::lease(actions)});
         }, nb::arg("actions"), nb::arg("stream") = 0);
 #else
     m.attr("HAS_CUDA") = false;

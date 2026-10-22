@@ -136,12 +136,22 @@ class Sim:
     def synchronize(self):
         self._sim.synchronize()
 
+    def __del__(self):
+        native = getattr(self, "_sim", None)
+        if native is not None:
+            # a lease on the sim's own buffers retains the native sim until a drain releases it
+            native.synchronize()
+
+    # buffers reference the native sim, never this wrapper: an imported buffer stays alive inside the
+    # native lease queue, where a reference back to the wrapper would be invisible to the collector
     def _buffer(self, producer):
-        return _DLPackBuffer(self, producer, self._sim.buffer_device_type, self._sim.buffer_device_id, self._sim.order_consumer)
+        native = self._sim
+        return _DLPackBuffer(native, producer, native.buffer_device_type, native.buffer_device_id, native.order_consumer)
 
     def state_dlpack(self, name):
         component, _ = STATE_COMPONENTS[name]
-        return self._buffer(lambda: self._sim.state_dlpack(component))
+        native = self._sim
+        return self._buffer(lambda: native.state_dlpack(component))
 
     def observe_dlpack(self):
         self._sim.update_observations()
