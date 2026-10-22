@@ -27,7 +27,7 @@ def native_root():
 
 
 def source_root():
-    """rl-tools source root: env override, enclosing repository checkout, vendored tree."""
+    """rl-tools source root: env override, the vendored tree of an installed distribution, the enclosing checkout of an editable install."""
     env = os.environ.get("HYPERLUX_RLTOOLS_ROOT")
     if env:
         root = Path(env).resolve()
@@ -37,17 +37,17 @@ def source_root():
                 "(include/rl_tools missing)"
             )
         return root
+    vendored = package_root() / "_vendor" / "rl-tools"
+    if (vendored / "include" / "rl_tools").is_dir():
+        return vendored
     candidate = package_root()
     for _ in range(8):
         if (candidate / "include" / "rl_tools").is_dir():
             return candidate
         candidate = candidate.parent
-    vendored = package_root() / "_vendor" / "rl-tools"
-    if (vendored / "include" / "rl_tools").is_dir():
-        return vendored
     raise BuildError(
-        "hyperlux: rl-tools sources not found (no enclosing repository checkout and no "
-        "vendored tree; set HYPERLUX_RLTOOLS_ROOT to an rl-tools source root)"
+        "hyperlux: rl-tools sources not found (no vendored tree and no enclosing repository "
+        "checkout; set HYPERLUX_RLTOOLS_ROOT to an rl-tools source root)"
     )
 
 

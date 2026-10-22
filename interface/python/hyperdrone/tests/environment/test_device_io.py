@@ -1,6 +1,9 @@
 """The device-resident environment on OptiX: CUDA arrays are read and written in place on the
 environment's stream and agree bit-exactly with the host (numpy) path."""
+import ctypes
 import os
+import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -71,6 +74,23 @@ def test_uploaded_actions_match_host_actions(pair):
         device.step(cuda.upload(actions[None]).view(0))
         host.step(actions)
         assert_same_state(device, host)
+
+
+def test_device_actions_stay_leased_until_the_step_completes(pair):
+    device, _ = pair
+    device.reset()
+    actions = np.zeros((1, device.total_instances, device.action_dim), dtype=np.float32)
+    control, uploaded = cuda.upload(actions), cuda.upload(actions)
+    base = sys.getrefcount(control.raw)
+    runtime = ctypes.CDLL("libcudart.so")
+    callback_type = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
+    runtime.cudaLaunchHostFunc.argtypes = [ctypes.c_void_p, callback_type, ctypes.c_void_p]
+    delay = callback_type(lambda _: time.sleep(0.2))
+    assert runtime.cudaLaunchHostFunc(ctypes.c_void_p(device.stream), delay, None) == 0
+    device.step(uploaded.view(0))
+    assert sys.getrefcount(uploaded.raw) > base
+    device.synchronize()
+    assert sys.getrefcount(uploaded.raw) == base
 
 
 def test_cuda_arrays_in_place_on_the_bound_stream(pair, cupy):

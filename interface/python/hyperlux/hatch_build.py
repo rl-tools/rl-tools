@@ -1,8 +1,7 @@
-"""sdist self-containment: snapshot the required subset of the rl-tools repository into
-hyperlux/_vendor/rl-tools so `pip install hyperlux` works without a checkout. The
-manifest is explicit — never "copy everything". Wheels built directly from a checkout skip
-vendoring (they are for local use where the checkout exists); release wheels are built
-from the sdist, where the vendored tree is already on disk."""
+"""Distribution self-containment: snapshot the required subset of the rl-tools repository into
+hyperlux/_vendor/rl-tools so an installed hyperlux compiles against its own sources, whether it
+came from an sdist, a release wheel or a wheel pip built straight from a checkout. The manifest is
+explicit — never "copy everything". Editable installs skip vendoring and use the checkout."""
 from pathlib import Path
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
@@ -20,7 +19,7 @@ VENDOR_MANIFEST = (
 
 class VendorRlToolsHook(BuildHookInterface):
     def initialize(self, version, build_data):
-        if self.target_name != "sdist":
+        if version == "editable":
             return
         repository = self._repository_root()
         if repository is None:

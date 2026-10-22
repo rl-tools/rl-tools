@@ -137,7 +137,6 @@ class HyperLux:
         if native is not None:
             # Imported leases can retain the native renderer through its own output buffers.
             native.synchronize()
-            native.release_inputs()
 
     @property
     def width(self):
@@ -245,19 +244,16 @@ class HyperLux:
 
     def render(self):
         self._renderer.render()
-        self._renderer.release_inputs()
 
     def render_launch(self):
         self._renderer.render_launch()
 
     def render_sync(self):
         self._renderer.render_sync()
-        self._renderer.release_inputs()
 
     def probe(self):
         self._require_probes()
         self._renderer.probe()
-        self._renderer.release_inputs()
 
     def probe_launch(self):
         self._require_probes()
@@ -266,11 +262,9 @@ class HyperLux:
     def probe_sync(self):
         self._require_probes()
         self._renderer.probe_sync()
-        self._renderer.release_inputs()
 
     def synchronize(self):
         self._renderer.synchronize()
-        self._renderer.release_inputs()
 
     def update(self):
         """Publish pending overlay changes (attach/detach/spawn/despawn and the transform

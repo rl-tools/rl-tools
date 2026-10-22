@@ -18,6 +18,11 @@ esac
 
 PYTHON_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 REPOSITORY_DIR="$(cd "${PYTHON_DIR}/../.." && pwd)"
+SCENE="${REPOSITORY_DIR}/tests/data/ProcTHOR-Train-1.glb"
+if [[ ! -f "${SCENE}" ]]; then
+    echo "test scene missing: ${SCENE} (run tests/download_data.sh)" >&2
+    exit 1
+fi
 PYTHON="${REPOSITORY_DIR}/.venv/bin/python"
 if [[ ! -x "${PYTHON}" ]]; then
     python3 -m venv "${REPOSITORY_DIR}/.venv"
@@ -39,7 +44,7 @@ fi
 "${PYTHON}" -m build "${PYTHON_DIR}/hyperdrone" --outdir "${RELEASE_DIR}"
 "${PYTHON}" -m twine check "${RELEASE_DIR}"/*
 
-# rehearsal: install the wheels just built (a hyperdrone post-release takes hyperlux from the index)
+# rehearsal: install the wheels just built (a hyperdrone post-release takes hyperlux from the index) and smoke their native components
 SCRATCH="$(mktemp -d)"
 trap 'rm -rf "${SCRATCH}"' EXIT
 python3 -m venv "${SCRATCH}/venv"
@@ -49,6 +54,7 @@ else
     "${SCRATCH}/venv/bin/pip" install -q "${RELEASE_DIR}"/hyperlux-*.whl "${RELEASE_DIR}"/hyperdrone-*.whl
 fi
 "${SCRATCH}/venv/bin/python" -c "import hyperdrone, hyperlux; assert hyperlux.__version__ == '${HYPERLUX_VERSION}', hyperlux.__version__"
+(cd / && env -u HYPERLUX_RLTOOLS_ROOT HYPERLUX_BACKEND=GENERIC HYPERLUX_CACHE_DIR="${SCRATCH}/cache" "${SCRATCH}/venv/bin/python" "${PYTHON_DIR}/scripts/smoke.py" --vendored --scene "${SCENE}")
 echo "Release artifacts: ${RELEASE_DIR}"
 
 if [[ "${MODE}" == "--build-only" ]]; then

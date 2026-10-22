@@ -4,6 +4,8 @@
 
 #include <array>
 #include <cstring>
+#include <memory>
+#include <optional>
 #include <stdexcept>
 
 namespace hyperlux {
@@ -24,6 +26,16 @@ namespace hyperlux {
         else {
             throw std::invalid_argument("hyperlux: transform must have shape (12,) or (3, 4)");
         }
+    }
+
+    // a lease on an imported array for DeviceLeases: the copy keeps the DLPack import alive
+    template <typename... ARGS>
+    std::shared_ptr<void> lease(const nb::ndarray<ARGS...>& array){
+        return std::shared_ptr<void>(new nb::ndarray<ARGS...>(array), [](void* pointer){ delete static_cast<nb::ndarray<ARGS...>*>(pointer); });
+    }
+    template <typename ARRAY>
+    std::shared_ptr<void> lease(const std::optional<ARRAY>& array){
+        return array.has_value() ? lease(*array) : nullptr;
     }
 
     inline nb::ndarray<nb::numpy, float> make_owned_array(const float* values, std::initializer_list<size_t> shape){

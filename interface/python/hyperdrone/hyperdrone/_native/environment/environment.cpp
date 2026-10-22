@@ -41,6 +41,24 @@ namespace HYPERLUX_MODULE_NAME {
         return cuda == CUDA_WORLD;
     }
 
+    // a resident array stays leased until the stream is done with it
+    template <typename ARRAY>
+    void retain(Environment& self, bool resident, const ARRAY& array){
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
+        if(CUDA_WORLD && resident){
+            self.leases.retain(reinterpret_cast<cudaStream_t>(self.stream()), {hyperlux::lease(array)});
+        }
+#endif
+    }
+
+    size_t release_leases(Environment& self){
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
+        return self.leases.release();
+#else
+        return 0;
+#endif
+    }
+
     nb::dict layout_dict(const ObservationLayout& layout){
         nb::list shape;
         for(TI dimension : layout.shape){
@@ -61,8 +79,11 @@ namespace HYPERLUX_MODULE_NAME {
     void bind_output(nb::class_<Environment>& environment_class, const char* name){
         environment_class.def(name, [](Environment& self, FloatOutput out){
             const bool in_place = resident(self, out, TOTAL * DIM);
-            nb::gil_scoped_release release;
-            (self.*VERB)(out.data(), in_place);
+            {
+                nb::gil_scoped_release release;
+                (self.*VERB)(out.data(), in_place);
+            }
+            retain(self, in_place, out);
         }, nb::arg("out").noconvert());
     }
 
@@ -141,18 +162,27 @@ NB_MODULE(HYPERLUX_MODULE_NAME, m){
         .def("reset", [](Environment& self, std::optional<Mask> mask, const std::string& spawn_points){
             const bool in_place = !mask || resident(self, *mask, TOTAL);
             const bool* pointer = mask ? mask->data() : nullptr;
-            nb::gil_scoped_release release;
-            self.reset(pointer, in_place, spawn_points);
+            {
+                nb::gil_scoped_release release;
+                self.reset(pointer, in_place, spawn_points);
+            }
+            retain(self, in_place && mask.has_value(), mask.value_or(Mask{}));
         }, nb::arg("mask").none().noconvert(), nb::arg("spawn_points") = "")
         .def("step", [](Environment& self, Actions actions){
             const bool in_place = resident(self, actions, TOTAL * WORLD::ACTION_DIM);
-            nb::gil_scoped_release release;
-            self.step(actions.data(), in_place);
+            {
+                nb::gil_scoped_release release;
+                self.step(actions.data(), in_place);
+            }
+            retain(self, in_place, actions);
         }, nb::arg("actions").noconvert())
         .def("terminated", [](Environment& self, FlagsOutput out){
             const bool in_place = resident(self, out, TOTAL);
-            nb::gil_scoped_release release;
-            self.terminated(out.data(), in_place);
+            {
+                nb::gil_scoped_release release;
+                self.terminated(out.data(), in_place);
+            }
+            retain(self, in_place, out);
         }, nb::arg("out").noconvert())
         .def_prop_rw("stream", [](const Environment& self){ return self.stream(); }, [](Environment& self, uintptr_t stream){
             if(!CUDA_WORLD){
@@ -165,7 +195,14 @@ NB_MODULE(HYPERLUX_MODULE_NAME, m){
         .def("spy_open", &Environment::spy_open, nb::call_guard<nb::gil_scoped_release>())
         .def("spy_update", &Environment::spy_update, nb::call_guard<nb::gil_scoped_release>())
         .def("spy_close", &Environment::spy_close, nb::call_guard<nb::gil_scoped_release>())
-        .def("synchronize", &Environment::synchronize, nb::call_guard<nb::gil_scoped_release>())
+        .def("synchronize", [](Environment& self){
+            {
+                nb::gil_scoped_release release;
+                self.synchronize();
+            }
+            release_leases(self);
+        })
+        .def("release_leases", [](Environment& self){ return release_leases(self); })
         .def("render", &Environment::render, nb::call_guard<nb::gil_scoped_release>())
         .def("probe", &Environment::probe, nb::call_guard<nb::gil_scoped_release>())
         .def("output_metadata", [](Environment& self){ return hyperlux::output_metadata_dicts(self.output_metadata()); })
@@ -175,8 +212,15 @@ NB_MODULE(HYPERLUX_MODULE_NAME, m){
             if(out.device_type() == 2 && (metadata.device_type != 2 || out.device_id() != metadata.device_id)){
                 throw std::invalid_argument("hyperdrone: CUDA output destination must use the renderer's device");
             }
-            nb::gil_scoped_release release;
-            self.output_read(index, out.data(), out.device_type(), field, stream);
+            {
+                nb::gil_scoped_release release;
+                self.output_read(index, out.data(), out.device_type(), field, stream);
+            }
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
+            if(out.device_type() == 2){
+                self.leases.retain(reinterpret_cast<cudaStream_t>(stream), {hyperlux::lease(out)});
+            }
+#endif
         }, nb::arg("index"), nb::arg("out").noconvert(), nb::arg("field") = "", nb::arg("stream") = 0)
         .def("output_block", [](Environment& self, size_t index, size_t member, const std::string& field){
             OutputBlock block;

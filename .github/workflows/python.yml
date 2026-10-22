@@ -1,0 +1,27 @@
+name: Python packages
+
+on:
+  workflow_dispatch:
+  push:
+  pull_request:
+
+jobs:
+  generic:
+    runs-on: ubuntu-24.04
+    env:
+      HYPERLUX_BACKEND: GENERIC
+      HYPERLUX_BUILD_JOBS: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download test data
+        run: ./tests/download_data.sh
+      - name: Install both packages editable
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -e interface/python/hyperlux -e interface/python/hyperdrone pytest
+      - name: hyperlux tests
+        run: .venv/bin/pytest interface/python/hyperlux/tests
+      - name: hyperdrone tests
+        run: .venv/bin/pytest interface/python/hyperdrone/tests
+      - name: Distribution smoke
+        run: interface/python/scripts/test_sdist.sh

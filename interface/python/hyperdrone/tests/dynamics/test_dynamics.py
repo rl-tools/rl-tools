@@ -350,20 +350,26 @@ assert sim.camera_bases_dlpack(aspect=1.0).__dlpack_device__() == (2, 1)
 assert sim.observe_dlpack().__dlpack_device__() == (2, 1)
 consumer = ctypes.c_void_p()
 assert runtime.cudaStreamCreate(ctypes.byref(consumer)) == 0
+actions = np.full((4, 4), 0.1, dtype=np.float32)
+control = _cuda.upload(actions).raw
+base = sys.getrefcount(control)
+uploads = []
 for _ in range(100):
-    actions = np.full((4, 4), 0.1, dtype=np.float32)
-    uploaded = _cuda.upload(actions).view()
-    assert uploaded.__dlpack_device__() == (2, 1)
-    sim.step(uploaded)
+    uploaded = _cuda.upload(actions)
+    assert uploaded.view().__dlpack_device__() == (2, 1)
+    sim.step(uploaded.view())
+    uploads.append(uploaded.raw)
     del uploaded
-assert len(sim._pending_inputs) == 100
+sim.synchronize()
+assert all(sys.getrefcount(raw) == base for raw in uploads)
 gc.collect()
 callback_type = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
 delay = callback_type(lambda _: time.sleep(0.1))
 runtime.cudaLaunchHostFunc.argtypes = [ctypes.c_void_p, callback_type, ctypes.c_void_p]
-last_actions = _cuda.upload(actions).view()
+last_actions = _cuda.upload(actions)
 assert runtime.cudaLaunchHostFunc(ctypes.c_void_p(sim.stream), delay, None) == 0
-sim.step(last_actions, stream=sim.stream)
+sim.step(last_actions.view(), stream=sim.stream)
+assert sys.getrefcount(last_actions.raw) > base + 1
 capsule = producer.__dlpack__(stream=consumer.value)
 managed = get_pointer(capsule, b"dltensor")
 data = ctypes.c_void_p.from_address(managed).value
@@ -371,7 +377,7 @@ copied = np.empty((4, 3), dtype=np.float32)
 assert runtime.cudaMemcpyAsync(copied.ctypes.data, data, copied.nbytes, 2, consumer) == 0
 assert runtime.cudaStreamSynchronize(consumer) == 0
 assert np.array_equal(copied, sim.state["position"])
-assert not sim._pending_inputs
+assert sys.getrefcount(last_actions.raw) == base + 1
 assert runtime.cudaStreamDestroy(consumer) == 0
 reference = dynamics.Sim(4, device="cuda")
 for _ in range(101):
@@ -390,3 +396,33 @@ def test_cuda_consumer_ordering_and_input_lifetime():
     run = subprocess.run([sys.executable, "-c", CUDA_HANDOFF], capture_output=True, text=True)
     assert run.returncode == 0, run.stdout + run.stderr
     assert json.loads(run.stdout.splitlines()[-1]) == {"ordinal": 1, "steps": 101}
+
+
+CUDA_LEASE = r'''
+import ctypes, sys, time
+import numpy as np
+from hyperdrone import dynamics
+from hyperlux import _cuda
+
+sim = dynamics.Sim(4, device="cuda")
+actions = np.full((4, sim.action_dim), 0.1, dtype=np.float32)
+control, uploaded = _cuda.upload(actions), _cuda.upload(actions)
+base = sys.getrefcount(control.raw)
+runtime = ctypes.CDLL("libcudart.so")
+callback_type = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
+runtime.cudaLaunchHostFunc.argtypes = [ctypes.c_void_p, callback_type, ctypes.c_void_p]
+delay = callback_type(lambda _: time.sleep(0.2))
+assert runtime.cudaLaunchHostFunc(ctypes.c_void_p(sim.stream), delay, None) == 0
+sim.step(uploaded.view())
+assert sys.getrefcount(uploaded.raw) > base, "the step's actions are leased until it completes"
+sim.synchronize()
+assert sys.getrefcount(uploaded.raw) == base, "synchronize releases completed leases"
+print("leases: OK")
+'''
+
+
+@pytest.mark.skipif(not cuda_available(), reason="CUDA driver not available")
+def test_device_actions_stay_leased_until_the_step_completes():
+    run = subprocess.run([sys.executable, "-c", CUDA_LEASE], capture_output=True, text=True)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert run.stdout.splitlines()[-1] == "leases: OK"

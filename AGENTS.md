@@ -9,7 +9,7 @@ Before starting any work, read `/infra/AGENTS.md` and follow its instructions. T
 
 Always use the `.venv` virtual environment. If it does not exist, create it with `python3 -m venv .venv`.
 
-Two packages live under `interface/python`: `hyperlux` (the renderer, the scene model and the JIT build infrastructure every native component uses) and `hyperdrone` (dynamics, environments, rigging), which pins `hyperlux` to its own version. Install both editable (`pip install -e interface/python/hyperlux -e interface/python/hyperdrone`); `interface/python/scripts/set_version.py` writes the shared version and `scripts/versions.py` checks it. The suites run separately (`pytest interface/python/hyperlux/tests`, `pytest interface/python/hyperdrone/tests`), both on `HYPERLUX_BACKEND=GENERIC` without a GPU.
+Two packages live under `interface/python`: `hyperlux` (the renderer, the scene model and the JIT build infrastructure every native component uses) and `hyperdrone` (dynamics, environments, rigging), which pins `hyperlux` to its own version. Install both editable (`pip install -e interface/python/hyperlux -e interface/python/hyperdrone`); `interface/python/scripts/set_version.py` writes the shared version and `scripts/versions.py` checks it. The suites run separately (`pytest interface/python/hyperlux/tests`, `pytest interface/python/hyperdrone/tests`), both on `HYPERLUX_BACKEND=GENERIC` without a GPU. `interface/python/scripts/smoke.py` is the one native smoke (render, dynamics, rotorcraft, environment) for an installed pair: `scripts/test_sdist.sh` runs it on the built sdists, `scripts/publish.sh` on the release wheels before uploading, and `.github/workflows/python.yml` runs both suites and the sdist test on GENERIC.
 
 ### CMake Configuration
 

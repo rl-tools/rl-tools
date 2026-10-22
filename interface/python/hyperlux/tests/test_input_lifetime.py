@@ -175,7 +175,7 @@ def test_export_owned_inputs_live_until_their_cuda_read_finishes(cuda_exports, i
             if completion == "poll":
                 deadline = time.monotonic() + 10
                 while len(cuda_exports.released) < len(inputs) and time.monotonic() < deadline:
-                    renderer._renderer.release_inputs()
+                    renderer._renderer.release_leases()
                     time.sleep(0.001)
             elif completion == "next_input":
                 submitted = len(inputs)
@@ -224,13 +224,33 @@ def test_wrapper_teardown_releases_inputs_owned_by_its_native_renderer(cuda_expo
     try:
         renderer.set_cameras(CameraView())
         assert cuda_exports.runtime.cudaEventQuery(cuda_exports.completed) == 600
-        assert native.release_inputs() == 0
+        assert native.release_leases() == 0
         cuda_exports.unblock()
         native.synchronize()
         renderer = None
         gc.collect()
-        assert native.release_inputs() == 0
+        assert native.release_leases() == 0
     finally:
         cuda_exports.unblock()
         native.synchronize()
-        native.release_inputs()
+        native.release_leases()
+
+
+@pytest.mark.skipif(hyperlux.backend() != "optix", reason="CUDA output destinations require OptiX")
+def test_export_owned_destinations_live_until_their_cuda_copy_finishes(cuda_exports):
+    renderer, _, _, _, _ = two_placements()
+    renderer.update()
+    renderer.render()
+    depth = renderer.outputs[Depth()]
+    destination = ExportOwnedCUDA(cuda_exports, np.zeros(depth.read().shape, dtype=np.float32))
+    cuda_exports.block(renderer.render_stream)
+    try:
+        depth.read(out=destination, stream=renderer.render_stream)
+        assert destination.allocation is None
+        assert cuda_exports.released == []
+        cuda_exports.unblock()
+        renderer.synchronize()
+        assert cuda_exports.released == [0]
+    finally:
+        cuda_exports.unblock()
+        renderer.synchronize()

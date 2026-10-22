@@ -20,7 +20,6 @@ class SimState:
         component, dim = STATE_COMPONENTS[name]
         out = np.empty((self._sim.num_drones, dim), dtype=np.float32)
         self._sim._sim.read_state(component, out)
-        self._sim._pending_inputs.clear()
         return out
 
     def __setitem__(self, name, values):
@@ -29,7 +28,6 @@ class SimState:
         if array.shape != (self._sim.num_drones, dim):
             raise ValueError(f"hyperdrone: state {name!r} must have shape ({self._sim.num_drones}, {dim})")
         self._sim._sim.set_state(component, array)
-        self._sim._pending_inputs.clear()
 
     def keys(self):
         return STATE_COMPONENTS.keys()
@@ -51,7 +49,6 @@ class Sim:
         self._sim = self._core.JitSim(str(library), self._config.canonical())
         nominal = resolve(json.loads(self._sim.parameters()), {} if parameters is None else parameters, self._core.model_json)
         self._sim.init(seed, json.dumps(nominal))
-        self._pending_inputs = []
         self.state = SimState(self)
 
     @property
@@ -109,7 +106,6 @@ class Sim:
 
     def reset(self, mask=None, *, sample_states=False):
         self._sim.reset(self._mask(mask), bool(sample_states))
-        self._pending_inputs.clear()
 
     def instance_parameters(self):
         return json.loads(self._sim.instance_parameters())
@@ -124,7 +120,6 @@ class Sim:
         current = self.instance_parameters()
         merged = [resolve(current[index], values, self._core.model_json) for index, values in zip(selected, overrides)]
         self._sim.set_instance_parameters(mask, json.dumps(merged))
-        self._pending_inputs.clear()
 
     def step(self, actions, *, stream=0):
         """Advance one dt with the configured control commands of shape (num_drones, action_dim)."""
@@ -132,7 +127,6 @@ class Sim:
             if self.device != "cuda":
                 raise RuntimeError("hyperdrone: device-resident actions require the cuda dynamics variant")
             self._sim.step_device(actions, int(stream))
-            self._pending_inputs.append(actions)
             return
         array = np.ascontiguousarray(np.asarray(actions), dtype=np.float32)
         if array.shape != (self.num_drones, self.action_dim):
@@ -141,7 +135,6 @@ class Sim:
 
     def synchronize(self):
         self._sim.synchronize()
-        self._pending_inputs.clear()
 
     def _buffer(self, producer):
         return _DLPackBuffer(self, producer, self._sim.buffer_device_type, self._sim.buffer_device_id, self._sim.order_consumer)
@@ -158,14 +151,12 @@ class Sim:
         """Rotor speeds (num_drones, num_rotors) in RPM, using each drone's max_rpm calibration."""
         out = np.empty((self.num_drones, self.num_rotors), dtype=np.float32)
         self._sim.read_rotor_rpm(out)
-        self._pending_inputs.clear()
         return out
 
     def observe(self):
         self._sim.update_observations()
         out = np.empty((self.num_drones, self.observation_dim), dtype=np.float32)
         self._sim.read_observations(out)
-        self._pending_inputs.clear()
         return out
 
     def camera_bases_dlpack(self, *, mount=None, fov=80.0, aspect):
@@ -182,5 +173,4 @@ class Sim:
         self.camera_bases_dlpack(mount=mount, fov=fov, aspect=aspect)
         out = np.empty((self.num_drones, 12), dtype=np.float32)
         self._sim.read_camera_bases(out)
-        self._pending_inputs.clear()
         return out

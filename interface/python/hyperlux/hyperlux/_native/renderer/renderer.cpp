@@ -16,14 +16,13 @@
 #if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
 #include "cuda_device.h"
 #include "cuda_staging.h"
+#include "device_leases.h"
 #include "set_pose_device.h"
 #endif
 
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
-#include <deque>
-#include <initializer_list>
 #include <memory>
 #include <set>
 #include <type_traits>
@@ -169,13 +168,8 @@ namespace HYPERLUX_MODULE_NAME {
 #endif
 #if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
         using CudaFloats = nanobind::ndarray<const float, nanobind::c_contig, nanobind::device::cuda>;
-        // device inputs the render stream has yet to read, oldest first: the imported arrays themselves, not their Python producers, because a DLPack import owns its storage independently of the producer (an exporter may hand its only reference to the import). Each call's arrays stay with the event recorded after their last GPU reader and are released once it completes: on the next device input, on a synchronizing verb, or at teardown after the renderer synchronizes
-        struct DeviceInputs {
-            cudaEvent_t ready;
-            std::vector<CudaFloats> arrays;
-        };
-        std::deque<DeviceInputs> inputs_in_flight;
-        std::vector<cudaEvent_t> spare_events;
+        // device inputs and CUDA output destinations a stream still uses; released on the next device input, on a verb that waits for the stream, or at teardown
+        hyperlux::DeviceLeases leases;
 #endif
         const std::vector<hyperlux::OutputMetadata> output_layouts = hyperlux::output_metadata<SPEC>();
 
@@ -206,13 +200,6 @@ namespace HYPERLUX_MODULE_NAME {
             {
                 nanobind::gil_scoped_release release;
                 rlt::synchronize(device, renderer);
-            }
-            for(const auto& inputs : inputs_in_flight){
-                cudaEventDestroy(inputs.ready);
-            }
-            inputs_in_flight.clear();
-            for(cudaEvent_t event : spare_events){
-                cudaEventDestroy(event);
             }
 #endif
             spy_close();
@@ -305,49 +292,14 @@ namespace HYPERLUX_MODULE_NAME {
             rlt::synchronize(device, renderer);
         }
 
-        // how many of the oldest calls with borrowed inputs the render stream is done with
-        size_t release_inputs() {
-            size_t released = 0;
+        // how many of the oldest leased batches the render stream is done with
+        size_t release_leases() {
 #if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
-            while(!inputs_in_flight.empty() && cudaEventQuery(inputs_in_flight.front().ready) == cudaSuccess){
-                spare_events.push_back(inputs_in_flight.front().ready);
-                inputs_in_flight.pop_front();
-                released++;
-            }
+            return leases.release();
+#else
+            return 0;
 #endif
-            return released;
         }
-#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
-        void retain_inputs(std::initializer_list<CudaFloats> arrays) {
-            cudaEvent_t event = nullptr;
-            try {
-                if(spare_events.empty()){
-                    if(cudaEventCreateWithFlags(&event, cudaEventDisableTiming) != cudaSuccess){
-                        throw std::runtime_error("hyperlux: cudaEventCreate failed");
-                    }
-                }
-                else {
-                    event = spare_events.back();
-                    spare_events.pop_back();
-                }
-                if(cudaEventRecord(event, rlt::stream(device, renderer)) != cudaSuccess){
-                    throw std::runtime_error("hyperlux: cudaEventRecord failed");
-                }
-                inputs_in_flight.push_back({event, arrays});
-            }
-            catch (...) {
-                {
-                    nanobind::gil_scoped_release release;
-                    cudaStreamSynchronize(rlt::stream(device, renderer));
-                }
-                if(event != nullptr){
-                    cudaEventDestroy(event);
-                }
-                throw;
-            }
-            release_inputs();
-        }
-#endif
 
         void spy_open(size_t camera) {
 #ifdef RL_TOOLS_HYPERLUX_ENABLE_SPY
@@ -938,6 +890,16 @@ namespace HYPERLUX_MODULE_NAME {
 #endif
         }
     };
+
+    // a verb that waits for the render stream releases the leases it completed
+    template <typename RENDERER, void (RENDERER::*VERB)()>
+    void synchronized(RENDERER& self){
+        {
+            nanobind::gil_scoped_release release;
+            (self.*VERB)();
+        }
+        self.release_leases();
+    }
 }
 
 namespace nb = nanobind;
@@ -969,8 +931,8 @@ NB_MODULE(HYPERLUX_MODULE_NAME, m){
         }, nb::arg("scene"), nb::arg("asset_pool").none() = nb::none(), nb::keep_alive<1, 2>(), nb::keep_alive<1, 3>())
         .def("update", &Renderer::update, nb::call_guard<nb::gil_scoped_release>())
         .def("update_launch", &Renderer::update_launch, nb::call_guard<nb::gil_scoped_release>())
-        .def("synchronize", &Renderer::synchronize, nb::call_guard<nb::gil_scoped_release>())
-        .def("release_inputs", &Renderer::release_inputs)
+        .def("synchronize", &HYPERLUX_MODULE_NAME::synchronized<Renderer, &Renderer::synchronize>)
+        .def("release_leases", &Renderer::release_leases)
         .def("spy_open", &Renderer::spy_open, nb::arg("camera") = 0, nb::call_guard<nb::gil_scoped_release>())
         .def("spy_update", &Renderer::spy_update, nb::call_guard<nb::gil_scoped_release>())
         .def("spy_close", &Renderer::spy_close, nb::call_guard<nb::gil_scoped_release>())
@@ -989,20 +951,27 @@ NB_MODULE(HYPERLUX_MODULE_NAME, m){
         .def("generate_probe_directions", &Renderer::generate_probe_directions)
         .def("advance_flow", &Renderer::advance_flow, nb::call_guard<nb::gil_scoped_release>())
         .def("advance_flow_launch", &Renderer::advance_flow_launch, nb::call_guard<nb::gil_scoped_release>())
-        .def("render", &Renderer::render, nb::call_guard<nb::gil_scoped_release>())
+        .def("render", &HYPERLUX_MODULE_NAME::synchronized<Renderer, &Renderer::render>)
         .def("render_launch", &Renderer::render_launch, nb::call_guard<nb::gil_scoped_release>())
-        .def("render_sync", &Renderer::render_sync, nb::call_guard<nb::gil_scoped_release>())
-        .def("probe", &Renderer::probe, nb::call_guard<nb::gil_scoped_release>())
+        .def("render_sync", &HYPERLUX_MODULE_NAME::synchronized<Renderer, &Renderer::render_sync>)
+        .def("probe", &HYPERLUX_MODULE_NAME::synchronized<Renderer, &Renderer::probe>)
         .def("probe_launch", &Renderer::probe_launch, nb::call_guard<nb::gil_scoped_release>())
-        .def("probe_sync", &Renderer::probe_sync, nb::call_guard<nb::gil_scoped_release>())
+        .def("probe_sync", &HYPERLUX_MODULE_NAME::synchronized<Renderer, &Renderer::probe_sync>)
         .def("output_metadata", [](const Renderer& self){ return hyperlux::output_metadata_dicts(self.output_metadata()); })
         .def("output_read", [](Renderer& self, size_t index, nb::ndarray<nb::c_contig> out, const std::string& field, uintptr_t stream){
             hyperlux::validate_output_array(hyperlux::output_layout(self.output_layouts.at(index), field), out);
             if(out.device_type() == 2 && out.device_id() != self.device_id){
                 throw std::invalid_argument("hyperlux: CUDA output destination must use the renderer device");
             }
-            nb::gil_scoped_release release;
-            self.output_read(index, out.data(), out.device_type(), field, stream);
+            {
+                nb::gil_scoped_release release;
+                self.output_read(index, out.data(), out.device_type(), field, stream);
+            }
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
+            if(out.device_type() == 2){
+                self.leases.retain(reinterpret_cast<cudaStream_t>(stream), {hyperlux::lease(out)});
+            }
+#endif
         }, nb::arg("index"), nb::arg("out").noconvert(), nb::arg("field") = "", nb::arg("stream") = 0)
         .def("output_block", [](Renderer& self, size_t index, size_t block, const std::string& field){
             if(block != 0){
@@ -1058,7 +1027,7 @@ NB_MODULE(HYPERLUX_MODULE_NAME, m){
             }
             self.check_cameras_dims(cameras.ndim(), dims);
             self.set_cameras_device(cameras.data(), stream);
-            self.retain_inputs({cameras});
+            self.leases.retain(rlt::stream(self.device, self.renderer), {hyperlux::lease(cameras)});
         }, nb::arg("cameras").noconvert(), nb::arg("stream") = 0)
         // benchmark fast path: index a pre-uploaded set without any per-call DLPack traffic
         .def("set_cameras_from_cuda_buffer", [](Renderer& self, hyperlux::CudaBuffer& buffer, size_t index, uintptr_t stream){
@@ -1078,12 +1047,12 @@ NB_MODULE(HYPERLUX_MODULE_NAME, m){
             }
             self.check_cameras_dims(cameras_close.ndim(), dims);
             self.set_motion_blur_cameras_device(cameras_open.data(), cameras_close.data(), stream);
-            self.retain_inputs({cameras_open, cameras_close});
+            self.leases.retain(rlt::stream(self.device, self.renderer), {hyperlux::lease(cameras_open), hyperlux::lease(cameras_close)});
         }, nb::arg("cameras_open").noconvert(), nb::arg("cameras_close").noconvert(), nb::arg("stream") = 0)
         .def("set_pose_batch_device", [](Renderer& self, PlacementBatch& batch, CudaFloats bases, std::optional<CudaFloats> scales, float scale, std::optional<CudaFloats> coordinates, std::optional<CudaFloats> bases_close, std::optional<CudaFloats> scales_close, float scale_close, std::optional<CudaFloats> coordinates_close, uintptr_t stream){
             const size_t columns = hyperlux::check_batch(batch.size(), batch.num_coordinates, bases, scales, coordinates, bases_close, scales_close, coordinates_close);
             self.set_pose_batch_device(batch, bases.data(), hyperlux::pointer(scales), scale, hyperlux::pointer(coordinates), columns, hyperlux::pointer(bases_close), hyperlux::pointer(scales_close), scale_close, hyperlux::pointer(coordinates_close), stream);
-            self.retain_inputs({bases, scales.value_or(CudaFloats{}), coordinates.value_or(CudaFloats{}), bases_close.value_or(CudaFloats{}), scales_close.value_or(CudaFloats{}), coordinates_close.value_or(CudaFloats{})});
+            self.leases.retain(rlt::stream(self.device, self.renderer), {hyperlux::lease(bases), hyperlux::lease(scales), hyperlux::lease(coordinates), hyperlux::lease(bases_close), hyperlux::lease(scales_close), hyperlux::lease(coordinates_close)});
         }, nb::arg("batch"), nb::arg("bases").noconvert(), nb::arg("scales").none().noconvert(), nb::arg("scale"), nb::arg("coordinates").none().noconvert(), nb::arg("bases_close").none().noconvert(), nb::arg("scales_close").none().noconvert(), nb::arg("scale_close"), nb::arg("coordinates_close").none().noconvert(), nb::arg("stream") = 0);
 #endif
 }

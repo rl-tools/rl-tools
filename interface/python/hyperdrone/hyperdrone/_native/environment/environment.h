@@ -35,6 +35,9 @@
 #include <memory>
 #include <functional>
 #include "output.h"
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
+#include "device_leases.h"
+#endif
 
 #if !defined(HYPERDRONE_ENVIRONMENT_NUM_WORLDS) || !defined(HYPERDRONE_ENVIRONMENT_INSTANCES) || !defined(HYPERDRONE_ENVIRONMENT_CAM_WIDTH) || !defined(HYPERDRONE_ENVIRONMENT_CAM_HEIGHT) || !defined(HYPERDRONE_ENVIRONMENT_SHADING) || !defined(HYPERDRONE_ENVIRONMENT_MB_SAMPLES) || !defined(HYPERDRONE_ENVIRONMENT_PRESET) || !defined(HYPERDRONE_ENVIRONMENT_TASK) || !defined(HYPERDRONE_ENVIRONMENT_N_AGENTS) || !defined(HYPERDRONE_ENVIRONMENT_N_CAMERA_AGENTS) || !defined(HYPERLUX_CAMERA_CONFIG_HEADER) || !defined(HYPERDRONE_ENVIRONMENT_DEVICE_CUDA) || !defined(HYPERDRONE_ENVIRONMENT_CONTROL) || !defined(HYPERDRONE_ENVIRONMENT_ACTUATION)
 #error "every HYPERDRONE_ENVIRONMENT_* configuration define must be set (hyperdrone.Config.defines())"
@@ -190,6 +193,9 @@ namespace HYPERLUX_MODULE_NAME {
 
     struct Environment {
         struct Impl;
+#if defined(RL_TOOLS_HYPERLUX_BACKEND_OPTIX)
+        hyperlux::DeviceLeases leases;
+#endif
         std::shared_ptr<Impl> impl;
         Environment();
         ~Environment();

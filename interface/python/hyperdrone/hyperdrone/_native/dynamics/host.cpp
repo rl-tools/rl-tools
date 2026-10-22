@@ -16,7 +16,9 @@
 #include <string>
 
 #if defined(HYPERDRONE_DYNAMICS_CUDA)
+#include "bindings.h"
 #include "cuda_staging.h"
+#include "device_leases.h"
 #include <cuda_runtime.h>
 #endif
 
@@ -24,6 +26,9 @@ namespace nb = nanobind;
 namespace hdd = hyperdrone::dynamics;
 
 struct JitSim {
+#if defined(HYPERDRONE_DYNAMICS_CUDA)
+    hyperlux::DeviceLeases leases;
+#endif
     hyperdrone::JitInstance<hdd::Sim> instance;
 
     JitSim(const std::string& path, const std::string& expected_config)
@@ -37,6 +42,14 @@ struct JitSim {
         }
         return component == 4 ? instance.instance->config().num_rotors
                               : (size_t)hdd::state_component_dims[component];
+    }
+
+    size_t release_leases(){
+#if defined(HYPERDRONE_DYNAMICS_CUDA)
+        return leases.release();
+#else
+        return 0;
+#endif
     }
 
     void copy_out(const float* source, float* destination, size_t count) const {
@@ -97,9 +110,13 @@ NB_MODULE(hyperdrone_dynamics_core, m){
         .def("order_consumer", [](JitSim& jit, uintptr_t stream){ jit->order_consumer(stream); })
         .def_prop_ro("stream", [](const JitSim& jit){ return (uintptr_t)jit->stream(); })
         .def("synchronize", [](JitSim& jit){
-            nb::gil_scoped_release release;
-            jit->synchronize();
+            {
+                nb::gil_scoped_release release;
+                jit->synchronize();
+            }
+            jit.release_leases();
         })
+        .def("release_leases", &JitSim::release_leases)
         .def("parameters", [](JitSim& jit){ return jit->parameters_json(); })
         .def("init", [](JitSim& jit, uint64_t seed, const std::string& parameters){ jit->init(seed, parameters); })
         .def("reset", [](JitSim& jit, HostMask mask, bool sample_states){
@@ -136,8 +153,11 @@ NB_MODULE(hyperdrone_dynamics_core, m){
             if(out.size() != config.num_drones * dim){
                 throw std::invalid_argument("hyperdrone: output array has the wrong size for this state component");
             }
-            nb::gil_scoped_release release;
-            jit.copy_out(jit->state_buffer(component), out.data(), config.num_drones * dim);
+            {
+                nb::gil_scoped_release release;
+                jit.copy_out(jit->state_buffer(component), out.data(), config.num_drones * dim);
+            }
+            jit.release_leases();
         }, nb::arg("component"), nb::arg("out"))
         .def("set_state", [](JitSim& jit, int component, HostFloatArray values){
             const hdd::Config config = jit->config();
@@ -153,8 +173,11 @@ NB_MODULE(hyperdrone_dynamics_core, m){
             if(out.size() != (size_t)config.num_drones * config.num_rotors){
                 throw std::invalid_argument("hyperdrone: rotor rpm output must have num_drones * num_rotors elements");
             }
-            nb::gil_scoped_release release;
-            jit->read_rotor_rpm(out.data());
+            {
+                nb::gil_scoped_release release;
+                jit->read_rotor_rpm(out.data());
+            }
+            jit.release_leases();
         }, nb::arg("out"))
         .def("update_observations", [](JitSim& jit){
             nb::gil_scoped_release release;
@@ -170,8 +193,11 @@ NB_MODULE(hyperdrone_dynamics_core, m){
             if(out.size() != (size_t)config.num_drones * config.observation_dim){
                 throw std::invalid_argument("hyperdrone: observations output must have num_drones * observation_dim elements");
             }
-            nb::gil_scoped_release release;
-            jit.copy_out(jit->observation_buffer(), out.data(), (size_t)config.num_drones * config.observation_dim);
+            {
+                nb::gil_scoped_release release;
+                jit.copy_out(jit->observation_buffer(), out.data(), (size_t)config.num_drones * config.observation_dim);
+            }
+            jit.release_leases();
         }, nb::arg("out"))
         .def("update_camera_bases", [](JitSim& jit, HostFloatArray mount, float fov, float aspect){
             if(mount.size() != 12){
@@ -190,8 +216,11 @@ NB_MODULE(hyperdrone_dynamics_core, m){
             if(out.size() != (size_t)config.num_drones * 12){
                 throw std::invalid_argument("hyperdrone: camera bases output must have num_drones * 12 elements");
             }
-            nb::gil_scoped_release release;
-            jit.copy_out(jit->camera_bases_buffer(), out.data(), (size_t)config.num_drones * 12);
+            {
+                nb::gil_scoped_release release;
+                jit.copy_out(jit->camera_bases_buffer(), out.data(), (size_t)config.num_drones * 12);
+            }
+            jit.release_leases();
         }, nb::arg("out"));
 
 #if defined(HYPERDRONE_DYNAMICS_CUDA)
@@ -206,6 +235,7 @@ NB_MODULE(hyperdrone_dynamics_core, m){
                 throw std::invalid_argument("hyperdrone: actions must have shape (num_drones, action_dim) and dtype float32");
             }
             jit->step(actions.data(), 2, stream);
+            jit.leases.retain(reinterpret_cast<cudaStream_t>(jit->stream()), {hyperlux::lease(actions)});
         }, nb::arg("actions"), nb::arg("stream") = 0);
 #else
     m.attr("HAS_CUDA") = false;

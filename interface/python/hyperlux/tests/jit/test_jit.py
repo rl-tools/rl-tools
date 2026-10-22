@@ -184,3 +184,19 @@ def test_native_host_targets_have_separate_workspaces(monkeypatch):
     older_gpu = _workspace.workspace_tag(component)
     monkeypatch.setattr(_workspace, "cuda_target", lambda: "12.0")
     assert _workspace.workspace_tag(component) != older_gpu
+
+
+def test_source_root_prefers_override_then_vendored_tree_then_enclosing_checkout(tmp_path, monkeypatch):
+    checkout = tmp_path / "checkout"
+    package = checkout / ".venv" / "site-packages" / "hyperlux"
+    (checkout / "include" / "rl_tools").mkdir(parents=True)
+    package.mkdir(parents=True)
+    monkeypatch.delenv("HYPERLUX_RLTOOLS_ROOT", raising=False)
+    monkeypatch.setattr(jit._workspace, "package_root", lambda: package)
+    assert jit.source_root() == checkout
+    (package / "_vendor" / "rl-tools" / "include" / "rl_tools").mkdir(parents=True)
+    assert jit.source_root() == package / "_vendor" / "rl-tools"
+    override = tmp_path / "override"
+    (override / "include" / "rl_tools").mkdir(parents=True)
+    monkeypatch.setenv("HYPERLUX_RLTOOLS_ROOT", str(override))
+    assert jit.source_root() == override.resolve()

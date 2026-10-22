@@ -24,10 +24,10 @@ From an rl-tools checkout (development):
 .venv/bin/pip install -e interface/python/hyperlux
 ```
 
-From an sdist (self-contained — bundles the rl-tools headers and the HyperLux sources, no checkout needed):
+From PyPI, a wheel or an sdist (all self-contained: they bundle the rl-tools headers and the HyperLux sources, so no checkout is needed and an installed package never compiles against one):
 
 ```bash
-pip install hyperlux-<version>.tar.gz
+pip install hyperlux
 ```
 
 Install the dependencies used by the packaged examples with:
