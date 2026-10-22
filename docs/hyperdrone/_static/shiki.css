@@ -1,0 +1,37 @@
+.highlight pre.shiki,
+.highlight pre.shiki span {
+    color: var(--shiki-light);
+    background-color: var(--shiki-light-bg);
+}
+
+.shiki .semantic-module,
+.shiki .semantic-module span {
+    --shiki-light: #001080 !important;
+    --shiki-dark: #9cdcfe !important;
+}
+
+.shiki .semantic-class,
+.shiki .semantic-class span {
+    --shiki-light: #267f99 !important;
+    --shiki-dark: #4ec9b0 !important;
+}
+
+.shiki .semantic-function,
+.shiki .semantic-function span {
+    --shiki-light: #795e26 !important;
+    --shiki-dark: #dcdcaa !important;
+}
+
+body[data-theme="dark"] .highlight pre.shiki,
+body[data-theme="dark"] .highlight pre.shiki span {
+    color: var(--shiki-dark);
+    background-color: var(--shiki-dark-bg);
+}
+
+@media (prefers-color-scheme: dark) {
+    body:not([data-theme="light"]) .highlight pre.shiki,
+    body:not([data-theme="light"]) .highlight pre.shiki span {
+        color: var(--shiki-dark);
+        background-color: var(--shiki-dark-bg);
+    }
+}
