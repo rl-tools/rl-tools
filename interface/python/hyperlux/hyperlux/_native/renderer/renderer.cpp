@@ -1,5 +1,6 @@
 #include "renderer_config.h"
 #include <rl_tools/hyperlux/datasets/operations_cpu.h>
+#include <rl_tools/hyperlux/datasets/annotations/operations_cpu.h>
 #include <hyperlux/camera_orbit.h>
 #ifdef RL_TOOLS_HYPERLUX_ENABLE_SPY
 #include <rl_tools/hyperlux/spy/operations_cpu.h>
@@ -501,6 +502,19 @@ namespace HYPERLUX_MODULE_NAME {
             }
         }
 
+        // the scan stages its own candidate cameras, so the camera tensor is consumed
+        std::vector<rrt::datasets::annotations::FreeSpacePosition<T>> annotate_free_space(const rrt::datasets::annotations::FreeSpaceParameters<T, TI>& parameters, const std::string& cache_directory) {
+            require_init();
+            if constexpr (PROBES_ENABLED){
+                std::vector<rrt::datasets::annotations::FreeSpacePosition<T>> table;
+                rrt::datasets::annotations::annotate(device, table, scene_metadata, renderer, parameters, rrt::datasets::annotations::Cache{cache_directory});
+                return table;
+            }
+            else {
+                throw std::runtime_error("hyperlux: this renderer was compiled without collision probes (num_probes=0)");
+            }
+        }
+
         std::vector<hyperlux::OutputMetadata> output_metadata() const {
             auto result = output_layouts;
             for(auto& value: result){
@@ -957,6 +971,19 @@ NB_MODULE(HYPERLUX_MODULE_NAME, m){
         .def("probe", &HYPERLUX_MODULE_NAME::synchronized<Renderer, &Renderer::probe>)
         .def("probe_launch", &Renderer::probe_launch, nb::call_guard<nb::gil_scoped_release>())
         .def("probe_sync", &HYPERLUX_MODULE_NAME::synchronized<Renderer, &Renderer::probe_sync>)
+        .def("annotate_free_space", [](Renderer& self, const rrt::datasets::annotations::FreeSpaceParameters<HYPERLUX_MODULE_NAME::T, HYPERLUX_MODULE_NAME::TI>& parameters, const std::string& cache_directory){
+            std::vector<rrt::datasets::annotations::FreeSpacePosition<HYPERLUX_MODULE_NAME::T>> table;
+            {
+                nb::gil_scoped_release release;
+                table = self.annotate_free_space(parameters, cache_directory);
+            }
+            std::vector<float> values;
+            values.reserve(table.size() * 5);
+            for(const auto& position: table){
+                values.insert(values.end(), {position.position[0], position.position[1], position.position[2], position.yaw, position.score});
+            }
+            return make_owned_array(values.data(), {table.size(), 5});
+        }, nb::arg("parameters"), nb::arg("cache_directory"))
         .def("output_metadata", [](const Renderer& self){ return hyperlux::output_metadata_dicts(self.output_metadata()); })
         .def("output_read", [](Renderer& self, size_t index, nb::ndarray<nb::c_contig> out, const std::string& field, uintptr_t stream){
             hyperlux::validate_output_array(hyperlux::output_layout(self.output_layouts.at(index), field), out);

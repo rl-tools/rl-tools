@@ -44,7 +44,7 @@ from . import datasets, primitives
 from ._component import _backend as backend, component, load_core
 from ._config import FIDELITY, Config
 from ._renderer import OverlayPlacement, PlacementBatch, Pose, HyperLux
-from ._sampling import ClearanceSampler
+from ._sampling import FreeSpace
 from ._scene import (
     compose_transforms,
     load_assembly,
@@ -59,8 +59,9 @@ __all__ = [
     "AssetPool",
     "FIDELITY",
     "FlowStatus",
-    "ClearanceSampler",
     "Config",
+    "FreeSpace",
+    "FreeSpaceParameters",
     "HyperLux",
     "Mesh",
     "Object",
@@ -86,6 +87,6 @@ __all__ = [
 def __getattr__(name):
     # bound classes come from the lazily-built core module so that importing hyperlux stays
     # cheap and the first compile happens on first use
-    if name in ("Scene", "Object", "ObjectAssembly", "AssetPool", "Mesh", "SceneLight", "AGENT_SEGMENTATION_CLASS"):
+    if name in ("Scene", "Object", "ObjectAssembly", "AssetPool", "Mesh", "SceneLight", "FreeSpaceParameters", "AGENT_SEGMENTATION_CLASS"):
         return getattr(load_core(), name)
     raise AttributeError(f"module 'hyperlux' has no attribute {name}")

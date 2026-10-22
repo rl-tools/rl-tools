@@ -376,26 +376,18 @@ namespace rl_tools::hyperlux::datasets::annotations {
         }
     }
 
-    template <typename DEVICE, typename SPEC, typename METADATA_T, typename PROBE, typename PARAMETERS_T, typename PARAMETERS_TI>
-    void annotate(DEVICE& device, FreeSpace<SPEC>& annotations, const hyperlux::SceneMetadata<METADATA_T>& metadata, PROBE& probe_target, const FreeSpaceParameters<PARAMETERS_T, PARAMETERS_TI>& parameters) {
-        std::vector<FreeSpacePosition<typename SPEC::T>> table;
-        free_space::scan(device, table, metadata, probe_target, parameters);
-        free_space::fill(device, table, parameters, annotations);
-    }
-
     // cached kernel: entries are keyed on (artifact content hash x annotation identity); a hit
-    // loads the table without any probe launches
-    template <typename DEVICE, typename SPEC, typename METADATA_T, typename PROBE, typename PARAMETERS_T, typename PARAMETERS_TI>
-    void annotate(DEVICE& device, FreeSpace<SPEC>& annotations, const hyperlux::SceneMetadata<METADATA_T>& metadata, PROBE& probe_target, const FreeSpaceParameters<PARAMETERS_T, PARAMETERS_TI>& parameters, const Cache& cache) {
-        using T = typename SPEC::T;
+    // loads the table without any probe launches. The table form is the unbounded result;
+    // the FreeSpace<SPEC> overloads load it into the fixed-capacity consumer struct
+    template <typename DEVICE, typename T, typename METADATA_T, typename PROBE, typename PARAMETERS_T, typename PARAMETERS_TI>
+    void annotate(DEVICE& device, std::vector<FreeSpacePosition<T>>& table, const hyperlux::SceneMetadata<METADATA_T>& metadata, PROBE& probe_target, const FreeSpaceParameters<PARAMETERS_T, PARAMETERS_TI>& parameters, const Cache& cache) {
         if (cache.directory.empty() || metadata.content_hash.empty()) {
-            annotate(device, annotations, metadata, probe_target, parameters);
+            free_space::scan(device, table, metadata, probe_target, parameters);
             return;
         }
         const std::string directory = cache.directory + "/free_space";
         std::filesystem::create_directories(directory);
         const std::string path = directory + "/" + metadata.content_hash + "-" + free_space::key<T>(metadata, static_cast<std::uint64_t>(PROBE::SPEC::NUM_PROBES), parameters) + ".bin";
-        std::vector<FreeSpacePosition<T>> table;
         if (free_space::read(path, table)) {
             log(device, device.logger, devices::logging::Verbosity::debug, hyperlux::datasets::LOG_PREFIX, "annotations::free_space: cache hit (", table.size(), " positions): ", path);
         }
@@ -405,7 +397,18 @@ namespace rl_tools::hyperlux::datasets::annotations {
                 log(device, device.logger, devices::logging::Verbosity::error, hyperlux::datasets::LOG_PREFIX, "annotations::free_space: failed to write cache entry ", path);
             }
         }
+    }
+
+    template <typename DEVICE, typename SPEC, typename METADATA_T, typename PROBE, typename PARAMETERS_T, typename PARAMETERS_TI>
+    void annotate(DEVICE& device, FreeSpace<SPEC>& annotations, const hyperlux::SceneMetadata<METADATA_T>& metadata, PROBE& probe_target, const FreeSpaceParameters<PARAMETERS_T, PARAMETERS_TI>& parameters, const Cache& cache) {
+        std::vector<FreeSpacePosition<typename SPEC::T>> table;
+        annotate(device, table, metadata, probe_target, parameters, cache);
         free_space::fill(device, table, parameters, annotations);
+    }
+
+    template <typename DEVICE, typename SPEC, typename METADATA_T, typename PROBE, typename PARAMETERS_T, typename PARAMETERS_TI>
+    void annotate(DEVICE& device, FreeSpace<SPEC>& annotations, const hyperlux::SceneMetadata<METADATA_T>& metadata, PROBE& probe_target, const FreeSpaceParameters<PARAMETERS_T, PARAMETERS_TI>& parameters) {
+        annotate(device, annotations, metadata, probe_target, parameters, Cache{});
     }
 
     template <typename DEVICE, typename SPEC, typename RNG>

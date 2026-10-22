@@ -13,8 +13,9 @@ SURFACE = {
         "AssetPool",
         "FIDELITY",
         "FlowStatus",
-        "ClearanceSampler",
         "Config",
+        "FreeSpace",
+        "FreeSpaceParameters",
         "HyperLux",
         "Mesh",
         "Object",
@@ -56,8 +57,8 @@ SIGNATURES = {
     "hyperlux.Config": (),
     "hyperlux.OverlayPlacement": (),
     "hyperlux.Pose": ("base",),
-    "hyperlux.ClearanceSampler": ("scene",),
-    "hyperlux.ClearanceSampler.sample": ("count",),
+    "hyperlux.FreeSpace": ("scene",),
+    "hyperlux.FreeSpace.sample": ("count",),
     "hyperlux.make_camera": ("position", "look_at"),
     "hyperlux.load_scene": ("path",),
     "hyperlux.load_object": ("path",),
@@ -111,6 +112,7 @@ def test_native_options_are_keyword_only():
         lambda: hyperlux.Object().remap_segmentation_classes({}, "custom", {}),
         lambda: hyperlux.ObjectAssembly().remap_segmentation_classes({}, "custom", {}),
         lambda: hyperlux.AssetPool().remap_segmentation_classes({}, "custom", {}),
+        lambda: hyperlux.FreeSpaceParameters(0.5),
     )
     for call in calls:
         with pytest.raises(TypeError):

@@ -37,27 +37,32 @@ def make_room(half=4.0, height=3.0, pillar=None):
 CLEARANCE = 0.5
 
 
+def free_space_parameters():
+    return hyperlux.FreeSpaceParameters(min_clearance=CLEARANCE)
+
+
 @pytest.fixture(scope="module")
-def sampler():
-    return hyperlux.ClearanceSampler(make_room(), clearance=CLEARANCE, batch=64, probes=32)
+def free_space():
+    return hyperlux.FreeSpace(make_room(), probes=32, batch=64, parameters=free_space_parameters())
 
 
-def test_sampling_determinism(sampler):
-    first = sampler.sample(32, seed=0)
-    second = sampler.sample(32, seed=0)
+def test_sampling_determinism(free_space):
+    assert 1 < len(free_space) <= free_space.parameters.min_required_positions
+    first = free_space.sample(32, seed=0)
+    second = free_space.sample(32, seed=0)
     assert np.array_equal(first, second)
-    assert not np.array_equal(first, sampler.sample(32, seed=1))
+    assert not np.array_equal(first, free_space.sample(32, seed=1))
 
 
-def test_sampling_respects_clearance(sampler):
-    positions = sampler.sample(64, seed=0)
-    assert positions.shape == (64, 3)
-    # independent verification: re-probe every accepted sample
-    distances = sampler.clearance_distances(positions)
-    assert (distances >= CLEARANCE).all()
-    # geometric verification against the known room. The probe set is a finite direction
-    # sample, so the perpendicular distance can undercut the probe-measured clearance by
-    # the angular discretization — allow 10%.
+def test_sampling_respects_clearance(free_space):
+    assert (np.diff(free_space.score) <= 0).all()
+    assert ((free_space.yaw >= 0) & (free_space.yaw < 2 * np.pi)).all()
+    positions = free_space.sample(64, seed=0)
+    assert positions.shape == (64, 3) and positions.dtype == np.float32
+    # geometric verification against the known room: candidates come from the bounds shrunk
+    # by min_clearance and are accepted only when every probe hits farther than it. The
+    # probe set is a finite direction sample, so the perpendicular distance can undercut the
+    # probe-measured clearance by the angular discretization — allow 10%.
     slack = CLEARANCE * 0.1
     half, height = 4.0, 3.0
     assert (np.abs(positions[:, :2]) <= half - CLEARANCE + slack).all()
@@ -67,8 +72,8 @@ def test_sampling_respects_clearance(sampler):
 
 def test_sampling_avoids_obstacles():
     pillar = (1.0, 1.0, 0.5)
-    sampler = hyperlux.ClearanceSampler(make_room(pillar=pillar), clearance=CLEARANCE, batch=64, probes=64)
-    positions = sampler.sample(64, seed=0)
+    free_space = hyperlux.FreeSpace(make_room(pillar=pillar), probes=64, batch=64, parameters=free_space_parameters())
+    positions = free_space.sample(64, seed=0)
     x, y, r = pillar
     # no sample inside the pillar footprint (plus most of the clearance; probe sets are
     # finite so grazing corners can shave a little off the exact euclidean clearance)
@@ -103,8 +108,7 @@ def test_manual_composition_end_to_end():
     sim = dynamics.Sim(num_drones=num_drones, device="cpu")
     renderer = hyperlux.HyperLux(width=32, height=32, batch_size=num_drones, cameras=(CameraSpec("camera", outputs=(RGB(format="rgba8"), Depth())),), fidelity="low")
     spawn, step = compose(scene, sim, renderer)
-    sampler = hyperlux.ClearanceSampler(scene, clearance=CLEARANCE, batch=64, probes=32)
-    positions = sampler.sample(num_drones, seed=0)
+    positions = hyperlux.FreeSpace(scene, probes=32, batch=64, parameters=free_space_parameters()).sample(num_drones, seed=0)
     spawn(positions)
 
     actions = np.zeros((num_drones, sim.action_dim), dtype=np.float32)

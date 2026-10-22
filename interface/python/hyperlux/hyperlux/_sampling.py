@@ -1,72 +1,48 @@
 import numpy as np
 
+from ._component import load_core
 from ._renderer import HyperLux
 from .camera import CameraSpec, Probes
 
 
-class ClearanceSampler:
-    """Deterministic rejection sampler for positions clear along the collision-probe rays.
-
-    Rides the renderer's collision-probe machinery (works on every backend, including
-    GENERIC on CPU-only machines): batches of candidate positions become probe origins
-    casting a deterministic direction set; a candidate is free iff every probe either
-    misses or hits farther than the clearance radius.
+class FreeSpace:
+    """Score-ranked free-space poses of a scene from RLtools' annotation scan, the table the C++
+    HyperDrone environment spawns from: Halton candidates inside the scene bounds are probed
+    along a deterministic direction set and accepted by hit ratio, mean hit distance and
+    min_clearance (see hyperlux.FreeSpaceParameters). Works on every backend. Loaded GLB scenes
+    cache their table under cache_directory by content hash, probe count and parameters
+    (default: RLtools' ~/.cache/rl_tools/annotations, shared with the C++ tools; "" disables);
+    procedural scenes are scanned every time. batch is the probe transport width and does not
+    affect the result.
     """
 
-    def __init__(self, scene, *, clearance=0.4, batch=256, probes=64, margin=0.05):
-        if int(probes) < 1:
-            raise ValueError("hyperlux: ClearanceSampler needs at least one probe")
-        self._clearance = float(clearance)
-        self._batch = int(batch)
-        self._margin = float(margin)
-        self._renderer = HyperLux(
-            width=1, height=1, cameras=(CameraSpec("probe", outputs=(Probes(),)),), batch_size=self._batch, num_probes=int(probes), fidelity="low",
+    def __init__(self, scene, *, probes=64, batch=64, parameters=None, cache_directory=None):
+        core = load_core()
+        if parameters is None:
+            parameters = core.FreeSpaceParameters()
+        if cache_directory is None:
+            cache_directory = core.default_annotation_cache_directory()
+        renderer = HyperLux(
+            width=1, height=1, cameras=(CameraSpec("probe", outputs=(Probes(),)),), batch_size=int(batch), num_probes=int(probes), fidelity="low",
         )
-        self._renderer.init(scene)
-        self._renderer.generate_probe_directions()
-        bounds = self._renderer.scene_bounds
-        self._center = np.asarray(bounds["center"], dtype=np.float64)
-        self._half_extent = np.asarray(bounds["half_extent"], dtype=np.float64)
+        renderer.init(scene)
+        renderer.generate_probe_directions()
+        table = renderer._renderer.annotate_free_space(parameters, str(cache_directory))
+        if len(table) == 0:
+            raise RuntimeError(
+                "hyperlux: free-space annotation found no valid positions (min_clearance too large "
+                "for this scene, or the scene is not enclosed?)"
+            )
+        self.parameters = parameters
+        self.positions = np.ascontiguousarray(table[:, :3])
+        self.yaw = np.ascontiguousarray(table[:, 3])
+        self.score = np.ascontiguousarray(table[:, 4])
 
-    @property
-    def bounds(self):
-        return {"center": self._center.copy(), "half_extent": self._half_extent.copy()}
-
-    def clearance_distances(self, positions):
-        """Minimum probe hit distance per position (inf where all probes miss)."""
-        positions = np.ascontiguousarray(positions, dtype=np.float32).reshape(-1, 3)
-        results = np.empty(len(positions))
-        for start in range(0, len(positions), self._batch):
-            chunk = positions[start:start + self._batch]
-            cameras = np.zeros((self._batch, 12), dtype=np.float32)
-            cameras[:len(chunk), 0:3] = chunk
-            # a full +x camera basis: the probe set is camera-relative, so a fixed orientation keeps the sampler deterministic
-            cameras[:, 3:6] = (1.0, 0.5, 0.5)
-            cameras[:, 6:9] = (0.0, -1.0, 0.0)
-            cameras[:, 9:12] = (0.0, 0.0, -1.0)
-            self._renderer.set_cameras(cameras)
-            self._renderer.probe()
-            distances = self._renderer.outputs[Probes()].distance.read()
-            minimum = distances.min(axis=1)
-            results[start:start + len(chunk)] = minimum[:len(chunk)]
-        return results
+    def __len__(self):
+        return len(self.positions)
 
     def sample(self, count, *, seed=0):
-        """count positions meeting the probe clearance, (count, 3) float32; deterministic given seed."""
+        """count positions drawn uniformly with replacement from the table, (count, 3) float32;
+        deterministic given seed (np.random.default_rng), as the C++ environment samples."""
         rng = np.random.default_rng(seed)
-        accepted = []
-        attempts = 0
-        shrink = 1.0 - self._margin
-        while sum(len(chunk) for chunk in accepted) < count:
-            attempts += self._batch
-            if attempts > max(100000, 1000 * count):
-                raise RuntimeError(
-                    f"hyperlux: clearance sampling stalled (clearance {self._clearance} "
-                    "too large for this scene?)"
-                )
-            candidates = self._center + rng.uniform(-shrink, shrink, size=(self._batch, 3)) * self._half_extent
-            distances = self.clearance_distances(candidates)
-            free = candidates[distances >= self._clearance]
-            if len(free):
-                accepted.append(free)
-        return np.concatenate(accepted)[:count].astype(np.float32)
+        return self.positions[rng.integers(0, len(self), size=int(count))]

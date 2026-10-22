@@ -92,8 +92,7 @@ def world_step(actions):
 print(f"backend={renderer.backend} dynamics={sim.device} drones={arguments.drones} "
       f"device_handoff={'yes' if device_handoff else 'no (host cameras)'}")
 
-sampler = hyperlux.ClearanceSampler(scene, clearance=0.5)
-positions = sampler.sample(arguments.drones, seed=0)
+positions = hyperlux.FreeSpace(scene).sample(arguments.drones, seed=0)
 sim.reset()
 sim.state["position"] = positions
 update_cameras()

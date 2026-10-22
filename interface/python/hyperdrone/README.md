@@ -233,8 +233,8 @@ For repeatable shots, capture `points = env.spawn_points()` after a reset and sa
 
 Manual composition of `Sim` and `HyperLux` (no MDP — rendering research, data
 generation) remains first-class: see `python -m hyperdrone.examples.drone_flythrough`
-for the wiring. `ClearanceSampler` lives in `hyperlux` — it rides the
-renderer's collision probes and is deterministic given a seed.
+for the wiring. `hyperlux.FreeSpace` provides spawn positions from the same
+free-space annotation table the environment uses, deterministic given a seed.
 
 ### Native spy
 

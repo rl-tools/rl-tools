@@ -134,9 +134,28 @@ def test_probe_only_compact_fields_and_independent_acquisition():
         renderer.outputs[Depth()].read()
     renderer.render()
     np.testing.assert_array_equal(renderer.outputs[Probes()].distance.read(), distances)
-    sampler = hyperlux.ClearanceSampler(make_scene(3), batch=2, probes=4)
-    assert tuple(sampler._renderer.outputs) == (Probes(),)
-    np.testing.assert_allclose(sampler.clearance_distances([[0, 0, 0], [1, 0, 0]]), [3, 2], atol=1e-5)
+
+
+def test_free_space_annotation(tmp_path):
+    # an open scene has no enclosed candidates
+    with pytest.raises(RuntimeError, match="no valid positions"):
+        hyperlux.FreeSpace(make_scene(3), batch=2, probes=4)
+    half, height = 4.0, 3.0
+    room = hyperlux.Scene()
+    room.add_object(hyperlux.primitives.box((2 * half, 2 * half, height)), hyperlux.make_transform((0.0, 0.0, height / 2)))
+    parameters = hyperlux.FreeSpaceParameters(min_clearance=0.5, min_required_positions=8)
+    free_space = hyperlux.FreeSpace(room, batch=2, probes=4, parameters=parameters, cache_directory=str(tmp_path))
+    assert 0 < len(free_space) <= 8
+    assert free_space.positions.shape == (len(free_space), 3) and free_space.positions.dtype == np.float32
+    assert (np.abs(free_space.positions[:, :2]) <= half - 0.5).all()
+    assert (free_space.positions[:, 2] >= 0.5).all() and (free_space.positions[:, 2] <= height - 0.5).all()
+    assert (np.diff(free_space.score) <= 0).all()
+    assert ((free_space.yaw >= 0) & (free_space.yaw < 2 * np.pi)).all()
+    assert free_space.sample(16, seed=0).shape == (16, 3)
+    np.testing.assert_array_equal(free_space.sample(16, seed=0), free_space.sample(16, seed=0))
+    # a composed scene has no content hash, so nothing is cached
+    assert not any(tmp_path.rglob("*.bin"))
+    assert hyperlux.FreeSpaceParameters().min_clearance == 1.0
 
 
 def test_cuda_output_destinations_and_streams():

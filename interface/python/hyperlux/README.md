@@ -4,7 +4,7 @@ HyperLux is the batch raytracer behind HyperDrone: N cameras over one static sce
 
 | Module | What it is |
 |---|---|
-| `hyperlux` | `HyperLux`, the renderer compiled per `hyperlux.Config`; the scene model (`Scene`, `Object`, `Mesh`, `ObjectAssembly`, `AssetPool`, `SceneLight`), the GLB loaders, `primitives`, `ClearanceSampler` and the `datasets` catalogs (`procthor.Train200`, `hssd.Train125`, `hssd.Val43`). |
+| `hyperlux` | `HyperLux`, the renderer compiled per `hyperlux.Config`; the scene model (`Scene`, `Object`, `Mesh`, `ObjectAssembly`, `AssetPool`, `SceneLight`), the GLB loaders, `primitives`, `FreeSpace` and the `datasets` catalogs (`procthor.Train200`, `hssd.Train125`, `hssd.Val43`). |
 | `hyperlux.camera` | Camera rigs (`CameraSpec`) and the typed output descriptors, shared with packages built on hyperlux such as hyperdrone. |
 
 Native components are JIT-compiled per set of compile-time constants (resolution, camera count, outputs, motion blur, ...) into a persistent cache; later uses load the cached library directly. The scene module is shared, and every renderer configuration is a directly bound Python extension; scene and asset-pool objects can be reused across configurations. Packages built on hyperlux compile their own components through the same JIT (`hyperlux._jit`) and share the cache, the CUDA staging buffers and the output-buffer protocol: hyperdrone's dynamics and environment are the first.
@@ -239,4 +239,4 @@ hyperlux and hyperdrone are released as a pair with one version number: `interfa
 
 The JIT key hashes the configuration and the top-level header only; changes to included headers rebuild that tree in place. Reproducibility is per configuration and call sequence on one host build (`-O3 -march=native -ffast-math`). The `Train200`, `Train125` and `Val43` catalogs are immutable; cite their RLtools commit for paper datasets and identify the examples and golden scenes separately as fixtures.
 
-All RGB fidelity tiers store sRGB; RGBA8 alpha is always 255 and reserved. Medium uses a checker background. Probe misses return `+inf` with int32 hit flags; `ClearanceSampler` accepts candidates whose sampled rays have no hit closer than the clearance radius; it does not compute hyperdrone's free-space annotation table.
+All RGB fidelity tiers store sRGB; RGBA8 alpha is always 255 and reserved. Medium uses a checker background. Probe misses return `+inf` with int32 hit flags. `FreeSpace` runs RLtools' free-space annotation scan on a scene (the table hyperdrone spawns from: Halton candidates scored by probe hit statistics, accepted by `FreeSpaceParameters`) and samples positions from it; GLB scenes cache the table by content hash under `~/.cache/rl_tools/annotations`.

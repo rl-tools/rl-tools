@@ -16,6 +16,8 @@
 #include <rl_tools/hyperlux/datasets/glb/operations_cpu.h>
 #include <rl_tools/hyperlux/datasets/procthor/catalog.h>
 #include <rl_tools/hyperlux/datasets/hssd/catalog.h>
+#include <rl_tools/hyperlux/datasets/annotations/free_space.h>
+#include <rl_tools/hyperlux/datasets/annotations/cache.h>
 
 #include "bindings.h"
 #include <nanobind/stl/optional.h>
@@ -434,6 +436,8 @@ NB_MODULE(hyperlux_core, m){
             }
         }, nb::arg("path"), nb::arg("fidelity") = 2, nb::arg("rgb") = true, nb::arg("preserve_instances") = false)
         .def("add_object", [](SceneBundle& bundle, const rrt::Object& object, nb::object transform){
+            // composed geometry has no artifact identity: derived annotations must not hit the loaded scene's cache entries
+            bundle.metadata.content_hash.clear();
             if(transform.is_none()){
                 return rlt::add(g_device, bundle.scene, object);
             }
@@ -441,8 +445,12 @@ NB_MODULE(hyperlux_core, m){
             extract_transform(nb::cast<Transform>(transform), values);
             return rlt::add(g_device, bundle.scene, object, values);
         }, nb::arg("object"), nb::arg("transform") = nb::none())
-        .def("add_mesh", [](SceneBundle& bundle, const rrt::Mesh& mesh){ return rlt::add(g_device, bundle.scene, mesh); })
+        .def("add_mesh", [](SceneBundle& bundle, const rrt::Mesh& mesh){
+            bundle.metadata.content_hash.clear();
+            return rlt::add(g_device, bundle.scene, mesh);
+        })
         .def("add_assembly", [](SceneBundle& bundle, const rrt::ObjectAssembly& assembly, nb::object transform){
+            bundle.metadata.content_hash.clear();
             rrt::Placement placement;
             if(transform.is_none()){
                 placement = rlt::add(g_device, bundle.scene, assembly);
@@ -544,5 +552,49 @@ NB_MODULE(hyperlux_core, m){
         rlt::compose_transforms(a_values, b_values, out);
         return make_owned_array(out, {3, 4});
     }, nb::arg("a"), nb::arg("b"));
+
+    using FreeSpaceParameters = rlt::hyperlux::datasets::annotations::FreeSpaceParameters<float, DEVICE::index_t>;
+    const FreeSpaceParameters free_space_defaults{};
+    nb::class_<FreeSpaceParameters>(m, "FreeSpaceParameters", "Acceptance and scoring of the free-space annotation scan (rl_tools::hyperlux::datasets::annotations); the defaults are the C++ defaults and part of the cache identity.")
+        .def("__init__", [](FreeSpaceParameters* parameters, float min_clearance, size_t max_candidates_tested, size_t min_required_positions, float hit_ratio_threshold, float average_distance_threshold, float near_hit_distance, float forward_open_minimum, float forward_open_maximum, float score_weight_hit_ratio, float score_weight_average_distance, float score_weight_near_ratio, float score_forward_open_bonus){
+            new (parameters) FreeSpaceParameters{};
+            parameters->min_clearance = min_clearance;
+            parameters->max_candidates_tested = max_candidates_tested;
+            parameters->min_required_positions = min_required_positions;
+            parameters->hit_ratio_threshold = hit_ratio_threshold;
+            parameters->average_distance_threshold = average_distance_threshold;
+            parameters->near_hit_distance = near_hit_distance;
+            parameters->forward_open_minimum = forward_open_minimum;
+            parameters->forward_open_maximum = forward_open_maximum;
+            parameters->score_weight_hit_ratio = score_weight_hit_ratio;
+            parameters->score_weight_average_distance = score_weight_average_distance;
+            parameters->score_weight_near_ratio = score_weight_near_ratio;
+            parameters->score_forward_open_bonus = score_forward_open_bonus;
+        }, nb::kw_only(),
+           nb::arg("min_clearance") = free_space_defaults.min_clearance,
+           nb::arg("max_candidates_tested") = free_space_defaults.max_candidates_tested,
+           nb::arg("min_required_positions") = free_space_defaults.min_required_positions,
+           nb::arg("hit_ratio_threshold") = free_space_defaults.hit_ratio_threshold,
+           nb::arg("average_distance_threshold") = free_space_defaults.average_distance_threshold,
+           nb::arg("near_hit_distance") = free_space_defaults.near_hit_distance,
+           nb::arg("forward_open_minimum") = free_space_defaults.forward_open_minimum,
+           nb::arg("forward_open_maximum") = free_space_defaults.forward_open_maximum,
+           nb::arg("score_weight_hit_ratio") = free_space_defaults.score_weight_hit_ratio,
+           nb::arg("score_weight_average_distance") = free_space_defaults.score_weight_average_distance,
+           nb::arg("score_weight_near_ratio") = free_space_defaults.score_weight_near_ratio,
+           nb::arg("score_forward_open_bonus") = free_space_defaults.score_forward_open_bonus)
+        .def_rw("min_clearance", &FreeSpaceParameters::min_clearance)
+        .def_rw("max_candidates_tested", &FreeSpaceParameters::max_candidates_tested)
+        .def_rw("min_required_positions", &FreeSpaceParameters::min_required_positions)
+        .def_rw("hit_ratio_threshold", &FreeSpaceParameters::hit_ratio_threshold)
+        .def_rw("average_distance_threshold", &FreeSpaceParameters::average_distance_threshold)
+        .def_rw("near_hit_distance", &FreeSpaceParameters::near_hit_distance)
+        .def_rw("forward_open_minimum", &FreeSpaceParameters::forward_open_minimum)
+        .def_rw("forward_open_maximum", &FreeSpaceParameters::forward_open_maximum)
+        .def_rw("score_weight_hit_ratio", &FreeSpaceParameters::score_weight_hit_ratio)
+        .def_rw("score_weight_average_distance", &FreeSpaceParameters::score_weight_average_distance)
+        .def_rw("score_weight_near_ratio", &FreeSpaceParameters::score_weight_near_ratio)
+        .def_rw("score_forward_open_bonus", &FreeSpaceParameters::score_forward_open_bonus);
+    m.def("default_annotation_cache_directory", &rlt::hyperlux::datasets::annotations::default_cache_directory);
 }
 
