@@ -3,7 +3,9 @@
 #include <gtest/gtest.h>
 #include <rl_tools/rendering/segmentation_cpu.h>
 #include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
+#include <rl_tools/rendering/datasets/hssd/operations_cpu.h>
 
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <optional>
@@ -315,6 +317,75 @@ namespace {
         ASSERT_EQ(roots.scene.instances.size(), 2u);
         EXPECT_EQ(roots.scene.objects[1].segmentation_class, 162u);
         expect_authored(roots.scene.environment);
+    }
+
+    TEST_F(GlbEnvironment, hssd_catalogs_identity){
+        std::set<std::string> ids, references;
+        const auto identity = [&](auto dataset){
+            using DATASET = decltype(dataset);
+            typename DATASET::Corpus corpus{{"discarded"}};
+            enumerate(device, dataset, corpus);
+            EXPECT_EQ(corpus.references.size(), DATASET::NUM_SCENES);
+            std::string text;
+            for(size_t scene_i = 0; scene_i < DATASET::NUM_SCENES; scene_i++){
+                const auto& scene = DATASET::SCENES[scene_i];
+                const std::string id = scene.id, reference = scene.reference;
+                EXPECT_EQ(corpus.references[scene_i], reference);
+                EXPECT_TRUE(!id.empty() && id.find_first_not_of("0123456789_") == std::string::npos && id.front() != '_' && id.back() != '_') << id;
+                EXPECT_TRUE(ids.insert(id).second) << id;
+                EXPECT_EQ(reference.substr(0, 6), "conta:");
+                std::string hash = reference.substr(6);
+                EXPECT_TRUE(conta::detail::normalize_hash(hash)) << reference;
+                EXPECT_TRUE(references.insert(reference).second) << reference;
+                text += id;
+                text += '\0';
+                text += reference + '\n';
+            }
+            return conta::detail::sha256_text(text);
+        };
+        EXPECT_EQ(rlt::rendering::datasets::hssd::Train125::NUM_SCENES, 125u);
+        EXPECT_EQ(rlt::rendering::datasets::hssd::Val43::NUM_SCENES, 43u);
+        EXPECT_EQ(identity(rlt::rendering::datasets::hssd::Train125{}), "7cd6dbc35e1b4dcad093b72b10a4078b4b658948e517166253e99da57f1c8159");
+        EXPECT_EQ(identity(rlt::rendering::datasets::hssd::Val43{}), "75581ea7f0a030eafdab0cbb74206bbfd77543f0c88fee9ceb93fb610119ef0c");
+    }
+
+    TEST_F(GlbEnvironment, hssd_catalog_loaders_forward_roots_mode){
+        const auto path = write_glb(authored, Json{21, 162});
+        const auto expect_roots = [&](auto dataset){
+            typename decltype(dataset)::Corpus corpus{{path}};
+            rlt::rendering::Bundle<float> roots;
+            ASSERT_TRUE((load<rlt::rendering::Low, false>(device, dataset, corpus, 0, roots, Roots{})));
+            ASSERT_EQ(roots.scene.instances.size(), 2u);
+            EXPECT_EQ(roots.scene.objects[1].segmentation_class, 162u);
+        };
+        expect_roots(rlt::rendering::datasets::hssd::Train125{});
+        expect_roots(rlt::rendering::datasets::hssd::Val43{});
+    }
+
+    TEST_F(GlbEnvironment, hssd_catalog_scene_carries_labels){
+        if(std::getenv("CONTA_ROOT") == nullptr){
+            GTEST_SKIP() << "Set CONTA_ROOT to a local store containing the HSSD scenes";
+        }
+        using DATASET = rlt::rendering::datasets::hssd::Train125;
+        const std::string reference = DATASET::SCENES[63].reference;
+        ASSERT_EQ(std::string(DATASET::SCENES[63].id), "107734119_175999932");
+        std::string path, error;
+        if(!conta::resolve(reference.substr(6), path, error)){
+            GTEST_SKIP() << error;
+        }
+        DATASET::Corpus corpus;
+        enumerate(device, DATASET{}, corpus);
+        rlt::rendering::Bundle<float> bundle;
+        ASSERT_TRUE((load<rlt::rendering::Low, false>(device, DATASET{}, corpus, 63, bundle, Roots{})));
+        const auto taxonomy = segmentation_taxonomy(device, bundle.scene);
+        ASSERT_TRUE(taxonomy);
+        EXPECT_EQ(taxonomy->name, DATASET::SEGMENTATION_TAXONOMY);
+        EXPECT_EQ(taxonomy->classes.size(), 406u);
+        size_t labelled = 0;
+        for(const auto& object : bundle.scene.objects){
+            labelled += object.segmentation_class != 0;
+        }
+        EXPECT_GT(labelled, 0u);
     }
 
 #ifdef RL_TOOLS_TEST_PROCTHOR_CONVERSION

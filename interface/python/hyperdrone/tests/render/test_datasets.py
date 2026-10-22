@@ -4,17 +4,24 @@ import pytest
 
 from hyperdrone import render
 
+CATALOGS = [
+    ("procthor", "Train200", "procthor_train_200", "ai2thor-hab/ProcTHOR", "train", 200, "9115ad15f9d9c9d27b52943fd8d8c273adbe1e1ceafc6f1c79d716dc03c04989"),
+    ("hssd", "Train125", "hssd_train_125", "hssd/hssd-hab", "train", 125, "7cd6dbc35e1b4dcad093b72b10a4078b4b658948e517166253e99da57f1c8159"),
+    ("hssd", "Val43", "hssd_val_43", "hssd/hssd-hab", "val", 43, "75581ea7f0a030eafdab0cbb74206bbfd77543f0c88fee9ceb93fb610119ef0c"),
+]
 
-def test_catalog_identity_without_asset_resolution(monkeypatch, tmp_path):
+
+@pytest.mark.parametrize("family, catalog, name, source, split, size, identity_hash", CATALOGS)
+def test_catalog_identity_without_asset_resolution(monkeypatch, tmp_path, family, catalog, name, source, split, size, identity_hash):
     monkeypatch.setenv("CONTA_ROOT", str(tmp_path / "missing_store"))
-    dataset = render.datasets.procthor.Train200()
-    assert dataset.name == "procthor_train_200"
-    assert dataset.source == "ai2thor-hab/ProcTHOR"
-    assert dataset.split == "train"
+    dataset = getattr(getattr(render.datasets, family), catalog)()
+    assert dataset.name == name
+    assert dataset.source == source
+    assert dataset.split == split
     assert dataset.representation == "glb"
-    assert len(dataset) == 200
+    assert len(dataset) == size
     identity = "".join(f"{scene.id}\0{scene.reference}\n" for scene in dataset)
-    assert hashlib.sha256(identity.encode()).hexdigest() == "9115ad15f9d9c9d27b52943fd8d8c273adbe1e1ceafc6f1c79d716dc03c04989"
+    assert hashlib.sha256(identity.encode()).hexdigest() == identity_hash
     assert dataset.references == [scene.reference for scene in dataset]
     assert not (tmp_path / "missing_store").exists()
 
@@ -34,3 +41,16 @@ def test_scene_lookup_and_immutable_catalog():
     references = dataset.references
     references.clear()
     assert len(dataset.references) == 200
+
+
+def test_hssd_splits_are_disjoint_and_keyed_by_scene_id():
+    train = render.datasets.hssd.Train125()
+    val = render.datasets.hssd.Val43()
+    assert train["107734119_175999932"].reference == "conta:b8dd4207a0221dd224f733ebc90627fca2b18011"
+    assert val[0].id == "107734158_175999998"
+    assert not {scene.id for scene in train} & {scene.id for scene in val}
+    assert not set(train.references) & set(val.references)
+    with pytest.raises(KeyError):
+        val["107734119_175999932"]
+    with pytest.raises(IndexError):
+        val[43]

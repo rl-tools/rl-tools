@@ -16,6 +16,7 @@
 #include <rl_tools/rl/environments/hyperdrone/rotorcraft/operations_cpu.h>
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/datasets/procthor/catalog.h>
+#include <rl_tools/rendering/datasets/hssd/catalog.h>
 
 #include "bindings.h"
 #include <nanobind/stl/optional.h>
@@ -196,13 +197,9 @@ static rrt::Mesh make_mesh(FloatArray vertices, nb::ndarray<const int32_t, nb::c
 
 void register_rotorcraft_bindings(nb::module_& m);
 
-static void register_dataset_bindings(nb::module_& m){
-    using SCENE = rlt::rendering::datasets::procthor::SceneReference;
-    using DATASET = rlt::rendering::datasets::procthor::Train200;
-    nb::class_<SCENE>(m, "SceneReference")
-        .def_ro("id", &SCENE::id)
-        .def_ro("reference", &SCENE::reference);
-    nb::class_<DATASET>(m, "Train200")
+template <typename DATASET>
+static void register_catalog_bindings(nb::module_& m, const char* name){
+    nb::class_<DATASET>(m, name)
         .def(nb::init<>())
         .def_prop_ro("name", [](const DATASET&){ return DATASET::NAME; })
         .def_prop_ro("source", [](const DATASET&){ return DATASET::SOURCE; })
@@ -222,7 +219,7 @@ static void register_dataset_bindings(nb::module_& m){
                 index += static_cast<int64_t>(DATASET::NUM_SCENES);
             }
             if(index < 0 || index >= static_cast<int64_t>(DATASET::NUM_SCENES)){
-                throw nb::index_error("ProcTHOR scene index out of range");
+                throw nb::index_error((std::string(DATASET::NAME) + " scene index out of range").c_str());
             }
             return DATASET::SCENES[index];
         })
@@ -234,6 +231,18 @@ static void register_dataset_bindings(nb::module_& m){
             }
             throw nb::key_error(id.c_str());
         });
+}
+
+static void register_dataset_bindings(nb::module_& m){
+    using SCENE = rlt::rendering::datasets::SceneReference;
+    nb::class_<SCENE>(m, "SceneReference")
+        .def_ro("id", &SCENE::id)
+        .def_ro("reference", &SCENE::reference);
+    auto procthor = m.def_submodule("procthor");
+    register_catalog_bindings<rlt::rendering::datasets::procthor::Train200>(procthor, "Train200");
+    auto hssd = m.def_submodule("hssd");
+    register_catalog_bindings<rlt::rendering::datasets::hssd::Train125>(hssd, "Train125");
+    register_catalog_bindings<rlt::rendering::datasets::hssd::Val43>(hssd, "Val43");
 }
 
 NB_MODULE(hyperdrone_render_core, m){

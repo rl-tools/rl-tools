@@ -26,6 +26,8 @@ assert "_vendor" in str(root), f"expected the vendored tree, resolved {root}"
 dataset = render.datasets.procthor.Train200()
 assert len(dataset) == 200
 assert dataset["ProcTHOR-Train-1"].reference == "conta:07b9d8e44f3891573b6292f8cc47bf7725a43b89"
+assert len(render.datasets.hssd.Train125()) == 125
+assert render.datasets.hssd.Val43()[0].reference == "conta:e5e59b08d09e1192a2a176d05f8006c5d5c21b5f"
 scene = render.Scene()
 wall = render.Object(name="wall")
 wall.add_mesh(render.Mesh(

@@ -468,6 +468,8 @@ dataset = render.datasets.procthor.Train200()
 scene = render.load_scene(dataset["ProcTHOR-Train-1"].reference)
 ```
 
+`render.datasets.hssd.Train125()` and `render.datasets.hssd.Val43()` are hssd-hab's official train and validation splits in `scene_splits.yaml` order, keyed by HSSD scene ID (`dataset["102344022"]`). Their GLBs carry the `hssd-hab` taxonomy, described in `src/rendering/procthor2glb/README.md`. HSSD is licensed CC BY-NC 4.0.
+
 Camera profiles declare immutable output descriptors from `hyperdrone.camera`:
 
 | Descriptor | Default dtype | Per-camera shape | Contract |
@@ -608,7 +610,7 @@ Read outputs in such a loop with `read(out=..., stream=...)`, which copies on th
 
 The release contract covers documented names, single-agent shapes and documented `HYPERDRONE_*` variables. Multi-agent parameter/spawn shapes, observation layouts (including `agent<i>/` block prefixes), team-mean rewards and any-agent termination remain experimental. The shipped tasks are single-agent. `spec_header` constants and their shadowing form the stable extension tier; custom verb-overload wrappers are experimental and should pin the package version. The JIT key hashes the top-level header only; changes to included headers rebuild that tree in place.
 
-Reproducibility is per seed, configuration, reset masks and call sequence on one host build (`-O3 -march=native -ffast-math`). RNG streams may change in minor releases. Environment IMU noise and shutter sampling still share the physics RNG. The `Train200` catalog is immutable; cite its RLtools commit for paper datasets and identify the examples and golden scenes separately as fixtures.
+Reproducibility is per seed, configuration, reset masks and call sequence on one host build (`-O3 -march=native -ffast-math`). RNG streams may change in minor releases. Environment IMU noise and shutter sampling still share the physics RNG. The `Train200`, `Train125` and `Val43` catalogs are immutable; cite their RLtools commit for paper datasets and identify the examples and golden scenes separately as fixtures.
 
 Presets name platforms and default to a neutral MDP: zero reward and disabled termination. Configure the task through `parameters["dynamics"]["mdp"]`; `moving_gate` adds +10 for a pass and terminates on gate crashes. Preset and task names are stable. Privileged observations are ground truth, with row-major body-to-world rotation matrices. Raw views follow physical `(instance, agent, camera)` order; selected policy views are stacked along image height, and all cameras share resolution.
 

@@ -35,7 +35,8 @@ SURFACE = {
         "make_transform",
         "primitives",
     ],
-    "hyperdrone.render.datasets": ["procthor"],
+    "hyperdrone.render.datasets": ["hssd", "procthor"],
+    "hyperdrone.render.datasets.hssd": ["Train125", "Val43"],
     "hyperdrone.render.datasets.procthor": ["Train200"],
     "hyperdrone.dynamics": [
         "IDENTITY_MOUNT",

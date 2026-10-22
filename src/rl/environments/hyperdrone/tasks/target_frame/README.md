@@ -23,7 +23,7 @@ Free-space sampling stops at 50 accepted positions instead of finishing the hist
 
 Yaw's dataset adapter restores ambient RGB `(0.5, 0.5, 0.5)`, always prepends the three historical directional fill lights to authored lights, gives all lights zero extent, and treats unlit materials as lit. This target-local interpretation preserves the normal dataset loaders and other rendering consumers. The modern metallic ambient term and black background remain differences from the historical renderer's metallic shading and red/white checker background.
 
-On-policy targets default to the first `N_TOTAL_SCENES` entries of the header-pinned `procthor::Train200` catalog; pass `procthor_train_200 [seed]` to set the seed explicitly. Conta resolves its GLBs, and metra records the selected references.
+On-policy targets default to the first `N_TOTAL_SCENES` entries of the header-pinned `procthor::Train200` catalog; pass `procthor_train_200 [seed]` to set the seed explicitly, or `hssd_train_125 [seed]` for the first entries of `hssd::Train125`. Conta resolves their GLBs, and metra records the selected references.
 
 Mixed training records the first scene set and every 20th thereafter to `steps/<end-step>/video.mp4`, also linked as `latest/video.mp4`, using FFmpeg with `libx264` on `PATH`. The 100 fps mosaic shows actual PPO training episodes across all active scenes, with each target image on the left and current camera image on the right; imitation instances are omitted. Recording spans rollout updates and episode resets until the scene set or training ends (20.48 seconds per full scene set). Set `VIDEO_SAVE_INTERVAL_SCENE_SETS` in `mixed/config.h` to change the cadence or to `0` to disable recording; encoder failures disable recording and leave training running.
 
