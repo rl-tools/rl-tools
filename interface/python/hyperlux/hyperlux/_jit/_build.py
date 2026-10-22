@@ -1,13 +1,20 @@
 import os
 import subprocess
+import sys
 from pathlib import Path
 
+from .. import verbosity
 from ._lock import FileLock
 from ._patches import seed_dependencies
 from ._toolchain import environment
 from ._workspace import BuildError, build_dir, dependencies_root, native_root, source_root
 
 BUILD_JOBS = os.environ.get("HYPERLUX_BUILD_JOBS", "5")
+
+
+def progress(component, message):
+    if verbosity() in ("info", "debug"):
+        print(f"{component.package}: {message}", file=sys.stderr, flush=True)
 
 
 def lock(component):
@@ -51,7 +58,7 @@ def configured_fetchcontent_base(directory):
 
 
 def configure(component, directory):
-    import sys
+    progress(component, f"preparing {component.name} ({component.variant.upper()}); downloading build dependencies if needed...")
     seeded = seed_dependencies(directory.name)
     arguments = [
         "cmake",
@@ -102,6 +109,10 @@ def build_target(component, target):
     if os.environ.get("HYPERLUX_SKIP_BUILD"):
         return directory
     with lock(component):
+        core = target == component.core_target
+        artifact = f"{target}*.so" if core else f"jit/{target}.so"
+        if not any(directory.glob(artifact)):
+            progress(component, f"compiling {component.name} {'core' if core else 'configuration'} ({component.variant.upper()})...")
         run(["cmake", "--build", directory, "--target", target, "-j", BUILD_JOBS],
             environment(component))
     return directory

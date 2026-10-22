@@ -132,13 +132,13 @@ def test_concurrent_builds_do_not_race():
     workers = [
         subprocess.Popen(
             [sys.executable, "-c", code, str(Path(__file__).parent), str(value)],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
         )
         for _ in range(2)
     ]
-    outputs = [worker.communicate()[0] for worker in workers]
+    outputs = [worker.communicate() for worker in workers]
     assert all(worker.returncode == 0 for worker in workers), outputs
-    assert outputs[0].strip() == outputs[1].strip()
+    assert outputs[0][0].strip() == outputs[1][0].strip()
 
 
 def test_workspace_layout():

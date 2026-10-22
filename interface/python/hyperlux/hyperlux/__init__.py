@@ -5,7 +5,7 @@ available directly. HyperLux instances are JIT-compiled per set of compile-time 
 cached under ~/.cache/hyperlux (override with HYPERLUX_CACHE_DIR); the backend is selected at
 first build via HYPERLUX_BACKEND (OPTIX|METAL|VULKAN|WEBGPU|GENERIC; AUTO default: first
 available of OptiX, Metal, Vulkan, WebGPU, Generic). Importing hyperlux is cheap; the first
-build happens on first use. set_verbosity(level) selects the native log level
+build happens on first use. set_verbosity(level) controls build progress and the native log level
 (error|warning|info|debug, default info) of every loaded and future native module, including
 those of packages built on hyperlux's JIT such as hyperdrone.
 """
@@ -18,7 +18,7 @@ _logging_extensions = []
 
 
 def set_verbosity(level):
-    """Set the level for subsequent native diagnostic checks in loaded and future extensions."""
+    """Set build progress verbosity and the native log level in loaded and future extensions."""
     global _verbosity
     if level not in _VERBOSITY_LEVELS:
         raise ValueError(f"hyperlux: invalid verbosity {level!r} ({'|'.join(_VERBOSITY_LEVELS)})")
