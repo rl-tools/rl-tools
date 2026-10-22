@@ -5,6 +5,7 @@
 
 #include "../rl_tools.h"
 #include "../utils/generic/typing.h"
+#include "camera.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {

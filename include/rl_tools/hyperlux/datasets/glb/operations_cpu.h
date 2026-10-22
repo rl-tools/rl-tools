@@ -41,7 +41,7 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
-    namespace mode::rendering{
+    namespace mode::hyperlux{
         template <typename T_BASE = mode::Final, typename T_SPEC = bool>
         struct SceneRoots: T_BASE{ using BASE = T_BASE; using SPEC = T_SPEC; };
     }
