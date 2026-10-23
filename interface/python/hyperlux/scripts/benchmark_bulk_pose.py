@@ -91,7 +91,7 @@ def measure(renderer, placements, rng):
 
 def main():
     set_verbosity("warning")
-    renderer = hyperlux.HyperLux(width=32, height=32, batch_size=1, num_probes=0, cameras=(CameraSpec("camera", outputs=(RGB(format="rgba8"),)),), fidelity="low", num_overlays=1, max_overlay_instances=(PROPS + 1) * max(BATCHES), max_overlays_per_camera=1)
+    renderer = hyperlux.HyperLux(width=32, height=32, batch_size=1, num_probes=0, cameras=(CameraSpec("camera", outputs=(RGB(format="rgba8"),)),), fidelity="low", anti_aliasing_grid=1, num_overlays=1, max_overlay_instances=(PROPS + 1) * max(BATCHES), max_overlays_per_camera=1)
     if renderer.backend.lower() != "optix":
         raise SystemExit("benchmark_bulk_pose: device pose input needs the OptiX backend")
     pool = hyperlux.AssetPool()

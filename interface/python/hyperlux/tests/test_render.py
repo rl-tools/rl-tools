@@ -488,7 +488,7 @@ def test_semantic_segmentation_with_overlay():
 def test_jit_cache_reuse():
     config = hyperlux.Config(
         width=16, height=16, batch_size=1, num_probes=1, fidelity="low", cameras=(CameraSpec("camera", outputs=(Depth(), Probes(),)),),
-        motion_blur_samples=1, anti_aliasing_grid=1, num_overlays=0,
+        motion_blur_samples=1, anti_aliasing_grid=2, num_overlays=0,
         max_overlay_instances=0, max_overlays_per_camera=0,
     )
     from hyperlux import _component

@@ -20,7 +20,7 @@ WARMUP_SECONDS, SECONDS, SYNC_INTERVAL = 2.0, 10.0, 10
 dataset = hyperlux.datasets.procthor.Train200()
 scene = hyperlux.load_scene(dataset["ProcTHOR-Train-1"].reference, fidelity="medium")
 renderer = hyperlux.HyperLux(width=WIDTH, height=HEIGHT, batch_size=NUM_CAMERAS, num_probes=0,
-                           cameras=(CameraSpec("front", (RGB("rgba8"),)),), fidelity="medium")
+                           cameras=(CameraSpec("front", (RGB("rgba8"),)),), fidelity="medium", anti_aliasing_grid=1)
 renderer.init(scene)
 
 

@@ -15,9 +15,9 @@ class Config:
     cameras: tuple[CameraSpec, ...] = (CameraSpec("camera", outputs=(RGB(format="rgba8"),)),)
     batch_size: int = 1
     num_probes: int = 1
-    fidelity: str = "high"
+    fidelity: str = "veryhigh"
     motion_blur_samples: int = 1
-    anti_aliasing_grid: int = 1
+    anti_aliasing_grid: int = 2
     num_overlays: int = 0
     max_overlay_instances: int = 0
     max_overlays_per_camera: int = 0

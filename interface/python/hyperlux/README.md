@@ -62,9 +62,9 @@ from hyperlux.camera import CameraSpec, RGB, Depth
 
 dataset = hyperlux.datasets.procthor.Train200()
 scene_reference = dataset["ProcTHOR-Train-1"].reference
-scene = hyperlux.load_scene(scene_reference, fidelity="high")
+scene = hyperlux.load_scene(scene_reference)
 
-renderer = hyperlux.HyperLux(width=320, height=240, batch_size=4, cameras=(CameraSpec("front", (RGB("rgba8"), Depth())),), fidelity="high")
+renderer = hyperlux.HyperLux(width=320, height=240, batch_size=4, cameras=(CameraSpec("front", (RGB("rgba8"), Depth())),))
 renderer.init(scene)
 
 camera = renderer.camera(position=(0, 0, 1.5), look_at=(1, 0, 1.5), fov=80)
@@ -76,6 +76,8 @@ depth = renderer.outputs[Depth()].read()      # (4, 240, 320) float32
 ```
 
 The constructor's keywords are the fields of `hyperlux.Config`, the renderer's JIT key; `hyperlux.HyperLux(config=hyperlux.Config(...))` takes a config directly and `renderer.config` reads it back.
+
+Rendering defaults to `fidelity="veryhigh"` and `anti_aliasing_grid=2` (2×2); scene, object, and assembly loaders also default to `veryhigh`.
 
 The renderer operates in the L2F FLU frame: +X forward, +Y left, +Z up; GLB assets are swizzled at load time. Procedural scenes (`hyperlux.Scene()` + `hyperlux.Object` / `hyperlux.Mesh` / `hyperlux.SceneLight`), segmentation output, overlays (per-camera dynamic content via `AssetPool` + `spawn`/`attach`), motion blur, and anti-aliasing follow the scene and placement APIs below.
 

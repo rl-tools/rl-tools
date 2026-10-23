@@ -26,16 +26,16 @@ READ_ITERATIONS = 1000
 
 
 def measure(scene, profiles):
-    configuration = hyperlux.Config(width=WIDTH, height=HEIGHT, cameras=profiles, batch_size=BATCH_SIZE, fidelity="low")
+    configuration = hyperlux.Config(width=WIDTH, height=HEIGHT, cameras=profiles, batch_size=BATCH_SIZE, fidelity="low", anti_aliasing_grid=1)
     artifact = jit.build_dir(component()) / "jit" / f"render_{configuration.key()}.so"
     cache_hit = artifact.exists()
     started = time.perf_counter()
-    renderer = hyperlux.HyperLux(WIDTH, HEIGHT, cameras=profiles, batch_size=BATCH_SIZE, fidelity="low")
+    renderer = hyperlux.HyperLux(WIDTH, HEIGHT, cameras=profiles, batch_size=BATCH_SIZE, fidelity="low", anti_aliasing_grid=1)
     jit_seconds = time.perf_counter() - started
     artifact_time = artifact.stat().st_mtime_ns
     renamed_profiles = tuple(replace(camera, name=f"renamed{index}") for index, camera in enumerate(profiles))
     started = time.perf_counter()
-    renamed = hyperlux.HyperLux(WIDTH, HEIGHT, cameras=renamed_profiles, batch_size=BATCH_SIZE, fidelity="low")
+    renamed = hyperlux.HyperLux(WIDTH, HEIGHT, cameras=renamed_profiles, batch_size=BATCH_SIZE, fidelity="low", anti_aliasing_grid=1)
     renamed_seconds = time.perf_counter() - started
     assert renamed.config.key() == renderer.config.key()
     assert type(renamed._renderer) is type(renderer._renderer)

@@ -130,7 +130,7 @@ else:
     eye = None
 
 renderer = hyperlux.HyperLux(width=WIDTH, height=HEIGHT, batch_size=NUM_CAMERAS, num_probes=0,
-                           cameras=(CameraSpec("front", (RGB("rgba8") if arguments.output == "rgb" else Depth(),)),), fidelity=arguments.fidelity)
+                           cameras=(CameraSpec("front", (RGB("rgba8") if arguments.output == "rgb" else Depth(),)),), fidelity=arguments.fidelity, anti_aliasing_grid=1)
 renderer.init(scene)
 if eye is None:
     eye = np.asarray(renderer.scene_bounds["center"], dtype=np.float64)

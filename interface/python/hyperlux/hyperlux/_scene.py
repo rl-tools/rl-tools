@@ -8,18 +8,18 @@ def _fidelity_id(fidelity):
     return FIDELITY.index(fidelity.lower())
 
 
-def load_scene(path, *, fidelity="high", rgb=True, preserve_instances=False):
+def load_scene(path, *, fidelity="veryhigh", rgb=True, preserve_instances=False):
     """Load a GLB; preserve root instances for instance or semantic segmentation."""
     scene = load_core().Scene()
     scene._load(str(path), _fidelity_id(fidelity), bool(rgb), bool(preserve_instances))
     return scene
 
 
-def load_object(path, *, fidelity="high", rgb=True):
+def load_object(path, *, fidelity="veryhigh", rgb=True):
     return load_core().load_object(str(path), _fidelity_id(fidelity), bool(rgb))
 
 
-def load_assembly(path, *, fidelity="high", rgb=True, part_nodes=None):
+def load_assembly(path, *, fidelity="veryhigh", rgb=True, part_nodes=None):
     """One part per GLB scene root, or per named node in the given order (an enclosing node
     first) with nested nodes recording their parent part; see ObjectAssembly.part_parent."""
     return load_core().load_assembly(str(path), _fidelity_id(fidelity), bool(rgb),
