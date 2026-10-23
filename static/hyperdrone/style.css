@@ -14,7 +14,7 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; }
-main { width: 100%; max-width: 1200px; margin: auto; padding: 14px 16px 12px; }
+main { width: 100%; max-width: 1200px; margin: auto; padding: 14px 16px 12px; container-type: inline-size; }
 header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px 16px; margin-bottom: 12px; }
 h1 { grid-column: 2; margin: 0; line-height: 1; }
 h1 img { display: block; width: 200px; height: auto; margin: auto; }
@@ -139,7 +139,7 @@ kbd { display: inline-block; min-width: 18px; padding: 1px 4px; border: 1px soli
     .hint-action { font-size: 12px; gap: 10px; }
     .hint-keys { font-size: 9px; }
 }
-@media (max-width: 679px) {
+@container (max-width: 779px) {
     header { grid-template-columns: minmax(0, 1fr); }
     h1 { grid-column: 1; }
     .project-links { justify-self: center; }
