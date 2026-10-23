@@ -7,3 +7,4 @@ Drone simulation and rendering with HyperDrone and HyperLux.
    :maxdepth: 2
 
    src/HyperLuxMinimal.ipynb
+   src/HyperLuxMaximal.ipynb

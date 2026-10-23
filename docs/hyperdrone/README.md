@@ -1,6 +1,7 @@
 # Building the documentation
 
-With Node.js 20 or newer installed, run these commands from this directory using
+With Node.js 20 or newer installed and the separate blob repository checked out at
+`blob/`, run these commands from this directory using
 the repository's `.venv` (create it with `python3 -m venv ../../.venv` if missing):
 
 ```bash
@@ -31,3 +32,12 @@ Use `make html SPHINXOPTS=-E` to rerun every notebook, including after changing
 library code or dependencies that Sphinx does not track. Run `make clean` to remove
 generated files. Add new pages to the toctree in `index.rst` and `include_patterns`
 in `conf.py`.
+
+`blob/` is an independent Git repository ignored by RLtools. Its `assets/` directory
+owns the logos; Sphinx copies them into the website alongside the CSS in `_static/`.
+
+Run `make site` (requires `rsync`) to rebuild the HTML from an empty output directory
+and replace `blob/site/` with the successful result, removing obsolete published
+files. Caches and temporary files stay in `_build/`; `make clean` leaves `blob/` intact.
+`blob/source-commit.txt` records the RLtools commit, suffixed with `-dirty` when tracked
+changes are uncommitted. Review and commit the blob repository separately.

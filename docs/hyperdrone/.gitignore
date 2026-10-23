@@ -1,4 +1,5 @@
 /_build/
+/blob/
 /node_modules/
 !/package.json
 !/package-lock.json

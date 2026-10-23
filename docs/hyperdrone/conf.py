@@ -9,7 +9,12 @@ nb_execution_mode = "force"
 nb_execution_in_temp = True
 nb_execution_timeout = -1
 nb_execution_raise_on_error = True
-include_patterns = ["index.rst", "src/HyperLuxMinimal.ipynb"]
+include_patterns = ["index.rst", "src/HyperLuxMinimal.ipynb", "src/HyperLuxMaximal.ipynb"]
 
 html_theme = "furo"
-html_static_path = ["_static"]
+html_theme_options = {
+    "light_logo": "hyperdrone.svg",
+    "dark_logo": "hyperdrone.svg",
+    "sidebar_hide_name": True,
+}
+html_static_path = ["_static", "blob/assets"]
