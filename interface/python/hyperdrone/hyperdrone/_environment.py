@@ -13,7 +13,8 @@ import numpy as np
 
 import conta
 
-from hyperlux import _jit as jit
+from hyperlux import FIDELITY, _jit as jit
+from hyperlux._config import VALID_ANTI_ALIASING_GRIDS
 from hyperlux._dlpack import is_cuda
 from hyperlux._outputs import VALID_MOTION_BLUR_SAMPLES
 from hyperlux.camera import CameraSpec, RGB, backend_requirement, validate_cameras
@@ -40,16 +41,13 @@ def component():
     return _components.component("environment", resolved.lower(), needs_cuda=resolved == "optix")
 
 
-_SHADING = {"low": 0, "medium": 1, "high": 2}
-
-
 @dataclass(frozen=True, kw_only=True)
 class Config:
     num_worlds: int = 1
     instances_per_world: int = 4
     width: int = 32
     height: int = 32
-    fidelity: str = "high"
+    fidelity: str = "veryhigh"
     preset: str = "crazyflie"
     task: str = None
     num_agents: int = 1
@@ -59,6 +57,7 @@ class Config:
     spec_header: str = None
     device: str = None
     motion_blur_samples: int = 1
+    anti_aliasing_grid: int = 2
     dataset: str = "glb"
     control: str = "motor"
     actuation: str = "rotors"
@@ -78,10 +77,12 @@ class Config:
             raise ValueError(f"hyperdrone: unknown preset {self.preset!r} (one of {sorted(PRESETS)})")
         if self.task not in TASKS:
             raise ValueError(f"hyperdrone: unknown task {self.task!r} (one of {sorted(k for k in TASKS if k)} or None)")
-        if self.fidelity not in _SHADING:
-            raise ValueError(f"hyperdrone: unknown fidelity {self.fidelity!r} (one of {sorted(_SHADING)})")
+        if self.fidelity not in FIDELITY:
+            raise ValueError(f"hyperdrone: unknown fidelity {self.fidelity!r} (one of {sorted(FIDELITY)})")
         if type(self.motion_blur_samples) is not int or self.motion_blur_samples not in VALID_MOTION_BLUR_SAMPLES:
             raise ValueError(f"hyperdrone: motion_blur_samples must be one of {VALID_MOTION_BLUR_SAMPLES}")
+        if type(self.anti_aliasing_grid) is not int or self.anti_aliasing_grid not in VALID_ANTI_ALIASING_GRIDS:
+            raise ValueError(f"hyperdrone: anti_aliasing_grid must be one of {VALID_ANTI_ALIASING_GRIDS}")
         if self.task is not None and self.num_agents > 1:
             raise ValueError(f"hyperdrone: task {self.task!r} is single-agent")
         if self.task == "target_frame" and len(observation_mounts) != 1:
@@ -132,8 +133,9 @@ class Config:
             "HYPERDRONE_ENVIRONMENT_INSTANCES": self.instances_per_world,
             "HYPERDRONE_ENVIRONMENT_CAM_WIDTH": self.width,
             "HYPERDRONE_ENVIRONMENT_CAM_HEIGHT": self.height,
-            "HYPERDRONE_ENVIRONMENT_SHADING": _SHADING[self.fidelity],
+            "HYPERDRONE_ENVIRONMENT_SHADING": FIDELITY.index(self.fidelity),
             "HYPERDRONE_ENVIRONMENT_MB_SAMPLES": self.motion_blur_samples,
+            "HYPERDRONE_ENVIRONMENT_AA_GRID": self.anti_aliasing_grid,
             "HYPERDRONE_ENVIRONMENT_PRESET": PRESETS[self.preset],
             "HYPERDRONE_ENVIRONMENT_TASK": TASKS[self.task],
             "HYPERDRONE_ENVIRONMENT_CONTROL": CONTROLS.index(self.control),

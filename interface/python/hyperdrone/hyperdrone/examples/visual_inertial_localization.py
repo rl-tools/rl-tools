@@ -30,7 +30,7 @@ GRAVITY = np.array([0.0, 0.0, -9.81])
 env = HyperDrone(
     [arguments.model or hyperlux.datasets.procthor.Train200()["ProcTHOR-Train-1"].reference],
     config=Config(instances_per_world=arguments.instances, width=arguments.width, height=arguments.height,
-                  fidelity="high", preset="x500_fpv_imu", task="visual_inertial_localization"),
+                  fidelity="high", anti_aliasing_grid=1, preset="x500_fpv_imu", task="visual_inertial_localization"),
     seed=arguments.seed,
 )
 steps = arguments.steps or env.episode_step_limit

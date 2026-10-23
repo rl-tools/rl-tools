@@ -13,7 +13,7 @@ from hyperlux._jit import source_root
 GOLDEN = source_root() / "tests" / "data" / "rl" / "environments" / "hyperdrone" / "python_golden"
 
 # the generator's World runs on the host; a CUDA World draws from a different RNG engine
-CONFIG = Config(num_worlds=1, instances_per_world=2, width=16, height=16, fidelity="low", device="cpu")
+CONFIG = Config(num_worlds=1, instances_per_world=2, width=16, height=16, fidelity="low", anti_aliasing_grid=1, device="cpu")
 
 
 def observe_pair(env):
@@ -48,6 +48,7 @@ def scene_directory(tmp_path_factory):
 def test_golden_rollout(scene_directory):
     manifest = json.loads((GOLDEN / "manifest.json").read_text())
     scalar_defines = {name: value for name, value in CONFIG.defines().items() if name != "HYPERLUX_CAMERA_BACKEND_REQUIREMENT"}
+    manifest["defines"].setdefault("HYPERDRONE_ENVIRONMENT_AA_GRID", 1)
     assert scalar_defines == {name: manifest["defines"][name] for name in scalar_defines}, "the test configuration drifted from the golden's — regenerate deliberately"
     env = HyperDrone(scene_directory, config=CONFIG, seed=manifest["seed"])
     try:

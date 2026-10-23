@@ -50,6 +50,31 @@ def test_camera_agent_configuration():
         replace(config, num_camera_agents=2, spec_header=__file__)
 
 
+@pytest.mark.parametrize("value", [0, 5, 2.0, True, "2", None])
+def test_invalid_anti_aliasing_grid(value):
+    with pytest.raises(ValueError, match="anti_aliasing_grid"):
+        Config(anti_aliasing_grid=value)
+
+
+def test_render_quality_defaults_and_overrides(scene_directory):
+    config = Config(instances_per_world=2, width=32, height=32, device="cpu")
+    assert config.key() == replace(config, fidelity="veryhigh", anti_aliasing_grid=2).key()
+    assert len({replace(config, fidelity=fidelity).key() for fidelity in hyperlux.FIDELITY}) == 4
+    aliased = replace(config, anti_aliasing_grid=1)
+    assert config.key() != aliased.key()
+    frames, states = [], []
+    for settings in (config, aliased):
+        with closing(HyperDrone(scene_directory, config=settings, seed=7)) as env:
+            env.reset()
+            env.observe()
+            frames.append(env.frames())
+            states.append(env.observe_privileged())
+            assert frames[-1].shape == (2, 32, 32, 3)
+            assert np.isfinite(frames[-1]).all() and frames[-1].std() > 0
+    np.testing.assert_array_equal(states[0], states[1])
+    assert not np.array_equal(frames[0], frames[1])
+
+
 @pytest.mark.parametrize("task", ["target_frame", "moving_gate", "visual_inertial_localization"])
 def test_tasks_reject_multiple_agents(task):
     with pytest.raises(ValueError, match="single-agent"):

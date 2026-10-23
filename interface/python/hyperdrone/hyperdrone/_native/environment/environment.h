@@ -39,7 +39,7 @@
 #include "device_leases.h"
 #endif
 
-#if !defined(HYPERDRONE_ENVIRONMENT_NUM_WORLDS) || !defined(HYPERDRONE_ENVIRONMENT_INSTANCES) || !defined(HYPERDRONE_ENVIRONMENT_CAM_WIDTH) || !defined(HYPERDRONE_ENVIRONMENT_CAM_HEIGHT) || !defined(HYPERDRONE_ENVIRONMENT_SHADING) || !defined(HYPERDRONE_ENVIRONMENT_MB_SAMPLES) || !defined(HYPERDRONE_ENVIRONMENT_PRESET) || !defined(HYPERDRONE_ENVIRONMENT_TASK) || !defined(HYPERDRONE_ENVIRONMENT_N_AGENTS) || !defined(HYPERDRONE_ENVIRONMENT_N_CAMERA_AGENTS) || !defined(HYPERLUX_CAMERA_CONFIG_HEADER) || !defined(HYPERDRONE_ENVIRONMENT_DEVICE_CUDA) || !defined(HYPERDRONE_ENVIRONMENT_CONTROL) || !defined(HYPERDRONE_ENVIRONMENT_ACTUATION)
+#if !defined(HYPERDRONE_ENVIRONMENT_NUM_WORLDS) || !defined(HYPERDRONE_ENVIRONMENT_INSTANCES) || !defined(HYPERDRONE_ENVIRONMENT_CAM_WIDTH) || !defined(HYPERDRONE_ENVIRONMENT_CAM_HEIGHT) || !defined(HYPERDRONE_ENVIRONMENT_SHADING) || !defined(HYPERDRONE_ENVIRONMENT_MB_SAMPLES) || !defined(HYPERDRONE_ENVIRONMENT_AA_GRID) || !defined(HYPERDRONE_ENVIRONMENT_PRESET) || !defined(HYPERDRONE_ENVIRONMENT_TASK) || !defined(HYPERDRONE_ENVIRONMENT_N_AGENTS) || !defined(HYPERDRONE_ENVIRONMENT_N_CAMERA_AGENTS) || !defined(HYPERLUX_CAMERA_CONFIG_HEADER) || !defined(HYPERDRONE_ENVIRONMENT_DEVICE_CUDA) || !defined(HYPERDRONE_ENVIRONMENT_CONTROL) || !defined(HYPERDRONE_ENVIRONMENT_ACTUATION)
 #error "every HYPERDRONE_ENVIRONMENT_* configuration define must be set (hyperdrone.Config.defines())"
 #endif
 #if HYPERDRONE_ENVIRONMENT_DEVICE_CUDA && !defined(HYPERDRONE_ENVIRONMENT_CUDA)
@@ -130,10 +130,13 @@ namespace HYPERLUX_MODULE_NAME {
         static constexpr TI CAM_HEIGHT = HYPERDRONE_ENVIRONMENT_CAM_HEIGHT;
         static constexpr bool ENABLE_MOTION_BLUR = HYPERDRONE_ENVIRONMENT_MB_SAMPLES > 1;
         static constexpr TI MOTION_BLUR_SAMPLES = HYPERDRONE_ENVIRONMENT_MB_SAMPLES;
+        static constexpr bool ENABLE_ANTI_ALIASING = HYPERDRONE_ENVIRONMENT_AA_GRID > 1;
+        static constexpr TI ANTI_ALIASING_GRID_SIZE = HYPERDRONE_ENVIRONMENT_AA_GRID;
         static constexpr TI MAX_DRONES = 8;
         using SHADING = rlt::utils::typing::conditional_t<HYPERDRONE_ENVIRONMENT_SHADING == 0, rlt::hyperlux::Low,
                         rlt::utils::typing::conditional_t<HYPERDRONE_ENVIRONMENT_SHADING == 1, rlt::hyperlux::Medium,
-                                                                                      rlt::hyperlux::High>>;
+                        rlt::utils::typing::conditional_t<HYPERDRONE_ENVIRONMENT_SHADING == 2, rlt::hyperlux::High,
+                                                                                      rlt::hyperlux::VeryHigh>>>;
     };
     using BASE_WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
 #if HYPERDRONE_ENVIRONMENT_TASK == 0
