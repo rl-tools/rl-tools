@@ -31,6 +31,7 @@
 #endif
 
 #include <vector>
+#include <cstddef>
 #include <cstring>
 #include <cstdlib>
 #include <cstdio>
@@ -1174,6 +1175,19 @@ namespace rl_tools {
             std::vector<float> directions = hyperlux::detail::generate_probe_direction_vectors<SPEC>(device);
             wgpuQueueWriteBuffer(ctx.queue, ctx.frame_inputs.buffer, (uint64_t)wg::BufferLayout<SPEC>::PROBE_DIRECTIONS_OFFSET * sizeof(uint32_t), directions.data(), directions.size() * sizeof(float));
         }
+    }
+
+    template <typename DEVICE, typename SPEC, typename OUTPUT>
+    void set_output_scale(DEVICE& device, HyperLux<SPEC, hyperlux::backends::Webgpu>& renderer, OUTPUT, float scale){
+        namespace wg = hyperlux::backends::webgpu;
+        namespace outputs = hyperlux::outputs;
+        constexpr auto SLOT = outputs::Traits<OUTPUT>::SLOT;
+        static_assert(outputs::contains<typename SPEC::OUTPUTS, OUTPUT>::value, "output is not configured");
+        static_assert(SLOT == outputs::Slot::DEPTH_RGBA8 || SLOT == outputs::Slot::FLOW_RGBA8 || SLOT == outputs::Slot::FLOW_FORWARD_RGBA8, "output does not have a color scale");
+        utils::assert_exit(device, std::isfinite(scale) && scale > 0, "output color scale must be finite and positive");
+        auto& ctx = wg::context(renderer);
+        const size_t offset = offsetof(wg::LaunchParams, output_scales) + (uint32_t)SLOT * sizeof(float);
+        wgpuQueueWriteBuffer(ctx.queue, ctx.launch_params.buffer, offset, &scale, sizeof(scale));
     }
 
     template <typename DEVICE, typename SPEC>

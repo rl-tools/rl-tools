@@ -327,6 +327,44 @@ TEST(HYPERLUX_TYPED_OUTPUTS, ANTI_ALIASING) {
 TEST(HYPERLUX_TYPED_OUTPUTS, MOTION_BLUR) {
     joint_case<false, true>();
 }
+#if defined(RL_TOOLS_HYPERLUX_TYPED_OUTPUTS_ACTIVE_BACKEND) && defined(RL_TOOLS_HYPERLUX_BACKEND_WEBGPU)
+TEST(HYPERLUX_TYPED_OUTPUTS, RUNTIME_FLOW_COLOR_SCALE_PRESERVES_RAW_FLOW) {
+    DEVICE device;
+    init(device);
+    device.logger.verbosity = devices::logging::Verbosity::warning;
+    auto bundle = scene(device);
+    using SPEC = rrt::Specification<Config<All>>;
+    rl_tools::HyperLux<SPEC, BACKEND> renderer;
+    malloc(device, renderer);
+    init(device, renderer, bundle);
+    set_inputs(device, renderer, 0);
+    render(device, renderer);
+    const auto check_scale = [&](auto descriptor) {
+        using DIRECTION = typename decltype(descriptor)::DIRECTION;
+        const auto flow = read(device, renderer, outputs::Flow<DIRECTION>{});
+        const auto status = read(device, renderer, outputs::FlowStatus<DIRECTION>{});
+        const auto original_color = read(device, renderer, descriptor);
+        constexpr float scale = FlowParameters::SCALE * 2;
+        set_output_scale(device, renderer, descriptor, scale);
+        render(device, renderer);
+        const auto scaled_flow = read(device, renderer, outputs::Flow<DIRECTION>{});
+        const auto scaled_status = read(device, renderer, outputs::FlowStatus<DIRECTION>{});
+        const auto color = read(device, renderer, descriptor);
+        EXPECT_EQ(std::memcmp(scaled_flow.data(), flow.data(), flow.size() * sizeof(float)), 0);
+        EXPECT_EQ(scaled_status, status);
+        EXPECT_NE(color, original_color);
+        for(size_t index = 0; index < status.size(); index++) {
+            const auto expected = status[index] == rrt::FlowStatus::VALID
+                ? flow_color(device, flow[index * 2], flow[index * 2 + 1], scale)
+                : flow_status_color(device, status[index]);
+            expect_color_near(color[index], expected);
+        }
+    };
+    check_scale(FlowColor{});
+    check_scale(ForwardColor{});
+    free(device, renderer);
+}
+#endif
 TEST(HYPERLUX_TYPED_OUTPUTS, CAMERA_SELECTIONS) {
     camera_selection_case<false, false>();
 }

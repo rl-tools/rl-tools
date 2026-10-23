@@ -538,6 +538,11 @@ static int run(const char* scene_path, const char* policy_path, int max_frames, 
             const auto steps = (web::TI)(accumulator / dt);
             step(device, state, input[0], input[1], input[2], input[3], input[11], steps);
             accumulator -= steps * dt;
+            if(steps > 0) {
+                using FLOW = hyperlux::outputs::Flow<hyperlux::outputs::direction::Backward, hyperlux::outputs::format::RGBA8>;
+                const float scale = static_cast<float>(FLOW::PARAMETERS::SCALE * steps * dt / web::FRAME_PERIOD);
+                set_output_scale(device, get_renderer(device, state.environment.worlds[0]), FLOW{}, scale);
+            }
         }
         if(frame == 0 || active || input[4] != 0) {
             auto& cameras = get_ref(device, state.parameters, (web::TI)0).agents[0].cameras;
