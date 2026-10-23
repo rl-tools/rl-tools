@@ -12,7 +12,7 @@ npm ci
 make html
 ```
 
-Open `_build/html/index.html`. MyST-NB executes notebooks headlessly when Sphinx
+Open `_build/html/index.html`, which redirects to HyperLux. MyST-NB executes notebooks headlessly when Sphinx
 reads them; subsequent builds reuse unchanged pages. Execution errors fail the build;
 cells have no time limit to accommodate scene downloads and native compilation.
 Python code is highlighted at build time with Shiki's GitHub Light/Dark themes,

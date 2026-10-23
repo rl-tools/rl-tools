@@ -9,7 +9,7 @@ nb_execution_mode = "force"
 nb_execution_in_temp = True
 nb_execution_timeout = -1
 nb_execution_raise_on_error = True
-include_patterns = ["index.rst", "src/HyperLux.ipynb", "src/HyperLuxBatch.ipynb"]
+include_patterns = ["index.rst", "src/HyperLux.ipynb", "src/HyperLuxBatch.ipynb", "src/HyperDrone.ipynb"]
 
 html_theme = "furo"
 html_theme_options = {
