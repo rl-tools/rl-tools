@@ -18,3 +18,4 @@ html_theme_options = {
     "sidebar_hide_name": True,
 }
 html_static_path = ["_static", "blob/assets"]
+html_css_files = ["branding.css"]

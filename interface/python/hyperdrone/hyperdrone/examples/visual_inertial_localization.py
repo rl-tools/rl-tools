@@ -12,11 +12,11 @@ import time
 
 import numpy as np
 
+import hyperlux
 from hyperdrone import Config, HyperDrone
-from hyperdrone.examples.data import procthor_scene_path
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-m", "--model", default=None, help="GLB scene (default: the ProcTHOR test scene)")
+parser.add_argument("-m", "--model", default=None, help="GLB scene (default: ProcTHOR-Train-1 from Train200)")
 parser.add_argument("--instances", type=int, default=2)
 parser.add_argument("--width", type=int, default=160)
 parser.add_argument("--height", type=int, default=120)
@@ -28,7 +28,7 @@ arguments = parser.parse_args()
 GRAVITY = np.array([0.0, 0.0, -9.81])
 
 env = HyperDrone(
-    [arguments.model or procthor_scene_path()],
+    [arguments.model or hyperlux.datasets.procthor.Train200()["ProcTHOR-Train-1"].reference],
     config=Config(instances_per_world=arguments.instances, width=arguments.width, height=arguments.height,
                   fidelity="high", preset="x500_fpv_imu", task="visual_inertial_localization"),
     seed=arguments.seed,

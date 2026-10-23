@@ -1,5 +1,4 @@
-"""Minimal form of benchmark.py's default run — the configuration of
-`hyperlux_sim_benchmark_medium` with no arguments:
+"""Minimal form of benchmark.py's default run on ProcTHOR-Train-1 from Train200:
 4096 static cameras @ 64x64, medium fidelity, no collision probes, fov 80 degrees, all at one eye position
 inside the ProcTHOR house, uniform-SO3 orientations (seed 0), 2s untimed warmup, then a
 timed async render_launch loop with a sync every 10 iterations for ~10 seconds."""
@@ -11,7 +10,6 @@ from scipy.spatial.transform import Rotation
 
 import hyperlux
 from hyperlux.camera import CameraSpec, Depth, RGB
-from hyperlux.examples.data import procthor_scene_path
 
 NUM_CAMERAS = 4096
 WIDTH, HEIGHT = 64, 64
@@ -19,7 +17,8 @@ FOV = 80.0  # degrees, the renderer config default
 EYE = np.array([-3.92, -5.67, 1.0])
 WARMUP_SECONDS, SECONDS, SYNC_INTERVAL = 2.0, 10.0, 10
 
-scene = hyperlux.load_scene(procthor_scene_path(), fidelity="medium")
+dataset = hyperlux.datasets.procthor.Train200()
+scene = hyperlux.load_scene(dataset["ProcTHOR-Train-1"].reference, fidelity="medium")
 renderer = hyperlux.HyperLux(width=WIDTH, height=HEIGHT, batch_size=NUM_CAMERAS, num_probes=0,
                            cameras=(CameraSpec("front", (RGB("rgba8"),)),), fidelity="medium")
 renderer.init(scene)

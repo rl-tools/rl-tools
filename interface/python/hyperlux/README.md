@@ -45,7 +45,6 @@ Requirements: CMake >= 3.24, a C++17 compiler, and git for dependency downloads.
 | `HYPERLUX_BACKEND` | `OPTIX` \| `METAL` \| `VULKAN` \| `WEBGPU` \| `GENERIC` \| `AUTO` (AUTO preference: OPTIX > METAL > VULKAN > WEBGPU > GENERIC) |
 | `HYPERLUX_CACHE_DIR` | root for CMake build trees and downloaded build dependencies (default `~/.cache/hyperlux`) |
 | `HYPERLUX_RLTOOLS_ROOT` | rl-tools source root override (default: enclosing checkout, else the vendored tree) |
-| `HYPERLUX_PROCTHOR_PATH` | examples only: local ProcTHOR scene override (otherwise downloaded and cached) |
 | `HYPERLUX_SKIP_BUILD` | skip the CMake staleness check when the artifacts already exist |
 | `HYPERLUX_OFFLINE` | forbid network during builds (requires seeded/vendored dependencies) |
 | `HYPERLUX_BUILD_JOBS` | parallel build jobs (default 5) |
@@ -60,9 +59,10 @@ At the default verbosity, initial build setup and compilation of uncached native
 import numpy as np
 import hyperlux
 from hyperlux.camera import CameraSpec, RGB, Depth
-from hyperlux.examples.data import procthor_scene_path
 
-scene = hyperlux.load_scene(procthor_scene_path(), fidelity="high")
+dataset = hyperlux.datasets.procthor.Train200()
+scene_reference = dataset["ProcTHOR-Train-1"].reference
+scene = hyperlux.load_scene(scene_reference, fidelity="high")
 
 renderer = hyperlux.HyperLux(width=320, height=240, batch_size=4, cameras=(CameraSpec("front", (RGB("rgba8"), Depth())),), fidelity="high")
 renderer.init(scene)
@@ -155,7 +155,7 @@ status = renderer.outputs[FlowStatus()].read()
 For labelled ProcTHOR rendering, preserve GLB root instances; instance and semantic labels can be rendered together:
 
 ```python
-scene = hyperlux.load_scene(procthor_scene_path(), rgb=False, preserve_instances=True)
+scene = hyperlux.load_scene(scene_reference, rgb=False, preserve_instances=True)
 renderer = hyperlux.HyperLux(width=512, height=512, cameras=(CameraSpec("front", (Segmentation(), Segmentation(labels="semantic"))),))
 renderer.init(scene)
 # Set cameras and render as usual.
@@ -170,7 +170,7 @@ Assign labels before `HyperLux.init()`: `object.segmentation_class = id`, `scene
 
 Objects, scenes, assemblies and pools expose `remap_segmentation_classes(mapping, taxonomy="custom", classes={...})`; pools also expose `remap_asset_segmentation_classes(asset, mapping, ...)`. Omitting taxonomy/classes selects unnamed numeric IDs. Mappings must cover every used class, and validation failures leave labels unchanged. Remapping preserves valid class boundaries and rejects mixed-class welded objects; explicitly assign one class first if collapsing their labels is intentional. Remap conflicting sources separately before composition. The C++ equivalents are device-first `assign_segmentation_class` and `remap_segmentation_classes` in `hyperlux/segmentation_cpu.h`, with a shared immutable target taxonomy (or `nullptr` for unnamed IDs).
 
-`hyperlux.datasets.procthor.Train200()` exposes the header-pinned 200-scene ProcTHOR training subset (scene IDs 0–199). Catalog access loads the native core without resolving assets; use `dataset["ProcTHOR-Train-1"].reference` with `hyperlux.load_scene`. The RLtools commit identifies the catalog's membership, order, and hashes. This collection's Train-1 artifact differs from the scene pinned by `examples.data.procthor_scene_path()` and the rendering goldens.
+`hyperlux.datasets.procthor.Train200()` exposes the header-pinned 200-scene ProcTHOR training subset (scene IDs 0–199). Catalog access loads the native core without resolving assets; use `dataset["ProcTHOR-Train-1"].reference` with `hyperlux.load_scene`. The RLtools commit identifies the catalog's membership, order, and hashes. This collection's Train-1 artifact differs from the pinned rendering-golden scene.
 
 ```python
 dataset = hyperlux.datasets.procthor.Train200()

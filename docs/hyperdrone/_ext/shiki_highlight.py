@@ -9,31 +9,33 @@ from sphinx.errors import ExtensionError
 
 def add_semantic_decorations(blocks):
     lines = []
-    origins = []
     for block in blocks:
+        first_line = len(lines) + 1
+        code_lines = block["code"].split("\n")
         cell_magic = block["code"].lstrip().startswith("%%")
-        for line_number, line in enumerate(block["code"].split("\n")):
+        for line in code_lines:
             lines.append("" if cell_magic or line.lstrip().startswith(("%", "!")) else line)
-            origins.append((block, line_number, line))
         lines.append("")
-        origins.append(None)
 
-    script = jedi.Script("\n".join(lines))
-    for name in script.get_names(all_scopes=True, definitions=True, references=True):
-        kinds = {value.type for value in script.infer(name.line, name.column + len(name.name))}
-        if len(kinds) != 1:
-            continue
-        kind = kinds.pop()
-        if kind not in {"module", "class", "function"}:
-            continue
-        block, line_number, line = origins[name.line - 1]
-        start = len(line[:name.column].encode("utf-16-le")) // 2
-        end = start + len(name.name.encode("utf-16-le")) // 2
-        block["decorations"].append({
-            "start": {"line": line_number, "character": start},
-            "end": {"line": line_number, "character": end},
-            "properties": {"class": f"semantic-{kind}"},
-        })
+        script = jedi.Script("\n".join(lines))
+        for name in script.get_names(all_scopes=True, definitions=True, references=True):
+            if name.line < first_line:
+                continue
+            kinds = {value.type for value in script.infer(name.line, name.column + len(name.name))}
+            if len(kinds) != 1:
+                continue
+            kind = kinds.pop()
+            if kind not in {"module", "class", "function"}:
+                continue
+            line_number = name.line - first_line
+            line = code_lines[line_number]
+            start = len(line[:name.column].encode("utf-16-le")) // 2
+            end = start + len(name.name.encode("utf-16-le")) // 2
+            block["decorations"].append({
+                "start": {"line": line_number, "character": start},
+                "end": {"line": line_number, "character": end},
+                "properties": {"class": f"semantic-{kind}"},
+            })
 
 
 def highlight_python(app, doctree, docname):

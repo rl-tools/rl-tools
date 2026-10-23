@@ -1,6 +1,6 @@
 # Raytracing benchmarks
 
-The simulator benchmark supports OptiX, Metal, Vulkan, and WebGPU through the configured renderer backend. Its default workload matches `python -m hyperdrone.examples.benchmark`: ProcTHOR-Train-1, 4096 static cameras at 64×64, medium RGB, 80° FOV, no probes/AA/motion blur, seed 0, 2 seconds of warmup, and 10 seconds of measurement with synchronization every 10 launches. Python and C++ sample the same orientation distribution using different RNGs.
+The simulator benchmark supports OptiX, Metal, Vulkan, and WebGPU through the configured renderer backend. Its camera and timing configuration matches `python -m hyperlux.examples.benchmark`: 4096 static cameras at 64×64, medium RGB, 80° FOV, no probes/AA/motion blur, seed 0, 2 seconds of warmup, and 10 seconds of measurement with synchronization every 10 launches. Python and C++ sample the same orientation distribution using different RNGs.
 
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -10,7 +10,7 @@ cmake --build build --target hyperlux_sim_benchmark_medium -j5
 
 `AUTO` selects the available backend. Use `-DRL_TOOLS_HYPERLUX_BACKEND=METAL`, `VULKAN`, `WEBGPU`, or `OPTIX` to require one explicitly. OptiX requires CUDA; Vulkan requires headers and `glslangValidator`, plus a device with ray-query support at runtime. WebGPU uses the pinned wgpu-native runtime on Linux x86_64, runs headlessly, and selects its adapter through `RL_TOOLS_WEBGPU_DEVICE_INDEX` when set. Vulkan and WebGPU can run on lavapipe for correctness testing. Metal, Vulkan, and WebGPU do not require CUDA.
 
-The default scene resolves `conta:75d1d67a17ecd16bc3a214baa895240da8060df7`, the same content hash as the Python example; `--procthor-path` accepts a file or a conta reference. The procedural `--scene 20_objects` case needs no downloaded scene.
+The C++ default scene resolves `conta:75d1d67a17ecd16bc3a214baa895240da8060df7`; the Python example defaults to the Train200 catalog entry. Pass the same file or conta reference to C++ `--procthor-path` and Python `--model` for scene-matched comparisons. The procedural `--scene 20_objects` case needs no downloaded scene.
 
 ## Targets and cases
 

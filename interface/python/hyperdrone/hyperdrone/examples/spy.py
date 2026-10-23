@@ -5,8 +5,9 @@ import time
 
 import numpy as np
 
+import hyperlux
 from hyperdrone import Config, HyperDrone
-from hyperdrone.examples.data import RIGGED_MODELS, procthor_scene_path
+from hyperdrone.examples.data import RIGGED_MODELS
 
 
 def position_targets(env):
@@ -18,13 +19,13 @@ def position_targets(env):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("scene", nargs="?", type=Path, help="local GLB (default: cached/downloaded ProcTHOR scene)")
+    parser.add_argument("scene", nargs="?", type=Path, help="local GLB (default: ProcTHOR-Train-1 from Train200)")
     arguments = parser.parse_args()
     if arguments.scene is not None and not arguments.scene.is_file():
         parser.error("scene must be an existing local GLB file")
 
     env = HyperDrone(
-        arguments.scene or procthor_scene_path(),
+        arguments.scene or hyperlux.datasets.procthor.Train200()["ProcTHOR-Train-1"].reference,
         config=Config(instances_per_world=4, width=64, height=64, preset="x500_fpv", control="position"),
         drone_asset=RIGGED_MODELS["x500"],
         parameters={"dynamics": {"mdp": {"init": {"guidance": 1}}}},

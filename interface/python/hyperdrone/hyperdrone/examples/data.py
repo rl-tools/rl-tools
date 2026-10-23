@@ -1,9 +1,11 @@
-"""Shared data resolution and download helpers for runnable examples."""
+"""Rigged drone assets for runnable examples."""
+
+import os
+from pathlib import Path
 
 import conta
-from hyperlux.examples.data import PROCTHOR_SCENE, override_path, procthor_scene_path
 
-__all__ = ["PROCTHOR_SCENE", "RIGGED_MODELS", "procthor_scene_path", "rigged_model_path"]
+__all__ = ["RIGGED_MODELS", "rigged_model_path"]
 
 # body/prop_* assemblies, each a drone table asset (hyperdrone.HyperDrone(drones=...))
 RIGGED_MODELS = {
@@ -23,5 +25,11 @@ def rigged_model_path(name):
     """
     if name not in RIGGED_MODELS:
         raise KeyError(f"hyperdrone: unknown rigged model {name!r} (one of {sorted(RIGGED_MODELS)})")
-    override = override_path(f"HYPERDRONE_{name.upper()}_PATH")
-    return override if override is not None else conta.resolve(RIGGED_MODELS[name])
+    override_variable = f"HYPERDRONE_{name.upper()}_PATH"
+    override = os.environ.get(override_variable)
+    if override:
+        path = Path(override).expanduser().resolve()
+        if not path.is_file():
+            raise FileNotFoundError(f"hyperdrone: {override_variable} does not exist: {path}")
+        return path
+    return conta.resolve(RIGGED_MODELS[name])

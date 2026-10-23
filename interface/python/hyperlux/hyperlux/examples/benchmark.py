@@ -1,17 +1,18 @@
 """Python-API counterpart of the simulator-matrix raytracing benchmark
-(src/hyperlux/benchmark/simulator_matrix.cpp), matching the configuration of
+(src/hyperlux/benchmark/simulator_matrix.cpp), matching the camera and timing configuration of
 `hyperlux_sim_benchmark_medium` with no arguments:
 
   4096 cameras @ 64x64, medium fidelity, RGB output, collision probes compiled out
   (no Probes output), AA/MB off, fov 80 degrees,
   all cameras at the fixed FLU eye position [-3.92, -5.67, 1.0] inside the ProcTHOR
-  house, per-camera orientations sampled once from a seeded distribution
+  house from the Train200 catalog, per-camera orientations sampled once from a seeded distribution
   (uniform_so3 default), 2s untimed warmup, then a timed async render_launch loop with a
   sync every 10 iterations for ~10 seconds.
 
 Orientation sampling uses the same distributions as the C++ benchmark (Haar-uniform SO3
 via scipy Rotation.random / yaw-pitch / look-at jitter) with numpy's RNG, so the workload
-is statistically identical but not orientation-for-orientation bit-equal to the C++ run.
+has the same distribution but is not orientation-for-orientation bit-equal to the C++ run.
+The default scene artifacts differ; pass the same scene to both for comparisons.
 
 --camera-input additionally exercises hyperlux's per-iteration camera-input paths
 (host upload, DLPack device hand-over, direct device indexing); the default (static)
@@ -26,14 +27,12 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 import hyperlux
-import hyperlux
 from hyperlux.camera import CameraSpec, Depth, RGB
-from hyperlux.examples.data import procthor_scene_path
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-m", "--model", default=None,
-                    help="GLB scene (default: cached ProcTHOR-Train-1 download)")
+                    help="GLB path or conta reference (default: ProcTHOR-Train-1 from Train200)")
 parser.add_argument("--width", type=int, default=64)
 parser.add_argument("--height", type=int, default=64)
 parser.add_argument("--cameras", type=int, default=4096)
@@ -120,9 +119,9 @@ def camera_bases(positions, forwards, ups, fov, aspect):
     return np.concatenate([positions, dir_00, du, -dv], axis=-1).astype(np.float32)
 
 
-model = Path(arguments.model) if arguments.model else procthor_scene_path()
+model = arguments.model or hyperlux.datasets.procthor.Train200()["ProcTHOR-Train-1"].reference
 scene_source = str(model)
-if model.exists():
+if model.startswith("conta:") or Path(model).exists():
     scene = hyperlux.load_scene(model, fidelity=arguments.fidelity)
     eye = PROCTHOR_EYE
 else:
