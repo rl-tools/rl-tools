@@ -6,5 +6,5 @@ Drone simulation and rendering with HyperDrone and HyperLux.
 .. toctree::
    :maxdepth: 2
 
-   src/HyperLuxMinimal.ipynb
-   src/HyperLuxMaximal.ipynb
+   src/HyperLux.ipynb
+   src/HyperLuxBatch.ipynb
