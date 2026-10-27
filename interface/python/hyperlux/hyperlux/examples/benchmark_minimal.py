@@ -6,7 +6,6 @@ import math
 import time
 
 import numpy as np
-from scipy.spatial.transform import Rotation
 
 import hyperlux
 from hyperlux.camera import CameraSpec, Depth, RGB
@@ -28,7 +27,19 @@ def normalize(vectors):
     return vectors / np.linalg.norm(vectors, axis=-1, keepdims=True)
 
 
-rotations = Rotation.random(NUM_CAMERAS, rng=np.random.default_rng(0)).as_matrix()
+def uniform_rotations(rng, count):
+    """(count, 3, 3) Haar-uniform rotation matrices from Shoemake's quaternion sampling."""
+    u1, u2, u3 = rng.uniform(size=(3, count))
+    x, y = np.sqrt(1 - u1) * np.sin(2 * np.pi * u2), np.sqrt(1 - u1) * np.cos(2 * np.pi * u2)
+    z, w = np.sqrt(u1) * np.sin(2 * np.pi * u3), np.sqrt(u1) * np.cos(2 * np.pi * u3)
+    return np.stack([
+        np.stack([1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)], axis=-1),
+        np.stack([2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)], axis=-1),
+        np.stack([2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)], axis=-1),
+    ], axis=-2)
+
+
+rotations = uniform_rotations(np.random.default_rng(0), NUM_CAMERAS)
 forwards = rotations[:, :, 0]  # camera forward = body +X column
 ups = rotations[:, :, 2]       # camera up = body +Z column
 

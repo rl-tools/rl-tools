@@ -13,7 +13,7 @@ requires-python = ">=3.10"
 dependencies = ["numpy", "nanobind>=2.0", "conta>=0.0.1"]
 
 [project.optional-dependencies]
-examples = ["scipy>=1.15", "matplotlib", "imageio", "imageio-ffmpeg"]
+examples = ["matplotlib", "imageio", "imageio-ffmpeg"]
 
 [tool.hatch.build]
 exclude = [

@@ -10,7 +10,7 @@
   sync every 10 iterations for ~10 seconds.
 
 Orientation sampling uses the same distributions as the C++ benchmark (Haar-uniform SO3
-via scipy Rotation.random / yaw-pitch / look-at jitter) with numpy's RNG, so the workload
+via Shoemake's quaternion sampling / yaw-pitch / look-at jitter) with numpy's RNG, so the workload
 has the same distribution but is not orientation-for-orientation bit-equal to the C++ run.
 The default scene artifacts differ; pass the same scene to both for comparisons.
 
@@ -24,7 +24,6 @@ import time
 from pathlib import Path
 
 import numpy as np
-from scipy.spatial.transform import Rotation
 
 import hyperlux
 from hyperlux.camera import CameraSpec, Depth, RGB
@@ -88,12 +87,24 @@ def normalize(vectors):
     return vectors / np.linalg.norm(vectors, axis=-1, keepdims=True)
 
 
+def uniform_rotations(rng, count):
+    """(count, 3, 3) Haar-uniform rotation matrices from Shoemake's quaternion sampling, as in the C++ benchmark."""
+    u1, u2, u3 = rng.uniform(size=(3, count))
+    x, y = np.sqrt(1 - u1) * np.sin(2 * np.pi * u2), np.sqrt(1 - u1) * np.cos(2 * np.pi * u2)
+    z, w = np.sqrt(u1) * np.sin(2 * np.pi * u3), np.sqrt(u1) * np.cos(2 * np.pi * u3)
+    return np.stack([
+        np.stack([1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)], axis=-1),
+        np.stack([2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)], axis=-1),
+        np.stack([2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)], axis=-1),
+    ], axis=-2)
+
+
 def sample_orientations(rng, count, mode, look_at_forward):
     """Per-camera (forward, up) pairs; same distributions as make_camera_poses in the
     C++ simulator-matrix benchmark."""
     world_up = np.array([0.0, 0.0, 1.0])
     if mode == "uniform_so3":
-        rotation = Rotation.random(count, rng=rng).as_matrix()
+        rotation = uniform_rotations(rng, count)
         forwards = rotation[:, :, 0]  # camera forward = body +X column
         ups = rotation[:, :, 2]       # camera up = body +Z column
     elif mode == "look_at_scene_jitter":
