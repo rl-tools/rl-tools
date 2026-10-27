@@ -10,7 +10,7 @@ build happens on first use. set_verbosity(level) controls build progress and the
 those of packages built on hyperlux's JIT such as hyperdrone.
 """
 
-__version__ = "0.1.8"
+__version__ = "0.1.9"
 
 _VERBOSITY_LEVELS = ("error", "warning", "info", "debug")
 _verbosity = "info"
