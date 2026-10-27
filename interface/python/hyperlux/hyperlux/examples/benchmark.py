@@ -29,28 +29,7 @@ import hyperlux
 from hyperlux.camera import CameraSpec, Depth, RGB
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument("-m", "--model", default=None,
-                    help="GLB path or conta reference (default: ProcTHOR-Train-1 from Train200)")
-parser.add_argument("--width", type=int, default=64)
-parser.add_argument("--height", type=int, default=64)
-parser.add_argument("--cameras", type=int, default=4096)
-parser.add_argument("--output", choices=("rgb", "depth"), default="rgb")
-parser.add_argument("--fidelity", default="medium")
-parser.add_argument("--orientation-mode", choices=("uniform_so3", "random_yaw_pitch", "look_at_scene_jitter"), default="uniform_so3")
-parser.add_argument("--seconds", type=float, default=10.0)
-parser.add_argument("--iterations", type=int, default=0, help="fixed timed iterations; overrides --seconds when > 0")
-parser.add_argument("--warmup-seconds", type=float, default=2.0)
-parser.add_argument("--sync-interval", type=int, default=10)
-parser.add_argument("--seed", type=int, default=0)
-parser.add_argument("--camera-input", choices=("static", "host", "dlpack", "direct"), default="static")
-parser.add_argument("--camera-sets", type=int, default=100)
-arguments = parser.parse_args()
-
-WIDTH, HEIGHT = arguments.width, arguments.height
-NUM_CAMERAS = arguments.cameras
 FOV = 80.0  # degrees, matches the renderer config default
-ASPECT = WIDTH / HEIGHT
 PROCTHOR_EYE = np.array([-3.92, -5.67, 1.0])  # camera_offset(procthor) in the C++ benchmark
 
 
@@ -130,118 +109,145 @@ def camera_bases(positions, forwards, ups, fov, aspect):
     return np.concatenate([positions, dir_00, du, -dv], axis=-1).astype(np.float32)
 
 
-model = arguments.model or hyperlux.datasets.procthor.Train200()["ProcTHOR-Train-1"].reference
-scene_source = str(model)
-if model.startswith("conta:") or Path(model).exists():
-    scene = hyperlux.load_scene(model, fidelity=arguments.fidelity)
-    eye = PROCTHOR_EYE
-else:
-    scene_source = "procedural room (GLB not found)"
-    scene = build_procedural_scene(np.random.default_rng(0))
-    eye = None
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-m", "--model", default=None,
+                        help="GLB path or conta reference (default: ProcTHOR-Train-1 from Train200)")
+    parser.add_argument("--width", type=int, default=64)
+    parser.add_argument("--height", type=int, default=64)
+    parser.add_argument("--cameras", type=int, default=4096)
+    parser.add_argument("--output", choices=("rgb", "depth"), default="rgb")
+    parser.add_argument("--fidelity", default="medium")
+    parser.add_argument("--orientation-mode", choices=("uniform_so3", "random_yaw_pitch", "look_at_scene_jitter"), default="uniform_so3")
+    parser.add_argument("--seconds", type=float, default=10.0)
+    parser.add_argument("--iterations", type=int, default=0, help="fixed timed iterations; overrides --seconds when > 0")
+    parser.add_argument("--warmup-seconds", type=float, default=2.0)
+    parser.add_argument("--sync-interval", type=int, default=10)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--camera-input", choices=("static", "host", "dlpack", "direct"), default="static")
+    parser.add_argument("--camera-sets", type=int, default=100)
+    arguments = parser.parse_args()
 
-renderer = hyperlux.HyperLux(width=WIDTH, height=HEIGHT, batch_size=NUM_CAMERAS, num_probes=0,
-                           cameras=(CameraSpec("front", (RGB("rgba8") if arguments.output == "rgb" else Depth(),)),), fidelity=arguments.fidelity, anti_aliasing_grid=1)
-renderer.init(scene)
-if eye is None:
-    eye = np.asarray(renderer.scene_bounds["center"], dtype=np.float64)
+    WIDTH, HEIGHT = arguments.width, arguments.height
+    NUM_CAMERAS = arguments.cameras
+    ASPECT = WIDTH / HEIGHT
 
-rng = np.random.default_rng(arguments.seed)
-positions = np.tile(eye, (NUM_CAMERAS, 1))
-look_at_forward = normalize(np.asarray(renderer.scene_bounds["center"], dtype=np.float64) - eye) \
-    if not np.allclose(np.asarray(renderer.scene_bounds["center"], dtype=np.float64), eye) else np.array([1.0, 0.0, 0.0])
-forwards, ups = sample_orientations(rng, NUM_CAMERAS, arguments.orientation_mode, look_at_forward)
-renderer.set_cameras(camera_bases(positions, forwards, ups, FOV, ASPECT))
-
-set_cameras_for_iteration = lambda iteration: None
-if arguments.camera_input != "static":
-    all_sets = np.stack([
-        camera_bases(positions, *sample_orientations(rng, NUM_CAMERAS, arguments.orientation_mode, look_at_forward), FOV, ASPECT)
-        for _ in range(arguments.camera_sets)
-    ])  # (sets, cameras, 12)
-    num_sets = arguments.camera_sets
-
-    if arguments.camera_input == "host":
-        host_sets = [np.ascontiguousarray(all_sets[s]) for s in range(num_sets)]
-        set_host = renderer.set_cameras
-        set_cameras_for_iteration = lambda iteration: set_host(host_sets[iteration % num_sets])
+    model = arguments.model or hyperlux.datasets.procthor.Train200()["ProcTHOR-Train-1"].reference
+    scene_source = str(model)
+    if model.startswith("conta:") or Path(model).exists():
+        scene = hyperlux.load_scene(model, fidelity=arguments.fidelity)
+        eye = PROCTHOR_EYE
     else:
-        if renderer.backend != "optix":
-            raise SystemExit(f"--camera-input {arguments.camera_input} requires the OptiX backend (got {renderer.backend})")
-        tensor_set = hyperlux._cuda.upload(all_sets)
-        if arguments.camera_input == "dlpack":
-            views = [tensor_set.view(s) for s in range(num_sets)]
-            set_device = renderer._renderer.set_cameras_device
-            set_cameras_for_iteration = lambda iteration: set_device(views[iteration % num_sets], 0)
+        scene_source = "procedural room (GLB not found)"
+        scene = build_procedural_scene(np.random.default_rng(0))
+        eye = None
+
+    renderer = hyperlux.HyperLux(width=WIDTH, height=HEIGHT, batch_size=NUM_CAMERAS, num_probes=0,
+                               cameras=(CameraSpec("front", (RGB("rgba8") if arguments.output == "rgb" else Depth(),)),), fidelity=arguments.fidelity, anti_aliasing_grid=1)
+    renderer.init(scene)
+    if eye is None:
+        eye = np.asarray(renderer.scene_bounds["center"], dtype=np.float64)
+
+    rng = np.random.default_rng(arguments.seed)
+    positions = np.tile(eye, (NUM_CAMERAS, 1))
+    look_at_forward = normalize(np.asarray(renderer.scene_bounds["center"], dtype=np.float64) - eye) \
+        if not np.allclose(np.asarray(renderer.scene_bounds["center"], dtype=np.float64), eye) else np.array([1.0, 0.0, 0.0])
+    forwards, ups = sample_orientations(rng, NUM_CAMERAS, arguments.orientation_mode, look_at_forward)
+    renderer.set_cameras(camera_bases(positions, forwards, ups, FOV, ASPECT))
+
+    set_cameras_for_iteration = lambda iteration: None
+    if arguments.camera_input != "static":
+        all_sets = np.stack([
+            camera_bases(positions, *sample_orientations(rng, NUM_CAMERAS, arguments.orientation_mode, look_at_forward), FOV, ASPECT)
+            for _ in range(arguments.camera_sets)
+        ])  # (sets, cameras, 12)
+        num_sets = arguments.camera_sets
+
+        if arguments.camera_input == "host":
+            host_sets = [np.ascontiguousarray(all_sets[s]) for s in range(num_sets)]
+            set_host = renderer.set_cameras
+            set_cameras_for_iteration = lambda iteration: set_host(host_sets[iteration % num_sets])
         else:
-            raw_buffer = tensor_set.raw
-            set_from_buffer = renderer._renderer.set_cameras_from_cuda_buffer
-            set_cameras_for_iteration = lambda iteration: set_from_buffer(raw_buffer, iteration % num_sets, 0)
+            if renderer.backend != "optix":
+                raise SystemExit(f"--camera-input {arguments.camera_input} requires the OptiX backend (got {renderer.backend})")
+            tensor_set = hyperlux._cuda.upload(all_sets)
+            if arguments.camera_input == "dlpack":
+                views = [tensor_set.view(s) for s in range(num_sets)]
+                set_device = renderer._renderer.set_cameras_device
+                set_cameras_for_iteration = lambda iteration: set_device(views[iteration % num_sets], 0)
+            else:
+                raw_buffer = tensor_set.raw
+                set_from_buffer = renderer._renderer.set_cameras_from_cuda_buffer
+                set_cameras_for_iteration = lambda iteration: set_from_buffer(raw_buffer, iteration % num_sets, 0)
 
-        # the device path must be pixel-identical to the host path
-        renderer.set_cameras(np.ascontiguousarray(all_sets[0]))
-        renderer.render()
-        renderer.render_sync()
-        host_frame = renderer.outputs[RGB("rgba8")].packed.read() if arguments.output == "rgb" else renderer.outputs[Depth()].read()
-        set_cameras_for_iteration(0)
-        renderer.render()
-        renderer.render_sync()
-        check_frame = renderer.outputs[RGB("rgba8")].packed.read() if arguments.output == "rgb" else renderer.outputs[Depth()].read()
-        assert np.array_equal(host_frame, check_frame), "device camera path diverged from host path"
-
-# untimed warmup: full synchronous renders, matching the C++ protocol
-warmup_start = time.perf_counter()
-warmup_iterations = 0
-while time.perf_counter() - warmup_start < arguments.warmup_seconds or warmup_iterations == 0:
-    set_cameras_for_iteration(warmup_iterations)
-    renderer.render()
-    warmup_iterations += 1
-renderer.synchronize()
-
-wall_start = time.perf_counter()
-num_iterations = 0
-if arguments.iterations > 0:
-    for num_iterations in range(1, arguments.iterations + 1):
-        set_cameras_for_iteration(num_iterations - 1)
-        renderer.render_launch()
-        if num_iterations % arguments.sync_interval == 0:
+            # the device path must be pixel-identical to the host path
+            renderer.set_cameras(np.ascontiguousarray(all_sets[0]))
+            renderer.render()
             renderer.render_sync()
-else:
-    while True:
-        set_cameras_for_iteration(num_iterations)
-        renderer.render_launch()
-        num_iterations += 1
-        if num_iterations % arguments.sync_interval == 0:
+            host_frame = renderer.outputs[RGB("rgba8")].packed.read() if arguments.output == "rgb" else renderer.outputs[Depth()].read()
+            set_cameras_for_iteration(0)
+            renderer.render()
             renderer.render_sync()
-            if time.perf_counter() - wall_start >= arguments.seconds:
-                break
-if num_iterations % arguments.sync_interval != 0:
-    renderer.render_sync()
-renderer.synchronize()
-wall_seconds = time.perf_counter() - wall_start
+            check_frame = renderer.outputs[RGB("rgba8")].packed.read() if arguments.output == "rgb" else renderer.outputs[Depth()].read()
+            assert np.array_equal(host_frame, check_frame), "device camera path diverged from host path"
 
-total_frames = num_iterations * NUM_CAMERAS
-total_pixels = total_frames * WIDTH * HEIGHT
-total_mrays = total_pixels / 1e6  # 1 sample/pixel: AA and motion blur are off
+    # untimed warmup: full synchronous renders, matching the C++ protocol
+    warmup_start = time.perf_counter()
+    warmup_iterations = 0
+    while time.perf_counter() - warmup_start < arguments.warmup_seconds or warmup_iterations == 0:
+        set_cameras_for_iteration(warmup_iterations)
+        renderer.render()
+        warmup_iterations += 1
+    renderer.synchronize()
 
-print("=== BENCHMARK RESULTS (simulator-matrix config, python) ===")
-print(f"  Backend:             {renderer.backend}")
-print(f"  Scene:               {scene_source}")
-print(f"  Output:              {arguments.output}")
-print(f"  Fidelity:             {arguments.fidelity}")
-print(f"  Cameras per batch:   {NUM_CAMERAS}")
-print(f"  Resolution per cam:  {WIDTH}x{HEIGHT}")
-print(f"  FOV:                 {FOV:.1f} deg")
-print(f"  Camera eye (FLU):    [{eye[0]:.2f}, {eye[1]:.2f}, {eye[2]:.2f}]")
-print(f"  Orientation mode:    {arguments.orientation_mode} (seed {arguments.seed})")
-print(f"  Camera input:        {arguments.camera_input}" + ("" if arguments.camera_input == "static" else f" ({arguments.camera_sets} orientation sets)"))
-print(f"  Warmup:              {warmup_iterations} iterations ({arguments.warmup_seconds:.1f}s untimed)")
-print(f"  Batch iterations:    {num_iterations}")
-print(f"  Total frames:        {total_frames}")
-print(f"  Wall-clock time:     {wall_seconds * 1000:.2f} ms")
-print(f"  Avg per iter:        {wall_seconds * 1000 / num_iterations:.2f} ms")
-print(f"  Avg per frame:       {wall_seconds * 1000 / total_frames:.4f} ms")
-print(f"  Throughput:          {total_frames / wall_seconds:.1f} frames/sec")
-print(f"  Pixels/sec:          {total_pixels / wall_seconds:.3e}")
-print(f"  Total MRays/sec:     {total_mrays / wall_seconds:.1f}")
-print("===========================================================")
+    wall_start = time.perf_counter()
+    num_iterations = 0
+    if arguments.iterations > 0:
+        for num_iterations in range(1, arguments.iterations + 1):
+            set_cameras_for_iteration(num_iterations - 1)
+            renderer.render_launch()
+            if num_iterations % arguments.sync_interval == 0:
+                renderer.render_sync()
+    else:
+        while True:
+            set_cameras_for_iteration(num_iterations)
+            renderer.render_launch()
+            num_iterations += 1
+            if num_iterations % arguments.sync_interval == 0:
+                renderer.render_sync()
+                if time.perf_counter() - wall_start >= arguments.seconds:
+                    break
+    if num_iterations % arguments.sync_interval != 0:
+        renderer.render_sync()
+    renderer.synchronize()
+    wall_seconds = time.perf_counter() - wall_start
+
+    total_frames = num_iterations * NUM_CAMERAS
+    total_pixels = total_frames * WIDTH * HEIGHT
+    total_mrays = total_pixels / 1e6  # 1 sample/pixel: AA and motion blur are off
+
+    print("=== BENCHMARK RESULTS (simulator-matrix config, python) ===")
+    print(f"  Backend:             {renderer.backend}")
+    print(f"  Scene:               {scene_source}")
+    print(f"  Output:              {arguments.output}")
+    print(f"  Fidelity:             {arguments.fidelity}")
+    print(f"  Cameras per batch:   {NUM_CAMERAS}")
+    print(f"  Resolution per cam:  {WIDTH}x{HEIGHT}")
+    print(f"  FOV:                 {FOV:.1f} deg")
+    print(f"  Camera eye (FLU):    [{eye[0]:.2f}, {eye[1]:.2f}, {eye[2]:.2f}]")
+    print(f"  Orientation mode:    {arguments.orientation_mode} (seed {arguments.seed})")
+    print(f"  Camera input:        {arguments.camera_input}" + ("" if arguments.camera_input == "static" else f" ({arguments.camera_sets} orientation sets)"))
+    print(f"  Warmup:              {warmup_iterations} iterations ({arguments.warmup_seconds:.1f}s untimed)")
+    print(f"  Batch iterations:    {num_iterations}")
+    print(f"  Total frames:        {total_frames}")
+    print(f"  Wall-clock time:     {wall_seconds * 1000:.2f} ms")
+    print(f"  Avg per iter:        {wall_seconds * 1000 / num_iterations:.2f} ms")
+    print(f"  Avg per frame:       {wall_seconds * 1000 / total_frames:.4f} ms")
+    print(f"  Throughput:          {total_frames / wall_seconds:.1f} frames/sec")
+    print(f"  Pixels/sec:          {total_pixels / wall_seconds:.3e}")
+    print(f"  Total MRays/sec:     {total_mrays / wall_seconds:.1f}")
+    print("===========================================================")
+
+
+if __name__ == "__main__":
+    main()

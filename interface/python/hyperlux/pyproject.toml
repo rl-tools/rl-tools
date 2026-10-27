@@ -30,6 +30,9 @@ path = "hyperlux/__init__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["hyperlux"]
 
+[project.scripts]
+hyperlux = "hyperlux.examples.benchmark:main"
+
 [tool.hatch.build.targets.sdist]
 only-include = ["hyperlux", "hatch_build.py", "README.md", "pyproject.toml"]
 
