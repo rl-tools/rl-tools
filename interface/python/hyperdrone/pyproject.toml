@@ -31,5 +31,8 @@ path = "hyperdrone/__init__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["hyperdrone"]
 
+[project.scripts]
+hyperdrone = "hyperlux.examples.benchmark:main"
+
 [tool.hatch.build.targets.sdist]
 only-include = ["hyperdrone", "README.md", "pyproject.toml"]

@@ -305,7 +305,7 @@ is exposed. `truncations` flags time limits that are not terminations. The core 
 never import gymnasium.
 
 End-to-end example: `python -m hyperdrone.examples.drone_flythrough`; renderer benchmark:
-`python -m hyperdrone.examples.benchmark` (flag-compatible with the C++ benchmark
+`hyperdrone` (same as `hyperlux` and `python -m hyperlux.examples.benchmark`, flag-compatible with the C++ benchmark
 counterpart).
 
 ## Publishing
