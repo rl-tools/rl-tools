@@ -533,7 +533,7 @@ function show_error(error, message){
     const platform = navigator.userAgentData?.platform || navigator.platform || navigator.userAgent;
     const linux = /Linux/i.test(platform) && !/Android|CrOS/i.test(navigator.userAgent);
     if(linux && (error_element.textContent.includes("WebGPU: no suitable adapter available") || error_element.textContent.startsWith("WebGPU is unavailable"))){
-        error_element.textContent += " (WebGPU support on Linux depends on your browser and GPU. Try Chrome or Firefox on Windows/macOS, or Safari on macOS.)";
+        error_element.textContent += " (WebGPU support on Linux depends on your browser and GPU. Try Chrome or Firefox on Windows/macOS, or Safari on macOS/iOS.)";
     }
     error_element.hidden = false;
 }
