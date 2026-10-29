@@ -19,7 +19,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localiz
         static constexpr TI NUM_WAYPOINTS = T_NUM_WAYPOINTS;
         using NEXT_COMPONENT = T_NEXT_COMPONENT;
     };
-    // per-episode waypoint route in the dynamics frame (waypoint 0 = origin, the initial free-space anchor)
+    // per-episode waypoint route in the dynamics frame (waypoint 0 = the final spawn position)
     template <typename T_SPEC>
     struct ParametersVisualInertialLocalization: T_SPEC::NEXT_COMPONENT {
         using SPEC = T_SPEC;
@@ -66,7 +66,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localiz
         static constexpr T WAYPOINT_MIN_DISTANCE = 1.0;
         static constexpr T WAYPOINT_ACCEPTANCE_RADIUS = 0.35;
         static constexpr T TARGET_POSITION_ERROR_CLIP = 1.0; // autopilot position-error observation clamp
-        // hover at waypoint 0 (the origin) for this many env steps before the route starts:
+        // hover at waypoint 0 (the spawn) for this many env steps before the route starts:
         // gives estimators a stationary window, and the launch toward waypoint 1 provides the
         // acceleration jerk that static visual-inertial initializers wait for
         static constexpr TI INITIALIZATION_HOLD_STEPS = 0;

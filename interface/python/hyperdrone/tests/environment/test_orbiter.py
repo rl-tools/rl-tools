@@ -7,7 +7,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from hyperdrone import examples
 from hyperdrone import Config, HyperDrone
 from hyperlux._jit import cache_root, source_root
 
@@ -16,7 +15,7 @@ WRITEFILE = "%%writefile my_task.h\n"
 
 @pytest.fixture(scope="module")
 def orbiter_header():
-    notebook = json.loads((Path(examples.__file__).parent / "Orbiter.ipynb").read_text())
+    notebook = json.loads((Path(__file__).resolve().parents[5] / "docs/hyperdrone/src/Orbiter.ipynb").read_text())
     sources = ["".join(cell["source"]) for cell in notebook["cells"] if cell["cell_type"] == "code"]
     (source,) = [source for source in sources if source.startswith(WRITEFILE)]
     # a stable path next to the builds: the header's location is part of the JIT key

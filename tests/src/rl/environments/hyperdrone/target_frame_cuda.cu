@@ -119,9 +119,18 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, GLOBAL_RNG_PARTITION
     std::vector<typename DRONE_SPEC::T> nominals(DRONE_SPEC::SIZE, env.shared.drones[0].parameters);
     rlt::Tensor<DRONE_SPEC> table_host;
     table_host._data = nominals.data();
+    typename MEMBER::ANNOTATIONS annotations{};
+    annotations.num_positions = 1;
+    annotations.positions[0].position[0] = 1;
+    annotations.positions[0].position[1] = 2;
+    annotations.positions[0].position[2] = 3;
+    annotations.positions[0].yaw = 0.5;
+    rlt::Tensor<typename MEMBER::ACTIVE_ANNOTATIONS_SPEC> annotations_host;
+    annotations_host._data = &annotations;
     auto init_sampling = [&](MEMBER& world){
         world.num_drones = env.shared.num_drones;
         rlt::copy(host, device, table_host, world.drone_parameters);
+        rlt::copy(host, device, annotations_host, world.active_annotations);
     };
     for(auto& world : env.worlds){
         init_sampling(world);

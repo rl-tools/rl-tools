@@ -105,6 +105,123 @@ TEST(L2F_MAHONY, INITIAL_STATE_IDENTITY){
     for (TI i = 0; i < 3; i++) EXPECT_DOUBLE_EQ(state.gyro_bias[i], 0.0);
 }
 
+TEST(L2F_MAHONY, INITIALIZATION_CENTER_PINS_POSE_AND_DERIVED_STATE){
+    using ANGULAR = l2f::StateAngularVelocityDelay<l2f::StateAngularVelocityDelaySpecification<T, TI, 3, ENV::State>>;
+    using LINEAR = l2f::StateLinearVelocityDelay<l2f::StateLinearVelocityDelaySpecification<T, TI, 3, ANGULAR>>;
+    using RATE = l2f::StateRateController<l2f::StateSpecification<T, TI, LINEAR>>;
+    using STATE = l2f::StateRandomOrientationOffset<l2f::StateSpecification<T, TI, RATE>>;
+    DEVICE device;
+    RNG rng;
+    ENV env;
+    rlt::init(device);
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, (TI)813);
+    rlt::init(device, env);
+    auto parameters = env.parameters;
+    parameters.mdp.init.max_position = 0;
+    parameters.mdp.init.max_angle = 0;
+    parameters.mdp.init.max_linear_velocity = 0.4;
+    parameters.mdp.init.max_angular_velocity = 0.7;
+    parameters.mdp.init.relative_rpm = true;
+    parameters.mdp.init.min_rpm = 0;
+    parameters.mdp.init.max_rpm = 0;
+    parameters.domain_randomization.orientation_offset_angle_max = 0.25;
+    const T position[3] = {12, -4, 2};
+    const T inverse_norm = 1 / std::sqrt(T(0.93));
+    const T orientation[4] = {0.8 * inverse_norm, 0.3 * inverse_norm, -0.4 * inverse_norm, 0.2 * inverse_norm};
+    for(TI axis = 0; axis < 3; axis++){
+        parameters.mdp.init.position[axis] = position[axis];
+    }
+    for(TI component = 0; component < 4; component++){
+        parameters.mdp.init.orientation[component] = orientation[component];
+    }
+    T expected_up[3];
+    l2f::quaternion_to_world_z_body<DEVICE, T>(orientation, expected_up);
+    for(T guidance : {T(0), T(1)}){
+        parameters.mdp.init.guidance = guidance;
+        STATE state{};
+        rlt::sample_initial_state(device, env, parameters, state, rng);
+        T estimated_up[3];
+        T velocity_magnitude = 0;
+        l2f::quaternion_to_world_z_body<DEVICE, T>(state.q_estimate, estimated_up);
+        for(TI axis = 0; axis < 3; axis++){
+            EXPECT_DOUBLE_EQ(state.position[axis], position[axis]);
+            EXPECT_NEAR(estimated_up[axis], expected_up[axis], 1e-12);
+            EXPECT_LE(std::abs(state.linear_velocity[axis]), parameters.mdp.init.max_linear_velocity);
+            EXPECT_LE(std::abs(state.angular_velocity[axis]), parameters.mdp.init.max_angular_velocity);
+            velocity_magnitude += std::abs(state.linear_velocity[axis]) + std::abs(state.angular_velocity[axis]);
+            EXPECT_DOUBLE_EQ(state.previous_angular_velocity[axis], state.angular_velocity[axis]);
+            for(TI step = 0; step < 3; step++){
+                EXPECT_DOUBLE_EQ(state.linear_velocity_history[step][axis], state.linear_velocity[axis]);
+                EXPECT_DOUBLE_EQ(state.angular_velocity_history[step][axis], state.angular_velocity[axis]);
+            }
+            if(guidance == 1){
+                EXPECT_DOUBLE_EQ(state.linear_velocity[axis], 0);
+                EXPECT_DOUBLE_EQ(state.angular_velocity[axis], 0);
+            }
+        }
+        if(guidance == 0){
+            EXPECT_GT(velocity_magnitude, 0);
+        }
+        T offset_norm = 0;
+        for(TI component = 0; component < 4; component++){
+            EXPECT_DOUBLE_EQ(state.orientation[component], orientation[component]);
+            offset_norm += state.orientation_offset[component] * state.orientation_offset[component];
+            const T middle = (parameters.dynamics.action_limit.min + parameters.dynamics.action_limit.max) / 2;
+            EXPECT_DOUBLE_EQ(state.rpm[component], middle);
+            for(TI step = 0; step < ACTION_HISTORY_LENGTH; step++){
+                EXPECT_NEAR(state.action_history[step][component], 0, 1e-12);
+            }
+        }
+        EXPECT_NEAR(offset_norm, 1, 1e-12);
+        EXPECT_GE(state.orientation_offset[0], std::cos(parameters.domain_randomization.orientation_offset_angle_max / 2));
+        EXPECT_LT(state.orientation_offset[0], 1);
+    }
+    rlt::free(device, rng);
+}
+
+TEST(L2F_MAHONY, INITIALIZATION_CENTER_BOUNDS_THE_SAMPLED_OFFSET){
+    DEVICE device;
+    RNG rng;
+    ENV env;
+    rlt::init(device);
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, (TI)91);
+    rlt::init(device, env);
+    auto parameters = env.parameters;
+    parameters.mdp.init.guidance = 0;
+    parameters.mdp.init.max_position = 0.5;
+    parameters.mdp.init.max_angle = 0.3;
+    const T inverse_norm = 1 / std::sqrt(T(0.93));
+    const T orientation[4] = {0.8 * inverse_norm, 0.3 * inverse_norm, -0.4 * inverse_norm, 0.2 * inverse_norm};
+    for(TI axis = 0; axis < 3; axis++){
+        parameters.mdp.init.position[axis] = 3 * (T)axis - 1;
+    }
+    for(TI component = 0; component < 4; component++){
+        parameters.mdp.init.orientation[component] = orientation[component];
+    }
+    T max_position_offset = 0, max_angle = 0;
+    for(TI sample = 0; sample < 256; sample++){
+        ENV::State state{};
+        rlt::sample_initial_state(device, env, parameters, state, rng);
+        T dot = 0, norm = 0;
+        for(TI component = 0; component < 4; component++){
+            dot += orientation[component] * state.orientation[component];
+            norm += state.orientation[component] * state.orientation[component];
+        }
+        EXPECT_NEAR(norm, 1, 1e-12);
+        max_angle = std::max(max_angle, 2 * std::acos(std::min(std::abs(dot), (T)1)));
+        for(TI axis = 0; axis < 3; axis++){
+            max_position_offset = std::max(max_position_offset, std::abs(state.position[axis] - parameters.mdp.init.position[axis]));
+        }
+    }
+    EXPECT_LE(max_position_offset, parameters.mdp.init.max_position);
+    EXPECT_GT(max_position_offset, parameters.mdp.init.max_position / 2);
+    EXPECT_LE(max_angle, parameters.mdp.init.max_angle + 1e-9);
+    EXPECT_GT(max_angle, parameters.mdp.init.max_angle / 2);
+    rlt::free(device, rng);
+}
+
 TEST(L2F_MAHONY, GYRO_BIAS_SAMPLES_UNIFORM_AND_HOLDS_WITH_ZERO_SIGMA){
     DEVICE device; RNG rng;
     rlt::init(device); rlt::malloc(device, rng); rlt::init(device, rng, (TI)7);
@@ -242,6 +359,43 @@ TEST(L2F_MAHONY, FROM_JSON_ACCEPTS_LEGACY_REDUCED_STATE){
     for(TI i = 0; i < 3; i++){
         EXPECT_NEAR(restored.bias_estimate[i], expected_bias[i], 1e-12);
     }
+}
+
+TEST(L2F_MAHONY, FROM_JSON_DEFAULTS_THE_INITIALIZATION_CENTER){
+    DEVICE device;
+    ENV env;
+    rlt::init(device);
+    rlt::malloc(device, env);
+    rlt::init(device, env);
+    auto parameters = env.parameters;
+    const T position[3] = {1, 2, 3};
+    const T orientation[4] = {0, 1, 0, 0};
+    for(TI axis = 0; axis < 3; axis++){
+        parameters.mdp.init.position[axis] = position[axis];
+    }
+    for(TI component = 0; component < 4; component++){
+        parameters.mdp.init.orientation[component] = orientation[component];
+    }
+    auto parsed = nlohmann::json::parse(rlt::json(device, env, parameters));
+    auto restored = env.parameters;
+    rlt::from_json(device, env, parsed, restored);
+    for(TI axis = 0; axis < 3; axis++){
+        EXPECT_DOUBLE_EQ(restored.mdp.init.position[axis], position[axis]);
+    }
+    for(TI component = 0; component < 4; component++){
+        EXPECT_DOUBLE_EQ(restored.mdp.init.orientation[component], orientation[component]);
+    }
+    parsed["mdp"]["init"].erase("position");
+    parsed["mdp"]["init"].erase("orientation");
+    rlt::from_json(device, env, parsed, restored);
+    for(TI axis = 0; axis < 3; axis++){
+        EXPECT_DOUBLE_EQ(restored.mdp.init.position[axis], 0);
+    }
+    for(TI component = 0; component < 4; component++){
+        EXPECT_DOUBLE_EQ(restored.mdp.init.orientation[component], component == 0 ? 1 : 0);
+    }
+    EXPECT_DOUBLE_EQ(restored.mdp.init.max_position, parameters.mdp.init.max_position);
+    EXPECT_DOUBLE_EQ(restored.mdp.init.max_angle, parameters.mdp.init.max_angle);
 }
 
 // With zero gyro bias and no observation noise, the Mahony state should

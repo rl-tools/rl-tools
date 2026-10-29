@@ -17,6 +17,24 @@ from hyperdrone.camera import ImageObservation
 from hyperlux._jit import source_root
 
 
+def float32(value):
+    """The binding stores float32 and prints it with 9 significant digits; compare at that precision."""
+    if isinstance(value, dict):
+        return {key: float32(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [float32(item) for item in value]
+    if isinstance(value, float):
+        return float(np.float32(value))
+    return value
+
+
+def pinned_parameters(env, drone, pose):
+    """A replayed agent flies its drone-table nominal with the pose pinned as the initialization center."""
+    nominal = copy.deepcopy(env.drones[drone]["parameters"])
+    nominal["dynamics"]["mdp"]["init"].update(position=list(pose[:3]), orientation=list(pose[3:]), max_position=0, max_angle=0)
+    return float32({**nominal, "drone": drone})
+
+
 @pytest.fixture(scope="module")
 def scene_directory(tmp_path_factory):
     # a directory holding exactly the scenes the environment should schedule over
@@ -592,8 +610,8 @@ def test_multi_camera_model_parameters_and_replay(scene_directory, camera_agents
         env.reset(spawn_points=points)
         baseline = env.instance_parameters()
         for instance, point in zip(baseline, points):
-            for agent, drone in zip(instance["agents"], point["drone"]):
-                assert agent == {**env.drones[drone]["parameters"], "drone": drone}
+            for agent, drone, pose in zip(instance["agents"], point["drone"], point["poses"]):
+                assert float32(agent) == pinned_parameters(env, drone, pose)
         frames = env.frames().copy()
         assert frames.shape == (4, camera_agents * 2 * 16, 16, 3)
         views = frames.reshape(4, camera_agents, 2, 16, 16, 3)
@@ -703,8 +721,8 @@ def test_multi_agent_spawn_replay(scene_directory, motion_blur_samples):
             assert env.spawn_points() == points
             for instance, point in zip(env.instance_parameters(), points):
                 assert [agent["drone"] for agent in instance["agents"]] == point["drone"]
-                for agent in instance["agents"]:
-                    assert agent == {**env.drones[agent["drone"]]["parameters"], "drone": agent["drone"]}
+                for agent, pose in zip(instance["agents"], point["poses"]):
+                    assert float32(agent) == pinned_parameters(env, agent["drone"], pose)
             initial = env.frames().copy()
             record = [initial, env.observe_privileged()]
             for _ in range(3):
@@ -760,10 +778,10 @@ def test_explicit_spawns_ignore_seed_and_preserve_mask(scene_directory, task):
             assert [p["drone"] for p in env.instance_parameters()] == [0, 1]
             assert [p["dynamics"]["dynamics"]["mass"] for p in env.instance_parameters()] == [d["parameters"]["dynamics"]["dynamics"]["mass"] for d in env.drones]
             initial = env.frames().copy()
-            record = [initial, env.observe_privileged()]
+            record = [initial, env.observe(), env.observe_privileged()]
             for _ in range(3):
                 env.step(np.zeros((2, env.action_dim), dtype=np.float32))
-                record.extend((env.frames().copy(), env.observe_privileged()))
+                record.extend((env.frames().copy(), env.observe(), env.observe_privileged()))
             if reference is None:
                 reference = record
             else:
@@ -785,6 +803,36 @@ def test_explicit_spawns_ignore_seed_and_preserve_mask(scene_directory, task):
                 env.reset(spawn_points=points[:1])
         finally:
             env.close()
+
+
+@pytest.mark.parametrize("task", [None, "target_frame"])
+def test_native_spawn_validation_is_atomic(scene_directory, task):
+    config = replace(CONFIG, num_worlds=2, width=16, height=16, task=task)
+    scenes = [scene_directory / "ProcTHOR-Train-1.glb"] * 2
+    with closing(HyperDrone(scenes, config=config, seed=471)) as env, closing(HyperDrone(scenes, config=config, seed=471)) as control:
+        env.reset()
+        control.reset()
+        for override in ({"scene_translation": [1e100, 0, 0]}, {"scene_translation": [0] * 4},
+                         {"scene_yaw": [0, 0]}, {"scene_yaw": [1, 0, 0]},
+                         {"poses": [[0] * 7]}, {"shutter_fraction": 1.1}, {"drone": [-1]}, {"drone": [1 << 63]}):
+            invalid = copy.deepcopy(env.spawn_points())
+            invalid[-1].update(override)
+            state = env.observe_privileged()
+            parameters = env.instance_parameters()
+            with pytest.raises(ValueError):
+                env._environment.reset(None, json.dumps(invalid))
+            np.testing.assert_array_equal(env.observe_privileged(), state)
+            assert env.instance_parameters() == parameters
+            env.reset()
+            control.reset()
+            np.testing.assert_array_equal(env.observe_privileged(), control.observe_privileged())
+            assert env.instance_parameters() == control.instance_parameters()
+        env.reset([False] * env.total_instances)
+        env.reset([False] * env.total_instances, spawn_points=[])
+        env.reset()
+        control.reset()
+        np.testing.assert_array_equal(env.observe_privileged(), control.observe_privileged())
+        assert env.instance_parameters() == control.instance_parameters()
 
 
 def test_drones_table(scene_directory):
@@ -933,6 +981,23 @@ def test_moving_gate(scene_directory, cameras):
         env.close()
 
 
+def check_vil_spawn_replay(env):
+    points = env.spawn_points()
+    offset = np.array([100.0, -100.0, 25.0])
+    for point in points:
+        cosine, sine = point["scene_yaw"]
+        scene_offset = np.array([cosine * offset[0] - sine * offset[1], sine * offset[0] + cosine * offset[1], offset[2]])
+        point["scene_translation"] = (np.asarray(point["scene_translation"]) - scene_offset).tolist()
+        point["poses"][0][:3] = (np.asarray(point["poses"][0][:3]) + offset).tolist()
+    env.reset(spawn_points=points)
+    state = env.observe_privileged()
+    np.testing.assert_allclose(state[:, :3], [point["poses"][0][:3] for point in points])
+    assert np.linalg.norm(state[:, 18:21] - state[:, :3], axis=1).max() < 20
+    env.step()
+    assert not env.terminated().any()
+    assert np.isfinite(env.observe_privileged()).all()
+
+
 def test_visual_inertial_localization(scene_directory):
     with pytest.raises(ValueError, match="x500_fpv_imu"):
         Config(task="visual_inertial_localization")
@@ -980,6 +1045,7 @@ def test_visual_inertial_localization(scene_directory):
         state = env.observe_privileged()
         assert np.isfinite(state).all()
         assert np.linalg.norm(state[:, 0:3] - state[:, 18:21], axis=1).max() < 100, "the route stays in the scene"
+        check_vil_spawn_replay(env)
     finally:
         env.close()
 
@@ -1200,6 +1266,7 @@ namespace hyperdrone_user {
                     env.reset([True, False])
             env.reset()
             records.append(env.observe_privileged())
+            check_vil_spawn_replay(env)
     np.testing.assert_array_equal(records[0], records[1])
 
 

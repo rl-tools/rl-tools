@@ -116,18 +116,6 @@ namespace rl_tools{
                 }
             }
         }
-        template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC, typename RNG>
-        __global__ void sample_initial_state_kernel(DEVICE device, typename World<TASK_SPEC>::NEXT_WORLD::DYNAMICS_ENV dynamics, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, const Tensor<RESET_SPEC> reset_mask, RNG rng){
-            using TI = typename DEVICE::index_t;
-            using BASE_SPEC = typename TASK_SPEC::NEXT_WORLD::SPEC;
-            constexpr TI INSTANCES = World<TASK_SPEC>::INSTANCES;
-            static_assert(RNG::NUM_RNGS >= INSTANCES, "Please increase the number of CUDA RNGs");
-            TI instance_i = threadIdx.x + blockIdx.x * blockDim.x;
-            if(instance_i < INSTANCES && get(device, reset_mask, instance_i)){
-                auto& rng_state = get(rng.states, 0, instance_i);
-                hyperdrone::_sample_dynamics_state<DEVICE, BASE_SPEC>(device, dynamics, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), rng_state);
-            }
-        }
         template <typename DEVICE, typename TASK_SPEC, typename OBSERVATION_SPEC>
         __global__ void observe_kernel(DEVICE device, const float* __restrict__ history, const typename TASK_SPEC::TI* __restrict__ episode_start, const float* __restrict__ target_frames, typename TASK_SPEC::TI latest, Tensor<OBSERVATION_SPEC> observations){
             using T = typename TASK_SPEC::T;
@@ -243,7 +231,7 @@ namespace rl_tools{
         rl::environments::hyperdrone::tasks::target_frame::_render_targets(device, world, parameters, world.target_frames, data(reset_mask));
     }
     template <typename DEV_SPEC, typename TASK_SPEC, typename PARAMETER_SPEC, typename RESET_SPEC, typename RNG>
-    void sample_initial_parameters(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask, RNG& rng){
+    void reset_parameters(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask, RNG& rng){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
         using WORLD = rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
@@ -269,17 +257,9 @@ namespace rl_tools{
         check_status(device);
     }
     template <typename DEV_SPEC, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC, typename RNG>
-    void sample_initial_state(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask, RNG& rng){
-        using DEVICE = devices::CUDA<DEV_SPEC>;
-        using TI = typename DEVICE::index_t;
-        constexpr TI INSTANCES = rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>::INSTANCES;
-        constexpr TI BLOCKSIZE = 32;
-        constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
-        devices::cuda::TAG<DEVICE, true> tag_device{};
-        auto world_rng = rl::environments::hyperdrone::cuda::instance_rng(device, world, rng);
-        rl::environments::hyperdrone::tasks::target_frame::cuda::sample_initial_state_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, parameters, states, reset_mask, world_rng);
-        check_status(device);
-        complete_reset(device, world, reset_mask, rng);
+    void reset_state(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask, RNG& rng){
+        using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
+        reset_state(device, static_cast<NEXT_WORLD&>(world), parameters, states, reset_mask, rng);
     }
     template <typename DEV_SPEC, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename OBSERVATION_SPEC, typename RNG>
     void observe(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, typename TASK_SPEC::NEXT_WORLD::Observation observation_type, Tensor<OBSERVATION_SPEC>& observations, RNG& rng){

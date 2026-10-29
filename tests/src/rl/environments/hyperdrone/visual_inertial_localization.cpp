@@ -219,6 +219,59 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, RESET_REA
     fixture.teardown();
 }
 
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, SPAWN_ANCHORS_ROUTE){
+    if(SCENE_PATH.empty()){
+        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
+    }
+    Fixture fixture;
+    fixture.setup(1344);
+    auto& device = fixture.device;
+    auto& tensors = fixture.tensors;
+    using SPAWN = rlt::rl::environments::hyperdrone::Spawn<WORLD::SPEC>;
+    rlt::Tensor<rlt::tensor::Specification<SPAWN, TI, rlt::tensor::Shape<TI, INSTANCES>, false>> spawns;
+    rlt::sample_initial_parameters(device, fixture.world, tensors.parameters, tensors.reset_mask, fixture.rng);
+    for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
+        const auto& parameters = rlt::get_ref(device, tensors.parameters, instance_i);
+        SPAWN spawn{};
+        spawn.drones[0] = parameters.agents[0].drone;
+        for(TI axis = 0; axis < 3; axis++){
+            spawn.translation[axis] = parameters.scene_translation[axis];
+        }
+        spawn.yaw[0] = 0;
+        spawn.yaw[1] = 1;
+        spawn.poses[0][0] = (T)0.75 + instance_i;
+        spawn.poses[0][1] = (T)-0.5;
+        spawn.poses[0][2] = (T)0.25;
+        spawn.poses[0][3] = 1;
+        spawn.shutter = (T)0.4;
+        rlt::set(device, spawns, spawn, instance_i);
+    }
+    fixture.world.task_step = 17;
+    fixture.world.render_pending = false;
+    rlt::spawn(device, fixture.world, tensors.parameters, tensors.reset_mask, spawns);
+    rlt::sample_initial_state(device, fixture.world, tensors.parameters, tensors.states, tensors.reset_mask, fixture.rng);
+    EXPECT_EQ(fixture.world.task_step, 0);
+    EXPECT_TRUE(fixture.world.render_pending);
+    for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
+        const auto& spawn = rlt::get_ref(device, spawns, instance_i);
+        const auto& parameters = rlt::get_ref(device, tensors.parameters, instance_i);
+        const auto& state = rlt::get_ref(device, tensors.states, instance_i);
+        for(TI axis = 0; axis < 3; axis++){
+            EXPECT_EQ(parameters.scene_translation[axis], spawn.translation[axis]);
+            EXPECT_EQ(state.position[axis], spawn.poses[0][axis]);
+            EXPECT_EQ(parameters.waypoints[0][axis], spawn.poses[0][axis]) << "the route anchors at the spawn";
+        }
+        EXPECT_EQ(parameters.scene_yaw_cos, spawn.yaw[0]);
+        EXPECT_EQ(parameters.scene_yaw_sin, spawn.yaw[1]);
+        EXPECT_EQ(parameters.shutter_fraction, spawn.shutter);
+        for(TI axis = 0; axis < 4; axis++){
+            EXPECT_EQ(state.orientation[axis], spawn.poses[0][axis + 3]);
+        }
+        EXPECT_EQ(state.current_waypoint, 1);
+    }
+    fixture.teardown();
+}
+
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, ROUTE_AND_WAYPOINT_PROGRESSION){
     if(SCENE_PATH.empty()){
         GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
@@ -232,7 +285,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, ROUTE_AND
     typename WORLD::Parameters instance_parameters = rlt::get(device, tensors.parameters, (TI)0);
     typename WORLD::State state = rlt::get(device, tensors.states, (TI)0);
     for(TI dim_i = 0; dim_i < 3; dim_i++){
-        EXPECT_EQ(instance_parameters.waypoints[0][dim_i], (T)0) << "waypoint 0 anchors at the dynamics origin";
+        EXPECT_EQ(instance_parameters.waypoints[0][dim_i], state.position[dim_i]) << "waypoint 0 anchors at the final spawn";
     }
     EXPECT_EQ(state.current_waypoint, 1);
     for(TI waypoint_i = 1; waypoint_i < WORLD::Parameters::NUM_WAYPOINTS; waypoint_i++){
@@ -411,7 +464,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, METRICS){
     EXPECT_NEAR(task::quaternion_geodesic_distance(device, relative_orientation, rotated_90_z), (T)0, 1e-3);
 }
 
-// with an initialization hold, the route anchors at waypoint 0 (the origin) and only starts
+// with an initialization hold, the route anchors at waypoint 0 (the spawn) and only starts
 // advancing once the hold expires — the stationary window static VIO initializers need
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, INITIALIZATION_HOLD){
     if(SCENE_PATH.empty()){
@@ -443,11 +496,12 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, INITIALIZ
     rlt::sample_initial_parameters(device, world, parameters, reset_mask, rng);
     rlt::sample_initial_state(device, world, parameters, states, reset_mask, rng);
     {
-        // rest at the origin (waypoint 0): the test config samples init_90_deg states
+        // rest at the spawn (waypoint 0): the test config samples init_90_deg states
         typename WORLD_HOLD::State state = rlt::get(device, states, (TI)0);
+        const auto& instance_parameters = rlt::get_ref(device, parameters, (TI)0);
         state.orientation[0] = 1;
         for(TI dim_i = 0; dim_i < 3; dim_i++){
-            state.position[dim_i] = 0;
+            state.position[dim_i] = instance_parameters.waypoints[0][dim_i];
             state.linear_velocity[dim_i] = 0;
             state.angular_velocity[dim_i] = 0;
             state.orientation[dim_i + 1] = 0;
@@ -464,7 +518,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, INITIALIZ
         if(step_i < HOLD_TASK_SPEC::INITIALIZATION_HOLD_STEPS){
             EXPECT_EQ(waypoint, 0) << "step " << step_i << ": the waypoint must not advance during the hold";
         } else {
-            EXPECT_EQ(waypoint, 1) << "step " << step_i << ": the hover at the origin must advance to waypoint 1 once the hold expires";
+            EXPECT_EQ(waypoint, 1) << "step " << step_i << ": the hover at the spawn must advance to waypoint 1 once the hold expires";
         }
     }
     rlt::free(device, parameters);

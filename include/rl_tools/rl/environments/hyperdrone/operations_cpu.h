@@ -431,8 +431,21 @@ namespace rl_tools {
                 parameters.shutter_fraction = random::uniform_real_distribution(device.random, SPEC::SHUTTER_FRACTION_MIN, SPEC::SHUTTER_FRACTION_MAX, rng);
             }
         }
+        // scene-under-drone: the dynamics state stays near the origin; the sampled indoor
+        // position and yaw place the scene via the parameters
+        template <typename DEVICE, typename SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT void _sample_scene_placement(DEVICE& device, const typename World<SPEC>::ANNOTATIONS& annotations, Parameters<SPEC>& parameters, RNG& rng) {
+            using T = typename SPEC::T;
+            auto indoor_pos = hyperlux::datasets::annotations::sample_free_position(device, annotations, rng);
+            parameters.scene_translation[0] = indoor_pos.position[0];
+            parameters.scene_translation[1] = indoor_pos.position[1];
+            parameters.scene_translation[2] = indoor_pos.position[2];
+            T scene_yaw = random::uniform_real_distribution(device.random, (T)0, (T)2 * math::PI<T>, rng);
+            parameters.scene_yaw_cos = math::cos(device.math, scene_yaw);
+            parameters.scene_yaw_sin = math::sin(device.math, scene_yaw);
+        }
         template <typename DEVICE, typename SPEC, typename DRONE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT void _sample_initial_parameters(DEVICE& device, const typename World<SPEC>::DYNAMICS_ENV& dynamics, const GroupParameters<SPEC>& defaults, const Tensor<DRONE_SPEC>& drones, typename SPEC::TI num_drones, Parameters<SPEC>& parameters, RNG& rng) {
+        RL_TOOLS_FUNCTION_PLACEMENT void _sample_initial_parameters(DEVICE& device, const typename World<SPEC>::DYNAMICS_ENV& dynamics, const typename World<SPEC>::ANNOTATIONS& annotations, const GroupParameters<SPEC>& defaults, const Tensor<DRONE_SPEC>& drones, typename SPEC::TI num_drones, Parameters<SPEC>& parameters, RNG& rng) {
             static_cast<GroupParameters<SPEC>&>(parameters) = defaults;
             for (typename SPEC::TI agent_i = 0; agent_i < SPEC::N_AGENTS; agent_i++) {
                 auto& agent = parameters.agents[agent_i];
@@ -443,6 +456,36 @@ namespace rl_tools {
             }
             _sample_brightness<DEVICE, SPEC>(device, parameters, rng);
             _sample_shutter_fraction<DEVICE, SPEC>(device, parameters, rng);
+            _sample_scene_placement<DEVICE, SPEC>(device, annotations, parameters, rng);
+        }
+        template <typename DEVICE, typename SPEC, typename DRONE_SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT void _spawn(DEVICE& device, const Tensor<DRONE_SPEC>& drones, Parameters<SPEC>& parameters, const Spawn<SPEC>& spawn) {
+            using TI = typename SPEC::TI;
+            for (TI agent_i = 0; agent_i < SPEC::N_AGENTS; agent_i++) {
+                auto& agent = parameters.agents[agent_i];
+                const auto& nominal = get_ref(device, drones, spawn.drones[agent_i]);
+                agent.drone = spawn.drones[agent_i];
+                agent.dynamics = nominal.dynamics;
+                for (TI camera_i = 0; camera_i < World<SPEC>::N_CAMERAS_PER_AGENT; camera_i++) {
+                    agent.cameras[camera_i] = nominal.cameras[camera_i];
+                }
+                auto& init = agent.dynamics.mdp.init;
+                for (TI axis = 0; axis < 3; axis++) {
+                    init.position[axis] = spawn.poses[agent_i][axis];
+                }
+                for (TI component = 0; component < 4; component++) {
+                    init.orientation[component] = spawn.poses[agent_i][3 + component];
+                }
+                init.max_position = 0;
+                init.max_angle = 0;
+            }
+            parameters.brightness_scale = 1;
+            parameters.shutter_fraction = spawn.shutter;
+            for (TI axis = 0; axis < 3; axis++) {
+                parameters.scene_translation[axis] = spawn.translation[axis];
+            }
+            parameters.scene_yaw_cos = spawn.yaw[0];
+            parameters.scene_yaw_sin = spawn.yaw[1];
         }
         // agent view of the (possibly multi-agent) per-instance state
         template <typename SPEC>
@@ -503,30 +546,12 @@ namespace rl_tools {
                 set_pose(device, renderer, overlay, placement, pose, coordinates_close);
             }
         }
-        // scene-under-drone: the dynamics state stays near the origin; the sampled indoor
-        // position and yaw place the scene via the parameters
         template <typename DEVICE, typename SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT void _sample_dynamics_state(DEVICE& device, typename World<SPEC>::DYNAMICS_ENV& dynamics, Parameters<SPEC>& parameters, typename World<SPEC>::State& state, RNG& rng) {
             using TI = typename SPEC::TI;
             for (TI agent_i = 0; agent_i < SPEC::N_AGENTS; agent_i++) {
                 sample_initial_state(device, dynamics, parameters.agents[agent_i].dynamics, _agent_state<SPEC>(state, agent_i), rng);
             }
-        }
-        template <typename DEVICE, typename SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT void _sample_scene_placement(DEVICE& device, const typename World<SPEC>::ANNOTATIONS& annotations, Parameters<SPEC>& parameters, RNG& rng) {
-            using T = typename SPEC::T;
-            auto indoor_pos = hyperlux::datasets::annotations::sample_free_position(device, annotations, rng);
-            parameters.scene_translation[0] = indoor_pos.position[0];
-            parameters.scene_translation[1] = indoor_pos.position[1];
-            parameters.scene_translation[2] = indoor_pos.position[2];
-            T scene_yaw = random::uniform_real_distribution(device.random, (T)0, (T)2 * math::PI<T>, rng);
-            parameters.scene_yaw_cos = math::cos(device.math, scene_yaw);
-            parameters.scene_yaw_sin = math::sin(device.math, scene_yaw);
-        }
-        template <typename DEVICE, typename SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT void _sample_initial_state(DEVICE& device, typename World<SPEC>::DYNAMICS_ENV& dynamics, const typename World<SPEC>::ANNOTATIONS& annotations, Parameters<SPEC>& parameters, typename World<SPEC>::State& state, RNG& rng) {
-            _sample_dynamics_state<DEVICE, SPEC>(device, dynamics, parameters, state, rng);
-            _sample_scene_placement<DEVICE, SPEC>(device, annotations, parameters, rng);
         }
         // device-capable per-instance dynamics verbs shared by the CPU loops and the CUDA
         // kernels: agents step independently, the reward is the cooperative mean, termination is
@@ -617,16 +642,6 @@ namespace rl_tools {
         observe(device, controller, controller_state, buffer, rl::environments::hyperdrone::_agent_state<SPEC>(physical_state, agent), target, row);
     }
 
-    template <typename DEVICE, typename SPEC, typename RNG>
-    void sample_initial_parameters(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, typename rl::environments::hyperdrone::World<SPEC>::Parameters& parameters, RNG& rng) {
-        rl::environments::hyperdrone::_sample_initial_parameters<DEVICE, SPEC>(device, world.dynamics, world.parameters, world.drone_parameters, world.num_drones, parameters, rng);
-    }
-
-    template <typename DEVICE, typename SPEC, typename RNG>
-    void sample_initial_state(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, typename rl::environments::hyperdrone::World<SPEC>::Parameters& parameters, typename rl::environments::hyperdrone::World<SPEC>::State& state, RNG& rng) {
-        rl::environments::hyperdrone::_sample_initial_state<DEVICE, SPEC, RNG>(device, world.dynamics, world.slots[world.active_slot].annotations, parameters, state, rng);
-    }
-
     template <typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T step(DEVICE& device, const rl::environments::hyperdrone::World<SPEC>& world, typename rl::environments::hyperdrone::World<SPEC>::Parameters& parameters, const typename rl::environments::hyperdrone::World<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::hyperdrone::World<SPEC>::State& next_state, RNG& rng) {
         static_assert(rl::environments::hyperdrone::World<SPEC>::CONTROLLER::SUPPORTS_SCALAR, "this controller requires the batched World step API");
@@ -648,13 +663,19 @@ namespace rl_tools {
         rl::environments::hyperdrone::_observe_dynamics<DEVICE, SPEC>(device, world.dynamics, parameters, state, observation, rng);
     }
 
+    // Reset protocol: sample_initial_parameters leaves the Parameters describing the whole episode
+    // (placement included), callers may edit them, and sample_initial_state derives every state
+    // from the final Parameters. Task Worlds extend reset_parameters/reset_state by chaining to
+    // their NEXT_WORLD; the entry points below dispatch on the most-derived World so that
+    // complete_reset sees its controller.
     template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RESET_SPEC, typename RNG, typename utils::typing::enable_if<DEVICE::DEVICE_ID != devices::DeviceId::CUDA, bool>::type = true>
-    void sample_initial_parameters(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
+    void reset_parameters(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
         using TI = typename SPEC::TI;
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
+        static_assert(get<0>(typename PARAMETER_SPEC::SHAPE{}) == WORLD::INSTANCES);
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             if (get(device, reset_mask, instance_i)) {
-                sample_initial_parameters(device, world, get_ref(device, parameters, instance_i), rng);
+                rl::environments::hyperdrone::_sample_initial_parameters<DEVICE, SPEC>(device, world.dynamics, world.slots[world.active_slot].annotations, world.parameters, world.drone_parameters, world.num_drones, get_ref(device, parameters, instance_i), rng);
             }
         }
     }
@@ -669,16 +690,36 @@ namespace rl_tools {
         request_render(device, world, mask);
     }
     template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC, typename RNG, typename utils::typing::enable_if<DEVICE::DEVICE_ID != devices::DeviceId::CUDA, bool>::type = true>
-    void sample_initial_state(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
+    void reset_state(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
         using TI = typename SPEC::TI;
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
         static_assert(rl::environments::hyperdrone::check_world_instance_tensors<WORLD, PARAMETER_SPEC, STATE_SPEC>());
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             if (get(device, reset_mask, instance_i)) {
-                sample_initial_state(device, world, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), rng);
+                rl::environments::hyperdrone::_sample_dynamics_state<DEVICE, SPEC>(device, world.dynamics, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), rng);
             }
         }
+    }
+    template <typename DEVICE, typename WORLD, typename PARAMETER_SPEC, typename RESET_SPEC, typename RNG, typename utils::typing::enable_if<rl::environments::hyperdrone::is_world<WORLD>(), bool>::type = true>
+    void sample_initial_parameters(DEVICE& device, WORLD& world, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
+        reset_parameters(device, world, parameters, reset_mask, rng);
+    }
+    template <typename DEVICE, typename WORLD, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC, typename RNG, typename utils::typing::enable_if<rl::environments::hyperdrone::is_world<WORLD>(), bool>::type = true>
+    void sample_initial_state(DEVICE& device, WORLD& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
+        reset_state(device, world, parameters, states, reset_mask, rng);
         complete_reset(device, world, reset_mask, rng);
+    }
+    template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RESET_SPEC, typename SPAWN_SPEC, typename utils::typing::enable_if<DEVICE::DEVICE_ID != devices::DeviceId::CUDA, bool>::type = true>
+    void spawn(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask, const Tensor<SPAWN_SPEC>& spawns) {
+        using TI = typename SPEC::TI;
+        using WORLD = rl::environments::hyperdrone::World<SPEC>;
+        static_assert(utils::typing::is_same_v<typename SPAWN_SPEC::T, rl::environments::hyperdrone::Spawn<SPEC>>);
+        static_assert(get<0>(typename PARAMETER_SPEC::SHAPE{}) == WORLD::INSTANCES && get<0>(typename SPAWN_SPEC::SHAPE{}) == WORLD::INSTANCES);
+        for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
+            if (get(device, reset_mask, instance_i)) {
+                rl::environments::hyperdrone::_spawn<DEVICE, SPEC>(device, world.drone_parameters, get_ref(device, parameters, instance_i), get_ref(device, spawns, instance_i));
+            }
+        }
     }
     template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename NEXT_STATE_SPEC, typename RNG, typename utils::typing::enable_if<DEVICE::DEVICE_ID != devices::DeviceId::CUDA, bool>::type = true>
     void step(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<ACTION_SPEC>& actions, Tensor<NEXT_STATE_SPEC>& next_states, RNG& rng) {
@@ -1072,6 +1113,18 @@ namespace rl_tools {
             auto states_block = view_range(device, states, world_i * M, tensor::ViewSpec<0, M>{});
             auto reset_block = view_range(device, reset_mask, world_i * M, tensor::ViewSpec<0, M>{});
             sample_initial_state(device, env.worlds[world_i], parameters_block, states_block, reset_block, rng);
+        }
+    }
+    template <typename DEVICE, typename WORLD, typename WORLD::TI N_WORLDS, typename PARAMETER_SPEC, typename RESET_SPEC, typename SPAWN_SPEC>
+    void spawn(DEVICE& device, rl::environments::HyperDrone<WORLD, N_WORLDS>& env, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask, const Tensor<SPAWN_SPEC>& spawns) {
+        using HYPERDRONE = rl::environments::HyperDrone<WORLD, N_WORLDS>;
+        using TI = typename WORLD::TI;
+        constexpr TI M = rl::environments::hyperdrone::instances_per_world<HYPERDRONE, PARAMETER_SPEC>();
+        for (TI world_i = 0; world_i < N_WORLDS; world_i++) {
+            auto parameters_block = view_range(device, parameters, world_i * M, tensor::ViewSpec<0, M>{});
+            auto reset_block = view_range(device, reset_mask, world_i * M, tensor::ViewSpec<0, M>{});
+            auto spawn_block = view_range(device, spawns, world_i * M, tensor::ViewSpec<0, M>{});
+            spawn(device, env.worlds[world_i], parameters_block, reset_block, spawn_block);
         }
     }
     template <typename DEVICE, typename WORLD, typename WORLD::TI N_WORLDS, typename PARAMETER_SPEC, typename STATE_SPEC, typename OBSERVATION_TYPE, typename OBSERVATION_SPEC, typename RNG>

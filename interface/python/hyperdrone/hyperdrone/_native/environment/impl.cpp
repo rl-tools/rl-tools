@@ -32,6 +32,7 @@
 #include <optional>
 #include <stdexcept>
 #include <type_traits>
+#include <cstdint>
 #include <cstring>
 
 namespace HYPERLUX_MODULE_NAME {
@@ -102,6 +103,42 @@ namespace HYPERLUX_MODULE_NAME {
     template <typename ELEMENT, TI... DIMS>
     using InstanceTensor = rlt::Tensor<rlt::tensor::Specification<ELEMENT, TI, rlt::tensor::Shape<TI, TOTAL, DIMS...>>>;
 
+    using SPAWN = rlt::rl::environments::hyperdrone::Spawn<typename WORLD::SPEC>;
+
+    // fast-math folds std::isfinite, so finiteness is read off the exponent bits
+    template <typename VALUE>
+    bool finite(const VALUE* values, TI count){
+        static_assert(sizeof(VALUE) == 4 || sizeof(VALUE) == 8);
+        for(TI i = 0; i < count; i++){
+            if constexpr (sizeof(VALUE) == 4){
+                std::uint32_t bits;
+                std::memcpy(&bits, values + i, sizeof(bits));
+                if((bits & 0x7f800000u) == 0x7f800000u){
+                    return false;
+                }
+            }
+            else{
+                std::uint64_t bits;
+                std::memcpy(&bits, values + i, sizeof(bits));
+                if((bits & 0x7ff0000000000000ull) == 0x7ff0000000000000ull){
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+    template <typename VALUE>
+    bool unit(const VALUE* values, TI count){
+        if(!finite(values, count)){
+            return false;
+        }
+        double squared = 0;
+        for(TI i = 0; i < count; i++){
+            squared += (double)values[i] * (double)values[i];
+        }
+        return squared > 0.9999 && squared < 1.0001;
+    }
+
     struct Environment::Impl {
         ~Impl();
         DEVICE device{};
@@ -120,6 +157,7 @@ namespace HYPERLUX_MODULE_NAME {
         InstanceTensor<typename WORLD::Parameters> parameters{};
         InstanceTensor<typename WORLD::Parameters> parameters_host{};
         InstanceTensor<typename WORLD::State> states_host{};
+        InstanceTensor<SPAWN> spawns_host{}, spawns{};
         InstanceTensor<typename WORLD::State> states{}, next_states{};
         InstanceTensor<T> rewards{};
         InstanceTensor<bool> terminated_flags{}, all_instances{};
@@ -164,7 +202,7 @@ namespace HYPERLUX_MODULE_NAME {
             else{
                 std::copy(mask, mask + TOTAL, selected.begin());
             }
-            if constexpr (SynchronizedResets<WORLD>::VALUE){
+            if constexpr (WORLD::SYNCHRONIZED_RESETS){
                 for(TI world_i = 0; world_i < NUM_WORLDS; world_i++){
                     const auto first = selected.begin() + world_i * WORLD::INSTANCES;
                     const auto last = first + WORLD::INSTANCES;
@@ -310,19 +348,6 @@ namespace HYPERLUX_MODULE_NAME {
         return parts * WORLD::N_AGENTS;
     }
 
-    // a target-frame World adopted its setups' target frames at reset; replayed spawns move the
-    // instances, so their target frames follow
-    template <typename WORLD_TYPE, typename = void>
-    struct HasTargetFrames { static constexpr bool VALUE = false; };
-    template <typename WORLD_TYPE>
-    struct HasTargetFrames<WORLD_TYPE, rlt::utils::typing::void_t<decltype(WORLD_TYPE::target_frames)>> { static constexpr bool VALUE = true; };
-    template <typename WORLD_TYPE, typename ENV_TYPE, typename PARAMETER_SPEC, typename RESET_SPEC>
-    void render_spawned_target_frames([[maybe_unused]] DEVICE& device, [[maybe_unused]] ENV_TYPE& env, [[maybe_unused]] rlt::Tensor<PARAMETER_SPEC>& parameters, [[maybe_unused]] const rlt::Tensor<RESET_SPEC>& reset_mask){
-        if constexpr (HasTargetFrames<WORLD_TYPE>::VALUE){
-            render_target_frames(device, env, parameters, reset_mask);
-        }
-    }
-
     template <typename WORLD_TYPE>
     void observe_imu_into([[maybe_unused]] Environment::Impl& impl, [[maybe_unused]] float* out, [[maybe_unused]] bool resident){
         if constexpr (ObservationIMUDim<WORLD_TYPE>::VALUE > 0){
@@ -357,10 +382,13 @@ namespace HYPERLUX_MODULE_NAME {
         rlt::set_all(impl->device, impl->all_instances, true);
         rlt::malloc(impl->host(), impl->parameters_host);
         rlt::malloc(impl->host(), impl->states_host);
+        rlt::malloc(impl->host(), impl->spawns_host);
+        rlt::malloc(impl->device, impl->spawns);
         // every instance holds defined values before its first reset
         for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
             rlt::set(impl->host(), impl->parameters_host, typename WORLD::Parameters{}, instance_i);
             rlt::set(impl->host(), impl->states_host, typename WORLD::State{}, instance_i);
+            rlt::set(impl->host(), impl->spawns_host, SPAWN{}, instance_i);
         }
         rlt::copy(impl->host(), impl->device, impl->parameters_host, impl->parameters);
         rlt::copy(impl->host(), impl->device, impl->states_host, impl->states);
@@ -391,6 +419,8 @@ namespace HYPERLUX_MODULE_NAME {
         }
         rlt::free(impl->host(), impl->parameters_host);
         rlt::free(impl->host(), impl->states_host);
+        rlt::free(impl->host(), impl->spawns_host);
+        rlt::free(impl->device, impl->spawns);
         rlt::free(impl->device, impl->parameters);
         rlt::free(impl->device, impl->states);
         rlt::free(impl->device, impl->next_states);
@@ -589,103 +619,82 @@ namespace HYPERLUX_MODULE_NAME {
     void Environment::reset(const bool* mask, bool resident, const std::string& spawn_points){
         const CurrentDevice current(impl->device_id);
         std::array<bool, TOTAL> selected{};
-        if(!impl->all_sampled || SynchronizedResets<WORLD>::VALUE){
+        if(!impl->all_sampled || WORLD::SYNCHRONIZED_RESETS || !spawn_points.empty()){
             selected = impl->reset_selection(mask, resident);
         }
-        struct Spawn {
-            TI instance;
-            std::array<TI, WORLD::N_AGENTS> drones;
-            std::array<T, 3> translation;
-            std::array<T, 2> yaw;
-            std::array<std::array<T, 7>, WORLD::N_AGENTS> poses;
-            T shutter;
-        };
-        std::vector<Spawn> spawns;
+        bool spawning = false;
         if(!spawn_points.empty()){
             if(CUDA_WORLD && resident && mask != nullptr){
                 throw std::invalid_argument("hyperdrone: spawn points take a host mask");
             }
             const auto entries = nlohmann::json::parse(spawn_points);
-            for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
-                if(mask == nullptr || mask[instance_i]){
-                    const auto& entry = entries.at(spawns.size());
-                    const auto& world = impl->env.worlds[instance_i / WORLD::INSTANCES];
-                    const auto& drone_entries = entry.at("drone");
-                    if(!drone_entries.is_array() || drone_entries.size() != WORLD::N_AGENTS || !entry.at("poses").is_array() || entry.at("poses").size() != WORLD::N_AGENTS){
-                        throw std::invalid_argument("hyperdrone: spawn drone and poses need one entry per agent");
-                    }
-                    std::array<TI, WORLD::N_AGENTS> drones;
-                    for(TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++){
-                        const auto& value = drone_entries.at(agent_i);
-                        if(!value.is_number_integer()){
-                            throw std::invalid_argument("hyperdrone: spawn needs one integer drone index per agent");
-                        }
-                        const auto drone = value.get<long long>();
-                        if(drone < 0 || drone >= (long long)impl->env.shared.drones.size()){
-                            throw std::invalid_argument("hyperdrone: spawn drone is outside the drones table");
-                        }
-                        drones[agent_i] = (TI)drone;
-                    }
-                    if(entry.at("scene") != world.slots[world.active_slot].metadata.content_hash){
-                        throw std::invalid_argument("hyperdrone: spawn scene does not match the active scene");
-                    }
-                    for(const auto& pose : entry.at("poses")){
-                        if(!pose.is_array() || pose.size() != 7){
-                            throw std::invalid_argument("hyperdrone: each spawn pose needs seven values");
-                        }
-                    }
-                    spawns.push_back({instance_i, drones, entry.at("scene_translation").get<std::array<T, 3>>(),
-                                      entry.at("scene_yaw").get<std::array<T, 2>>(),
-                                      entry.at("poses").get<std::array<std::array<T, 7>, WORLD::N_AGENTS>>(),
-                                      entry.at("shutter_fraction").get<T>()});
-                }
-            }
-            if(spawns.size() != entries.size()){
+            if(!entries.is_array()){
                 throw std::invalid_argument("hyperdrone: provide one spawn per selected instance");
             }
+            TI spawn_i = 0;
+            for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
+                if(!selected[instance_i]){
+                    continue;
+                }
+                const auto& entry = entries.at(spawn_i++);
+                const auto& world = impl->env.worlds[instance_i / WORLD::INSTANCES];
+                if(entry.at("scene") != world.slots[world.active_slot].metadata.content_hash){
+                    throw std::invalid_argument("hyperdrone: spawn scene does not match the active scene");
+                }
+                const auto& drone_entries = entry.at("drone");
+                const auto& pose_entries = entry.at("poses");
+                if(!drone_entries.is_array() || drone_entries.size() != WORLD::N_AGENTS || !pose_entries.is_array() || pose_entries.size() != WORLD::N_AGENTS){
+                    throw std::invalid_argument("hyperdrone: spawn drone and poses need one entry per agent");
+                }
+                auto& spawn = rlt::get_ref(impl->host(), impl->spawns_host, instance_i);
+                for(TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++){
+                    const auto& value = drone_entries.at(agent_i);
+                    if(!value.is_number_integer()){
+                        throw std::invalid_argument("hyperdrone: spawn needs one integer drone index per agent");
+                    }
+                    const auto drone = value.get<long long>();
+                    if(drone < 0 || drone >= (long long)impl->env.shared.drones.size()){
+                        throw std::invalid_argument("hyperdrone: spawn drone is outside the drones table");
+                    }
+                    spawn.drones[agent_i] = (TI)drone;
+                    const auto& pose_entry = pose_entries.at(agent_i);
+                    if(!pose_entry.is_array() || pose_entry.size() != 7){
+                        throw std::invalid_argument("hyperdrone: each spawn pose needs seven values");
+                    }
+                    const auto pose = pose_entry.get<std::array<T, 7>>();
+                    std::copy(pose.begin(), pose.end(), spawn.poses[agent_i]);
+                    if(!finite(spawn.poses[agent_i], 3) || !unit(spawn.poses[agent_i] + 3, 4)){
+                        throw std::invalid_argument("hyperdrone: spawn poses need a finite position and a unit orientation");
+                    }
+                }
+                const auto& translation_entry = entry.at("scene_translation");
+                const auto& yaw_entry = entry.at("scene_yaw");
+                if(!translation_entry.is_array() || translation_entry.size() != 3 || !yaw_entry.is_array() || yaw_entry.size() != 2){
+                    throw std::invalid_argument("hyperdrone: spawn scene_translation and scene_yaw need three and two values");
+                }
+                const auto translation = translation_entry.get<std::array<T, 3>>();
+                const auto yaw = yaw_entry.get<std::array<T, 2>>();
+                std::copy(translation.begin(), translation.end(), spawn.translation);
+                std::copy(yaw.begin(), yaw.end(), spawn.yaw);
+                spawn.shutter = entry.at("shutter_fraction").get<T>();
+                if(!finite(spawn.translation, 3) || !unit(spawn.yaw, 2) || !finite(&spawn.shutter, 1) || spawn.shutter < 0 || spawn.shutter > 1){
+                    throw std::invalid_argument("hyperdrone: spawn placement needs a finite translation, a unit yaw and a shutter_fraction in [0, 1]");
+                }
+            }
+            if(spawn_i != entries.size()){
+                throw std::invalid_argument("hyperdrone: provide one spawn per selected instance");
+            }
+            spawning = spawn_i > 0;
         }
         const auto reset_mask = mask == nullptr ? impl->all_instances : impl->input(mask, resident, impl->mask_staging);
         impl->captured.fill(false);
         impl->probed.fill(false);
         rlt::sample_initial_parameters(impl->device, impl->env, impl->parameters, reset_mask, impl->rng);
-        if(!spawns.empty()){
-            // the entry's nominal before the state sampling, which reads the dynamics
-            auto& parameters = impl->parameters_on_host();
-            for(const auto& spawn : spawns){
-                auto& instance = rlt::get_ref(impl->host(), parameters, spawn.instance);
-                for(TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++){
-                    auto& agent = instance.agents[agent_i];
-                    const auto& nominal = impl->env.shared.drones[spawn.drones[agent_i]].parameters;
-                    agent.drone = spawn.drones[agent_i];
-                    agent.dynamics = nominal.dynamics;
-                    for(TI camera_i = 0; camera_i < WORLD::N_CAMERAS_PER_AGENT; camera_i++){
-                        agent.cameras[camera_i] = nominal.cameras[camera_i];
-                    }
-                }
-                instance.brightness_scale = 1;
-            }
-            impl->publish_parameters_from_host();
+        if(spawning){
+            rlt::copy(impl->host(), impl->device, impl->spawns_host, impl->spawns);
+            rlt::spawn(impl->device, impl->env, impl->parameters, reset_mask, impl->spawns);
         }
         rlt::sample_initial_state(impl->device, impl->env, impl->parameters, impl->states, reset_mask, impl->rng);
-        if(!spawns.empty()){
-            auto& parameters = impl->parameters_on_host();
-            auto& states = impl->on_host(impl->states, impl->states_host);
-            for(const auto& spawn : spawns){
-                auto& instance = rlt::get_ref(impl->host(), parameters, spawn.instance);
-                std::copy(spawn.translation.begin(), spawn.translation.end(), instance.scene_translation);
-                instance.scene_yaw_cos = spawn.yaw[0];
-                instance.scene_yaw_sin = spawn.yaw[1];
-                instance.shutter_fraction = spawn.shutter;
-                for(TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++){
-                    auto& state = rlt::rl::environments::hyperdrone::_agent_state<typename WORLD::SPEC>(rlt::get_ref(impl->host(), states, spawn.instance), agent_i);
-                    std::copy(spawn.poses[agent_i].begin(), spawn.poses[agent_i].begin() + 3, state.position);
-                    std::copy(spawn.poses[agent_i].begin() + 3, spawn.poses[agent_i].end(), state.orientation);
-                }
-            }
-            impl->publish_parameters_from_host();
-            impl->publish(impl->states_host, impl->states);
-            render_spawned_target_frames<WORLD>(impl->device, impl->env, impl->parameters, reset_mask);
-        }
         if(!impl->all_sampled){
             for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
                 impl->sampled[instance_i] = impl->sampled[instance_i] || selected[instance_i];

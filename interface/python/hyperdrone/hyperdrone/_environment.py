@@ -486,7 +486,7 @@ class HyperDrone:
         return json.loads(self._environment.spawn_points())
 
     def reset(self, mask=None, *, spawn_points=None):
-        """Resets the selected instances (default: all), optionally replaying one recorded spawn per selected instance (a host mask then). A spawn's "scene" is the content hash spawn_points() records or the same reference form the constructor takes ("conta:HASH" or a store manifest entry). Replayed spawns fly their entry's nominal drone parameters (target frames follow the replayed placement); velocities, motor speeds and task-specific state still follow their configured initialization."""
+        """Resets the selected instances (default: all), optionally replaying one recorded spawn per selected instance (a host mask then). A spawn's "scene" is the content hash spawn_points() records or the same reference form the constructor takes ("conta:HASH" or a store manifest entry). Replayed spawns fly their entry's nominal drone parameters with the pose pinned as the initialization center (instance_parameters() shows it under dynamics.mdp.init; target frames follow the replayed placement); velocities, motor speeds and task-specific state still follow their configured initialization."""
         if spawn_points is None:
             self._environment.reset(None if mask is None else self._input(mask, bool, (self.total_instances,)))
             return

@@ -2,6 +2,7 @@
 #include "../../../utils/utils.h"
 #include <gtest/gtest.h>
 #include <cstring>
+#include <nlohmann/json.hpp>
 
 namespace shim = HYPERLUX_MODULE_NAME;
 
@@ -29,5 +30,18 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE, USER_TASK_HEADER){
         uint32_t bits;
         std::memcpy(&bits, &value, sizeof(bits));
         EXPECT_NE(bits & 0x7f800000u, 0x7f800000u);
+    }
+    auto spawns = nlohmann::json::parse(env.spawn_points_json());
+    for(auto& spawn : spawns){
+        spawn["scene_translation"][0] = spawn["scene_translation"][0].get<float>() + 3;
+        spawn["scene_translation"][1] = spawn["scene_translation"][1].get<float>() + 4;
+        spawn["scene_yaw"] = {0, 1};
+        spawn["poses"][0] = {1, -0.5, 0.4, 1, 0, 0, 0};
+    }
+    env.reset(nullptr, !shim::CUDA_WORLD, spawns.dump());
+    env.step(actions.data(), !shim::CUDA_WORLD);
+    env.rewards(rewards.data(), !shim::CUDA_WORLD);
+    for(float value : rewards){
+        EXPECT_NEAR(value, -1.5, 0.2) << "the orbit must be centered on the final supplied spawn";
     }
 }

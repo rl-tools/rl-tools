@@ -390,6 +390,70 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME, RAW_OBSERVATION_KEEPS_TAR
     bank_and_stack_semantics<true>();
 }
 
+// a replayed spawn moves the instance away from its adopted setup, so its target frame is
+// re-rendered from the pinned placement while the other instances keep theirs
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME, SPAWN_RERENDERS_THE_TARGET_FRAME){
+    if(SCENE_PATH.empty()){
+        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
+    }
+    DEVICE device;
+    rlt::init(device);
+    WORLD world;
+    typename WORLD::SharedContext shared;
+    rlt::malloc(device, shared.library);
+    rlt::malloc(device, world);
+    rlt::hyperlux::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    typename decltype(dataset)::Corpus corpus;
+    rlt::hyperlux::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
+    RNG rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 77);
+    Tensors tensors;
+    tensors.allocate(device);
+    rlt::set_all(device, tensors.reset_mask, true);
+    rlt::sample_initial_parameters(device, world, tensors.parameters, tensors.reset_mask, rng);
+    rlt::sample_initial_state(device, world, tensors.parameters, tensors.states, tensors.reset_mask, rng);
+    const std::vector<float> adopted = target_rows(device, world);
+    using SPAWN = rlt::rl::environments::hyperdrone::Spawn<typename WORLD::SPEC>;
+    rlt::Tensor<rlt::tensor::Specification<SPAWN, TI, rlt::tensor::Shape<TI, INSTANCES>, false>> spawns;
+    for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
+        const auto& parameters = rlt::get_ref(device, tensors.parameters, instance_i);
+        SPAWN spawn{};
+        spawn.drones[0] = parameters.agents[0].drone;
+        for(TI axis = 0; axis < 3; axis++){
+            spawn.translation[axis] = parameters.scene_translation[axis];
+        }
+        spawn.yaw[0] = -parameters.scene_yaw_cos;
+        spawn.yaw[1] = -parameters.scene_yaw_sin;
+        spawn.poses[0][3] = 1;
+        spawn.shutter = parameters.shutter_fraction;
+        rlt::set(device, spawns, spawn, instance_i);
+    }
+    rlt::set_all(device, tensors.reset_mask, false);
+    rlt::set(device, tensors.reset_mask, true, (TI)0);
+    rlt::sample_initial_parameters(device, world, tensors.parameters, tensors.reset_mask, rng);
+    rlt::spawn(device, world, tensors.parameters, tensors.reset_mask, spawns);
+    rlt::sample_initial_state(device, world, tensors.parameters, tensors.states, tensors.reset_mask, rng);
+    const std::vector<float> spawned = target_rows(device, world);
+    rlt::render_target_frames(device, world, tensors.parameters, tensors.reset_mask);
+    EXPECT_EQ(target_rows(device, world), spawned) << "the spawned frame is the render of the pinned parameters";
+    bool changed = false;
+    for(TI element_i = 0; element_i < FRAME_DIM; element_i++){
+        changed = changed || spawned[element_i] != adopted[element_i];
+    }
+    EXPECT_TRUE(changed) << "the turned placement must change instance 0's target frame";
+    for(TI instance_i = 1; instance_i < INSTANCES; instance_i++){
+        for(TI element_i = 0; element_i < FRAME_DIM; element_i++){
+            ASSERT_EQ(spawned[instance_i * FRAME_DIM + element_i], adopted[instance_i * FRAME_DIM + element_i]) << "instance " << instance_i;
+        }
+    }
+    tensors.deallocate(device);
+    rlt::free(device, rng);
+    rlt::free(device, world);
+    rlt::free(device, shared.library);
+}
+
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

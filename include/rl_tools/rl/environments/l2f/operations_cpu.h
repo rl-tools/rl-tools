@@ -351,7 +351,9 @@ namespace rl_tools{
         json_string += "\"max_angular_velocity\": " + rl::environments::l2f::detail::lossless_to_string(parameters.max_angular_velocity) + ", ";
         json_string += "\"relative_rpm\": " + std::string(parameters.relative_rpm ? "true" : "false") + ", ";
         json_string += "\"min_rpm\": " + rl::environments::l2f::detail::lossless_to_string(parameters.min_rpm) + ", ";
-        json_string += "\"max_rpm\": " + rl::environments::l2f::detail::lossless_to_string(parameters.max_rpm);
+        json_string += "\"max_rpm\": " + rl::environments::l2f::detail::lossless_to_string(parameters.max_rpm) + ", ";
+        json_string += "\"position\": [" + rl::environments::l2f::detail::lossless_to_string(parameters.position[0]) + ", " + rl::environments::l2f::detail::lossless_to_string(parameters.position[1]) + ", " + rl::environments::l2f::detail::lossless_to_string(parameters.position[2]) + "], ";
+        json_string += "\"orientation\": [" + rl::environments::l2f::detail::lossless_to_string(parameters.orientation[0]) + ", " + rl::environments::l2f::detail::lossless_to_string(parameters.orientation[1]) + ", " + rl::environments::l2f::detail::lossless_to_string(parameters.orientation[2]) + ", " + rl::environments::l2f::detail::lossless_to_string(parameters.orientation[3]) + "]";
         json_string += "}";
         return json_string;
     }
@@ -985,6 +987,13 @@ namespace rl_tools{
         parameters.relative_rpm = json_object["relative_rpm"];
         parameters.min_rpm = json_object["min_rpm"];
         parameters.max_rpm = json_object["max_rpm"];
+        // parameter files written before the pose center existed are centered on the origin
+        for(typename DEVICE::index_t i = 0; i < 3; i++){
+            parameters.position[i] = json_object.contains("position") ? json_object["position"][i].template get<PARAM_SPEC>() : (PARAM_SPEC)0;
+        }
+        for(typename DEVICE::index_t i = 0; i < 4; i++){
+            parameters.orientation[i] = json_object.contains("orientation") ? json_object["orientation"][i].template get<PARAM_SPEC>() : (PARAM_SPEC)(i == 0 ? 1 : 0);
+        }
     }
     template <typename DEVICE, typename SPEC, typename T, unsigned T_ACTION_DIM>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::reward_functions::Squared<T, T_ACTION_DIM>& parameters) {

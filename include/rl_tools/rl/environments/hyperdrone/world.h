@@ -262,6 +262,20 @@ namespace rl_tools::rl::environments::hyperdrone {
         using DYNAMICS_ENV = typename DroneParameters<T_SPEC>::DYNAMICS_ENV;
         AgentParameters<T_SPEC> agents[T_SPEC::N_AGENTS];
     };
+    // what a replayed episode start pins (spawn(...) writes it into the Parameters between
+    // sample_initial_parameters and sample_initial_state): the drone-table entries, the scene
+    // placement, the per-agent poses (xyz, wxyz, dynamics frame) and the shutter; velocities,
+    // motor speeds and task state still follow their configured initialization
+    template <typename T_SPEC>
+    struct Spawn {
+        using T = typename T_SPEC::T;
+        using TI = typename T_SPEC::TI;
+        TI drones[T_SPEC::N_AGENTS];
+        T translation[3];
+        T yaw[2];
+        T poses[T_SPEC::N_AGENTS][7];
+        T shutter;
+    };
     template <typename T_SPEC>
     struct Drone {
         std::string asset;  // body/prop_* assembly, a path or conta:HASH; required iff SELF_VISIBLE
@@ -308,6 +322,7 @@ namespace rl_tools::rl::environments::hyperdrone {
 
     template <typename T_SPEC>
     struct World: Environment<typename T_SPEC::T, typename T_SPEC::TI> {
+        static constexpr bool SYNCHRONIZED_RESETS = false;
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -463,6 +478,20 @@ namespace rl_tools::rl::environments {
         SharedContext shared;
         WORLD worlds[N_WORLDS];
     };
+    namespace hyperdrone {
+        // derived-to-base pointer deduction: true for every World layered on hyperdrone::World
+        template <typename SPEC>
+        constexpr bool is_world(const World<SPEC>*) {
+            return true;
+        }
+        constexpr bool is_world(const void*) {
+            return false;
+        }
+        template <typename WORLD>
+        constexpr bool is_world() {
+            return is_world(static_cast<const WORLD*>(nullptr));
+        }
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

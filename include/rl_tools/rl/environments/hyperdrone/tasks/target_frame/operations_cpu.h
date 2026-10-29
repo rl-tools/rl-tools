@@ -197,15 +197,10 @@ namespace rl_tools {
             render_target_frames(device, env.worlds[world_i], parameters_block, reset_block);
         }
     }
-    // a target-frame reset adopts a setup and copies its frame per instance, which the batch
-    // verbs do; the single-instance entry points would silently fall back to the base World's
-    template <typename DEVICE, typename TASK_SPEC, typename RNG>
-    void sample_initial_parameters(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, typename rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>::Parameters& parameters, RNG& rng) = delete;
-    template <typename DEVICE, typename TASK_SPEC, typename RNG>
-    void sample_initial_state(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, typename rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>::Parameters& parameters, typename rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>::State& state, RNG& rng) = delete;
-
+    // a target-frame reset adopts a setup and copies its frame per instance instead of sampling
+    // the base World's parameters
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename RESET_SPEC, typename RNG>
-    void sample_initial_parameters(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
+    void reset_parameters(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
         using TI = typename TASK_SPEC::TI;
         using WORLD = rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
         static_assert(utils::typing::is_same_v<typename PARAMETER_SPEC::T, typename WORLD::Parameters>);
@@ -228,17 +223,16 @@ namespace rl_tools {
         set(device, world.bank_cursor, cursor, (TI)0);
     }
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC, typename RNG>
-    void sample_initial_state(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
-        using TI = typename TASK_SPEC::TI;
-        using WORLD = rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
-        using BASE_SPEC = typename TASK_SPEC::NEXT_WORLD::SPEC;
-        static_assert(utils::typing::is_same_v<typename STATE_SPEC::T, typename WORLD::State>);
-        for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
-            if (get(device, reset_mask, instance_i)) {
-                rl::environments::hyperdrone::_sample_dynamics_state<DEVICE, BASE_SPEC>(device, world.dynamics, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), rng);
-            }
-        }
-        complete_reset(device, world, reset_mask, rng);
+    void reset_state(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
+        using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
+        reset_state(device, static_cast<NEXT_WORLD&>(world), parameters, states, reset_mask, rng);
+    }
+    // a replayed spawn moves the instance away from its adopted setup, so its target frame follows
+    template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename RESET_SPEC, typename SPAWN_SPEC>
+    void spawn(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask, const Tensor<SPAWN_SPEC>& spawns) {
+        using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
+        spawn(device, static_cast<NEXT_WORLD&>(world), parameters, reset_mask, spawns);
+        render_target_frames(device, world, parameters, reset_mask);
     }
 
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename OBSERVATION_SPEC, typename RNG>

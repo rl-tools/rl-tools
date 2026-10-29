@@ -279,13 +279,14 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, CAMERA_PARAMETER_SAMPLING){
     RNG rng;
     malloc(device, rng);
     init(device, rng, 2);
+    Tensor<tensor::Specification<WORLD::Parameters, TI, tensor::Shape<TI, WORLD::INSTANCES>, false>> parameters_batch;
+    Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, WORLD::INSTANCES>, false>> reset_mask;
+    set_all(device, reset_mask, true);
     for(TI sample = 0; sample < 128; sample++){
-        WORLD::Parameters parameters;
-        sample_initial_parameters(device, world, parameters, rng);
+        sample_initial_parameters(device, world, parameters_batch, reset_mask, rng);
+        const auto& parameters = get_ref(device, parameters_batch, (TI)0);
         EXPECT_EQ(parameters.agents[0].drone, 0);
-        EXPECT_FLOAT_EQ(parameters.scene_translation[0], 3);
-        EXPECT_FLOAT_EQ(parameters.scene_yaw_cos, 0);
-        EXPECT_FLOAT_EQ(parameters.scene_yaw_sin, 1);
+        EXPECT_NEAR(parameters.scene_yaw_cos * parameters.scene_yaw_cos + parameters.scene_yaw_sin * parameters.scene_yaw_sin, 1, 1e-5);
         EXPECT_GE(parameters.agents[0].cameras[0].fov, world.parameters.agents[0].cameras[0].fov - WORLD_SPEC::CAMERA_FOV_RANDOMIZATION_RANGE);
         EXPECT_LE(parameters.agents[0].cameras[0].fov, world.parameters.agents[0].cameras[0].fov + WORLD_SPEC::CAMERA_FOV_RANDOMIZATION_RANGE);
         EXPECT_GE(parameters.brightness_scale, 1 - WORLD_SPEC::BRIGHTNESS_RANDOMIZATION_RANGE);

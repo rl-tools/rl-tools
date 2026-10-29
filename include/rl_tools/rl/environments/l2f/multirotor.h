@@ -84,6 +84,9 @@ namespace rl_tools::rl::environments::l2f{
             bool relative_rpm; // initial motor state range: relative maps [-1, 1] onto [action_limit.min, action_limit.max], absolute is in action_limit units (not RPM, see Dynamics::max_rpm)
             T min_rpm; // relative: -1 is action_limit.min; absolute: negative selects action_limit.min
             T max_rpm; // relative:  1 is action_limit.max; absolute: negative selects action_limit.max
+            // center of the pose distribution: max_position and max_angle bound the offset from it
+            T position[3] = {0, 0, 0};
+            T orientation[4] = {1, 0, 0, 0};
         };
         template <typename T>
         struct Termination{

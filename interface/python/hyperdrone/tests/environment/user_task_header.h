@@ -126,33 +126,34 @@ namespace rl_tools {
         init(device, static_cast<NEXT_WORLD&>(world), shared, dataset, corpus, first_scene, num_scenes, member_index);
     }
 
-    template <typename DEVICE, typename TASK_SPEC, typename RNG>
-    void sample_initial_state(DEVICE& device, hyperdrone_user::orbiter::World<TASK_SPEC>& world, typename hyperdrone_user::orbiter::World<TASK_SPEC>::Parameters& parameters, typename hyperdrone_user::orbiter::World<TASK_SPEC>::State& state, RNG& rng){
-        using T = typename TASK_SPEC::T;
+    template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename RESET_SPEC, typename RNG>
+    void reset_parameters(DEVICE& device, hyperdrone_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask, RNG& rng){
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
-        sample_initial_state(device, static_cast<NEXT_WORLD&>(world), static_cast<typename NEXT_WORLD::Parameters&>(parameters), static_cast<typename NEXT_WORLD::State&>(state), rng);
-        // the orbit is centered on the freshly sampled spawn and its phase aligned with the
-        // sampled facing, so the object starts in front of the camera (a wall or the sampled
-        // attitude can still hide it) and crosses the view once per revolution
-        hyperdrone_user::orbiter::drone_scene_position<DEVICE, TASK_SPEC>(device, parameters, state, parameters.orbit_center);
-        const T qw = state.orientation[0], qx = state.orientation[1], qy = state.orientation[2], qz = state.orientation[3];
-        const T forward_x = 1 - 2 * (qy * qy + qz * qz);
-        const T forward_y = 2 * (qx * qy + qw * qz);
-        const T scene_forward_x = parameters.scene_yaw_cos * forward_x - parameters.scene_yaw_sin * forward_y;
-        const T scene_forward_y = parameters.scene_yaw_sin * forward_x + parameters.scene_yaw_cos * forward_y;
-        state.orbit_phase = math::atan2(device.math, scene_forward_y, scene_forward_x);
+        reset_parameters(device, static_cast<NEXT_WORLD&>(world), parameters, reset_mask, rng);
     }
+    // the orbit is centered on the spawn and its phase aligned with the spawn's facing, so the
+    // object starts in front of the camera and crosses the view once per revolution
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC, typename RNG>
-    void sample_initial_state(DEVICE& device, hyperdrone_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask, RNG& rng){
+    void reset_state(DEVICE& device, hyperdrone_user::orbiter::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask, RNG& rng){
+        using T = typename TASK_SPEC::T;
         using TI = typename TASK_SPEC::TI;
+        using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         using WORLD = hyperdrone_user::orbiter::World<TASK_SPEC>;
         static_assert(utils::typing::is_same_v<typename STATE_SPEC::T, typename WORLD::State>);
+        reset_state(device, static_cast<NEXT_WORLD&>(world), parameters, states, reset_mask, rng);
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             if (get(device, reset_mask, instance_i)) {
-                sample_initial_state(device, world, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), rng);
+                auto& instance_parameters = get_ref(device, parameters, instance_i);
+                auto& state = get_ref(device, states, instance_i);
+                hyperdrone_user::orbiter::drone_scene_position<DEVICE, TASK_SPEC>(device, instance_parameters, state, instance_parameters.orbit_center);
+                const T qw = state.orientation[0], qx = state.orientation[1], qy = state.orientation[2], qz = state.orientation[3];
+                const T forward_x = 1 - 2 * (qy * qy + qz * qz);
+                const T forward_y = 2 * (qx * qy + qw * qz);
+                const T scene_forward_x = instance_parameters.scene_yaw_cos * forward_x - instance_parameters.scene_yaw_sin * forward_y;
+                const T scene_forward_y = instance_parameters.scene_yaw_sin * forward_x + instance_parameters.scene_yaw_cos * forward_y;
+                state.orbit_phase = math::atan2(device.math, scene_forward_y, scene_forward_x);
             }
         }
-        request_render(device, world, reset_mask);
     }
 
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC>

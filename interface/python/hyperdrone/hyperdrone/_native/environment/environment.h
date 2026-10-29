@@ -175,11 +175,6 @@ namespace HYPERLUX_MODULE_NAME {
     struct FrameStride<WORLD_TYPE, rlt::utils::typing::void_t<decltype(WORLD_TYPE::FRAME_STRIDE)>> { static constexpr TI VALUE = WORLD_TYPE::FRAME_STRIDE; };
     constexpr TI OBSERVATION_DIM_IMU = ObservationIMUDim<WORLD>::VALUE;
 
-    template <typename WORLD_TYPE, typename = void>
-    struct SynchronizedResets { static constexpr bool VALUE = false; };
-    template <typename WORLD_TYPE>
-    struct SynchronizedResets<WORLD_TYPE, rlt::utils::typing::void_t<decltype(WORLD_TYPE::SYNCHRONIZED_RESETS)>> { static constexpr bool VALUE = WORLD_TYPE::SYNCHRONIZED_RESETS; };
-
     // The environment behind the binding. The World, its RNG and every instance tensor live in the
     // World's memory (GPU under CUDA_WORLD, impl.cpp is then compiled by nvcc) and every verb is
     // enqueued on stream(). A `resident` array lives in the World's memory and is read or written

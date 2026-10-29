@@ -109,7 +109,7 @@ NB_MODULE(HYPERLUX_MODULE_NAME, m){
     m.attr("observation_layout_privileged") = layout_dict(observation_layout_privileged());
     m.attr("CUDA_WORLD") = CUDA_WORLD;
     m.attr("render_backend") = rlt::hyperlux::backends::name<typename WORLD::RENDERER::BACKEND>();
-    m.attr("synchronized_resets") = SynchronizedResets<WORLD>::VALUE;
+    m.attr("synchronized_resets") = WORLD::SYNCHRONIZED_RESETS;
     m.attr("control") = WORLD::ACTION_DIM == 0 ? "autonomous" : WORLD::CONTROLLER::NAME;
     m.attr("actuation") = hyperdrone::actuation_name<typename WORLD::DYNAMICS_ENV::ACTUATION_MODEL>();
     using BOUNDS = hyperdrone::ActionBounds<typename WORLD::CONTROLLER>;

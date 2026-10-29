@@ -105,30 +105,23 @@ namespace rl_tools {
         free(device, static_cast<NEXT_WORLD&>(world));
     }
 
-    template <typename DEVICE, typename TASK_SPEC, typename RNG>
-    void sample_initial_parameters(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, typename rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>::Parameters& parameters, RNG& rng) {
+    template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename RESET_SPEC, typename RNG>
+    void reset_parameters(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
-        sample_initial_parameters(device, static_cast<NEXT_WORLD&>(world), static_cast<typename NEXT_WORLD::Parameters&>(parameters), rng);
-    }
-    // gate trajectory sampling needs the scene (free-space placement), so it rides the state
-    // sampling like the base's scene placement does
-    template <typename DEVICE, typename TASK_SPEC, typename RNG>
-    void sample_initial_state(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, typename rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>::Parameters& parameters, typename rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>::State& state, RNG& rng) {
-        using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
-        sample_initial_state(device, static_cast<NEXT_WORLD&>(world), static_cast<typename NEXT_WORLD::Parameters&>(parameters), static_cast<typename NEXT_WORLD::State&>(state), rng);
-        rl::environments::hyperdrone::tasks::moving_gate::_sample_gate<DEVICE, TASK_SPEC>(device, world.slots[world.active_slot].annotations, parameters, state, rng);
+        reset_parameters(device, static_cast<NEXT_WORLD&>(world), parameters, reset_mask, rng);
     }
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC, typename RNG>
-    void sample_initial_state(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
+    void reset_state(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
         using TI = typename TASK_SPEC::TI;
+        using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         using WORLD = rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>;
         static_assert(utils::typing::is_same_v<typename STATE_SPEC::T, typename WORLD::State>);
+        reset_state(device, static_cast<NEXT_WORLD&>(world), parameters, states, reset_mask, rng);
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             if (get(device, reset_mask, instance_i)) {
-                sample_initial_state(device, world, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), rng);
+                rl::environments::hyperdrone::tasks::moving_gate::_sample_gate<DEVICE, TASK_SPEC>(device, world.slots[world.active_slot].annotations, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), rng);
             }
         }
-        complete_reset(device, world, reset_mask, rng);
     }
 
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC>

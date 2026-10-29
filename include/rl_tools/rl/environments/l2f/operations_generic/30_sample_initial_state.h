@@ -49,22 +49,23 @@ namespace rl_tools{
             guidance = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng) < parameters.mdp.init.guidance;
             if(!guidance){
                 for(TI i = 0; i < 3; i++){
-                    state.position[i] = random::uniform_real_distribution(random_dev, -parameters.mdp.init.max_position, parameters.mdp.init.max_position, rng);
+                    state.position[i] = parameters.mdp.init.position[i] + random::uniform_real_distribution(random_dev, -parameters.mdp.init.max_position, parameters.mdp.init.max_position, rng);
                 }
             }
             else{
                 for(TI i = 0; i < 3; i++){
-                    state.position[i] = 0;
+                    state.position[i] = parameters.mdp.init.position[i];
                 }
             }
             if(parameters.mdp.init.max_angle > 0 && !guidance){
-                sample_orientation(device, parameters.mdp.init.max_angle, state.orientation, rng);
+                T perturbation[4];
+                sample_orientation(device, parameters.mdp.init.max_angle, perturbation, rng);
+                quaternion_multiplication<DEVICE, T>(parameters.mdp.init.orientation, perturbation, state.orientation);
             }
             else{
-                state.orientation[0] = 1;
-                state.orientation[1] = 0;
-                state.orientation[2] = 0;
-                state.orientation[3] = 0;
+                for(TI i = 0; i < 4; i++){
+                    state.orientation[i] = parameters.mdp.init.orientation[i];
+                }
             }
             if(!guidance) {
                 for(TI i = 0; i < 3; i++){
@@ -235,7 +236,7 @@ namespace rl_tools{
             typename DEVICE::SPEC::RANDOM random_dev;
             using T = typename SPEC::T;
             sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
-            sample_orientation(device, parameters.domain_randomization, state.orientation, rng);
+            sample_orientation(device, parameters.domain_randomization.orientation_offset_angle_max, state.orientation_offset, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateRotors<STATE_SPEC>& state, RNG& rng){

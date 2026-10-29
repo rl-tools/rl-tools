@@ -76,15 +76,16 @@ namespace rl_tools {
             constexpr TI NUM_WAYPOINTS = PARAMETERS::NUM_WAYPOINTS;
             constexpr T MIN_DISTANCE_SQUARED = TASK_SPEC::WAYPOINT_MIN_DISTANCE * TASK_SPEC::WAYPOINT_MIN_DISTANCE;
             for (TI dim_i = 0; dim_i < 3; dim_i++) {
-                parameters.waypoints[0][dim_i] = 0;
+                parameters.waypoints[0][dim_i] = state.position[dim_i];
             }
             const TI count = annotations.num_positions;
             bool used[ANNOTATIONS::SPEC::MAX_POSITIONS] = {};
-            T current[3] = {parameters.scene_translation[0], parameters.scene_translation[1], parameters.scene_translation[2]};
+            T current[3], orientation[4];
+            drone_scene_pose<DEVICE, TASK_SPEC>(device, parameters, state, current, orientation);
             for (TI waypoint_i = 1; waypoint_i < NUM_WAYPOINTS; waypoint_i++) {
                 if (count == 0) {
                     for (TI dim_i = 0; dim_i < 3; dim_i++) {
-                        parameters.waypoints[waypoint_i][dim_i] = 0;
+                        parameters.waypoints[waypoint_i][dim_i] = state.position[dim_i];
                     }
                     continue;
                 }
@@ -201,40 +202,51 @@ namespace rl_tools {
     void reset_controller(DEVICE& device, rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>& world, const Tensor<RESET_SPEC>& mask, RNG& rng) {
         reset(device, world.controller, world.controller_state, world.controller_buffer, mask, rng);
     }
-    template <typename DEVICE, typename TASK_SPEC, typename RNG>
-    void sample_initial_parameters(DEVICE& device, rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>& world, typename rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>::Parameters& parameters, RNG& rng) {
-        using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
-        sample_initial_parameters(device, static_cast<NEXT_WORLD&>(world), static_cast<typename NEXT_WORLD::Parameters&>(parameters), rng);
+    namespace rl::environments::hyperdrone::tasks::visual_inertial_localization {
+        // the World-level task_step clocks every instance, so episodes are fixed-length and in lockstep
+        template <typename DEVICE, typename TASK_SPEC, typename RESET_SPEC>
+        bool _synchronized_reset(DEVICE& device, const World<TASK_SPEC>&, const Tensor<RESET_SPEC>& reset_mask) {
+            using TI = typename TASK_SPEC::TI;
+            bool any_reset = false;
+            bool all_reset = true;
+            for (TI instance_i = 0; instance_i < World<TASK_SPEC>::INSTANCES; instance_i++) {
+                const bool reset = get(device, reset_mask, instance_i);
+                any_reset = any_reset || reset;
+                all_reset = all_reset && reset;
+            }
+            utils::assert_exit(device, !any_reset || all_reset, "hyperdrone::tasks::visual_inertial_localization: resets must be synchronized (fixed-length episodes)");
+            return any_reset;
+        }
     }
-    // route sampling needs the scene (free-space positions) and the sampled scene placement, so
-    // it rides the state sampling like the base's scene placement does
-    template <typename DEVICE, typename TASK_SPEC, typename RNG>
-    void sample_initial_state(DEVICE& device, rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>& world, typename rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>::Parameters& parameters, typename rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>::State& state, RNG& rng) {
+    template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename RESET_SPEC, typename RNG>
+    void reset_parameters(DEVICE& device, rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
-        sample_initial_state(device, static_cast<NEXT_WORLD&>(world), static_cast<typename NEXT_WORLD::Parameters&>(parameters), static_cast<typename NEXT_WORLD::State&>(state), rng);
-        rl::environments::hyperdrone::tasks::visual_inertial_localization::_face_free_space<DEVICE, TASK_SPEC>(device, world.slots[world.active_slot].annotations, parameters);
-        rl::environments::hyperdrone::tasks::visual_inertial_localization::_sample_route<DEVICE, TASK_SPEC>(device, world.slots[world.active_slot].annotations, parameters, state, rng);
+        using TI = typename TASK_SPEC::TI;
+        using WORLD = rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>;
+        rl::environments::hyperdrone::tasks::visual_inertial_localization::_synchronized_reset(device, world, reset_mask);
+        reset_parameters(device, static_cast<NEXT_WORLD&>(world), parameters, reset_mask, rng);
+        for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
+            if (get(device, reset_mask, instance_i)) {
+                rl::environments::hyperdrone::tasks::visual_inertial_localization::_face_free_space<DEVICE, TASK_SPEC>(device, world.slots[world.active_slot].annotations, get_ref(device, parameters, instance_i));
+            }
+        }
     }
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC, typename RNG>
-    void sample_initial_state(DEVICE& device, rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
+    void reset_state(DEVICE& device, rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
+        using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         using TI = typename TASK_SPEC::TI;
         using WORLD = rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>;
         static_assert(utils::typing::is_same_v<typename STATE_SPEC::T, typename WORLD::State>);
-        bool any_reset = false;
-        bool all_reset = true;
+        const bool any_reset = rl::environments::hyperdrone::tasks::visual_inertial_localization::_synchronized_reset(device, world, reset_mask);
+        reset_state(device, static_cast<NEXT_WORLD&>(world), parameters, states, reset_mask, rng);
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
-            bool reset = get(device, reset_mask, instance_i);
-            any_reset = any_reset || reset;
-            all_reset = all_reset && reset;
-            if (reset) {
-                sample_initial_state(device, world, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), rng);
+            if (get(device, reset_mask, instance_i)) {
+                rl::environments::hyperdrone::tasks::visual_inertial_localization::_sample_route<DEVICE, TASK_SPEC>(device, world.slots[world.active_slot].annotations, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), rng);
             }
         }
-        utils::assert_exit(device, !any_reset || all_reset, "hyperdrone::tasks::visual_inertial_localization: resets must be synchronized (fixed-length episodes)");
-        if (all_reset) {
+        if (any_reset) {
             world.task_step = 0;
         }
-        complete_reset(device, world, reset_mask, rng);
     }
 
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>

@@ -116,6 +116,12 @@ namespace rl_tools{
         acc += (a.relative_rpm == b.relative_rpm ? 0 : 1);
         acc += math::abs(device.math, a.min_rpm - b.min_rpm);
         acc += math::abs(device.math, a.max_rpm - b.max_rpm);
+        for(typename DEVICE::index_t i = 0; i < 3; i++){
+            acc += math::abs(device.math, a.position[i] - b.position[i]);
+        }
+        for(typename DEVICE::index_t i = 0; i < 4; i++){
+            acc += math::abs(device.math, a.orientation[i] - b.orientation[i]);
+        }
         return acc;
     }
     template<typename DEVICE, typename T_A, unsigned T_ACTION_DIM_A, typename T_B, unsigned T_ACTION_DIM_B>
