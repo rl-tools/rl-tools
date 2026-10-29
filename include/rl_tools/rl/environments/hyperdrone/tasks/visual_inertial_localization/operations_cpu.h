@@ -5,6 +5,7 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TASKS_VISUAL_INERTIAL_LOCALIZATION_OPERATIONS_CPU_H
 
 #include "visual_inertial_localization.h"
+#include "tracking_operations_cpu.h"
 #include "../../controllers/raptor/operations_cpu.h"
 #include "../../operations_cpu.h"
 
@@ -29,145 +30,10 @@ namespace rl_tools {
             orientation_out[3] = yaw_half_cos * state.orientation[3] + yaw_half_sin * state.orientation[0];
         }
         template <typename DEVICE, typename TASK_SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT void scene_to_dynamics_position(DEVICE&, const typename World<TASK_SPEC>::Parameters& parameters, const typename TASK_SPEC::T in[3], typename TASK_SPEC::T out[3]){
-            using T = typename TASK_SPEC::T;
-            T dx = in[0] - parameters.scene_translation[0];
-            T dy = in[1] - parameters.scene_translation[1];
-            out[0] =  parameters.scene_yaw_cos * dx + parameters.scene_yaw_sin * dy;
-            out[1] = -parameters.scene_yaw_sin * dx + parameters.scene_yaw_cos * dy;
-            out[2] = in[2] - parameters.scene_translation[2];
-        }
-        // the base world samples a uniformly random scene yaw, which can leave the camera
-        // staring at a blank wall; visual estimators need features from the first frame, so the
-        // task re-orients the spawn along the anchor annotation's free-space facing direction
-        template <typename DEVICE, typename TASK_SPEC>
-        void _face_free_space(DEVICE& device, const typename World<TASK_SPEC>::NEXT_WORLD::ANNOTATIONS& annotations, typename World<TASK_SPEC>::Parameters& parameters){
-            using T = typename TASK_SPEC::T;
-            using TI = typename TASK_SPEC::TI;
-            const TI count = annotations.num_positions;
-            if (count == 0) {
-                return;
-            }
-            TI anchor_index = 0;
-            T anchor_distance_squared = 0;
-            for (TI candidate_i = 0; candidate_i < count; candidate_i++) {
-                T distance_squared = 0;
-                for (TI dim_i = 0; dim_i < 3; dim_i++) {
-                    T delta = (T)annotations.positions[candidate_i].position[dim_i] - parameters.scene_translation[dim_i];
-                    distance_squared += delta * delta;
-                }
-                if (candidate_i == 0 || distance_squared < anchor_distance_squared) {
-                    anchor_distance_squared = distance_squared;
-                    anchor_index = candidate_i;
-                }
-            }
-            T yaw = (T)annotations.positions[anchor_index].yaw;
-            parameters.scene_yaw_cos = math::cos(device.math, yaw);
-            parameters.scene_yaw_sin = math::sin(device.math, yaw);
-        }
-        // greedy nearest-unused-neighbor route over the scene's free-space positions, anchored
-        // at the initial placement; stored in the dynamics frame
-        template <typename DEVICE, typename TASK_SPEC, typename RNG>
-        void _sample_route(DEVICE& device, const typename World<TASK_SPEC>::NEXT_WORLD::ANNOTATIONS& annotations, typename World<TASK_SPEC>::Parameters& parameters, typename World<TASK_SPEC>::State& state, RNG& rng){
-            using T = typename TASK_SPEC::T;
-            using TI = typename TASK_SPEC::TI;
-            using PARAMETERS = typename World<TASK_SPEC>::Parameters;
-            using ANNOTATIONS = typename World<TASK_SPEC>::NEXT_WORLD::ANNOTATIONS;
-            constexpr TI NUM_WAYPOINTS = PARAMETERS::NUM_WAYPOINTS;
-            constexpr T MIN_DISTANCE_SQUARED = TASK_SPEC::WAYPOINT_MIN_DISTANCE * TASK_SPEC::WAYPOINT_MIN_DISTANCE;
-            for (TI dim_i = 0; dim_i < 3; dim_i++) {
-                parameters.waypoints[0][dim_i] = state.position[dim_i];
-            }
-            const TI count = annotations.num_positions;
-            bool used[ANNOTATIONS::SPEC::MAX_POSITIONS] = {};
-            T current[3], orientation[4];
-            drone_scene_pose<DEVICE, TASK_SPEC>(device, parameters, state, current, orientation);
-            for (TI waypoint_i = 1; waypoint_i < NUM_WAYPOINTS; waypoint_i++) {
-                if (count == 0) {
-                    for (TI dim_i = 0; dim_i < 3; dim_i++) {
-                        parameters.waypoints[waypoint_i][dim_i] = state.position[dim_i];
-                    }
-                    continue;
-                }
-                TI best_index = count;
-                T best_distance_squared = 0;
-                for (TI pass = 0; pass < 2 && best_index == count; pass++) {
-                    for (TI candidate_i = 0; candidate_i < count; candidate_i++) {
-                        if (used[candidate_i]) {
-                            continue;
-                        }
-                        const auto& candidate = annotations.positions[candidate_i].position;
-                        T distance_squared = 0;
-                        for (TI dim_i = 0; dim_i < 3; dim_i++) {
-                            T delta = (T)candidate[dim_i] - current[dim_i];
-                            distance_squared += delta * delta;
-                        }
-                        // first pass enforces the minimum spacing, second pass takes what is left
-                        if (pass == 0 && distance_squared < MIN_DISTANCE_SQUARED) {
-                            continue;
-                        }
-                        if (best_index == count || distance_squared < best_distance_squared) {
-                            best_index = candidate_i;
-                            best_distance_squared = distance_squared;
-                        }
-                    }
-                }
-                if (best_index == count) { // every position used: recycle with a random restart
-                    for (TI candidate_i = 0; candidate_i < count; candidate_i++) {
-                        used[candidate_i] = false;
-                    }
-                    best_index = random::uniform_int_distribution(device.random, (TI)0, (TI)(count - 1), rng);
-                }
-                used[best_index] = true;
-                T scene_position[3];
-                for (TI dim_i = 0; dim_i < 3; dim_i++) {
-                    scene_position[dim_i] = (T)annotations.positions[best_index].position[dim_i];
-                    current[dim_i] = scene_position[dim_i];
-                }
-                scene_to_dynamics_position<DEVICE, TASK_SPEC>(device, parameters, scene_position, parameters.waypoints[waypoint_i]);
-            }
-            state.current_waypoint = (TASK_SPEC::INITIALIZATION_HOLD_STEPS > 0 || NUM_WAYPOINTS == 1) ? 0 : 1;
-        }
-        template <typename DEVICE, typename TASK_SPEC>
         void _load_autopilot(DEVICE& device, World<TASK_SPEC>& world){
             std::string path;
             utils::assert_exit(device, hyperlux::datasets::resolve_reference(device, world.autopilot_policy_path, path), "hyperdrone::tasks::visual_inertial_localization: cannot resolve the autopilot checkpoint");
             utils::assert_exit(device, load(device, world.controller, path), "hyperdrone::tasks::visual_inertial_localization: the autopilot checkpoint does not match the RAPTOR architecture");
-        }
-        template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RNG>
-        void _control(DEVICE& device, World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, RNG& rng){
-            using WORLD = World<TASK_SPEC>;
-            using T = typename WORLD::T;
-            using TI = typename WORLD::TI;
-            using AUTOPILOT = typename WORLD::CONTROLLER;
-            for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++){
-                auto& instance_parameters = get_ref(device, parameters, instance_i);
-                const auto& state = get_ref(device, states, instance_i);
-                Matrix<matrix::Specification<T, TI, 1, AUTOPILOT::OBSERVATION_DIM, true, matrix::layouts::RowMajorAlignment<TI, 1>>> observation_row;
-                observation_row._data = data(world.controller_buffer.observations) + instance_i * AUTOPILOT::OBSERVATION_DIM;
-                observe(device, world.dynamics, instance_parameters.agents[0].dynamics, state, typename AUTOPILOT::OBSERVATION_TYPE{}, observation_row, rng);
-                for (TI dim_i = 0; dim_i < 3; dim_i++){
-                    T error = state.position[dim_i] - instance_parameters.waypoints[state.current_waypoint][dim_i];
-                    error = math::clamp(device.math, error, -TASK_SPEC::TARGET_POSITION_ERROR_CLIP, TASK_SPEC::TARGET_POSITION_ERROR_CLIP);
-                    set(observation_row, 0, dim_i, error);
-                }
-            }
-            evaluate_step(device, world.controller, world.controller_state, world.controller_buffer, rng);
-        }
-        template <typename DEVICE, typename TASK_SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT void _waypoint_step(DEVICE& device, const typename World<TASK_SPEC>::Parameters& parameters, const typename World<TASK_SPEC>::State& state, typename World<TASK_SPEC>::State& next_state){
-            using T = typename TASK_SPEC::T;
-            using TI = typename TASK_SPEC::TI;
-            using PARAMETERS = typename World<TASK_SPEC>::Parameters;
-            next_state.current_waypoint = state.current_waypoint;
-            T distance_squared = 0;
-            for (TI dim_i = 0; dim_i < 3; dim_i++) {
-                T delta = next_state.position[dim_i] - parameters.waypoints[state.current_waypoint][dim_i];
-                distance_squared += delta * delta;
-            }
-            if (distance_squared < TASK_SPEC::WAYPOINT_ACCEPTANCE_RADIUS * TASK_SPEC::WAYPOINT_ACCEPTANCE_RADIUS) {
-                next_state.current_waypoint = (state.current_waypoint + 1) % PARAMETERS::NUM_WAYPOINTS;
-            }
         }
     }
 
@@ -187,11 +53,16 @@ namespace rl_tools {
             utils::assert_exit(device, validate(device, world.controller, drone.parameters.dynamics.dynamics), "hyperdrone::visual_inertial_localization: incompatible controller dynamics");
         }
         rl::environments::hyperdrone::tasks::visual_inertial_localization::_load_autopilot<DEVICE, TASK_SPEC>(device, world);
+        build_navigation(device, world, shared);
         world.task_step = 0;
     }
     template <typename DEVICE, typename TASK_SPEC>
     void free(DEVICE& device, rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>& world) {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
+        for (auto& navigation : world.navigation) {
+            free(device, navigation.geometry);
+        }
+        world.navigation.clear();
         free(device, world.controller_buffer);
         free(device, world.controller_state);
         free(device, world.controller);
@@ -227,7 +98,7 @@ namespace rl_tools {
         reset_parameters(device, static_cast<NEXT_WORLD&>(world), parameters, reset_mask, rng);
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             if (get(device, reset_mask, instance_i)) {
-                rl::environments::hyperdrone::tasks::visual_inertial_localization::_face_free_space<DEVICE, TASK_SPEC>(device, world.slots[world.active_slot].annotations, get_ref(device, parameters, instance_i));
+                sample_trajectory_placement(device, world, get_ref(device, parameters, instance_i), rng);
             }
         }
     }
@@ -241,7 +112,11 @@ namespace rl_tools {
         reset_state(device, static_cast<NEXT_WORLD&>(world), parameters, states, reset_mask, rng);
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             if (get(device, reset_mask, instance_i)) {
-                rl::environments::hyperdrone::tasks::visual_inertial_localization::_sample_route<DEVICE, TASK_SPEC>(device, world.slots[world.active_slot].annotations, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), rng);
+                auto& state = get_ref(device, states, instance_i);
+                state.collision = !sample_trajectory(device, world, get_ref(device, parameters, instance_i), state, rng, true);
+                state.completed_routes = 0;
+                const auto& q = state.orientation;
+                state.target_yaw = math::atan2(device.math, (typename TASK_SPEC::T)2 * (q[0] * q[3] + q[1] * q[2]), (typename TASK_SPEC::T)1 - (typename TASK_SPEC::T)2 * (q[2] * q[2] + q[3] * q[3]));
             }
         }
         if (any_reset) {
@@ -276,20 +151,28 @@ namespace rl_tools {
         if(world.render_pending){
             render(device, world, parameters, states, world.render_reset);
         }
-        rl::environments::hyperdrone::tasks::visual_inertial_localization::_control<DEVICE, TASK_SPEC>(device, world, parameters, states, rng);
+        control_trajectory(device, world, parameters, states, rng);
         step(device, static_cast<NEXT_WORLD&>(world), parameters, states, world.controller_state.previous_actions, next_states, rng);
         world.task_step++;
         // no frame is due between strides: output reads, probes and Spy keep the last capture
         if (world.task_step % WORLD::FRAME_STRIDE != 0) {
             world.render_pending = false;
         }
-        const bool hold = WORLD::INITIALIZATION_HOLD_STEPS > 0 && world.task_step <= WORLD::INITIALIZATION_HOLD_STEPS;
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
-            if (hold) {
-                get_ref(device, next_states, instance_i).current_waypoint = get_ref(device, states, instance_i).current_waypoint;
-            } else {
-                rl::environments::hyperdrone::tasks::visual_inertial_localization::_waypoint_step<DEVICE, TASK_SPEC>(device, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), get_ref(device, next_states, instance_i));
-            }
+            advance_trajectory(device, world, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), get_ref(device, next_states, instance_i), rng);
+        }
+    }
+
+    template <typename DEVICE, typename TASK_SPEC, typename RNG>
+    bool terminated(DEVICE& device, const rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>& world, const typename rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>::Parameters& parameters, const typename rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>::State& state, RNG& rng) {
+        using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
+        return state.collision || !parameters.route_valid || terminated(device, static_cast<const NEXT_WORLD&>(world), static_cast<const typename NEXT_WORLD::Parameters&>(parameters), static_cast<const typename NEXT_WORLD::State&>(state), rng);
+    }
+    template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename TERMINATED_SPEC, typename RNG>
+    void terminated(DEVICE& device, rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, Tensor<TERMINATED_SPEC>& flags, RNG& rng) {
+        using WORLD = rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>;
+        for (typename WORLD::TI instance = 0; instance < WORLD::INSTANCES; instance++) {
+            set(device, flags, terminated(device, world, get_ref(device, parameters, instance), get_ref(device, states, instance), rng), instance);
         }
     }
 

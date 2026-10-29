@@ -1,3 +1,11 @@
+add_executable(test_rl_environments_hyperdrone_visual_inertial_localization_collision visual_inertial_localization_collision.cpp)
+target_link_libraries(test_rl_environments_hyperdrone_visual_inertial_localization_collision PRIVATE RLtools::RLtools GTest::gtest_main)
+gtest_discover_tests(test_rl_environments_hyperdrone_visual_inertial_localization_collision PROPERTIES TIMEOUT 20 LABELS "trajectory")
+
+add_executable(test_rl_environments_hyperdrone_trajectory trajectory.cpp)
+target_link_libraries(test_rl_environments_hyperdrone_trajectory PRIVATE RLtools::RLtools RLtools::Test)
+gtest_discover_tests(test_rl_environments_hyperdrone_trajectory PROPERTIES TIMEOUT 20 LABELS "trajectory")
+
 if(NOT RL_TOOLS_DISABLE_TAR)
     add_executable(test_rl_environments_hyperdrone_controllers controllers.cpp)
     target_link_libraries(test_rl_environments_hyperdrone_controllers PRIVATE RLtools::RLtools GTest::gtest_main)

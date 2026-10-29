@@ -116,7 +116,7 @@ The C++ controller layer follows these consumers and constraints:
 | CPU/CUDA Worlds, multi-agent batches and dynamics-only `Sim` | One static controller selection binds dynamics actions and command metadata; borrowed tensors avoid command copies and RAPTOR batches inference. |
 | TargetFrame, MovingGate and scene placement | Tasks retain sampling and rewards; shared reset completion clears controller memory, and World adapts scene targets before inference. |
 | Motor training, PD CTBR, ideal rates and existing checkpoints | One normalized action convention and one state and observation layout across signals and actuation models; canonical motor indexing is shared. |
-| Web, localization and trajectory callers | Reusable controller parameters, recurrent state and scratch; localization retains its existing observation preparation. |
+| Web, localization and trajectory callers | Reusable controller parameters, recurrent state and scratch; localization supplies position, velocity and yaw targets. |
 | Python/Gym, custom specifications, rendering and IMU | Compiled bounds remain authoritative; physical rotor count and geometric mesh-hub matching remain independent of command shape. |
 
 ## RL environment
@@ -271,12 +271,26 @@ C++ uses `hyperdrone::Spy<hyperdrone::spy::Config<ENVIRONMENT>>` with device-fir
 benchmark: fixed-length synchronized episodes stepping at IMU rate (`env.dt`), a camera
 frame every `env.frame_stride` steps, and the IMU sample of each step from
 `env.observe_imu()` (named by `env.observation_layout_imu`: accelerometer, gyroscope,
-frame age, new-frame flag). The task is autonomous: the RAPTOR autopilot built into it
-flies a waypoint route (its checkpoint is pinned by content hash and fetched through
-conta on first use), so `action_dim` is 0 and `step()` takes no actions. The privileged
-observation carries the current `waypoint` next to the dynamics state; the drone's own
-body is not rendered, matching the C++ benchmark harness. Resets must be all-or-none per
-World.
+frame age, new-frame flag). The task is autonomous: `action_dim` is 0 and `step()` takes
+no actions. Seeded routes follow a connected graph of positions and links checked for
+clearance. RAPTOR tracks timed quintic curves with continuous position, velocity and
+acceleration, and gradual changes in yaw. Its checkpoint is pinned by content hash and
+fetched through conta on first use. Completing a route generates another connected
+horizon, allowing long flights without an unchecked closing segment back to the spawn.
+The privileged observation carries the current `waypoint` next to the dynamics state;
+the drone's own body is not rendered, matching the C++ benchmark harness. Resets must be
+all-or-none per world.
+
+Both complete curves and actual steps are checked against static scene triangles using
+an enclosing body/propeller sphere. An unsafe step retains the last safe state and
+latches `terminated()` until reset; failed route planning also terminates the flight.
+These checks exclude dynamic overlay assets.
+
+A task `Specification` supplied through `spec_header` can override the defaults:
+`COLLISION_RADIUS=0.45` m encloses the X500 body and rotating propellers, with an additional
+`TRACKING_MARGIN=0.25` m when planning. Cruise speed is sampled between 0.45 and 0.8 m/s;
+reference acceleration and jerk limits are 0.7 m/s² and 2 m/s³. Larger drone models need
+a correspondingly larger collision radius.
 
 ```python
 config = Config(instances_per_world=2, width=160, height=120, preset="x500_fpv_imu", task="visual_inertial_localization")

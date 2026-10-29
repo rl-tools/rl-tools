@@ -1050,6 +1050,26 @@ def test_visual_inertial_localization(scene_directory):
         env.close()
 
 
+def test_visual_inertial_replayed_spawn_reanchors_route(scene_directory):
+    config = Config(instances_per_world=2, width=16, height=16, preset="x500_fpv_imu", task="visual_inertial_localization")
+    with closing(HyperDrone(scene_directory, config=config, seed=605)) as env:
+        env.reset()
+        points = env.spawn_points()
+        offset = np.array([100.0, -100.0, 25.0])
+        for point in points:
+            cosine, sine = point["scene_yaw"]
+            scene_offset = np.array([cosine * offset[0] - sine * offset[1], sine * offset[0] + cosine * offset[1], offset[2]])
+            point["scene_translation"] = (np.asarray(point["scene_translation"]) - scene_offset).tolist()
+            point["poses"][0][:3] = (np.asarray(point["poses"][0][:3]) + offset).tolist()
+        env.reset(spawn_points=points)
+        state = env.observe_privileged()
+        np.testing.assert_allclose(state[:, :3], [point["poses"][0][:3] for point in points])
+        assert np.linalg.norm(state[:, 18:21] - state[:, :3], axis=1).max() < 20
+        env.step()
+        assert not env.terminated().any()
+        assert np.isfinite(env.observe_privileged()).all()
+
+
 def test_spec_header_escape_hatch(scene_directory):
     header = Path(__file__).parent / "user_spec_header.h"
     config = Config(spec_header=str(header))

@@ -9,6 +9,8 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <cstdint>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -230,19 +232,22 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, SPAWN_ANC
     using SPAWN = rlt::rl::environments::hyperdrone::Spawn<WORLD::SPEC>;
     rlt::Tensor<rlt::tensor::Specification<SPAWN, TI, rlt::tensor::Shape<TI, INSTANCES>, false>> spawns;
     rlt::sample_initial_parameters(device, fixture.world, tensors.parameters, tensors.reset_mask, fixture.rng);
+    const auto& navigation = fixture.world.navigation[fixture.world.active_slot];
+    ASSERT_FALSE(navigation.spawn_nodes.empty());
     for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
         const auto& parameters = rlt::get_ref(device, tensors.parameters, instance_i);
+        const auto& anchor = navigation.positions[navigation.spawn_nodes[instance_i % navigation.spawn_nodes.size()]];
         SPAWN spawn{};
         spawn.drones[0] = parameters.agents[0].drone;
-        for(TI axis = 0; axis < 3; axis++){
-            spawn.translation[axis] = parameters.scene_translation[axis];
-        }
         spawn.yaw[0] = 0;
         spawn.yaw[1] = 1;
         spawn.poses[0][0] = (T)0.75 + instance_i;
         spawn.poses[0][1] = (T)-0.5;
         spawn.poses[0][2] = (T)0.25;
         spawn.poses[0][3] = 1;
+        spawn.translation[0] = anchor[0] + spawn.poses[0][1];
+        spawn.translation[1] = anchor[1] - spawn.poses[0][0];
+        spawn.translation[2] = anchor[2] - spawn.poses[0][2];
         spawn.shutter = (T)0.4;
         rlt::set(device, spawns, spawn, instance_i);
     }
@@ -256,10 +261,12 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, SPAWN_ANC
         const auto& spawn = rlt::get_ref(device, spawns, instance_i);
         const auto& parameters = rlt::get_ref(device, tensors.parameters, instance_i);
         const auto& state = rlt::get_ref(device, tensors.states, instance_i);
+        EXPECT_TRUE(parameters.route_valid);
+        EXPECT_FALSE(state.collision);
         for(TI axis = 0; axis < 3; axis++){
             EXPECT_EQ(parameters.scene_translation[axis], spawn.translation[axis]);
             EXPECT_EQ(state.position[axis], spawn.poses[0][axis]);
-            EXPECT_EQ(parameters.waypoints[0][axis], spawn.poses[0][axis]) << "the route anchors at the spawn";
+            EXPECT_NEAR(parameters.waypoints[0][axis], spawn.poses[0][axis], 1e-5) << "the route anchors at the spawn";
         }
         EXPECT_EQ(parameters.scene_yaw_cos, spawn.yaw[0]);
         EXPECT_EQ(parameters.scene_yaw_sin, spawn.yaw[1]);
@@ -272,7 +279,40 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, SPAWN_ANC
     fixture.teardown();
 }
 
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, ROUTE_AND_WAYPOINT_PROGRESSION){
+void expect_certified_route(DEVICE& device, const WORLD& world, const WORLD::Parameters& parameters) {
+    ASSERT_TRUE(parameters.route_valid);
+    const auto& geometry = world.navigation[world.active_slot].geometry;
+    task::trajectory::Sample<WORLD::TRAJECTORY_SPEC> previous_end;
+    for (TI index = 1; index < WORLD::Parameters::NUM_WAYPOINTS; index++) {
+        task::trajectory::Segment<WORLD::TRAJECTORY_SPEC> segment;
+        task::trajectory::Sample<WORLD::TRAJECTORY_SPEC> begin, end;
+        task::trajectory::Bounds<WORLD::TRAJECTORY_SPEC> bounds;
+        ASSERT_TRUE(rlt::trajectory_segment(device, world, parameters, index, segment));
+        ASSERT_TRUE(rlt::evaluate(device, segment, (T)0, begin));
+        ASSERT_TRUE(rlt::evaluate(device, segment, segment.duration, end));
+        ASSERT_TRUE(rlt::derivative_bounds(device, segment, bounds));
+        EXPECT_LE(bounds.speed, parameters.cruise_speed * (T)1.002);
+        EXPECT_LE(bounds.acceleration, TASK_SPEC::MAX_ACCELERATION * (T)1.002);
+        EXPECT_LE(bounds.jerk, TASK_SPEC::MAX_JERK * (T)1.002);
+        T controls[6][3];
+        for (TI control = 0; control < 6; control++) {
+            rlt::trajectory_scene_position(device, parameters, segment.control[control], controls[control]);
+        }
+        EXPECT_TRUE(rlt::bezier_collision_free(device, geometry, controls, TASK_SPEC::COLLISION_RADIUS + TASK_SPEC::TRACKING_MARGIN));
+        for (TI axis = 0; axis < 3; axis++) {
+            EXPECT_NEAR(begin.position[axis], parameters.waypoints[index - 1][axis], 1e-5);
+            EXPECT_NEAR(end.position[axis], parameters.waypoints[index][axis], 1e-5);
+            if (index > 1) {
+                EXPECT_NEAR(begin.position[axis], previous_end.position[axis], 1e-5);
+                EXPECT_NEAR(begin.velocity[axis], previous_end.velocity[axis], 1e-5);
+                EXPECT_NEAR(begin.acceleration[axis], previous_end.acceleration[axis], 1e-5);
+            }
+        }
+        previous_end = end;
+    }
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, ROUTE_IS_CLEAR_SMOOTH_AND_REPRODUCIBLE){
     if(SCENE_PATH.empty()){
         GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
     }
@@ -280,39 +320,112 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, ROUTE_AND
     fixture.setup(1339);
     DEVICE& device = fixture.device;
     WORLD& world = fixture.world;
-    Tensors& tensors = fixture.tensors;
-    RNG& rng = fixture.rng;
-    typename WORLD::Parameters instance_parameters = rlt::get(device, tensors.parameters, (TI)0);
-    typename WORLD::State state = rlt::get(device, tensors.states, (TI)0);
-    for(TI dim_i = 0; dim_i < 3; dim_i++){
-        EXPECT_EQ(instance_parameters.waypoints[0][dim_i], state.position[dim_i]) << "waypoint 0 anchors at the final spawn";
+    const auto initial_parameters = rlt::get(device, fixture.tensors.parameters, (TI)0);
+    const auto initial_state = rlt::get(device, fixture.tensors.states, (TI)0);
+    for(TI axis = 0; axis < 3; axis++){
+        EXPECT_NEAR(initial_parameters.waypoints[0][axis], initial_state.position[axis], 1e-5) << "waypoint 0 anchors at the final spawn";
     }
-    EXPECT_EQ(state.current_waypoint, 1);
-    for(TI waypoint_i = 1; waypoint_i < WORLD::Parameters::NUM_WAYPOINTS; waypoint_i++){
-        T distance_squared = 0;
-        for(TI dim_i = 0; dim_i < 3; dim_i++){
-            T value = instance_parameters.waypoints[waypoint_i][dim_i];
-            EXPECT_LT(std::abs(value), 1000);
-            T delta = value - instance_parameters.waypoints[waypoint_i - 1][dim_i];
-            distance_squared += delta * delta;
+    expect_certified_route(device, world, initial_parameters);
+    WORLD::Parameters routes[3];
+    for (TI trial = 0; trial < 3; trial++) {
+        routes[trial] = initial_parameters;
+        auto state = initial_state;
+        rlt::init(device, fixture.rng, trial < 2 ? 101 : 102);
+        ASSERT_TRUE(rlt::sample_trajectory(device, world, routes[trial], state, fixture.rng, true));
+        expect_certified_route(device, world, routes[trial]);
+    }
+    bool different = false;
+    for (TI index = 0; index < WORLD::Parameters::NUM_WAYPOINTS; index++) {
+        for (TI axis = 0; axis < 3; axis++) {
+            EXPECT_EQ(routes[0].waypoints[index][axis], routes[1].waypoints[index][axis]);
+            different = different || routes[0].waypoints[index][axis] != routes[2].waypoints[index][axis];
         }
-        EXPECT_GT(distance_squared, 0) << "consecutive waypoints must be distinct";
     }
-    // place the drone next to its current waypoint: the step should advance the index
-    state.position[0] = instance_parameters.waypoints[1][0];
-    state.position[1] = instance_parameters.waypoints[1][1];
-    state.position[2] = instance_parameters.waypoints[1][2];
-    for(TI dim_i = 0; dim_i < 3; dim_i++){
-        state.linear_velocity[dim_i] = 0;
-        state.angular_velocity[dim_i] = 0;
-    }
-    rlt::set(device, tensors.states, state, (TI)0);
-    rlt::step(device, world, tensors.parameters, tensors.states, tensors.actions, tensors.next_states, rng);
-    typename WORLD::State next_state = rlt::get(device, tensors.next_states, (TI)0);
-    EXPECT_EQ(next_state.current_waypoint, 2);
-    typename WORLD::State next_state_1 = rlt::get(device, tensors.next_states, (TI)1);
-    EXPECT_EQ(next_state_1.current_waypoint, 1) << "instance 1 is far from its waypoint and must not advance";
+    EXPECT_TRUE(different);
     fixture.teardown();
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, ROUTE_REFILLS_CONTINUOUSLY){
+    if (SCENE_PATH.empty()) {
+        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
+    }
+    Fixture fixture;
+    fixture.setup(1439);
+    auto parameters = rlt::get(fixture.device, fixture.tensors.parameters, (TI)0);
+    auto state = rlt::get(fixture.device, fixture.tensors.states, (TI)0);
+    fixture.world.task_step = TASK_SPEC::INITIALIZATION_HOLD_STEPS + 1;
+    for (TI horizon = 0; horizon < 3; horizon++) {
+        constexpr TI last = WORLD::Parameters::NUM_WAYPOINTS - 1;
+        T endpoint[3];
+        for (TI axis = 0; axis < 3; axis++) {
+            endpoint[axis] = parameters.waypoints[last][axis];
+            state.position[axis] = endpoint[axis];
+        }
+        state.current_waypoint = last;
+        state.segment_time = parameters.durations[last];
+        auto next = state;
+        rlt::advance_trajectory(fixture.device, fixture.world, parameters, state, next, fixture.rng);
+        ASSERT_FALSE(next.collision);
+        EXPECT_EQ(next.completed_routes, horizon + 1);
+        EXPECT_EQ(next.current_waypoint, 1);
+        for (TI axis = 0; axis < 3; axis++) {
+            EXPECT_NEAR(parameters.waypoints[0][axis], endpoint[axis], 1e-5);
+            EXPECT_EQ(next.position[axis], endpoint[axis]);
+            EXPECT_EQ(parameters.velocities[0][axis], (T)0);
+        }
+        expect_certified_route(fixture.device, fixture.world, parameters);
+        state = next;
+    }
+    fixture.teardown();
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, SWEPT_COLLISION_REJECTS_STEP_AND_LATCHES){
+    DEVICE device;
+    WORLD world;
+    WORLD::Parameters parameters{};
+    WORLD::State state{};
+    RNG rng;
+    rlt::init(device);
+    rlt::init(device, rng, 31);
+    rlt::hyperlux::Scene source;
+    source.objects.resize(1);
+    source.objects[0].meshes.resize(1);
+    auto& mesh = source.objects[0].meshes[0];
+    mesh.vertices = {0, -10, -10, 0, 10, -10, 0, 0, 10};
+    mesh.indices = {0, 1, 2};
+    source.instances.push_back({0, {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0}, true});
+    world.navigation.resize(1);
+    ASSERT_TRUE(rlt::init(device, world.navigation[0].geometry, source));
+    parameters.route_valid = true;
+    parameters.scene_yaw_cos = 1;
+    parameters.scene_yaw_sin = 0;
+    for (TI axis = 0; axis < 3; axis++) {
+        parameters.scene_translation[axis] = 0;
+    }
+    state.position[0] = -1;
+    auto next = state;
+    next.position[0] = 1;
+    EXPECT_TRUE(rlt::collision_free(device, world.navigation[0].geometry, state.position, state.position, TASK_SPEC::COLLISION_RADIUS));
+    EXPECT_TRUE(rlt::collision_free(device, world.navigation[0].geometry, next.position, next.position, TASK_SPEC::COLLISION_RADIUS));
+    rlt::advance_trajectory(device, world, parameters, state, next, rng);
+    EXPECT_TRUE(next.collision);
+    EXPECT_TRUE(rlt::terminated(device, world, parameters, next, rng));
+    EXPECT_EQ(next.position[0], state.position[0]);
+    state = next;
+    next.position[0] = -2;
+    rlt::advance_trajectory(device, world, parameters, state, next, rng);
+    EXPECT_TRUE(next.collision);
+    EXPECT_EQ(next.position[0], state.position[0]);
+    state.collision = false;
+    next = state;
+    volatile std::uint32_t infinity_bits = 0x7f800000u;
+    const std::uint32_t bits = infinity_bits;
+    std::memcpy(&next.linear_velocity[0], &bits, sizeof(T));
+    rlt::advance_trajectory(device, world, parameters, state, next, rng);
+    EXPECT_TRUE(next.collision);
+    EXPECT_EQ(next.position[0], state.position[0]);
+    EXPECT_EQ(next.linear_velocity[0], state.linear_velocity[0]);
+    rlt::free(device, world.navigation[0].geometry);
 }
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, GROUND_TRUTH_POSE){
