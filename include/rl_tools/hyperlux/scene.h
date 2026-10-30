@@ -6,6 +6,7 @@
 #include "types.h"
 
 #include <vector>
+#include <array>
 #include <string>
 #include <cstdint>
 #include <map>
@@ -112,6 +113,18 @@ namespace rl_tools {
             Environment environment;
         };
 
+        struct SceneRegion{
+            std::vector<std::array<float, 2>> polygon;
+            float min[3] = {0, 0, 0};
+            float max[3] = {0, 0, 0};
+            bool indoor = false;
+        };
+
+        struct SceneRegions{
+            bool annotated = false;
+            std::vector<SceneRegion> volumes;
+        };
+
         // Loader-authoritative scene facts: the renderer consumes max_ray_length (probe budget), producers consume the bounds (camera rigs, free-space search), and content_hash (SHA-1 hex, the conta identity) keys AssetLibrary deduplication.
         template <typename T>
         struct SceneMetadata{
@@ -119,6 +132,7 @@ namespace rl_tools {
             T half_extent[3] = {0, 0, 0};
             T max_ray_length = 0;
             std::string content_hash;
+            SceneRegions regions;
         };
 
         template <typename T>

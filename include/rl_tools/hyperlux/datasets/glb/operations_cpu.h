@@ -187,6 +187,8 @@ namespace rl_tools {
             hyperlux::Scene::Environment environment;
             bool environment_valid = true;
             bool segmentation_valid = true;
+            bool regions_valid = true;
+            hyperlux::SceneRegions regions;
             size_t root_count = 0;
             std::shared_ptr<const hyperlux::SegmentationTaxonomy> segmentation_taxonomy;
             std::vector<uint32_t> root_classes;
@@ -248,6 +250,85 @@ namespace rl_tools {
             }
             id = static_cast<uint32_t>(number);
             return number == static_cast<double>(id);
+        }
+
+        static inline bool parse_regions(const nlohmann::json& gltf, hyperlux::SceneRegions& regions){
+            try{
+                const auto& scene = gltf.at("scenes").at(gltf.value("scene", 0));
+                const auto path = nlohmann::json::json_pointer("/extras/hssd");
+                if(!scene.contains(path)){
+                    return true;
+                }
+                const auto& authored = scene.at(path).at("region_annotations");
+                if(!authored.is_array()){
+                    return false;
+                }
+                hyperlux::SceneRegions parsed;
+                parsed.annotated = true;
+                const auto read_number = [](const nlohmann::json& value, double& number){
+                    if(!value.is_number()){
+                        return false;
+                    }
+                    number = value.get<double>();
+                    return number >= std::numeric_limits<float>::lowest() && number <= std::numeric_limits<float>::max();
+                };
+                for(const auto& entry : authored){
+                    const auto label = entry.at("label").get<std::string>();
+                    const auto& polygon = entry.at("poly_loop");
+                    double floor, height;
+                    if(label.empty() || !polygon.is_array() || polygon.size() < 3 ||
+                       !read_number(entry.at("floor_height"), floor) ||
+                       !read_number(entry.at("extrusion_height"), height) || !(height > 0)){
+                        return false;
+                    }
+                    const double ceiling = floor + height;
+                    if(!(ceiling > floor && ceiling <= std::numeric_limits<float>::max())){
+                        return false;
+                    }
+                    hyperlux::SceneRegion region;
+                    region.indoor = label != "outdoor" && label != "porch/terrace/deck/driveway" && label != "balcony";
+                    region.min[0] = region.min[1] = std::numeric_limits<float>::max();
+                    region.max[0] = region.max[1] = std::numeric_limits<float>::lowest();
+                    // HSSD's upstairs max_bounds.y often stores height, not floor + height.
+                    region.min[2] = static_cast<float>(floor);
+                    region.max[2] = static_cast<float>(ceiling);
+                    if(!(region.max[2] > region.min[2])){
+                        return false;
+                    }
+                    for(const auto& point : polygon){
+                        double components[3];
+                        if(!point.is_array() || point.size() != 3){
+                            return false;
+                        }
+                        for(int axis = 0; axis < 3; axis++){
+                            if(!read_number(point[axis], components[axis])){
+                                return false;
+                            }
+                        }
+                        const std::array<float, 2> position = {static_cast<float>(components[0]), static_cast<float>(-components[2])};
+                        region.polygon.push_back(position);
+                        for(int axis = 0; axis < 2; axis++){
+                            region.min[axis] = std::min(region.min[axis], position[axis]);
+                            region.max[axis] = std::max(region.max[axis], position[axis]);
+                        }
+                    }
+                    double twice_area = 0;
+                    for(size_t i = 0; i < region.polygon.size(); i++){
+                        const auto& a = region.polygon[i];
+                        const auto& b = region.polygon[(i + 1) % region.polygon.size()];
+                        twice_area += static_cast<double>(a[0]) * b[1] - static_cast<double>(b[0]) * a[1];
+                    }
+                    if(twice_area == 0){
+                        return false;
+                    }
+                    parsed.volumes.push_back(std::move(region));
+                }
+                regions = std::move(parsed);
+                return true;
+            }
+            catch(const nlohmann::json::exception&){
+                return false;
+            }
         }
 
         static inline bool parse_segmentation(const nlohmann::json& gltf, ParsedMetadata& result){
@@ -376,6 +457,7 @@ namespace rl_tools {
             if (gltf.is_discarded()) { fclose(f); return result; }
             result.environment_valid = parse_environment(gltf, result.environment);
             result.segmentation_valid = parse_segmentation(gltf, result);
+            result.regions_valid = parse_regions(gltf, result.regions);
 
             // Assimp's defaults for absent glTF pbrMetallicRoughness factors vary across versions;
             // the GLB JSON is authoritative here so scene import is identical on every machine.
@@ -839,7 +921,7 @@ namespace rl_tools {
     }
 
     template <typename SHADING, bool HAS_RGB, typename DEVICE>
-    bool load_scene_data(DEVICE& device, hyperlux::Object& object, std::vector<hyperlux::SceneLight>& out_lights, const std::string& filename, hyperlux::Scene::Environment* environment = nullptr){
+    bool load_scene_data(DEVICE& device, hyperlux::Object& object, std::vector<hyperlux::SceneLight>& out_lights, const std::string& filename, hyperlux::Scene::Environment* environment = nullptr, hyperlux::SceneRegions* regions = nullptr){
         Assimp::Importer importer;
         unsigned int import_flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality;
         if constexpr (HAS_RGB && SHADING::PBR_SHADING) {
@@ -866,6 +948,13 @@ namespace rl_tools {
         if(!glb_metadata.segmentation_valid){
             log(device, device.logger, devices::logging::Verbosity::error, hyperlux::datasets::LOG_PREFIX, "Invalid rl_tools segmentation metadata in ", filename);
             return false;
+        }
+        if(regions != nullptr){
+            if(!glb_metadata.regions_valid){
+                log(device, device.logger, devices::logging::Verbosity::error, hyperlux::datasets::LOG_PREFIX, "Invalid scenes[].extras.hssd.region_annotations in ", filename);
+                return false;
+            }
+            *regions = glb_metadata.regions;
         }
         if(environment != nullptr){
             if(!glb_metadata.environment_valid){
@@ -981,7 +1070,7 @@ namespace rl_tools {
     // the innermost selected node of their chain, and geometry outside every selected node is
     // an error rather than silently dropped.
     template <typename SHADING, bool HAS_RGB, typename DEVICE>
-    bool load_assembly_data(DEVICE& device, hyperlux::ObjectAssembly& assembly, const std::string& filename, hyperlux::Scene::Environment* environment = nullptr, const std::vector<std::string>& part_nodes = {}){
+    bool load_assembly_data(DEVICE& device, hyperlux::ObjectAssembly& assembly, const std::string& filename, hyperlux::Scene::Environment* environment = nullptr, const std::vector<std::string>& part_nodes = {}, hyperlux::SceneRegions* regions = nullptr){
         Assimp::Importer importer;
         unsigned int import_flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality;
         if constexpr (HAS_RGB && SHADING::PBR_SHADING) {
@@ -998,6 +1087,13 @@ namespace rl_tools {
         if(!glb_metadata.segmentation_valid){
             log(device, device.logger, devices::logging::Verbosity::error, hyperlux::datasets::LOG_PREFIX, "Invalid rl_tools segmentation metadata in ", filename);
             return false;
+        }
+        if(regions != nullptr){
+            if(!glb_metadata.regions_valid){
+                log(device, device.logger, devices::logging::Verbosity::error, hyperlux::datasets::LOG_PREFIX, "Invalid scenes[].extras.hssd.region_annotations in ", filename);
+                return false;
+            }
+            *regions = glb_metadata.regions;
         }
         if(environment != nullptr){
             if(!glb_metadata.environment_valid){
@@ -1230,7 +1326,7 @@ namespace rl_tools {
         }
         if constexpr(mode::is<MODE, mode::hyperlux::SceneRoots>){
             hyperlux::ObjectAssembly assembly;
-            if(!hyperlux::datasets::glb::load_assembly_data<SHADING, HAS_RGB>(device, assembly, path, &bundle.scene.environment)){
+            if(!hyperlux::datasets::glb::load_assembly_data<SHADING, HAS_RGB>(device, assembly, path, &bundle.scene.environment, {}, &bundle.metadata.regions)){
                 return false;
             }
             bundle.scene.objects = std::move(assembly.objects);
@@ -1241,7 +1337,7 @@ namespace rl_tools {
         }
         else{
             hyperlux::Object object;
-            if(!hyperlux::datasets::glb::load_scene_data<SHADING, HAS_RGB>(device, object, bundle.scene.lights, path, &bundle.scene.environment)){
+            if(!hyperlux::datasets::glb::load_scene_data<SHADING, HAS_RGB>(device, object, bundle.scene.lights, path, &bundle.scene.environment, &bundle.metadata.regions)){
                 return false;
             }
             bundle.scene.objects.push_back(std::move(object));

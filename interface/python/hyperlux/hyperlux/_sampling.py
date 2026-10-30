@@ -10,7 +10,8 @@ class FreeSpace:
     HyperDrone environment spawns from: Halton candidates inside the scene bounds are probed
     along a deterministic direction set and accepted by hit ratio, mean hit distance and
     min_clearance (see hyperlux.FreeSpaceParameters). Works on every backend. Loaded GLB scenes
-    cache their table under cache_directory by content hash, probe count and parameters
+    with HSSD region annotations also require an indoor room and exclude outdoor regions.
+    Loaded GLB scenes cache their table under cache_directory by content hash, probe count and parameters
     (default: RLtools' ~/.cache/rl_tools/annotations, shared with the C++ tools; "" disables);
     procedural scenes are scanned every time. batch is the probe transport width and does not
     affect the result.

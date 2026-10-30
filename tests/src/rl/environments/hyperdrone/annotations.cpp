@@ -6,8 +6,12 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <array>
 #include <cstring>
 #include <filesystem>
+#include <initializer_list>
+#include <limits>
 #include <string>
 
 namespace rlt = rl_tools;
@@ -263,4 +267,145 @@ TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, PROBE_BATCH_INDEPENDENCE) {
     EXPECT_TRUE(annotations_equal(single, narrow));
     EXPECT_TRUE(annotations_equal(narrow, wide));
     EXPECT_TRUE(annotations_equal(narrow, sparse));
+}
+
+namespace test_indoor_regions {
+    rlt::hyperlux::SceneRegion region(std::initializer_list<std::array<float, 2>> polygon, float min_height, float max_height, bool indoor = true){
+        rlt::hyperlux::SceneRegion result;
+        result.polygon = polygon;
+        result.indoor = indoor;
+        result.min[0] = result.min[1] = std::numeric_limits<float>::max();
+        result.max[0] = result.max[1] = std::numeric_limits<float>::lowest();
+        result.min[2] = min_height;
+        result.max[2] = max_height;
+        for(const auto& vertex: polygon){
+            for(size_t axis = 0; axis < 2; axis++){
+                result.min[axis] = std::min(result.min[axis], vertex[axis]);
+                result.max[axis] = std::max(result.max[axis], vertex[axis]);
+            }
+        }
+        return result;
+    }
+}
+
+TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, REGION_CONCAVITY_BOUNDARIES_AND_HEIGHT) {
+    using namespace rl_tools;
+    DEVICE device;
+    auto volume = test_indoor_regions::region({{0, 0}, {4, 0}, {4, 1}, {1, 1}, {1, 4}, {0, 4}}, 1, 3);
+    const T inside[][3] = {{0.5, 3.5, 2}, {3.5, 0.5, 2}, {0, 2, 2}, {2, 0, 2}, {1, 1, 2}, {0.5, 0.5, 1}, {0.5, 0.5, 3}};
+    const T outside[][3] = {{2, 2, 2}, {-0.01, 0.5, 2}, {0.5, 4.01, 2}, {0.5, 0.5, 0.99}, {0.5, 0.5, 3.01}};
+    for(size_t winding = 0; winding < 2; winding++){
+        for(const auto& point: inside){
+            EXPECT_TRUE(contains(device, volume, point));
+        }
+        for(const auto& point: outside){
+            EXPECT_FALSE(contains(device, volume, point));
+        }
+        std::reverse(volume.polygon.begin(), volume.polygon.end());
+    }
+}
+
+TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, INDOOR_REGION_REQUIREMENT_AND_OUTDOOR_OVERLAP) {
+    using namespace rl_tools;
+    DEVICE device;
+    hyperlux::SceneRegions regions;
+    const T overlap[3] = {0.5, 0.5, 2};
+    const T indoor_only[3] = {3.5, 0.5, 2};
+    const T above_outdoor[3] = {0.5, 0.5, 2.75};
+    const T unannotated[3] = {10, 10, 2};
+    EXPECT_TRUE(contains_indoor_position(device, regions, unannotated));
+    regions.annotated = true;
+    EXPECT_FALSE(contains_indoor_position(device, regions, overlap));
+    regions.volumes.push_back(test_indoor_regions::region({{0, 0}, {1, 0}, {1, 1}, {0, 1}}, 1.5, 2.5, false));
+    EXPECT_FALSE(contains_indoor_position(device, regions, overlap));
+    EXPECT_FALSE(contains_indoor_position(device, regions, indoor_only));
+    regions.volumes.push_back(test_indoor_regions::region({{0, 0}, {4, 0}, {4, 4}, {0, 4}}, 1, 3));
+    for(size_t order = 0; order < 2; order++){
+        EXPECT_FALSE(contains_indoor_position(device, regions, overlap));
+        EXPECT_FALSE(contains_indoor_position(device, regions, unannotated));
+        EXPECT_TRUE(contains_indoor_position(device, regions, indoor_only));
+        EXPECT_TRUE(contains_indoor_position(device, regions, above_outdoor));
+        std::reverse(regions.volumes.begin(), regions.volumes.end());
+    }
+}
+
+TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, REGION_CACHE_KEYING) {
+    namespace annotations = rlt::hyperlux::datasets::annotations;
+    rlt::hyperlux::SceneMetadata<T> metadata;
+    annotations::FreeSpaceParameters<T, TI> parameters;
+    const auto key = [&](const rlt::hyperlux::SceneMetadata<T>& value){
+        return annotations::free_space::key<T>(value, 8, parameters);
+    };
+    const std::string unrestricted_key = key(metadata);
+    metadata.regions.annotated = true;
+    EXPECT_NE(unrestricted_key, key(metadata));
+    const std::string empty_key = key(metadata);
+    metadata.regions.volumes.push_back(test_indoor_regions::region({{0, 0}, {4, 0}, {4, 4}, {0, 4}}, 1, 3));
+    const std::string region_key = key(metadata);
+    EXPECT_NE(empty_key, region_key);
+    auto changed = metadata;
+    changed.regions.volumes[0].indoor = false;
+    EXPECT_NE(region_key, key(changed));
+    changed = metadata;
+    changed.regions.volumes[0].polygon[1][0] = 3;
+    EXPECT_NE(region_key, key(changed));
+    for(size_t axis = 0; axis < 3; axis++){
+        changed = metadata;
+        changed.regions.volumes[0].min[axis] += 0.25;
+        EXPECT_NE(region_key, key(changed));
+        changed = metadata;
+        changed.regions.volumes[0].max[axis] -= 0.25;
+        EXPECT_NE(region_key, key(changed));
+    }
+}
+
+TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, INDOOR_SCAN_AND_CACHE) {
+    using namespace rl_tools;
+    namespace annotations = hyperlux::datasets::annotations;
+    using RENDERER = HyperLux<hyperlux::Specification<test_probe_batch_independence::PROBE_CONFIG<7>>>;
+    DEVICE device;
+    init(device);
+    hyperlux::Bundle<T> bundle;
+    ASSERT_TRUE((load<hyperlux::Low, true>(device, bundle, SCENE_PATH)));
+    RENDERER renderer;
+    malloc(device, renderer);
+    init(device, renderer, bundle);
+    generate_probe_directions(device, renderer);
+    const std::string cache_directory = fresh_cache_directory("rl_tools_annotations_indoor_cache");
+    const annotations::Cache cache{cache_directory};
+    annotations::FreeSpaceParameters<T, TI> parameters;
+    std::vector<annotations::FreeSpacePosition<T>> baseline, filtered, warm;
+    annotations::annotate(device, baseline, bundle.metadata, renderer, parameters, cache);
+    ASSERT_EQ(baseline.size(), parameters.min_required_positions);
+    EXPECT_EQ(cache_entry_count(cache_directory), (size_t)1);
+
+    T minimum[3], maximum[3];
+    for(size_t axis = 0; axis < 3; axis++){
+        minimum[axis] = bundle.metadata.center[axis] - bundle.metadata.half_extent[axis];
+        maximum[axis] = bundle.metadata.center[axis] + bundle.metadata.half_extent[axis];
+    }
+    const T* excluded = baseline[0].position;
+    constexpr T margin = 0.05;
+    bundle.metadata.regions.annotated = true;
+    bundle.metadata.regions.volumes = {
+        test_indoor_regions::region({{minimum[0], minimum[1]}, {maximum[0], minimum[1]}, {maximum[0], maximum[1]}, {minimum[0], maximum[1]}}, minimum[2], maximum[2]),
+        test_indoor_regions::region({{excluded[0] - margin, excluded[1] - margin}, {excluded[0] + margin, excluded[1] - margin}, {excluded[0] + margin, excluded[1] + margin}, {excluded[0] - margin, excluded[1] + margin}}, excluded[2] - margin, excluded[2] + margin, false)
+    };
+    annotations::annotate(device, filtered, bundle.metadata, renderer, parameters, cache);
+    annotations::annotate(device, warm, bundle.metadata, renderer, parameters, cache);
+    EXPECT_EQ(cache_entry_count(cache_directory), (size_t)2);
+    EXPECT_EQ(filtered.size(), parameters.min_required_positions);
+    ASSERT_EQ(filtered.size(), warm.size());
+    for(size_t position_i = 0; position_i < filtered.size(); position_i++){
+        const auto& position = filtered[position_i];
+        bool excluded_volume = true;
+        for(size_t axis = 0; axis < 3; axis++){
+            EXPECT_GE(position.position[axis], minimum[axis]);
+            EXPECT_LE(position.position[axis], maximum[axis]);
+            excluded_volume = excluded_volume && position.position[axis] >= excluded[axis] - margin && position.position[axis] <= excluded[axis] + margin;
+        }
+        EXPECT_FALSE(excluded_volume);
+        EXPECT_EQ(std::memcmp(&position, &warm[position_i], sizeof(position)), 0);
+    }
+    free(device, renderer);
 }

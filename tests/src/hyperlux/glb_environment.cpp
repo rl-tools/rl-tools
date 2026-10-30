@@ -423,7 +423,8 @@ namespace {
         std::ofstream(directory / "semantics/hssd-hab_semantic_lexicon.json") << Json{{"classes", {{{"id", 0}, {"name", "unknown"}}, {{"id", 7}, {"name", "chair"}}, {{"id", 300}, {"name", "table"}}}}};
         std::ofstream(directory / "metadata/hssd_obj_semantics_condensed.csv") << "Object Hash,\"Is Pickable:\nsmall?\",\"Semantic Category:\nCONDENSED\",\"Semantic Category:\nThe primary\"\nobject,No,table,dining_table\n";
         std::ofstream(directory / "semantics/objects.csv") << "id,wnsynsetkey,main_category,super_category\n";
-        std::ofstream(directory / "semantics/scenes/test.semantic_config.json") << Json{{"region_annotations", Json::array()}};
+        const Json room = {{"label", "kitchen"}, {"floor_height", 0}, {"extrusion_height", 2.8}, {"poly_loop", {{0, 0, 0}, {3, 0, 0}, {0, 0, 3}}}};
+        std::ofstream(directory / "semantics/scenes/test.semantic_config.json") << Json{{"region_annotations", Json::array({room})}};
         const auto input = directory / "scenes/test.scene_instance.json";
         std::ofstream(input) << Json{{"stage_instance", {{"template_name", "stages/stage"}}}, {"default_lighting", "no_lights"}, {"object_instances", {{{"template_name", "objects/object"}}}}};
         rlt::hyperlux::datasets::procthor::conversion::Options options;
@@ -434,6 +435,9 @@ namespace {
         ASSERT_TRUE(rlt::hyperlux::datasets::procthor::conversion::scene_instance_to_glb(options, error)) << error;
         rlt::hyperlux::Bundle<float> bundle;
         ASSERT_TRUE(load(device, bundle, options.output_glb_path, Roots{}));
+        EXPECT_TRUE(bundle.metadata.regions.annotated);
+        ASSERT_EQ(bundle.metadata.regions.volumes.size(), 1u);
+        EXPECT_TRUE(bundle.metadata.regions.volumes[0].indoor);
         ASSERT_EQ(bundle.scene.objects.size(), 3u);
         EXPECT_EQ(bundle.scene.objects[0].segmentation_class, 0u);
         EXPECT_EQ(bundle.scene.objects[1].segmentation_class, 0u);
@@ -510,10 +514,104 @@ namespace {
         ASSERT_TRUE(load(device, welded, path));
         ASSERT_TRUE(load(device, roots, path, Roots{}));
         for(const auto* bundle : {&welded, &roots}){
+            EXPECT_FALSE(bundle->metadata.regions.annotated);
+            EXPECT_TRUE(bundle->metadata.regions.volumes.empty());
             EXPECT_EQ(bundle->scene.environment.mode, Environment::Mode::DEFAULT);
             for(float ambient : bundle->scene.environment.ambient){
                 EXPECT_FLOAT_EQ(ambient, 0.1f);
             }
+        }
+    }
+
+    TEST_F(GlbEnvironment, region_polygons_preserve_coordinates_heights_and_exterior_labels){
+        const Json room = {
+            {"label", "kitchen"}, {"floor_height", 3.25}, {"extrusion_height", 2.5},
+            {"poly_loop", {{1, 3.25, 2}, {5, 3.25, 2}, {5, 3.25, 4}, {3, 3.25, 4}, {3, 3.25, 6}, {1, 3.25, 6}}},
+            {"min_bounds", {1, 3.25, 2}}, {"max_bounds", {5, 2.5, 6}}
+        };
+        Json regions = Json::array({room});
+        for(const auto* label : {"outdoor", "porch/terrace/deck/driveway", "balcony"}){
+            regions.push_back(room);
+            regions.back()["label"] = label;
+        }
+        const auto path = write_glb(authored, Json(), false, Json::array({
+            {{"op", "add"}, {"path", "/scenes/0/extras/hssd"}, {"value", {{"region_annotations", "invalid inactive scene"}}}},
+            {{"op", "add"}, {"path", "/scenes/1/extras/hssd"}, {"value", {{"region_annotations", regions}}}}
+        }));
+        rlt::hyperlux::Bundle<float> welded, roots;
+        ASSERT_TRUE(load(device, welded, path));
+        ASSERT_TRUE(load(device, roots, path, Roots{}));
+        for(const auto* bundle : {&welded, &roots}){
+            const auto& parsed = bundle->metadata.regions;
+            EXPECT_TRUE(parsed.annotated);
+            ASSERT_EQ(parsed.volumes.size(), 4u);
+            EXPECT_TRUE(parsed.volumes[0].indoor);
+            for(size_t i = 0; i < parsed.volumes.size(); i++){
+                const auto& region = parsed.volumes[i];
+                EXPECT_EQ(region.indoor, i == 0);
+                ASSERT_EQ(region.polygon.size(), 6u);
+                EXPECT_EQ(region.polygon[0], (std::array<float, 2>{1, -2}));
+                EXPECT_EQ(region.polygon[4], (std::array<float, 2>{3, -6}));
+                EXPECT_FLOAT_EQ(region.min[0], 1);
+                EXPECT_FLOAT_EQ(region.min[1], -6);
+                EXPECT_FLOAT_EQ(region.min[2], 3.25);
+                EXPECT_FLOAT_EQ(region.max[0], 5);
+                EXPECT_FLOAT_EQ(region.max[1], -2);
+                EXPECT_FLOAT_EQ(region.max[2], 5.75);
+            }
+        }
+    }
+
+    TEST_F(GlbEnvironment, empty_region_annotations_do_not_become_unannotated){
+        const auto path = write_glb(authored, Json(), false, Json::array({
+            {{"op", "add"}, {"path", "/scenes/1/extras/hssd"}, {"value", {{"region_annotations", Json::array()}}}}
+        }));
+        rlt::hyperlux::Bundle<float> welded, roots;
+        ASSERT_TRUE(load(device, welded, path));
+        ASSERT_TRUE(load(device, roots, path, Roots{}));
+        for(const auto* bundle : {&welded, &roots}){
+            EXPECT_TRUE(bundle->metadata.regions.annotated);
+            EXPECT_TRUE(bundle->metadata.regions.volumes.empty());
+        }
+    }
+
+    TEST_F(GlbEnvironment, malformed_regions_reject_scenes_but_not_asset_import_or_composition){
+        const Json room = {{"label", "kitchen"}, {"floor_height", 0}, {"extrusion_height", 2.8}, {"poly_loop", {{0, 0, 0}, {3, 0, 0}, {0, 0, 3}}}};
+        std::vector<Json> invalid{nullptr, 1, Json::object(), {{"region_annotations", nullptr}}, {{"region_annotations", "invalid"}}};
+        for(const auto& patch : Json::array({
+            Json::array({{{"op", "remove"}, {"path", "/label"}}}),
+            Json::array({{{"op", "replace"}, {"path", "/label"}, {"value", ""}}}),
+            Json::array({{{"op", "remove"}, {"path", "/floor_height"}}}),
+            Json::array({{{"op", "replace"}, {"path", "/extrusion_height"}, {"value", -1}}}),
+            Json::array({{{"op", "replace"}, {"path", "/floor_height"}, {"value", "0"}}}),
+            Json::array({{{"op", "replace"}, {"path", "/poly_loop"}, {"value", {{0, 0, 0}, {1, 0, 1}}}}}),
+            Json::array({{{"op", "replace"}, {"path", "/poly_loop/0"}, {"value", {0, 0}}}}),
+            Json::array({{{"op", "replace"}, {"path", "/poly_loop/0/0"}, {"value", 1e100}}}),
+            Json::array({{{"op", "replace"}, {"path", "/poly_loop"}, {"value", {{0, 0, 0}, {1, 0, 1}, {2, 0, 2}}}}})
+        })){
+            invalid.push_back({{"region_annotations", Json::array({room.patch(patch)})}});
+        }
+        for(const auto& hssd : invalid){
+            SCOPED_TRACE(hssd.dump());
+            const auto path = write_glb(authored, Json(), false, Json::array({
+                {{"op", "add"}, {"path", "/scenes/1/extras/hssd"}, {"value", hssd}}
+            }));
+            rlt::hyperlux::Bundle<float> welded, roots, composed;
+            EXPECT_FALSE(load(device, welded, path));
+            EXPECT_FALSE(load(device, roots, path, Roots{}));
+            EXPECT_TRUE(welded.scene.objects.empty());
+            EXPECT_TRUE(roots.scene.objects.empty());
+            rlt::hyperlux::Object object;
+            rlt::hyperlux::ObjectAssembly assembly;
+            EXPECT_TRUE(load(device, object, path));
+            EXPECT_TRUE(load(device, assembly, path));
+            composed.metadata.regions.annotated = true;
+            composed.metadata.regions.volumes.resize(1);
+            composed.metadata.regions.volumes[0].min[0] = 17;
+            EXPECT_TRUE(add(device, composed, path));
+            EXPECT_TRUE(composed.metadata.regions.annotated);
+            ASSERT_EQ(composed.metadata.regions.volumes.size(), 1u);
+            EXPECT_FLOAT_EQ(composed.metadata.regions.volumes[0].min[0], 17);
         }
     }
 

@@ -18,6 +18,49 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
+    template <typename DEVICE, typename T>
+    bool contains(DEVICE& device, const hyperlux::SceneRegion& region, const T* position){
+        for(int axis = 0; axis < 3; axis++){
+            if(position[axis] < region.min[axis] || position[axis] > region.max[axis]){
+                return false;
+            }
+        }
+        if(region.polygon.size() < 3){
+            return false;
+        }
+        const double x = position[0], y = position[1];
+        bool inside = false;
+        for(size_t i = 0, j = region.polygon.size() - 1; i < region.polygon.size(); j = i++){
+            const double ax = region.polygon[j][0], ay = region.polygon[j][1];
+            const double bx = region.polygon[i][0], by = region.polygon[i][1];
+            const double cross = (x - ax) * (by - ay) - (y - ay) * (bx - ax);
+            if(cross == 0 && x >= std::min(ax, bx) && x <= std::max(ax, bx) && y >= std::min(ay, by) && y <= std::max(ay, by)){
+                return true;
+            }
+            if((ay > y) != (by > y) && x < ax + (y - ay) * (bx - ax) / (by - ay)){
+                inside = !inside;
+            }
+        }
+        return inside;
+    }
+
+    template <typename DEVICE, typename T>
+    bool contains_indoor_position(DEVICE& device, const hyperlux::SceneRegions& regions, const T* position){
+        if(!regions.annotated){
+            return true;
+        }
+        bool indoor = false;
+        for(const auto& region : regions.volumes){
+            if(contains(device, region, position)){
+                if(!region.indoor){
+                    return false;
+                }
+                indoor = true;
+            }
+        }
+        return indoor;
+    }
+
     namespace hyperlux::datasets{
         inline constexpr char LOG_PREFIX[] = "#rl_tools::hyperlux::datasets: ";
 

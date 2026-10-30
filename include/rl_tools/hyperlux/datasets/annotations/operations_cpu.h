@@ -40,7 +40,7 @@ namespace rl_tools::hyperlux::datasets::annotations {
     namespace free_space {
         // bump on any output-affecting change (candidate sequence, probe camera construction,
         // probe-direction assumptions, scoring, SceneMetadata consumption) — cache keys include it
-        constexpr std::uint32_t VERSION = 3;
+        constexpr std::uint32_t VERSION = 4;
 
         namespace detail {
             inline void append_u32(std::string& out, std::uint32_t value) {
@@ -108,6 +108,20 @@ namespace rl_tools::hyperlux::datasets::annotations {
                 detail::append_f64(material, static_cast<double>(static_cast<T>(metadata.half_extent[i])));
             }
             detail::append_f64(material, static_cast<double>(static_cast<T>(metadata.max_ray_length)));
+            detail::append_u32(material, metadata.regions.annotated);
+            detail::append_u64(material, metadata.regions.volumes.size());
+            for(const auto& region : metadata.regions.volumes){
+                detail::append_u32(material, region.indoor);
+                for(unsigned axis = 0; axis < 3; axis++){
+                    detail::append_f64(material, region.min[axis]);
+                    detail::append_f64(material, region.max[axis]);
+                }
+                detail::append_u64(material, region.polygon.size());
+                for(const auto& point : region.polygon){
+                    detail::append_f64(material, point[0]);
+                    detail::append_f64(material, point[1]);
+                }
+            }
             detail::append_f64(material, static_cast<double>(static_cast<T>(parameters.min_clearance)));
             detail::append_u64(material, static_cast<std::uint64_t>(parameters.max_candidates_tested));
             detail::append_u64(material, static_cast<std::uint64_t>(parameters.min_required_positions));
@@ -291,6 +305,10 @@ namespace rl_tools::hyperlux::datasets::annotations {
                 copy(probe_target.device, device, output(device, probe_target, hyperlux::outputs::Probes{}), probe_staging);
                 const hyperlux::CollisionResult* probe_results = data(probe_staging);
                 for (std::uint64_t camera_i = 0; camera_i < NUM_CAMERAS && tested < max_candidates && table.size() < min_required; camera_i++) {
+                    tested++;
+                    if(!contains_indoor_position(device, metadata.regions, batch_positions[camera_i].position)){
+                        continue;
+                    }
                     const hyperlux::CollisionResult* camera_probes = probe_results + static_cast<size_t>(camera_i) * static_cast<size_t>(NUM_PROBES);
                     std::uint64_t hit_count = 0;
                     std::uint64_t very_near_hit_count = 0;
@@ -313,7 +331,6 @@ namespace rl_tools::hyperlux::datasets::annotations {
                         }
                     }
 
-                    tested++;
                     if (hit_count == 0) {
                         no_hits++;
                         continue;
