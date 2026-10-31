@@ -267,7 +267,7 @@ def test_index_json_tolerance():
     text = ('{"future": {"nested": [1, 2.5e3, -0.5, true, false, null, {"deep": []}]},\n'
             '"shards": {"a": {"type": "future-type", "url": "https://a.example/{sha1}", "license": {"spdx": "CC0-1.0"}}, "no-url": {"type": "torrent"}},\n'
             '"entries": [\n'
-            f'{{"\\u0073ha1": "{ABC_SHA1}", "sha256": "{ABC_SHA256}", "shards": [{{"id": "unknown"}}, 7, "legacy", {{"id": "a", "compressed": ["gz", "future", 7]}}], "description": "caf\\u00e9 \\ud83d\\ude00", "size": 3, "license": ["x"]}},\n'
+            f'{{"\\u0073ha1": "{ABC_SHA1}", "sha256": "{ABC_SHA256}", "shards": [{{"id": "unknown", "size": ["gz"]}}, 7, "legacy", {{"id": "a", "size": {{"raw": 3, "gz": 23, "future": 1}}}}], "description": "caf\\u00e9 \\ud83d\\ude00", "size": 3, "license": ["x"]}},\n'
             f'{{"sha1": "{ABC_SHA1}", "sha256": "{EMPTY_SHA256}", "shards": [{{"id": "a"}}], "description": "duplicate"}},\n'
             f'{{"sha1": "{EMPTY_SHA1}", "sha256": "not-hex", "shards": [{{"id": "a"}}]}},\n'
             '"not an object",\n'
@@ -430,7 +430,7 @@ def gzip_store(tmp_path, content=b"abc", compressed=("gz",), sha256=ABC_SHA256):
     store = tmp_path / "store"
     store.mkdir()
     (store / f"{ABC_SHA1}.gz").write_bytes(gzip.compress(content, compresslevel=9, mtime=0))
-    shards = json.dumps({"id": "local", "compressed": list(compressed)})
+    shards = json.dumps({"id": "local", "size": {"raw": len(content), **{extension: 1 for extension in compressed}}})
     index = index_text(local_shard(store), entry(ABC_SHA1, sha256, shards))
     return index_config(tmp_path, [publish(tmp_path / "site", index)])
 
@@ -647,7 +647,7 @@ def test_concurrent_memory_and_path_publication(tmp_path):
 @pytest.mark.parametrize("suffix", ["?token=value", "?token=value#part", "#part"])
 def test_gzip_url_suffix_precedes_query_and_raw_fallback_stays_in_shard(tmp_path, monkeypatch, suffix):
     shards = '"first": {"url": "https://first.example/{sha1}' + suffix + '"}, "second": {"url": "https://second.example/{sha1}"}'
-    locations = '{"id": "first", "compressed": ["unknown", "gz"]}, {"id": "second", "compressed": ["gz"]}'
+    locations = '{"id": "first", "size": {"raw": 3, "unknown": 1, "gz": 23}}, {"id": "second", "size": {"raw": 3, "gz": 23}}'
     index = index_text(shards, entry(ABC_SHA1, ABC_SHA256, locations))
     settings = index_config(tmp_path, [publish(tmp_path / "site", index)])
     stream = conta._stream
@@ -732,7 +732,7 @@ def test_cache_publication_rejects_corrupt_concurrent_target(tmp_path, monkeypat
 def test_empty_gzip_download(tmp_path):
     store = tmp_path / "store"
     write_store_blob(store, EMPTY_SHA1 + ".gz", gzip.compress(b"", mtime=0))
-    index = index_text(local_shard(store), entry(EMPTY_SHA1, EMPTY_SHA256, '{"id": "local", "compressed": ["gz"]}'))
+    index = index_text(local_shard(store), entry(EMPTY_SHA1, EMPTY_SHA256, '{"id": "local", "size": {"raw": 0, "gz": 20}}'))
     settings = index_config(tmp_path, [publish(tmp_path / "site", index)])
     assert conta.load(EMPTY_SHA1, settings) == b""
     assert (tmp_path / "cache" / f"{EMPTY_SHA1}.gz").exists()

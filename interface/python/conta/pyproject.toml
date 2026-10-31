@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "conta"
-version = "0.0.1"
+version = "0.0.2"
 description = "Content Addressed Blob Storage"
 readme = "README.md"
 authors = [{name = "Jonas Eschmann", email = "jonas.eschmann@gmail.com"}]
@@ -13,10 +13,10 @@ requires-python = ">=3.9"
 dependencies = []
 
 [tool.hatch.build.targets.wheel]
-only-include = ["conta/__init__.py"]
+only-include = ["conta/__init__.py", "conta/index.py"]
 
 [tool.hatch.build.targets.sdist]
-only-include = ["conta/__init__.py", "tests/test_conta.py", "README.md", "pyproject.toml"]
+only-include = ["conta/__init__.py", "conta/index.py", "tests/test_conta.py", "tests/test_index.py", "README.md", "pyproject.toml"]
 
 [project.scripts]
 conta = "conta:main"

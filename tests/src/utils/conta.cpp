@@ -36,7 +36,7 @@ namespace{
         std::string generic = path.generic_string();
         return generic.front() == '/' ? "file://" + generic : "file:///" + generic;
     }
-    std::string entry(const std::string& sha1, const std::string& sha256, const std::string& shards = R"({"id": "local", "compressed": []})"){
+    std::string entry(const std::string& sha1, const std::string& sha256, const std::string& shards = R"({"id": "local"})"){
         return "{\"sha1\": \"" + sha1 + "\", \"sha256\": \"" + sha256 + "\", \"shards\": [" + shards + "], \"description\": \"test blob\"}";
     }
     std::string index_text(const std::string& shards, const std::string& entries){
@@ -61,7 +61,7 @@ namespace{
         return std::string("\x1f\x8b\x08\x00\x00\x00\x00\x00\x02\x03\x4b\x4c\x4a\x06\x00\xc2\x41\x24\x35\x03\x00\x00\x00", 23);
     }
     std::string gzip_entry(const std::string& sha256 = ABC_SHA256){
-        return entry(ABC_SHA1, sha256, R"({"id": "local", "compressed": ["future", "gz"]})");
+        return entry(ABC_SHA1, sha256, R"({"id": "local", "size": {"raw": 3, "future": 1, "gz": 23}})");
     }
     void expect_no_partials(const std::filesystem::path& directory){
         for(const auto& item: std::filesystem::directory_iterator(directory)){
@@ -225,7 +225,7 @@ TEST(UTILS_CONTA, INDEX_JSON_TOLERANCE){
     std::string text = std::string(R"({"future": {"nested": [1, 2.5e3, -0.5, true, false, null, {"deep": []}]},
 "shards": {"a": {"type": "future-type", "url": "https://a.example/{sha1}", "license": {"spdx": "CC0-1.0"}}, "no-url": {"type": "torrent"}},
 "entries": [
-{"sha1": ")") + ABC_SHA1 + R"(", "sha256": ")" + ABC_SHA256 + R"(", "shards": [{"id": "unknown"}, 7, "old-string", {"id": "a", "compressed": ["future", 1, "gz"], "future": true}], "description": "café 😀", "size": 3, "license": ["x"]},
+{"sha1": ")") + ABC_SHA1 + R"(", "sha256": ")" + ABC_SHA256 + R"(", "shards": [{"id": "unknown", "size": ["gz"]}, 7, "old-string", {"id": "a", "size": {"raw": 3, "future": 1, "gz": 23}, "future": true}], "description": "café 😀", "size": 3, "license": ["x"]},
 {"sha1": ")" + ABC_SHA1 + R"(", "sha256": ")" + EMPTY_SHA256 + R"(", "shards": [{"id": "a"}], "description": "duplicate"},
 {"sha1": ")" + EMPTY_SHA1 + R"(", "sha256": "not-hex", "shards": [{"id": "a"}]},
 "not an object",
@@ -438,7 +438,7 @@ TEST(UTILS_CONTA, LOAD_PLAIN_CACHE_AND_ROOT){
 TEST(UTILS_CONTA, LOAD_RAW_SOURCE){
     std::filesystem::path scratch = scratch_directory();
     write_file(scratch / "store" / ABC_SHA1, "abc");
-    conta::Config config = index_config(scratch, {publish(scratch / "site", index_text(local_shard(scratch / "store"), entry(ABC_SHA1, ABC_SHA256, R"({"id": "local", "compressed": ["future"]})")))});
+    conta::Config config = index_config(scratch, {publish(scratch / "site", index_text(local_shard(scratch / "store"), entry(ABC_SHA1, ABC_SHA256, R"({"id": "local", "size": {"raw": 3, "future": 1}})")))});
     std::vector<std::uint8_t> bytes;
     std::string error;
     ASSERT_TRUE(conta::load(config, ABC_SHA1, bytes, error)) << error;

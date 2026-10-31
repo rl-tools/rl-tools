@@ -1,6 +1,6 @@
 #ifndef CONTA_CONTA_H
 #define CONTA_CONTA_H
-// conta: client for the sha1 content-addressed asset store; index contract: https://github.com/rl-tools/conta-index (format 1)
+// conta: client for the sha1 content-addressed asset store; index contract (format 1): interface/python/conta/README.md
 // C++17, optional zlib for gzip decoding; downloads via the curl CLI.
 // A sha1 resolves from <cache>/<sha1>, then the cached index, then the index entry points; downloads are verified against the sha1 and the sha256 the index lists.
 // CONTA_ROOT: read-only store (<root>/data/<sha1>), disables the network. CONTA_URL: fetch <url>/<sha1> directly, without the index. CONTA_CACHE: writable cache directory.
@@ -666,16 +666,12 @@ namespace conta{
                                         if(shard_key == "id"){
                                             return reader.parse_string_or_skip(shard.id, 5);
                                         }
-                                        if(shard_key == "compressed" && reader.next_is('[')){
-                                            return reader.parse_array(5, [&](){
-                                                std::string compression;
-                                                if(!reader.parse_string_or_skip(compression, 6)){
-                                                    return false;
+                                        if(shard_key == "size" && reader.next_is('{')){
+                                            return reader.parse_object(5, [&](const std::string& format){
+                                                if(format != "raw"){
+                                                    shard.compressed.push_back(format);
                                                 }
-                                                if(!compression.empty()){
-                                                    shard.compressed.push_back(compression);
-                                                }
-                                                return true;
+                                                return reader.skip_value(6);
                                             });
                                         }
                                         return reader.skip_value(5);

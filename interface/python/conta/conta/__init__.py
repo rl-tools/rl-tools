@@ -1,4 +1,4 @@
-"""Client for the sha1 content-addressed asset store; index contract: https://github.com/rl-tools/conta-index (format 1).
+"""Client for the sha1 content-addressed asset store; the index contract (format 1) is in README.md, and conta.index generates the index.
 
 Protocol twin of the C++ client (include/conta/conta.h): plain and gzip blobs share one cache as <sha1> and <sha1>.gz; downloads are verified against their decoded hashes and published by atomic rename. load() returns bytes and prefers compressed storage; resolve() returns a plain filesystem path. CONTA_ROOT selects a read-only offline store, CONTA_URL bypasses the index, and CONTA_CACHE selects the shared cache. Failures raise ContaError.
 
@@ -363,8 +363,8 @@ def _parse_index(data, wanted, source):
             locations = []
             for shard in shards:
                 if isinstance(shard, dict) and isinstance(shard.get("id"), str) and shard["id"]:
-                    compressed = shard.get("compressed") if isinstance(shard.get("compressed"), list) else []
-                    locations.append(_Shard(shard["id"], [extension for extension in compressed if isinstance(extension, str)]))
+                    size = shard.get("size") if isinstance(shard.get("size"), dict) else {}
+                    locations.append(_Shard(shard["id"], [extension for extension in size if extension != "raw"]))
             entries[sha1] = _Entry(item["sha256"], locations, _text(item.get("description")), _text(item.get("notice")))
     return _Index(source, hashlib.sha256(data).hexdigest(), entry_count, shard_urls, entries)
 
@@ -611,7 +611,11 @@ def main(arguments=None):
         print("Usage: conta <sha1|conta:sha1> [more hashes ...]", file=sys.stderr)
         print("Resolves content-addressed blobs to local filesystem paths (downloading into the cache through the conta index if required) and prints one path per line.", file=sys.stderr)
         print("Environment: CONTA_ROOT (read-only store, disables the network), CONTA_CACHE (cache directory), CONTA_URL (fetch <url>/<sha1> directly, without the index).", file=sys.stderr)
+        print("Index maintenance: conta index {ingest,scan,build,check}, run from the root of a conta-index checkout (conta index --help).", file=sys.stderr)
         return 1
+    if arguments[0] == "index":
+        from . import index
+        return index.main(arguments[1:])
     try:
         paths = resolve_all(arguments)
     except ContaError as error:
