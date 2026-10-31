@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "conta"
-version = "0.0.2"
+version = "0.0.3"
 description = "Content Addressed Blob Storage"
 readme = "README.md"
 authors = [{name = "Jonas Eschmann", email = "jonas.eschmann@gmail.com"}]
