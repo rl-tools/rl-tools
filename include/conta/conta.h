@@ -42,7 +42,6 @@ namespace conta{
         return {
             "https://conta.rl.tools/version/1/meta.json",
             "https://raw.githubusercontent.com/rl-tools/conta-index/main/version/1/meta.json",
-            "https://huggingface.co/datasets/rl-tools/conta-index/resolve/main/version/1/meta.json",
         };
     }
     struct Config{

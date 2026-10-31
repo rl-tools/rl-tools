@@ -14,10 +14,10 @@ const index_url = "https://index.test/version/1/generated/index.json";
 const blob_url = `https://shard.test/${sha1}?download=true`;
 const gzip_url = `https://shard.test/${sha1}.gz?download=true`;
 
-function index_routes({compressed = ["gz"], digest = sha256} = {}){
+function index_routes({formats = ["gz"], digest = sha256} = {}){
     const index = JSON.stringify({
         shards: {fixture: {url: "https://shard.test/{sha1}?download=true"}},
-        entries: [{sha1, sha256: digest, shards: [{id: "fixture", compressed}]}],
+        entries: [{sha1, sha256: digest, shards: [{id: "fixture", size: {raw: data.byteLength, ...Object.fromEntries(formats.map(format => [format, compressed.byteLength]))}}]}],
     });
     return {
         [entry_point]: JSON.stringify({format: 1, index: {
@@ -101,7 +101,7 @@ test("missing remote gzip falls back to the same provider's raw asset", async t 
 });
 
 test("uncompressed providers are supported without guessing gzip availability", async t => {
-    const requests = network(t, {...index_routes({compressed: []}), [blob_url]: data});
+    const requests = network(t, {...index_routes({formats: []}), [blob_url]: data});
     const conta = new Conta({overlay, entry_points: [entry_point]});
     assert.deepEqual(await conta.load(sha1), data);
     assert.ok(!requests.includes(gzip_url));
@@ -168,7 +168,7 @@ test("remote gzip is reusable offline without resolving an index", async t => {
 
 test("raw-only assets are cached as gzip and reused without requests", async t => {
     const {cache} = browser_cache(t);
-    const requests = network(t, {...index_routes({compressed: []}), [blob_url]: data});
+    const requests = network(t, {...index_routes({formats: []}), [blob_url]: data});
     assert.deepEqual(await new Conta({overlay, entry_points: [entry_point]}).load(sha1), data);
     const stored = Buffer.from(await (await cache.match(`${overlay}${sha1}.gz`)).arrayBuffer());
     assert.deepEqual(new Uint8Array(gunzipSync(stored)), data);

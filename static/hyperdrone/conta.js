@@ -1,7 +1,6 @@
 const ENTRY_POINTS = [
     "https://conta.rl.tools/version/1/meta.json",
     "https://raw.githubusercontent.com/rl-tools/conta-index/main/version/1/meta.json",
-    "https://huggingface.co/datasets/rl-tools/conta-index/resolve/main/version/1/meta.json",
 ];
 const CACHE_NAME = "hyperdrone-conta-gzip-v1";
 
@@ -152,7 +151,7 @@ export class Conta {
                         continue;
                     }
                     const url = new URL(template.replaceAll("{sha1}", sha1).replaceAll("{sha256}", entry.sha256));
-                    if(shard.compressed?.includes("gz")){
+                    if(shard.size instanceof Object && Object.hasOwn(shard.size, "gz")){
                         const compressed_url = new URL(url);
                         compressed_url.pathname += ".gz";
                         const bytes = await download(compressed_url, true, entry.sha256);
