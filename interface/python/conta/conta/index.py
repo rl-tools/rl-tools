@@ -1,4 +1,4 @@
-"""Maintain a conta-index checkout; run from its root.
+"""Maintain the conta-index checkout at <index_path>.
 
 ingest: store files as <local_checkout_path>/data/<sha1> and <sha1>.gz by default, append descriptions to metadata.json, then scan.
 scan: verify a shard checkout's blobs and optional gzip companions, update shards/<shard_name>.json, then build.
@@ -25,6 +25,7 @@ INDEX_LOCATION = "generated/index.json"
 VERSION_NAME = re.compile(r"^[1-9][0-9]*$")
 FORMAT = re.compile(r"^[a-z0-9]+$")
 FIRST_INDEXED_AT = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z")
+INDEX_HELP = "path to the conta-index checkout containing version/ and shards/ (e.g. ../conta-index/)"
 
 
 def warn(message):
@@ -172,7 +173,7 @@ GENERATORS = {1: generate_format_1}
 def versions(root):
     directories = root / "version"
     if not directories.is_dir():
-        raise ContaError(f"{directories} is not a directory: run conta index from the root of a conta-index checkout")
+        raise ContaError(f"{root} is not a conta-index checkout: {directories} is not a directory")
     found = {}
     for directory in sorted(directories.iterdir()):
         if directory.name.startswith("."):
@@ -488,7 +489,7 @@ def main(arguments):
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="Arguments in <angle brackets> are placeholders; replace them with your values.\n\n"
-               "Example scan:\n  conta index scan procthor ../conta-shards/procthor/",
+               "Example scan:\n  conta index scan ../conta-index procthor ../conta-shards/procthor/",
     )
     commands = parser.add_subparsers(dest="command", required=True)
     ingest_parser = commands.add_parser(
@@ -496,8 +497,9 @@ def main(arguments):
         description="Store files in the shard checkout, update its metadata, then scan and rebuild the index.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="Arguments in <angle brackets> are placeholders; replace them with your values.\n\n"
-               "Example:\n  conta index ingest procthor ../conta-shards/procthor/ house.glb",
+               "Example:\n  conta index ingest ../conta-index procthor ../conta-shards/procthor/ house.glb",
     )
+    ingest_parser.add_argument("index", metavar="<index_path>", help=INDEX_HELP)
     ingest_parser.add_argument("--no-gzip", action="store_true", help="do not create gzip companions (existing copies are still verified)")
     ingest_parser.add_argument("--no-progress", action="store_true", help="hide the final scan's terminal progress bar")
     ingest_parser.add_argument("-j", "--jobs", type=positive_jobs, default=1, help="number of parallel file workers, including the final scan (default: 1)")
@@ -509,16 +511,17 @@ def main(arguments):
         description="Verify the checkout's raw blobs and gzip companions, update shards/<shard_name>.json, and rebuild the index.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="Arguments in <angle brackets> are placeholders; replace them with your values.\n\n"
-               "Example:\n  conta index scan procthor ../conta-shards/procthor/",
+               "Example:\n  conta index scan ../conta-index procthor ../conta-shards/procthor/",
     )
+    scan_parser.add_argument("index", metavar="<index_path>", help=INDEX_HELP)
     scan_parser.add_argument("shard", metavar="<shard_name>", help="registered shard name from version/<n>/shards.json (e.g. procthor)")
     scan_parser.add_argument("checkout", metavar="<local_checkout_path>", help="path to the local shard checkout containing data/ (e.g. ../conta-shards/procthor/)")
     scan_parser.add_argument("--no-progress", action="store_true", help="hide the terminal progress bar")
     scan_parser.add_argument("-j", "--jobs", type=positive_jobs, default=1, help="number of parallel verification workers (default: 1)")
-    commands.add_parser("build", help="rebuild all index versions")
-    commands.add_parser("check", help="validate generated indexes")
+    commands.add_parser("build", help="rebuild all index versions").add_argument("index", metavar="<index_path>", help=INDEX_HELP)
+    commands.add_parser("check", help="validate generated indexes").add_argument("index", metavar="<index_path>", help=INDEX_HELP)
     args = parser.parse_args(arguments)
-    root = Path.cwd()
+    root = Path(args.index).expanduser().resolve()
     try:
         if args.command == "ingest":
             ingest(root, args.shard, args.checkout, args.files, compress=not args.no_gzip, jobs=args.jobs, progress=not args.no_progress)

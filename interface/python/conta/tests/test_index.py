@@ -22,16 +22,6 @@ REPOSITORY = Path(__file__).resolve().parents[4]
 PACKAGE_PARENT = Path(conta.__file__).resolve().parents[1]
 
 
-@contextlib.contextmanager
-def working_directory(path):
-    previous = os.getcwd()
-    os.chdir(path)
-    try:
-        yield
-    finally:
-        os.chdir(previous)
-
-
 class TerminalOutput(io.StringIO):
     def isatty(self):
         return True
@@ -75,8 +65,10 @@ class IngestionTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
-        (self.root / "shards").mkdir()
+        self.root = Path(temporary.name) / "index"
+        self.elsewhere = Path(temporary.name) / "elsewhere"
+        self.elsewhere.mkdir()
+        (self.root / "shards").mkdir(parents=True)
         self.version = self.root / "version" / "1"
         self.version.mkdir(parents=True)
         (self.version / "meta.json").write_text(json.dumps({
@@ -95,11 +87,11 @@ class IngestionTests(unittest.TestCase):
         self.raw = self.data / self.sha1
         self.zipped = self.data / f"{self.sha1}.gz"
 
-    def run_cli(self, *args, success=True):
+    def run_cli(self, command, *args, success=True, index_path=None, cwd=None):
         environment = dict(os.environ, PYTHONPATH=os.pathsep.join(filter(None, (str(PACKAGE_PARENT), os.environ.get("PYTHONPATH")))))
         result = subprocess.run(
-            [sys.executable, "-c", "import sys, conta; sys.exit(conta.main())", "index", *map(str, args)],
-            capture_output=True, text=True, cwd=self.root, env=environment,
+            [sys.executable, "-c", "import sys, conta; sys.exit(conta.main())", "index", command, *map(str, (index_path or self.root, *args))],
+            capture_output=True, text=True, cwd=cwd or self.elsewhere, env=environment,
         )
         if success:
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -134,6 +126,20 @@ class IngestionTests(unittest.TestCase):
             if timestamp is not None:
                 entry["first_indexed_at"] = timestamp
         path.write_text(json.dumps(entries))
+
+    def test_ingest_from_inside_the_shard_checkout_with_relative_paths(self):
+        self.checkout.mkdir()
+        self.run_cli("ingest", "primary", ".", self.input, index_path=os.path.relpath(self.root, self.checkout), cwd=self.checkout)
+        self.assertEqual(gzip.decompress(self.zipped.read_bytes()), self.payload)
+        self.assertEqual(self.index()["entries"][0]["sha1"], self.sha1)
+        self.run_cli("check")
+
+    def test_wrong_index_path_is_reported(self):
+        for command, args in (("ingest", ("primary", self.checkout, self.input)), ("scan", ("primary", self.checkout)), ("build", ()), ("check", ())):
+            with self.subTest(command=command):
+                result = self.run_cli(command, *args, index_path=self.elsewhere, success=False)
+                self.assertIn(f"{self.elsewhere} is not a conta-index checkout", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
 
     def test_ingest_and_scan_timestamp_new_entries_in_utc(self):
         before = datetime.now(timezone.utc).replace(microsecond=0)
@@ -407,14 +413,14 @@ class IngestionTests(unittest.TestCase):
             for jobs in (1, 4):
                 for enabled in (True, False):
                     with self.subTest(command=command, jobs=jobs, enabled=enabled):
-                        args = [command, "--jobs", str(jobs), "primary", str(self.checkout)]
+                        args = [command, str(self.root), "--jobs", str(jobs), "primary", str(self.checkout)]
                         if command == "ingest":
                             args.append(str(self.input))
                         if not enabled:
                             args.append("--no-progress")
                         output = TerminalOutput()
                         stdout = io.StringIO()
-                        with working_directory(self.root), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(output):
+                        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(output):
                             self.assertEqual(conta_index.main(args), 0)
                         if enabled:
                             self.assertIn("0/1 blobs (  0%)", output.getvalue())
@@ -470,8 +476,8 @@ class IngestionTests(unittest.TestCase):
         for jobs in (1, 4):
             with self.subTest(jobs=jobs):
                 output = TerminalOutput()
-                with working_directory(self.root), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(output):
-                    self.assertEqual(conta_index.main(["scan", "--jobs", str(jobs), "primary", str(self.checkout)]), 1)
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(output):
+                    self.assertEqual(conta_index.main(["scan", str(self.root), "--jobs", str(jobs), "primary", str(self.checkout)]), 1)
                 text = output.getvalue()
                 self.assertIn("\nerror:", text)
                 self.assertIn("not a gzip file", text)

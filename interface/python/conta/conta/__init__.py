@@ -611,7 +611,7 @@ def main(arguments=None):
         print("Usage: conta <sha1|conta:sha1> [more hashes ...]", file=sys.stderr)
         print("Resolves content-addressed blobs to local filesystem paths (downloading into the cache through the conta index if required) and prints one path per line.", file=sys.stderr)
         print("Environment: CONTA_ROOT (read-only store, disables the network), CONTA_CACHE (cache directory), CONTA_URL (fetch <url>/<sha1> directly, without the index).", file=sys.stderr)
-        print("Index maintenance: conta index {ingest,scan,build,check}, run from the root of a conta-index checkout (conta index --help).", file=sys.stderr)
+        print("Index maintenance: conta index {ingest,scan,build,check} <index_path> ... (conta index --help).", file=sys.stderr)
         return 1
     if arguments[0] == "index":
         from . import index
