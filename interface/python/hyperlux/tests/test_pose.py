@@ -28,7 +28,7 @@ def assembly(rests=(pose(1), pose(2)), parent=None):
 def renderer_for(*assets, motion=False):
     renderer = hyperlux.HyperLux(width=32, height=32, batch_size=1, num_probes=0,
                                cameras=(CameraSpec("camera", outputs=(RGB(format="rgba8"), Depth(), Segmentation(),)),), fidelity="low", num_overlays=2,
-                               max_overlay_instances=4, max_overlays_per_camera=2,
+                               max_overlay_instances=4, max_overlays_per_camera=2, anti_aliasing_grid=1,
                                motion_blur_samples=4 if motion else 1, dynamic_motion_blur=motion)
     pool = hyperlux.AssetPool()
     handles = [pool.add_assembly(asset) for asset in assets]

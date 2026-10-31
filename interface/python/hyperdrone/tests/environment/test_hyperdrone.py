@@ -849,7 +849,7 @@ def test_drones_table(scene_directory):
         assert table[0]["parameters"] == env.parameters
         assert table[1]["parameters"]["cameras"]["front"]["fov"] == 70
         assert table[1]["parameters"]["dynamics"]["dynamics"]["mass"] != table[0]["parameters"]["dynamics"]["dynamics"]["mass"]
-        assert table[2]["parameters"]["dynamics"]["dynamics"]["rotor_positions"] != table[0]["parameters"]["dynamics"]["dynamics"]["rotor_positions"]
+        assert table[2]["parameters"]["dynamics"]["dynamics"]["rotor_thrust_coefficients"] != table[0]["parameters"]["dynamics"]["dynamics"]["rotor_thrust_coefficients"]
         seen = set()
         for _ in range(16):
             env.reset()
