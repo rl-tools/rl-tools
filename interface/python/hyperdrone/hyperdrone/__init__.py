@@ -14,7 +14,7 @@ import hyperlux
 
 __all__ = ["Config", "HyperDrone", "ImageObservation", "Rotorcraft", "articulate"]
 
-__version__ = "0.1.9"
+__version__ = "0.1.10"
 
 if hyperlux.__version__ != __version__.split(".post")[0]:
     raise ImportError(f"hyperdrone {__version__} requires hyperlux {__version__.split('.post')[0]}, found hyperlux {hyperlux.__version__}: install the matching hyperlux release")

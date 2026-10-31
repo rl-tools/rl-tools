@@ -10,7 +10,7 @@ license = {text = "MIT"}
 description = "The fastest drone simulator: L2F multirotor dynamics and RL environments on the HyperLux raytracer."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["numpy", "nanobind>=2.0", "conta>=0.0.1", "hyperlux==0.1.9"]
+dependencies = ["numpy", "nanobind>=2.0", "conta>=0.0.1", "hyperlux==0.1.10"]
 
 [project.optional-dependencies]
 examples = ["matplotlib", "imageio", "imageio-ffmpeg"]
