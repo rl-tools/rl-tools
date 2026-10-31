@@ -104,7 +104,9 @@ def shard_order(entry):
 
 def save_shard(root, shard, entries):
     entries.sort(key=shard_order)
-    (root / "shards" / f"{shard}.json").write_bytes((lines_json(entries) + "\n").encode("utf-8"))
+    path = root / "shards" / f"{shard}.json"
+    path.parent.mkdir(exist_ok=True)
+    path.write_bytes((lines_json(entries) + "\n").encode("utf-8"))
 
 
 def first_indexed_dates(sources):
@@ -244,12 +246,11 @@ def verify_blob(path, expected, *, compressed=False):
 
 
 def store_blob(source, destination, expected, *, compressed=False):
-    """Publish only complete, verified files; never overwrite an existing blob."""
+    """Publish only complete, verified files; an existing blob is verified, not rewritten."""
     if destination.exists():
         verify_blob(destination, expected, compressed=compressed)
         return
-    # Stage beside the destination: NFS may retain an unlinked file as .nfs*
-    # until its last reference closes, so removing a staging directory can fail.
+    # Publish by renaming a sibling, not link + unlink: on NFS, unlinking a name that is still referenced (e.g. by virtiofsd) leaves it behind as a .nfs* hard link to the blob. A concurrent ingestion can only be replaced by a verified copy of the same content.
     descriptor, name = tempfile.mkstemp(prefix=".ingest-", dir=destination.parent)
     os.close(descriptor)
     temporary = Path(name)
@@ -261,14 +262,10 @@ def store_blob(source, destination, expected, *, compressed=False):
         else:
             shutil.copyfile(source, temporary)
         verify_blob(temporary, expected, compressed=compressed)
-        try:
-            # Same-filesystem hard link publishes atomically without replacing a
-            # blob another ingestion may have created while we were working.
-            os.link(temporary, destination)
-        except FileExistsError:
-            verify_blob(destination, expected, compressed=compressed)
-    finally:
+        os.replace(temporary, destination)
+    except BaseException:
         temporary.unlink(missing_ok=True)
+        raise
 
 
 def descriptions_from_metadata(checkout):
@@ -288,8 +285,10 @@ def descriptions_from_metadata(checkout):
 
 
 def require_listed(root, shard):
-    if not any(shard in load_shard_table(directory) for directory in versions(root).values()):
-        raise ContaError(f"{shard} is in no version/<n>/shards.json")
+    tables = {directory / "shards.json": load_shard_table(directory) for directory in versions(root).values()}
+    if not any(shard in table for table in tables.values()):
+        registered = ", ".join(sorted(set().union(*tables.values())))
+        raise ContaError(f"shard {shard} is not registered (registered: {registered}): add it to {' or '.join(map(str, tables))}")
 
 
 def description_for(file):

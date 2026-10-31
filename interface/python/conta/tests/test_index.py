@@ -134,6 +134,20 @@ class IngestionTests(unittest.TestCase):
         self.assertEqual(self.index()["entries"][0]["sha1"], self.sha1)
         self.run_cli("check")
 
+    def test_ingest_into_a_fresh_index_creates_the_shards_directory(self):
+        (self.root / "shards").rmdir()
+        self.ingest()
+        self.assertEqual(self.index()["entries"][0]["sha1"], self.sha1)
+        self.run_cli("check")
+
+    def test_unregistered_shard_names_the_shard_table(self):
+        for command, args in (("ingest", ("unknown", self.checkout, self.input)), ("scan", ("unknown", self.checkout))):
+            with self.subTest(command=command):
+                result = self.run_cli(command, *args, success=False)
+                self.assertIn("shard unknown is not registered (registered: mirror, primary)", result.stderr)
+                self.assertIn(str(self.version / "shards.json"), result.stderr)
+                self.assertFalse(self.checkout.exists())
+
     def test_wrong_index_path_is_reported(self):
         for command, args in (("ingest", ("primary", self.checkout, self.input)), ("scan", ("primary", self.checkout)), ("build", ()), ("check", ())):
             with self.subTest(command=command):
@@ -753,38 +767,36 @@ class IngestionTests(unittest.TestCase):
         self.assertFalse(self.zipped.exists())
         self.assertEqual(list(self.data.iterdir()), [self.raw])
 
-    def test_publication_survives_nfs_deferred_unlink(self):
+    def test_publication_leaves_no_nfs_deferred_unlink_names(self):
         self.data.mkdir(parents=True)
         expected = conta_index.digests(self.input)
 
         def defer_unlink(path, *, dir_fd=None):
-            # NFS can keep an unlinked file under a hidden name until the
-            # last filesystem reference closes, leaving its directory nonempty.
             hidden = Path(path).with_name(".nfs-" + Path(path).name)
             conta_index.os.rename(path, hidden, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
 
+        published = []
         for compressed, destination in ((False, self.raw), (True, self.zipped)):
             with self.subTest(compressed=compressed):
                 with mock.patch.object(conta_index.os, "unlink", side_effect=defer_unlink):
                     conta_index.store_blob(self.input, destination, expected, compressed=compressed)
                 self.assertEqual(conta_index.digests(destination, compressed=compressed), expected)
+                published.append(destination.name)
+                self.assertEqual(sorted(path.name for path in self.data.iterdir()), sorted(published))
 
-    def test_concurrent_publication_never_overwrites_existing_gzip(self):
+    def test_concurrent_publication_leaves_one_verified_gzip(self):
         self.ingest("--no-gzip")
+        replace = conta_index.os.replace
         for winner in (gzip.compress(self.payload, mtime=123), b"corrupt"):
             with self.subTest(valid=winner != b"corrupt"):
                 def publish_first(source, destination):
-                    destination.write_bytes(winner)
-                    raise FileExistsError(destination)
+                    Path(destination).write_bytes(winner)
+                    replace(source, destination)
 
-                with mock.patch.object(conta_index.os, "link", side_effect=publish_first):
-                    if winner == b"corrupt":
-                        with self.assertRaises(conta.ContaError):
-                            conta_index.store_blob(self.raw, self.zipped, conta_index.digests(self.raw), compressed=True)
-                    else:
-                        conta_index.store_blob(self.raw, self.zipped, conta_index.digests(self.raw), compressed=True)
-                self.assertEqual(self.zipped.read_bytes(), winner)
-                self.assertEqual(len(list(self.data.iterdir())), 2)
+                with mock.patch.object(conta_index.os, "replace", side_effect=publish_first):
+                    conta_index.store_blob(self.raw, self.zipped, conta_index.digests(self.raw), compressed=True)
+                self.assertEqual(conta_index.digests(self.zipped, compressed=True), conta_index.digests(self.raw))
+                self.assertEqual(sorted(self.data.iterdir()), [self.raw, self.zipped])
                 self.zipped.unlink()
 
 
