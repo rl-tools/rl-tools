@@ -26,8 +26,9 @@ HELLO_SHA1 = "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d"
 HELLO_SHA256 = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
 
 
-def config(tmp_path, store=None, root=None, url_base=None):
+def config(tmp_path, store=None, root=None, url_base=None, search_paths=()):
     result = conta.Config()
+    result.search_paths = [str(path) for path in search_paths]
     if root is not None:
         result.root = str(root)
     result.cache = str(tmp_path / "cache")
@@ -107,6 +108,122 @@ def test_cache_hit_no_network(tmp_path):
     assert path == cache / ABC_SHA1
 
 
+@pytest.fixture
+def search_reads(monkeypatch):
+    used = []
+
+    def observe(original):
+        def call(path, *args, **kwargs):
+            used.append(Path(path))
+            return original(path, *args, **kwargs)
+        return call
+
+    for name in ("_plain_result", "_decode_gzip"):
+        monkeypatch.setattr(conta, name, observe(getattr(conta, name)))
+    monkeypatch.setattr(conta, "_stream", lambda *args, **kwargs: pytest.fail("search hit used network"))
+    return used
+
+
+def test_search_paths_environment_and_explicit_config(tmp_path, monkeypatch):
+    first, second = tmp_path / "first with spaces", tmp_path / "second"
+    write_store_blob(first, ABC_SHA1, b"abc")
+    monkeypatch.delenv("CONTA_ROOT", raising=False)
+    monkeypatch.setenv("CONTA_CACHE", str(tmp_path / "cache"))
+    monkeypatch.setenv("CONTA_URL", (tmp_path / "missing-url").as_uri())
+    monkeypatch.setenv("CONTA_SEARCH_PATHS", os.pathsep.join(["", str(first), "", str(second), ""]))
+    assert conta.Config().search_paths == []
+    assert conta.config_from_environment().search_paths == [str(first), str(second)]
+    assert conta.resolve(ABC_SHA1) == first / ABC_SHA1
+    with pytest.raises(conta.ContaError):
+        conta.resolve(ABC_SHA1, config(tmp_path, url_base=(tmp_path / "missing-url").as_uri() + "/"))
+    write_store_blob(second, ABC_SHA1, b"abc")
+    assert conta.resolve(ABC_SHA1, config(tmp_path, search_paths=[second])) == second / ABC_SHA1
+
+
+@pytest.mark.parametrize("api", [conta.resolve, conta.load])
+@pytest.mark.parametrize("compressed", [False, True])
+def test_search_paths_follow_primary_cache(tmp_path, search_reads, api, compressed):
+    extra, cache = tmp_path / "extra", tmp_path / "cache"
+    write_store_blob(extra, ABC_SHA1, b"abc")
+    write_store_blob(cache, ABC_SHA1 + ".gz", gzip.compress(b"abc", mtime=0))
+    if not compressed:
+        write_store_blob(cache, ABC_SHA1, b"abc")
+    result = api(ABC_SHA1, config(tmp_path, search_paths=[extra]))
+    assert search_reads[0] == cache / (ABC_SHA1 + (".gz" if compressed else ""))
+    assert result == (cache / ABC_SHA1 if api is conta.resolve else b"abc")
+
+
+@pytest.mark.parametrize("api", [conta.resolve, conta.load])
+@pytest.mark.parametrize("compressed", [False, True])
+def test_search_paths_are_ordered_and_read_only(tmp_path, search_reads, api, compressed):
+    first, second = tmp_path / "first", tmp_path / "second"
+    write_store_blob(first, ABC_SHA1 + ".gz", gzip.compress(b"abc", mtime=0))
+    if not compressed:
+        write_store_blob(first, ABC_SHA1, b"abc")
+    write_store_blob(second, ABC_SHA1, b"abc")
+    before = {path: path.read_bytes() for directory in (first, second) for path in directory.iterdir()}
+    result = api(ABC_SHA1, config(tmp_path, search_paths=[tmp_path / "absent", first, second]))
+    assert search_reads[0] == first / (ABC_SHA1 + (".gz" if compressed else ""))
+    expected = (tmp_path / "cache" if compressed else first) / ABC_SHA1
+    assert result == (expected if api is conta.resolve else b"abc")
+    assert {path: path.read_bytes() for directory in (first, second) for path in directory.iterdir()} == before
+    assert (tmp_path / "cache" / ABC_SHA1).exists() is (api is conta.resolve and compressed)
+    assert not list(tmp_path.rglob("*.partial.*"))
+
+
+@pytest.mark.parametrize("api", [conta.resolve, conta.load])
+def test_search_paths_skip_invalid_gzip(tmp_path, search_reads, api):
+    first, second = tmp_path / "first", tmp_path / "second"
+    damaged = gzip.compress(b"wrong hash", mtime=0)
+    write_store_blob(first, ABC_SHA1 + ".gz", damaged)
+    write_store_blob(second, ABC_SHA1, b"abc")
+    result = api(ABC_SHA1, config(tmp_path, search_paths=[first, second]))
+    assert result == (second / ABC_SHA1 if api is conta.resolve else b"abc")
+    assert (first / (ABC_SHA1 + ".gz")).read_bytes() == damaged
+    assert not (tmp_path / "cache" / ABC_SHA1).exists() and not list(tmp_path.rglob("*.partial.*"))
+
+
+@pytest.mark.parametrize("api", [conta.resolve, conta.load])
+@pytest.mark.parametrize("compressed", [False, True])
+def test_search_paths_skip_lfs_pointer_for_gzip_or_later_raw(tmp_path, search_reads, api, compressed):
+    first, second = tmp_path / "first", tmp_path / "second"
+    pointer = b"version https://git-lfs.github.com/spec/v1\noid sha256:" + b"0" * 64 + b"\nsize 123\n"
+    write_store_blob(first, ABC_SHA1, pointer)
+    if compressed:
+        write_store_blob(first, ABC_SHA1 + ".gz", gzip.compress(b"abc", mtime=0))
+    write_store_blob(second, ABC_SHA1, b"abc")
+    result = api(ABC_SHA1, config(tmp_path, search_paths=[first, second]))
+    expected = (tmp_path / "cache" if compressed else second) / ABC_SHA1
+    assert result == (expected if api is conta.resolve else b"abc")
+    assert (first / ABC_SHA1).read_bytes() == pointer
+
+
+@pytest.mark.parametrize("indexed", [False, True])
+def test_search_paths_miss_keeps_url_and_index_fallback(tmp_path, indexed):
+    store, search = tmp_path / "store", tmp_path / "search"
+    write_store_blob(store, ABC_SHA1, b"abc")
+    write_store_blob(search, ABC_SHA1 + ".gz", b"not gzip")
+    settings = (index_config(tmp_path, [publish(tmp_path / "site", index_text(local_shard(store), entry(ABC_SHA1, ABC_SHA256)))])
+                if indexed else config(tmp_path, store=store))
+    settings.search_paths = [str(search)]
+    path = conta.resolve(ABC_SHA1, settings)
+    assert path == tmp_path / "cache" / ABC_SHA1 and path.read_bytes() == b"abc"
+    assert list(search.iterdir()) == [search / (ABC_SHA1 + ".gz")]
+    assert not list(tmp_path.rglob("*.partial.*"))
+
+
+@pytest.mark.parametrize("api", [conta.resolve, conta.load])
+def test_root_ignores_search_paths_even_when_cache_or_url_can_supply_blob(tmp_path, search_reads, api):
+    extra = tmp_path / "extra"
+    write_store_blob(extra, ABC_SHA1, b"abc")
+    write_store_blob(tmp_path / "cache", ABC_SHA1, b"abc")
+    settings = config(tmp_path, root=tmp_path / "root", store=extra, search_paths=[extra])
+    with pytest.raises(conta.ContaError, match="CONTA_ROOT"):
+        api(ABC_SHA1, settings)
+    write_store_blob(tmp_path / "root" / "data", ABC_SHA1, b"abc")
+    assert api(ABC_SHA1, settings) == (tmp_path / "root" / "data" / ABC_SHA1 if api is conta.resolve else b"abc")
+
+
 def test_download_file_url(tmp_path):
     store = tmp_path / "store"
     write_store_blob(store, ABC_SHA1, b"abc")
@@ -136,7 +253,7 @@ def test_batch_all_or_nothing(tmp_path):
 
 def test_default_cache_path_parity(monkeypatch, tmp_path):
     # the fallback chain is pinned by include/conta/conta.h::config_from_environment
-    for variable in ("CONTA_ROOT", "CONTA_CACHE", "CONTA_URL", "XDG_CACHE_HOME"):
+    for variable in ("CONTA_ROOT", "CONTA_CACHE", "CONTA_URL", "CONTA_SEARCH_PATHS", "XDG_CACHE_HOME"):
         monkeypatch.delenv(variable, raising=False)
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "local"))
@@ -167,9 +284,26 @@ def conta_cli():
 def cli_environment(cache):
     environment = os.environ.copy()
     environment.pop("CONTA_ROOT", None)
+    environment.pop("CONTA_SEARCH_PATHS", None)
     environment["CONTA_CACHE"] = str(cache)
     environment["CONTA_URL"] = "http://127.0.0.1:1/"
     return environment
+
+
+@pytest.mark.parametrize("compressed", [False, True])
+def test_search_paths_cpp_environment_and_shared_cache(tmp_path, compressed):
+    cli = conta_cli()
+    extra, cache = tmp_path / "extra with spaces", tmp_path / "cache"
+    write_store_blob(extra, ABC_SHA1 + (".gz" if compressed else ""), gzip.compress(b"abc", mtime=0) if compressed else b"abc")
+    environment = cli_environment(cache)
+    environment["CONTA_SEARCH_PATHS"] = os.pathsep.join(["", str(tmp_path / "missing"), "", str(extra), ""])
+    result = subprocess.run([str(cli), ABC_SHA1], capture_output=True, text=True, env=environment)
+    if compressed and result.returncode != 0 and "CONTA_ENABLE_ZLIB" in result.stderr:
+        pytest.skip("conta CLI was built without zlib")
+    assert result.returncode == 0, result.stderr
+    assert Path(result.stdout.strip()) == (cache if compressed else extra) / ABC_SHA1
+    assert conta.load(ABC_SHA1, config(tmp_path, search_paths=[extra])) == b"abc"
+    assert len(list(extra.iterdir())) == 1
 
 
 def test_cache_interop_python_to_cpp(tmp_path):

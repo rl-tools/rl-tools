@@ -11,6 +11,7 @@
 namespace{
     constexpr char ABC_SHA1[] = "a9993e364706816aba3e25717850c26c9cd0d89d";
     constexpr char EMPTY_SHA1[] = "da39a3ee5e6b4b0d3255bfef95601890afd80709";
+    constexpr char LFS_POINTER[] = "version https://git-lfs.github.com/spec/v1\noid sha256:0000000000000000000000000000000000000000000000000000000000000000\nsize 123\n";
     std::filesystem::path scratch_directory(){
         const ::testing::TestInfo* test_info = ::testing::UnitTest::GetInstance()->current_test_info();
         std::filesystem::path directory = std::filesystem::path(::testing::TempDir()) / "conta_test" / test_info->name();
@@ -151,6 +152,71 @@ TEST(UTILS_CONTA, CACHE_HIT_NO_NETWORK){
     std::string path, error;
     ASSERT_TRUE(conta::resolve(config, ABC_SHA1, path, error)) << error;
     ASSERT_EQ(path, (scratch / "cache" / ABC_SHA1).string());
+}
+
+TEST(UTILS_CONTA, SEARCH_PATHS_RAW_ORDER_AND_CACHE){
+    std::filesystem::path scratch = scratch_directory();
+    conta::Config config = index_config(scratch, {});
+    config.search_paths = {(scratch / "absent").string(), (scratch / "first").string(), (scratch / "second").string()};
+    write_file(scratch / "first" / ABC_SHA1, "abc");
+    write_file(scratch / "first" / (std::string(ABC_SHA1) + ".gz"), "invalid gzip");
+    write_file(scratch / "second" / ABC_SHA1, "abc");
+    std::vector<std::uint8_t> bytes;
+    std::string path, error;
+    ASSERT_TRUE(conta::load(config, ABC_SHA1, bytes, error)) << error;
+    ASSERT_EQ(bytes, (std::vector<std::uint8_t>{'a', 'b', 'c'}));
+    ASSERT_TRUE(conta::resolve(config, ABC_SHA1, path, error)) << error;
+    ASSERT_EQ(path, (scratch / "first" / ABC_SHA1).string());
+    ASSERT_FALSE(std::filesystem::exists(scratch / "cache" / ABC_SHA1));
+    ASSERT_EQ(read_text(scratch / "first" / (std::string(ABC_SHA1) + ".gz")), "invalid gzip");
+    expect_no_partials(scratch / "first");
+    expect_no_partials(scratch / "second");
+    write_file(scratch / "first" / ABC_SHA1, LFS_POINTER);
+    ASSERT_TRUE(conta::resolve(config, ABC_SHA1, path, error)) << error;
+    ASSERT_EQ(path, (scratch / "second" / ABC_SHA1).string());
+    ASSERT_EQ(read_text(scratch / "first" / ABC_SHA1), LFS_POINTER);
+    write_file(scratch / "cache" / ABC_SHA1, "abc");
+    ASSERT_TRUE(conta::resolve(config, ABC_SHA1, path, error)) << error;
+    ASSERT_EQ(path, (scratch / "cache" / ABC_SHA1).string());
+}
+
+TEST(UTILS_CONTA, ROOT_IGNORES_SEARCH_PATHS){
+    std::filesystem::path scratch = scratch_directory();
+    conta::Config config = index_config(scratch, {});
+    config.root = (scratch / "root").string();
+    config.search_paths = {(scratch / "extra").string()};
+    config.url_base = file_url(scratch / "extra") + "/";
+    write_file(scratch / "extra" / ABC_SHA1, "abc");
+    write_file(scratch / "cache" / ABC_SHA1, "abc");
+    std::vector<std::uint8_t> bytes;
+    std::string path, error;
+    ASSERT_FALSE(conta::load(config, ABC_SHA1, bytes, error));
+    ASSERT_NE(error.find("CONTA_ROOT"), std::string::npos) << error;
+    ASSERT_FALSE(conta::resolve(config, ABC_SHA1, path, error));
+    ASSERT_NE(error.find("CONTA_ROOT"), std::string::npos) << error;
+    write_file(scratch / "root" / "data" / ABC_SHA1, "abc");
+    ASSERT_TRUE(conta::resolve(config, ABC_SHA1, path, error)) << error;
+    ASSERT_EQ(path, (scratch / "root" / "data" / ABC_SHA1).string());
+}
+
+TEST(UTILS_CONTA, SEARCH_PATHS_MISS_USES_URL_OR_INDEX){
+    std::filesystem::path scratch = scratch_directory();
+    write_file(scratch / "source" / ABC_SHA1, "abc");
+    write_file(scratch / "extra" / (std::string(ABC_SHA1) + ".gz"), "not gzip");
+    std::string location = publish(scratch / "site", index_text(local_shard(scratch / "source"), entry(ABC_SHA1, ABC_SHA256)));
+    for(bool indexed: {false, true}){
+        conta::Config config = index_config(scratch, {location});
+        config.search_paths = {(scratch / "extra").string()};
+        config.url_base = indexed ? "" : file_url(scratch / "source") + "/";
+        std::string path, error;
+        ASSERT_TRUE(conta::resolve(config, ABC_SHA1, path, error)) << error;
+        ASSERT_EQ(path, (scratch / "cache" / ABC_SHA1).string());
+        ASSERT_EQ(read_text(path), "abc");
+        std::filesystem::remove(path);
+        expect_no_partials(scratch / "cache");
+    }
+    ASSERT_EQ(read_text(scratch / "extra" / (std::string(ABC_SHA1) + ".gz")), "not gzip");
+    ASSERT_FALSE(std::filesystem::exists(scratch / "extra" / ABC_SHA1));
 }
 
 TEST(UTILS_CONTA, DOWNLOAD_FILE_URL){
@@ -505,6 +571,58 @@ TEST(UTILS_CONTA, CACHE_PUBLICATION){
 }
 
 #if defined(RL_TOOLS_ENABLE_ZLIB) || defined(CONTA_ENABLE_ZLIB)
+TEST(UTILS_CONTA, SEARCH_PATHS_GZIP_PRECEDENCE_AND_MATERIALIZATION){
+    std::filesystem::path scratch = scratch_directory();
+    conta::Config config = index_config(scratch, {});
+    config.search_paths = {(scratch / "first").string(), (scratch / "second").string()};
+    std::filesystem::path primary = scratch / "cache" / ABC_SHA1;
+    std::filesystem::path compressed = scratch / "cache" / (std::string(ABC_SHA1) + ".gz");
+    write_file(compressed, gzip_abc());
+    write_file(scratch / "first" / ABC_SHA1, "abc");
+    write_file(scratch / "second" / ABC_SHA1, "abc");
+    std::vector<std::uint8_t> bytes;
+    std::string path, error;
+    ASSERT_TRUE(conta::load(config, ABC_SHA1, bytes, error)) << error;
+    ASSERT_EQ(bytes, (std::vector<std::uint8_t>{'a', 'b', 'c'}));
+    ASSERT_FALSE(std::filesystem::exists(primary));
+    ASSERT_TRUE(conta::resolve(config, ABC_SHA1, path, error)) << error;
+    ASSERT_EQ(path, primary.string());
+    std::filesystem::remove(primary);
+    std::filesystem::remove(compressed);
+    write_file(scratch / "first" / ABC_SHA1, LFS_POINTER);
+    compressed = scratch / "first" / (std::string(ABC_SHA1) + ".gz");
+    write_file(compressed, gzip_abc());
+    ASSERT_TRUE(conta::load(config, ABC_SHA1, bytes, error)) << error;
+    ASSERT_EQ(bytes, (std::vector<std::uint8_t>{'a', 'b', 'c'}));
+    ASSERT_FALSE(std::filesystem::exists(primary));
+    ASSERT_TRUE(conta::resolve(config, ABC_SHA1, path, error)) << error;
+    ASSERT_EQ(path, primary.string());
+    ASSERT_EQ(read_text(path), "abc");
+    ASSERT_EQ(read_text(compressed), gzip_abc());
+    ASSERT_EQ(read_text(scratch / "first" / ABC_SHA1), LFS_POINTER);
+    expect_no_partials(scratch / "first");
+    expect_no_partials(scratch / "cache");
+}
+
+TEST(UTILS_CONTA, SEARCH_PATHS_INVALID_GZIP_CONTINUES){
+    std::filesystem::path scratch = scratch_directory();
+    conta::Config config = index_config(scratch, {});
+    config.search_paths = {(scratch / "first").string(), (scratch / "second").string()};
+    std::filesystem::path invalid = scratch / "first" / (std::string(EMPTY_SHA1) + ".gz");
+    write_file(invalid, gzip_abc());
+    write_file(scratch / "second" / EMPTY_SHA1, "");
+    std::vector<std::uint8_t> bytes{'x'};
+    std::string path, error;
+    ASSERT_TRUE(conta::load(config, EMPTY_SHA1, bytes, error)) << error;
+    ASSERT_TRUE(bytes.empty());
+    ASSERT_TRUE(conta::resolve(config, EMPTY_SHA1, path, error)) << error;
+    ASSERT_EQ(path, (scratch / "second" / EMPTY_SHA1).string());
+    ASSERT_EQ(read_text(invalid), gzip_abc());
+    ASSERT_FALSE(std::filesystem::exists(scratch / "cache" / EMPTY_SHA1));
+    expect_no_partials(scratch / "first");
+    expect_no_partials(scratch / "cache");
+}
+
 TEST(UTILS_CONTA, LOAD_GZIP_CACHE_AND_MATERIALIZE){
     std::filesystem::path scratch = scratch_directory();
     conta::Config config = index_config(scratch, {});

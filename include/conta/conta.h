@@ -2,8 +2,8 @@
 #define CONTA_CONTA_H
 // conta: client for the sha1 content-addressed asset store; index contract (format 1): interface/python/conta/README.md
 // C++17, optional zlib for gzip decoding; downloads via the curl CLI.
-// A sha1 resolves from <cache>/<sha1>, then the cached index, then the index entry points; downloads are verified against the sha1 and the sha256 the index lists.
-// CONTA_ROOT: read-only store (<root>/data/<sha1>), disables the network. CONTA_URL: fetch <url>/<sha1> directly, without the index. CONTA_CACHE: writable cache directory.
+// A sha1 resolves from the cache, then read-only search paths (plain or gzip in each), then the index; downloads are verified against the sha1 and the sha256 the index lists.
+// CONTA_ROOT: read-only store (<root>/data/<sha1>), disables the network. CONTA_URL: fetch <url>/<sha1> directly, without the index. CONTA_CACHE: writable cache directory. CONTA_SEARCH_PATHS: additional directories, separated by ':' on Unix or ';' on Windows.
 
 #include <algorithm>
 #include <csignal>
@@ -18,6 +18,7 @@
 #include <map>
 #include <random>
 #include <set>
+#include <sstream>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -50,6 +51,7 @@ namespace conta{
         std::string url_base;
         std::vector<std::string> entry_points = default_entry_points();
         bool compressed_cache = true;
+        std::vector<std::string> search_paths;
     };
     namespace detail{
         template <std::size_t T_WORDS>
@@ -1331,27 +1333,40 @@ namespace conta{
                 return false;
             }
             std::filesystem::path target = std::filesystem::path(config.cache) / sha1;
-            if(std::filesystem::exists(target)){
-                path_output = target.string();
-                return read_blob(target, bytes_output, error_output);
+            std::vector<std::string> report;
+            std::vector<std::string> directories{config.cache};
+            directories.insert(directories.end(), config.search_paths.begin(), config.search_paths.end());
+            for(const std::string& directory: directories){
+                std::filesystem::path path = std::filesystem::path(directory) / sha1;
+                if(std::filesystem::exists(path)){
+                    if(is_lfs_pointer(path)){
+                        report.push_back(path.string() + ": is a git-lfs pointer file, not the blob; run git lfs pull in its checkout");
+                    }
+                    else{
+                        path_output = path.string();
+                        return read_blob(path, bytes_output, error_output);
+                    }
+                }
+                std::filesystem::path gzip_path = path;
+                gzip_path += ".gz";
+                if(std::filesystem::exists(gzip_path)){
+                    if(config.url_base.empty() && !session.cached_index_loaded){
+                        load_cached_index(config, session);
+                    }
+                    const Entry* entry = find_entry(session, sha1);
+                    if(bytes_output == nullptr && !prepare_cache(config, error_output)){
+                        return false;
+                    }
+                    std::string failure;
+                    if(decode_gzip(gzip_path, sha1, entry == nullptr ? "" : entry->sha256, target, bytes_output, failure)){
+                        path_output = target.string();
+                        return true;
+                    }
+                    report.push_back(gzip_path.string() + ": " + failure);
+                }
             }
             if(!prepare_cache(config, error_output)){
                 return false;
-            }
-            std::vector<std::string> report;
-            std::filesystem::path gzip_path = target;
-            gzip_path += ".gz";
-            if(std::filesystem::exists(gzip_path)){
-                if(config.url_base.empty() && !session.cached_index_loaded){
-                    load_cached_index(config, session);
-                }
-                const Entry* entry = find_entry(session, sha1);
-                std::string failure;
-                if(decode_gzip(gzip_path, sha1, entry == nullptr ? "" : entry->sha256, target, bytes_output, failure)){
-                    path_output = target.string();
-                    return true;
-                }
-                report.push_back(gzip_path.string() + ": " + failure);
             }
             if(!config.url_base.empty()){
                 std::string url = config.url_base + sha1;
@@ -1432,6 +1447,17 @@ namespace conta{
         const char* root = std::getenv("CONTA_ROOT");
         if(root != nullptr && root[0] != '\0'){
             config.root = root;
+        }
+        const char* search_paths = std::getenv("CONTA_SEARCH_PATHS");
+        if(search_paths != nullptr){
+            std::istringstream directories(search_paths);
+            std::string directory;
+            constexpr char separator = std::filesystem::path::preferred_separator == '\\' ? ';' : ':';
+            while(std::getline(directories, directory, separator)){
+                if(!directory.empty()){
+                    config.search_paths.push_back(directory);
+                }
+            }
         }
         const char* cache = std::getenv("CONTA_CACHE");
         if(cache != nullptr && cache[0] != '\0'){

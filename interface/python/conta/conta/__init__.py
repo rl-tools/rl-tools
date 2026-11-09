@@ -1,6 +1,6 @@
 """Client for the sha1 content-addressed asset store; the index contract (format 1) is in README.md, and conta.index generates the index.
 
-Protocol twin of the C++ client (include/conta/conta.h): plain and gzip blobs share one cache as <sha1> and <sha1>.gz; downloads are verified against their decoded hashes and published by atomic rename. load() returns bytes and prefers compressed storage; resolve() returns a plain filesystem path. CONTA_ROOT selects a read-only offline store, CONTA_URL bypasses the index, and CONTA_CACHE selects the shared cache. Failures raise ContaError.
+Protocol twin of the C++ client (include/conta/conta.h): plain and gzip blobs share one cache as <sha1> and <sha1>.gz; downloads are verified against their decoded hashes and published by atomic rename. load() returns bytes and prefers compressed storage; resolve() returns a plain filesystem path. CONTA_ROOT selects a read-only offline store, CONTA_URL bypasses the index, CONTA_CACHE selects the shared cache, and CONTA_SEARCH_PATHS adds read-only directories searched after the cache. Failures raise ContaError.
 
 A reference is a bare 40-hex sha1, a "conta:<sha1>" string, or a store manifest entry
 {"description": ..., "hash": ...}; the description is used in log messages only.
@@ -52,11 +52,13 @@ class Config:
     url_base: str = ""
     entry_points: list = field(default_factory=lambda: list(ENTRY_POINTS))
     compressed_cache: bool = True
+    search_paths: list = field(default_factory=list)
 
 
 def config_from_environment():
     config = Config()
     config.root = os.environ.get("CONTA_ROOT", "")
+    config.search_paths = [path for path in os.environ.get("CONTA_SEARCH_PATHS", "").split(os.pathsep) if path]
     config.cache = os.environ.get("CONTA_CACHE", "")
     if not config.cache:
         if _WINDOWS:
@@ -539,19 +541,26 @@ def _acquire_one(config, session, reference, in_memory=False):
             raise ContaError(f"conta: cannot decode {compressed}: {failure}")
         return result
     target = _cache_path(config, sha1)
-    if target.exists():
-        return _plain_result(target, in_memory)
-    target.parent.mkdir(parents=True, exist_ok=True)
     report = []
-    compressed = Path(f"{target}.gz")
-    if compressed.exists():
-        if not config.url_base and not session.cached_index_loaded:
-            _load_cached_index(config, session)
-        entry = _find_entry(session, sha1)
-        result, failure = _decode_gzip(compressed, sha1, entry.sha256 if entry else "", None if in_memory else target)
-        if failure is None:
-            return result
-        report.append(f"{compressed}: {failure}")
+    for directory in [config.cache, *config.search_paths]:
+        path = Path(directory) / sha1
+        if path.exists():
+            if _is_lfs_pointer(path):
+                report.append(f"{path}: git-lfs pointer, not the blob; run \"git lfs pull\" in its checkout")
+            else:
+                return _plain_result(path, in_memory)
+        compressed = Path(f"{path}.gz")
+        if compressed.exists():
+            if not config.url_base and not session.cached_index_loaded:
+                _load_cached_index(config, session)
+            entry = _find_entry(session, sha1)
+            if not in_memory:
+                target.parent.mkdir(parents=True, exist_ok=True)
+            result, failure = _decode_gzip(compressed, sha1, entry.sha256 if entry else "", None if in_memory else target)
+            if failure is None:
+                return result
+            report.append(f"{compressed}: {failure}")
+    target.parent.mkdir(parents=True, exist_ok=True)
     if config.url_base:
         url = config.url_base + sha1
         result, failure = _fetch_blob(url, sha1, "", label if label != sha1 else "", target, in_memory=in_memory)
@@ -610,7 +619,7 @@ def main(arguments=None):
     if not arguments:
         print("Usage: conta <sha1|conta:sha1> [more hashes ...]", file=sys.stderr)
         print("Resolves content-addressed blobs to local filesystem paths (downloading into the cache through the conta index if required) and prints one path per line.", file=sys.stderr)
-        print("Environment: CONTA_ROOT (read-only store, disables the network), CONTA_CACHE (cache directory), CONTA_URL (fetch <url>/<sha1> directly, without the index).", file=sys.stderr)
+        print("Environment: CONTA_ROOT (read-only store, disables the network), CONTA_CACHE (cache directory), CONTA_SEARCH_PATHS (extra read-only directories, separated by the platform path separator), CONTA_URL (fetch <url>/<sha1> directly, without the index).", file=sys.stderr)
         print("Index maintenance: conta index {ingest,scan,build,check} <index_path> ... (conta index --help).", file=sys.stderr)
         return 1
     if arguments[0] == "index":

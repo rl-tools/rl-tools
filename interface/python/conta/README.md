@@ -24,6 +24,12 @@ data = conta.load(reference, config)
 
 `CONTA_CACHE` selects the cache directory. `CONTA_ROOT` selects an authoritative offline store: plain root files are used directly, and gzip root files can be loaded into memory or expanded into `CONTA_CACHE` for path access. Conta never writes into the root; if neither representation exists there, the lookup fails without network access. `CONTA_URL` remains a direct raw-blob URL override that bypasses index discovery.
 
+`CONTA_SEARCH_PATHS` adds read-only cache directories, separated by `:` on Unix or `;` on Windows; empty entries are ignored. Conta searches the normal cache first, then these directories in order, then the usual URL/index sources. Each directory contains `<sha1>` or `<sha1>.gz` files (for a shard checkout, use its `data` directory). Within each directory, plain files take precedence over gzip. Plain files are used in place; gzip files are decoded into memory by `load()` or expanded into the normal cache by `resolve()`. Downloads still go to the normal cache. `CONTA_ROOT`, when set, remains authoritative and ignores these search paths. Explicit Python/C++ configs use `Config.search_paths`.
+
+```bash
+export CONTA_SEARCH_PATHS="/datasets/private/data:/datasets/shared/data"
+```
+
 Downloads and gzip decoding are verified as the index contract below requires; Python uses its standard-library gzip decoder.
 
 ### C++
