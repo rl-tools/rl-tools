@@ -14,7 +14,7 @@ CATALOGS = [
 @pytest.mark.parametrize("family, catalog, name, source, split, size, identity_hash", CATALOGS)
 def test_catalog_identity_without_asset_resolution(monkeypatch, tmp_path, family, catalog, name, source, split, size, identity_hash):
     monkeypatch.setenv("CONTA_CACHE", str(tmp_path / "cache"))
-    monkeypatch.delenv("CONTA_SEARCH_PATHS", raising=False)
+    monkeypatch.delenv("CONTA_SEARCH_PATH", raising=False)
     dataset = getattr(getattr(hyperlux.datasets, family), catalog)()
     assert dataset.name == name
     assert dataset.source == source

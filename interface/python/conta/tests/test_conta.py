@@ -96,7 +96,7 @@ def test_search_paths_environment_and_explicit_config(tmp_path, monkeypatch):
     first, second = tmp_path / "first with spaces", tmp_path / "second"
     write_store_blob(first, ABC_SHA1, b"abc")
     monkeypatch.setenv("CONTA_CACHE", str(tmp_path / "cache"))
-    monkeypatch.setenv("CONTA_SEARCH_PATHS", os.pathsep.join(["", str(first), "", str(second), ""]))
+    monkeypatch.setenv("CONTA_SEARCH_PATH", os.pathsep.join(["", str(first), "", str(second), ""]))
     assert conta.Config().search_paths == []
     assert conta.config_from_environment().search_paths == [str(first), str(second)]
     assert conta.resolve(ABC_SHA1) == first / ABC_SHA1
@@ -135,6 +135,20 @@ def test_search_paths_are_ordered_and_read_only(tmp_path, search_reads, api, com
     assert {path: path.read_bytes() for directory in (first, second) for path in directory.iterdir()} == before
     assert (tmp_path / "cache" / ABC_SHA1).exists() is (api is conta.resolve and compressed)
     assert not list(tmp_path.rglob("*.partial.*"))
+
+
+def test_search_paths_data_subdirectories(tmp_path, search_reads):
+    root, later = tmp_path / "shards", tmp_path / "later"
+    write_store_blob(later, ABC_SHA1, b"abc")
+    write_store_blob(root / "c", ABC_SHA1, b"abc")
+    (root / "a.txt").write_bytes(b"not a directory")
+    write_store_blob(root / "b" / "data", ABC_SHA1, b"abc")
+    settings = config(tmp_path, search_paths=[root, later])
+    assert conta.resolve(ABC_SHA1, settings) == root / "b" / "data" / ABC_SHA1
+    for directory in (root / "a" / "data", root / "data", root):
+        write_store_blob(directory, ABC_SHA1, b"abc")
+        assert conta.resolve(ABC_SHA1, settings) == directory / ABC_SHA1
+    assert not (tmp_path / "cache" / ABC_SHA1).exists()
 
 
 @pytest.mark.parametrize("api", [conta.resolve, conta.load])
@@ -196,7 +210,7 @@ def test_batch_all_or_nothing(tmp_path):
 
 def test_default_cache_path_parity(monkeypatch, tmp_path):
     # the fallback chain is pinned by include/conta/conta.h::config_from_environment
-    for variable in ("CONTA_CACHE", "CONTA_SEARCH_PATHS", "XDG_CACHE_HOME"):
+    for variable in ("CONTA_CACHE", "CONTA_SEARCH_PATH", "XDG_CACHE_HOME"):
         monkeypatch.delenv(variable, raising=False)
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "local"))
@@ -224,7 +238,7 @@ def conta_cli():
 
 def cli_environment(cache):
     environment = os.environ.copy()
-    environment.pop("CONTA_SEARCH_PATHS", None)
+    environment.pop("CONTA_SEARCH_PATH", None)
     environment["CONTA_CACHE"] = str(cache)
     return environment
 
@@ -235,7 +249,7 @@ def test_search_paths_cpp_environment_and_shared_cache(tmp_path, compressed):
     extra, cache = tmp_path / "extra with spaces", tmp_path / "cache"
     write_store_blob(extra, ABC_SHA1 + (".gz" if compressed else ""), gzip.compress(b"abc", mtime=0) if compressed else b"abc")
     environment = cli_environment(cache)
-    environment["CONTA_SEARCH_PATHS"] = os.pathsep.join(["", str(tmp_path / "missing"), "", str(extra), ""])
+    environment["CONTA_SEARCH_PATH"] = os.pathsep.join(["", str(tmp_path / "missing"), "", str(extra), ""])
     result = subprocess.run([str(cli), ABC_SHA1], capture_output=True, text=True, env=environment)
     if compressed and result.returncode != 0 and "CONTA_ENABLE_ZLIB" in result.stderr:
         pytest.skip("conta CLI was built without zlib")

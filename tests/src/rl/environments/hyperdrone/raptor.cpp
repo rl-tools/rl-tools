@@ -301,8 +301,8 @@ namespace {
 }
 
 TEST(RL_ENVIRONMENTS_HYPERDRONE_RAPTOR, CheckpointFlightAcrossDroneModels) {
-    if (std::getenv("CONTA_SEARCH_PATHS") == nullptr) {
-        GTEST_SKIP() << "Set CONTA_SEARCH_PATHS to a local store directory containing the pinned RAPTOR checkpoint";
+    if (std::getenv("CONTA_SEARCH_PATH") == nullptr) {
+        GTEST_SKIP() << "Set CONTA_SEARCH_PATH to a local store directory containing the pinned RAPTOR checkpoint";
     }
     std::string path, error;
     if (!conta::resolve(hd::controllers::raptor::CHECKPOINT + 6, path, error)) {

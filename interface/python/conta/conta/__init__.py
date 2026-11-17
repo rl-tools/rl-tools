@@ -1,6 +1,6 @@
 """Client for the sha1 content-addressed asset store; the index contract (format 1) is in README.md, and conta.index generates the index.
 
-Protocol twin of the C++ client (include/conta/conta.h): plain and gzip blobs share one cache as <sha1> and <sha1>.gz; downloads are verified against their decoded hashes and published by atomic rename. load() returns bytes and prefers compressed storage; resolve() returns a plain filesystem path. CONTA_CACHE selects the shared cache and CONTA_SEARCH_PATHS adds read-only directories searched after it. Failures raise ContaError.
+Protocol twin of the C++ client (include/conta/conta.h): plain and gzip blobs share one cache as <sha1> and <sha1>.gz; downloads are verified against their decoded hashes and published by atomic rename. load() returns bytes and prefers compressed storage; resolve() returns a plain filesystem path. CONTA_CACHE selects the shared cache and CONTA_SEARCH_PATH adds read-only directories searched after it. Failures raise ContaError.
 
 A reference is a bare 40-hex sha1, a "conta:<sha1>" string, or a store manifest entry
 {"description": ..., "hash": ...}; only the hash is used.
@@ -55,7 +55,7 @@ class Config:
 
 def config_from_environment():
     config = Config()
-    config.search_paths = [path for path in os.environ.get("CONTA_SEARCH_PATHS", "").split(os.pathsep) if path]
+    config.search_paths = [path for path in os.environ.get("CONTA_SEARCH_PATH", "").split(os.pathsep) if path]
     config.cache = os.environ.get("CONTA_CACHE", "")
     if not config.cache:
         if _WINDOWS:
@@ -499,7 +499,7 @@ def _failure_message(session, sha1, report):
         message += f"\nnotice: {_printable(entry.notice)}"
     for line in report:
         message += f"\n  {_printable(line)}"
-    message += f"\nA copy you already have works with CONTA_SEARCH_PATHS=<directory> holding it as {sha1} or {sha1}.gz."
+    message += f"\nA copy you already have works with CONTA_SEARCH_PATH=<directory> holding it as {sha1} or {sha1}.gz."
     return message
 
 
@@ -509,12 +509,26 @@ def _cache_path(config, sha1):
     return Path(config.cache) / sha1
 
 
+def _search_directories(config):
+    yield Path(config.cache)
+    for search_path in map(Path, config.search_paths):
+        yield search_path
+        yield search_path / "data"
+        try:
+            with os.scandir(search_path) as entries:
+                names = sorted(entry.name for entry in entries if entry.is_dir())
+        except OSError:
+            names = []
+        for name in names:
+            yield search_path / name / "data"
+
+
 def _acquire_one(config, session, reference, in_memory=False):
     sha1 = _reference_hash(reference)
     target = _cache_path(config, sha1)
     report = []
-    for directory in [config.cache, *config.search_paths]:
-        path = Path(directory) / sha1
+    for directory in _search_directories(config):
+        path = directory / sha1
         if path.exists():
             if _is_lfs_pointer(path):
                 report.append(f"{path}: git-lfs pointer, not the blob; run \"git lfs pull\" in its checkout")
@@ -584,7 +598,7 @@ def main(arguments=None):
     if not arguments:
         print("Usage: conta <sha1|conta:sha1> [more hashes ...]", file=sys.stderr)
         print("Resolves content-addressed blobs to local filesystem paths (downloading into the cache through the conta index if required) and prints one path per line.", file=sys.stderr)
-        print("Environment: CONTA_CACHE (cache directory), CONTA_SEARCH_PATHS (extra read-only directories, separated by the platform path separator).", file=sys.stderr)
+        print("Environment: CONTA_CACHE (cache directory), CONTA_SEARCH_PATH (extra read-only directories, each also searched in its data/ and */data/ subdirectories, separated by the platform path separator).", file=sys.stderr)
         print("Index maintenance: conta index {ingest,scan,build,check} <index_path> ... (conta index --help).", file=sys.stderr)
         return 1
     if arguments[0] == "index":

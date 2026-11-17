@@ -147,6 +147,26 @@ TEST(UTILS_CONTA, SEARCH_PATHS_RAW_ORDER_AND_CACHE){
     ASSERT_EQ(path, (scratch / "cache" / ABC_SHA1).string());
 }
 
+TEST(UTILS_CONTA, SEARCH_PATHS_DATA_SUBDIRECTORIES){
+    std::filesystem::path scratch = scratch_directory();
+    std::filesystem::path root = scratch / "shards";
+    conta::Config config = index_config(scratch, {});
+    config.search_paths = {root.string(), (scratch / "later").string()};
+    write_file(scratch / "later" / ABC_SHA1, "abc");
+    write_file(root / "c" / ABC_SHA1, "abc");
+    write_file(root / "a.txt", "not a directory");
+    write_file(root / "b" / "data" / ABC_SHA1, "abc");
+    std::string path, error;
+    ASSERT_TRUE(conta::resolve(config, ABC_SHA1, path, error)) << error;
+    ASSERT_EQ(path, (root / "b" / "data" / ABC_SHA1).string());
+    for(const std::filesystem::path& directory: {root / "a" / "data", root / "data", root}){
+        write_file(directory / ABC_SHA1, "abc");
+        ASSERT_TRUE(conta::resolve(config, ABC_SHA1, path, error)) << error;
+        ASSERT_EQ(path, (directory / ABC_SHA1).string());
+    }
+    ASSERT_FALSE(std::filesystem::exists(scratch / "cache" / ABC_SHA1));
+}
+
 TEST(UTILS_CONTA, SEARCH_PATHS_MISS_USES_INDEX){
     std::filesystem::path scratch = scratch_directory();
     write_file(scratch / "source" / ABC_SHA1, "abc");

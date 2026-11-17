@@ -22,10 +22,10 @@ config.compressed_cache = False
 data = conta.load(reference, config)
 ```
 
-`CONTA_CACHE` selects the cache directory. `CONTA_SEARCH_PATHS` adds read-only cache directories, separated by `:` on Unix or `;` on Windows; empty entries are ignored. Conta searches the normal cache first, then these directories in order, then the index. Each directory contains `<sha1>` or `<sha1>.gz` files (for a shard checkout, use its `data` directory). Within each directory, plain files take precedence over gzip. Plain files are used in place; gzip files are decoded into memory by `load()` or expanded into the normal cache by `resolve()`. Downloads still go to the normal cache. Explicit Python/C++ configs use `Config.search_paths`.
+`CONTA_CACHE` selects the cache directory. `CONTA_SEARCH_PATH` adds read-only cache directories, separated by `:` on Unix or `;` on Windows; empty entries are ignored. Conta searches the normal cache first, then these directories in order, then the index. Each entry `<dir>` is searched as `<dir>`, then `<dir>/data`, then `<dir>/<name>/data` for each subdirectory `<name>` in byte order, so an entry can be a blob directory, a shard checkout or a directory of shard checkouts; each searched directory holds `<sha1>` or `<sha1>.gz` files. Within each directory, plain files take precedence over gzip. Plain files are used in place; gzip files are decoded into memory by `load()` or expanded into the normal cache by `resolve()`. Downloads still go to the normal cache. Explicit Python/C++ configs use `Config.search_paths`.
 
 ```bash
-export CONTA_SEARCH_PATHS="/datasets/private/data:/datasets/shared/data"
+export CONTA_SEARCH_PATH="/datasets/conta-shards:/datasets/private-checkout"
 ```
 
 Downloads and gzip decoding are verified as the index contract below requires; Python uses its standard-library gzip decoder.
@@ -92,7 +92,7 @@ If the hash is absent or every location fails, refresh once: fetch `meta.json`, 
 
 Every `size` map requires `raw`; its value is the original file's size in bytes. Other keys are file extensions without a leading dot (non-empty lowercase alphanumeric tokens), and their values are the sizes of those files on the host. Use `gz` for gzip. Every value must be a non-negative integer; `0` is a valid size for an empty raw file. A missing extension means that format is unavailable. Raw sizes must agree across all shard copies of the same blob; compressed sizes can differ between shards.
 
-A shard stores raw blobs named by their SHA-1 in `data/`, optionally accompanied by `<sha1>.gz`, so `CONTA_SEARCH_PATHS=<checkout>/data` serves a shard checkout locally. Both digests always identify the original, uncompressed bytes. Never delete or rewrite a raw blob or an advertised compressed companion; the index is append-only, so a newer index never has fewer entries or advertised copies. For raw and gzip copies, `scan` rejects corrupt files, orphan gzip companions, missing previously indexed copies, and changes to recorded byte counts.
+A shard stores raw blobs named by their SHA-1 in `data/`, optionally accompanied by `<sha1>.gz`, so `CONTA_SEARCH_PATH=<checkout>`, or a directory of checkouts, serves shards locally. Both digests always identify the original, uncompressed bytes. Never delete or rewrite a raw blob or an advertised compressed companion; the index is append-only, so a newer index never has fewer entries or advertised copies. For raw and gzip copies, `scan` rejects corrupt files, orphan gzip companions, missing previously indexed copies, and changes to recorded byte counts.
 
 Shard entries may also have `first_indexed_at`, the UTC time when that blob was first registered through that shard in the index repository, in `YYYY-MM-DDTHH:MM:SSZ` format (for example, `2026-10-10T18:42:00Z`). `scan` and `ingest` set it once for new shard entries. Rescanning, changing descriptions, and adding compressed copies preserve existing timestamps; older entries without a known date stay undated. This records registration there, not when the blob was produced or published.
 

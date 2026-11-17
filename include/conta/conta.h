@@ -3,7 +3,7 @@
 // conta: client for the sha1 content-addressed asset store; index contract (format 1): interface/python/conta/README.md
 // C++17, optional zlib for gzip decoding; downloads via the curl CLI.
 // A sha1 resolves from the cache, then read-only search paths (plain or gzip in each), then the index; downloads are verified against the sha1 and the sha256 the index lists.
-// CONTA_CACHE: writable cache directory. CONTA_SEARCH_PATHS: additional read-only directories, separated by ':' on Unix or ';' on Windows.
+// CONTA_CACHE: writable cache directory. CONTA_SEARCH_PATH: additional read-only directories, separated by ':' on Unix or ';' on Windows; each <dir> is searched as <dir>, <dir>/data and <dir>/<name>/data for its subdirectories in byte order.
 
 #include <algorithm>
 #include <csignal>
@@ -287,6 +287,22 @@ namespace conta{
             }
             error_output = "conta: invalid hash \"" + reference + "\": expected a sha1 (40 hexadecimal characters)";
             return false;
+        }
+        inline void append_search_directories(const std::filesystem::path& search_path, std::vector<std::filesystem::path>& directories){
+            directories.push_back(search_path);
+            directories.push_back(search_path / "data");
+            std::vector<std::string> names;
+            std::error_code error_code;
+            for(std::filesystem::directory_iterator entry(search_path, error_code), end; !error_code && entry != end; entry.increment(error_code)){
+                std::error_code type_error_code;
+                if(entry->is_directory(type_error_code)){
+                    names.push_back(entry->path().filename().string());
+                }
+            }
+            std::sort(names.begin(), names.end());
+            for(const std::string& name: names){
+                directories.push_back(search_path / name / "data");
+            }
         }
         inline bool is_lfs_pointer(const std::filesystem::path& path){
             std::error_code error_code;
@@ -841,7 +857,7 @@ namespace conta{
         }
         inline bool run_curl(const std::string& url, const std::filesystem::path& output, bool quiet, std::string& failure_output){
 #if (defined(__APPLE__) && TARGET_OS_IOS) || defined(__wasi__)
-            failure_output = "downloads are unavailable on iOS and WASI; bundle the asset in a CONTA_SEARCH_PATHS directory";
+            failure_output = "downloads are unavailable on iOS and WASI; bundle the asset in a CONTA_SEARCH_PATH directory";
             return false;
 #else
             std::string quoted_url, quoted_output;
@@ -1260,7 +1276,7 @@ namespace conta{
             for(const std::string& line: report){
                 message += "\n  " + printable(line);
             }
-            message += "\nA copy you already have works with CONTA_SEARCH_PATHS=<directory> holding it as " + sha1 + " or " + sha1 + ".gz.";
+            message += "\nA copy you already have works with CONTA_SEARCH_PATH=<directory> holding it as " + sha1 + " or " + sha1 + ".gz.";
             return message;
         }
 #if defined(_WIN32)
@@ -1292,10 +1308,10 @@ namespace conta{
             }
             std::filesystem::path target = std::filesystem::path(config.cache) / sha1;
             std::vector<std::string> report;
-            std::vector<std::string> directories{config.cache};
-            directories.insert(directories.end(), config.search_paths.begin(), config.search_paths.end());
-            for(const std::string& directory: directories){
-                std::filesystem::path path = std::filesystem::path(directory) / sha1;
+            std::vector<std::filesystem::path> directories{config.cache};
+            std::size_t next_search_path = 0;
+            for(std::size_t directory_i = 0; directory_i < directories.size(); directory_i++){
+                std::filesystem::path path = directories[directory_i] / sha1;
                 if(std::filesystem::exists(path)){
                     if(is_lfs_pointer(path)){
                         report.push_back(path.string() + ": is a git-lfs pointer file, not the blob; run git lfs pull in its checkout");
@@ -1321,6 +1337,9 @@ namespace conta{
                         return true;
                     }
                     report.push_back(gzip_path.string() + ": " + failure);
+                }
+                if(directory_i + 1 == directories.size() && next_search_path < config.search_paths.size()){
+                    append_search_directories(config.search_paths[next_search_path++], directories);
                 }
             }
             if(!prepare_cache(config, error_output)){
@@ -1389,7 +1408,7 @@ namespace conta{
         Config config;
         const char* compressed_cache = std::getenv("CONTA_COMPRESSED_CACHE");
         config.compressed_cache = compressed_cache == nullptr || std::string(compressed_cache) != "0";
-        const char* search_paths = std::getenv("CONTA_SEARCH_PATHS");
+        const char* search_paths = std::getenv("CONTA_SEARCH_PATH");
         if(search_paths != nullptr){
             std::istringstream directories(search_paths);
             std::string directory;

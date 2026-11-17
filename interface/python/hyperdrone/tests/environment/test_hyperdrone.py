@@ -1145,7 +1145,7 @@ def conta_store(monkeypatch, tmp_path, *blobs):
         (store / digest).symlink_to(blob)
         hashes.append(digest)
     monkeypatch.setenv("CONTA_CACHE", str(tmp_path / "conta_cache"))
-    monkeypatch.setenv("CONTA_SEARCH_PATHS", str(store))
+    monkeypatch.setenv("CONTA_SEARCH_PATH", str(store))
     return hashes
 
 
