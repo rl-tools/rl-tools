@@ -3,7 +3,7 @@
 // conta: client for the sha1 content-addressed asset store; index contract (format 1): interface/python/conta/README.md
 // C++17, optional zlib for gzip decoding; downloads via the curl CLI.
 // A sha1 resolves from the cache, then read-only search paths (plain or gzip in each), then the index; downloads are verified against the sha1 and the sha256 the index lists.
-// CONTA_ROOT: read-only store (<root>/data/<sha1>), disables the network. CONTA_URL: fetch <url>/<sha1> directly, without the index. CONTA_CACHE: writable cache directory. CONTA_SEARCH_PATHS: additional directories, separated by ':' on Unix or ';' on Windows.
+// CONTA_CACHE: writable cache directory. CONTA_SEARCH_PATHS: additional read-only directories, separated by ':' on Unix or ';' on Windows.
 
 #include <algorithm>
 #include <csignal>
@@ -46,9 +46,7 @@ namespace conta{
         };
     }
     struct Config{
-        std::string root;
         std::string cache;
-        std::string url_base;
         std::vector<std::string> entry_points = default_entry_points();
         bool compressed_cache = true;
         std::vector<std::string> search_paths;
@@ -843,7 +841,7 @@ namespace conta{
         }
         inline bool run_curl(const std::string& url, const std::filesystem::path& output, bool quiet, std::string& failure_output){
 #if (defined(__APPLE__) && TARGET_OS_IOS) || defined(__wasi__)
-            failure_output = "downloads are unavailable on iOS and WASI; bundle the asset in CONTA_ROOT";
+            failure_output = "downloads are unavailable on iOS and WASI; bundle the asset in a CONTA_SEARCH_PATHS directory";
             return false;
 #else
             std::string quoted_url, quoted_output;
@@ -1262,7 +1260,7 @@ namespace conta{
             for(const std::string& line: report){
                 message += "\n  " + printable(line);
             }
-            message += "\nA copy you already have works with CONTA_URL=file:///<directory>/ holding it as " + sha1 + " (verified), or with CONTA_ROOT=<directory> holding it as data/" + sha1 + " (no network).";
+            message += "\nA copy you already have works with CONTA_SEARCH_PATHS=<directory> holding it as " + sha1 + " or " + sha1 + ".gz.";
             return message;
         }
 #if defined(_WIN32)
@@ -1288,46 +1286,6 @@ namespace conta{
             if(!normalize_reference(reference, sha1, error_output)){
                 return false;
             }
-            if(!config.root.empty()){
-                std::filesystem::path path = std::filesystem::path(config.root) / "data" / sha1;
-                if(std::filesystem::exists(path)){
-                    if(is_lfs_pointer(path)){
-                        error_output = "conta: " + path.string() + " is a git-lfs pointer file, not the blob. Run \"git lfs pull\" in " + config.root + ".";
-                        return false;
-                    }
-                    path_output = path.string();
-                    return read_blob(path, bytes_output, error_output);
-                }
-                std::filesystem::path gzip_path = path;
-                gzip_path += ".gz";
-                if(!std::filesystem::exists(gzip_path)){
-                    error_output = "conta: " + sha1 + " not found at " + path.string() + " or " + gzip_path.string() + ". CONTA_ROOT points to a read-only store, so downloading is disabled; populate the store or unset CONTA_ROOT to enable the download cache.";
-                    return false;
-                }
-                if(is_lfs_pointer(gzip_path)){
-                    error_output = "conta: " + gzip_path.string() + " is a git-lfs pointer file, not the blob. Run \"git lfs pull\" in " + config.root + ".";
-                    return false;
-                }
-                std::filesystem::path target = std::filesystem::path(config.cache) / sha1;
-                if(!config.cache.empty() && std::filesystem::exists(target)){
-                    path_output = target.string();
-                    return read_blob(target, bytes_output, error_output);
-                }
-                if(!gzip_supported()){
-                    error_output = "conta: " + gzip_path.string() + " requires gzip decoding; build with CONTA_ENABLE_ZLIB and link zlib, or provide the plain blob in CONTA_ROOT";
-                    return false;
-                }
-                if(bytes_output == nullptr && !prepare_cache(config, error_output)){
-                    return false;
-                }
-                std::string failure;
-                if(!decode_gzip(gzip_path, sha1, "", target, bytes_output, failure)){
-                    error_output = "conta: cannot decode " + gzip_path.string() + ": " + failure;
-                    return false;
-                }
-                path_output = target.string();
-                return true;
-            }
             if(config.cache.empty()){
                 error_output = std::string("conta: cannot determine cache directory: set ") + CACHE_DIRECTORY_VARIABLES;
                 return false;
@@ -1350,7 +1308,7 @@ namespace conta{
                 std::filesystem::path gzip_path = path;
                 gzip_path += ".gz";
                 if(std::filesystem::exists(gzip_path)){
-                    if(config.url_base.empty() && !session.cached_index_loaded){
+                    if(!session.cached_index_loaded){
                         load_cached_index(config, session);
                     }
                     const Entry* entry = find_entry(session, sha1);
@@ -1367,19 +1325,6 @@ namespace conta{
             }
             if(!prepare_cache(config, error_output)){
                 return false;
-            }
-            if(!config.url_base.empty()){
-                std::string url = config.url_base + sha1;
-                std::string failure;
-                if(!fetch_blob(url, sha1, "", "", target, failure) || !read_blob(target, bytes_output, failure)){
-                    error_output = "conta: download of " + sha1 + " from " + url + " failed: " + failure;
-                    for(const std::string& line: report){
-                        error_output += "\n  " + line;
-                    }
-                    return false;
-                }
-                path_output = target.string();
-                return true;
             }
             if(!session.cached_index_loaded){
                 load_cached_index(config, session);
@@ -1444,10 +1389,6 @@ namespace conta{
         Config config;
         const char* compressed_cache = std::getenv("CONTA_COMPRESSED_CACHE");
         config.compressed_cache = compressed_cache == nullptr || std::string(compressed_cache) != "0";
-        const char* root = std::getenv("CONTA_ROOT");
-        if(root != nullptr && root[0] != '\0'){
-            config.root = root;
-        }
         const char* search_paths = std::getenv("CONTA_SEARCH_PATHS");
         if(search_paths != nullptr){
             std::istringstream directories(search_paths);
@@ -1479,13 +1420,6 @@ namespace conta{
                 config.cache = (std::filesystem::path(home) / ".cache" / "conta").string();
             }
 #endif
-        }
-        const char* url_base = std::getenv("CONTA_URL");
-        if(url_base != nullptr && url_base[0] != '\0'){
-            config.url_base = url_base;
-            if(config.url_base.back() != '/'){
-                config.url_base += '/';
-            }
         }
         return config;
     }

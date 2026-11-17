@@ -1137,8 +1137,6 @@ def scene_source():
 
 
 def conta_store(monkeypatch, tmp_path, *blobs):
-    # a local conta store served over file://, so resolution runs the full download
-    # protocol without network; the cache is the shared layout both languages use
     store = tmp_path / "conta_store"
     store.mkdir()
     hashes = []
@@ -1146,9 +1144,8 @@ def conta_store(monkeypatch, tmp_path, *blobs):
         digest = conta.sha1_file(blob)
         (store / digest).symlink_to(blob)
         hashes.append(digest)
-    monkeypatch.delenv("CONTA_ROOT", raising=False)
     monkeypatch.setenv("CONTA_CACHE", str(tmp_path / "conta_cache"))
-    monkeypatch.setenv("CONTA_URL", store.as_uri() + "/")
+    monkeypatch.setenv("CONTA_SEARCH_PATHS", str(store))
     return hashes
 
 
@@ -1172,8 +1169,6 @@ def test_scenes_conta_reference(monkeypatch, tmp_path):
     from_conta = rollout([{"description": source.name, "hash": scene_hash}], 22)
     for a, b in zip(from_path, from_conta):
         np.testing.assert_array_equal(a, b)
-    cached = Path(tmp_path / "conta_cache" / scene_hash)
-    assert cached.is_file()
     for a, b in zip(from_conta, rollout([f"conta:{scene_hash}"], 22)):
         np.testing.assert_array_equal(a, b)
 

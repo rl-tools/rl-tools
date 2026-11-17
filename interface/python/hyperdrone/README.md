@@ -332,7 +332,7 @@ hyperlux and hyperdrone are released as a pair with one version number: `interfa
 
 ## Tests
 
-Use the repository `.venv` with editable `interface/python/hyperlux` and `interface/python/hyperdrone[gym]` installed; point `CONTA_ROOT` at the local test assets.
+Use the repository `.venv` with editable `interface/python/hyperlux` and `interface/python/hyperdrone[gym]` installed; add the local test assets' `data` directory to `CONTA_SEARCH_PATHS`.
 
 ```bash
 HYPERLUX_BACKEND=GENERIC .venv/bin/python -m pytest interface/python/hyperdrone/tests -v

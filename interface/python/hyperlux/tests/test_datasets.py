@@ -13,7 +13,8 @@ CATALOGS = [
 
 @pytest.mark.parametrize("family, catalog, name, source, split, size, identity_hash", CATALOGS)
 def test_catalog_identity_without_asset_resolution(monkeypatch, tmp_path, family, catalog, name, source, split, size, identity_hash):
-    monkeypatch.setenv("CONTA_ROOT", str(tmp_path / "missing_store"))
+    monkeypatch.setenv("CONTA_CACHE", str(tmp_path / "cache"))
+    monkeypatch.delenv("CONTA_SEARCH_PATHS", raising=False)
     dataset = getattr(getattr(hyperlux.datasets, family), catalog)()
     assert dataset.name == name
     assert dataset.source == source
@@ -23,7 +24,7 @@ def test_catalog_identity_without_asset_resolution(monkeypatch, tmp_path, family
     identity = "".join(f"{scene.id}\0{scene.reference}\n" for scene in dataset)
     assert hashlib.sha256(identity.encode()).hexdigest() == identity_hash
     assert dataset.references == [scene.reference for scene in dataset]
-    assert not (tmp_path / "missing_store").exists()
+    assert not (tmp_path / "cache").exists()
 
 
 def test_scene_lookup_and_immutable_catalog():

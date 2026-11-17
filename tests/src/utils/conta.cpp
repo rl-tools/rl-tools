@@ -107,47 +107,14 @@ TEST(UTILS_CONTA, HASH_VALIDATION){
     hash = "../../../../../../../../etc/passwd00000000";
     ASSERT_FALSE(conta::detail::normalize_hash(hash));
     conta::Config config;
-    config.root = "/nonexistent";
     std::string path, error;
     ASSERT_FALSE(conta::resolve(config, "conta:not-a-hash", path, error));
     ASSERT_NE(error.find("invalid hash"), std::string::npos);
 }
 
-TEST(UTILS_CONTA, ROOT_HIT){
-    std::filesystem::path scratch = scratch_directory();
-    conta::Config config;
-    config.root = (scratch / "root").string();
-    write_file(scratch / "root" / "data" / ABC_SHA1, "abc");
-    std::string path, error;
-    ASSERT_TRUE(conta::resolve(config, ABC_SHA1, path, error)) << error;
-    ASSERT_EQ(path, (scratch / "root" / "data" / ABC_SHA1).string());
-}
-
-TEST(UTILS_CONTA, ROOT_MISS){
-    std::filesystem::path scratch = scratch_directory();
-    conta::Config config;
-    config.root = (scratch / "root").string();
-    std::string path, error;
-    ASSERT_FALSE(conta::resolve(config, ABC_SHA1, path, error));
-    ASSERT_NE(error.find("CONTA_ROOT"), std::string::npos);
-    ASSERT_NE(error.find((scratch / "root" / "data" / ABC_SHA1).string()), std::string::npos);
-}
-
-TEST(UTILS_CONTA, ROOT_LFS_POINTER){
-    std::filesystem::path scratch = scratch_directory();
-    conta::Config config;
-    config.root = (scratch / "root").string();
-    write_file(scratch / "root" / "data" / ABC_SHA1, "version https://git-lfs.github.com/spec/v1\noid sha256:0000000000000000000000000000000000000000000000000000000000000000\nsize 123\n");
-    std::string path, error;
-    ASSERT_FALSE(conta::resolve(config, ABC_SHA1, path, error));
-    ASSERT_NE(error.find("git lfs pull"), std::string::npos);
-}
-
 TEST(UTILS_CONTA, CACHE_HIT_NO_NETWORK){
     std::filesystem::path scratch = scratch_directory();
-    conta::Config config;
-    config.cache = (scratch / "cache").string();
-    config.url_base = "http://127.0.0.1:1/";
+    conta::Config config = index_config(scratch, {});
     write_file(scratch / "cache" / ABC_SHA1, "abc");
     std::string path, error;
     ASSERT_TRUE(conta::resolve(config, ABC_SHA1, path, error)) << error;
@@ -180,64 +147,24 @@ TEST(UTILS_CONTA, SEARCH_PATHS_RAW_ORDER_AND_CACHE){
     ASSERT_EQ(path, (scratch / "cache" / ABC_SHA1).string());
 }
 
-TEST(UTILS_CONTA, ROOT_IGNORES_SEARCH_PATHS){
-    std::filesystem::path scratch = scratch_directory();
-    conta::Config config = index_config(scratch, {});
-    config.root = (scratch / "root").string();
-    config.search_paths = {(scratch / "extra").string()};
-    config.url_base = file_url(scratch / "extra") + "/";
-    write_file(scratch / "extra" / ABC_SHA1, "abc");
-    write_file(scratch / "cache" / ABC_SHA1, "abc");
-    std::vector<std::uint8_t> bytes;
-    std::string path, error;
-    ASSERT_FALSE(conta::load(config, ABC_SHA1, bytes, error));
-    ASSERT_NE(error.find("CONTA_ROOT"), std::string::npos) << error;
-    ASSERT_FALSE(conta::resolve(config, ABC_SHA1, path, error));
-    ASSERT_NE(error.find("CONTA_ROOT"), std::string::npos) << error;
-    write_file(scratch / "root" / "data" / ABC_SHA1, "abc");
-    ASSERT_TRUE(conta::resolve(config, ABC_SHA1, path, error)) << error;
-    ASSERT_EQ(path, (scratch / "root" / "data" / ABC_SHA1).string());
-}
-
-TEST(UTILS_CONTA, SEARCH_PATHS_MISS_USES_URL_OR_INDEX){
+TEST(UTILS_CONTA, SEARCH_PATHS_MISS_USES_INDEX){
     std::filesystem::path scratch = scratch_directory();
     write_file(scratch / "source" / ABC_SHA1, "abc");
     write_file(scratch / "extra" / (std::string(ABC_SHA1) + ".gz"), "not gzip");
-    std::string location = publish(scratch / "site", index_text(local_shard(scratch / "source"), entry(ABC_SHA1, ABC_SHA256)));
-    for(bool indexed: {false, true}){
-        conta::Config config = index_config(scratch, {location});
-        config.search_paths = {(scratch / "extra").string()};
-        config.url_base = indexed ? "" : file_url(scratch / "source") + "/";
-        std::string path, error;
-        ASSERT_TRUE(conta::resolve(config, ABC_SHA1, path, error)) << error;
-        ASSERT_EQ(path, (scratch / "cache" / ABC_SHA1).string());
-        ASSERT_EQ(read_text(path), "abc");
-        std::filesystem::remove(path);
-        expect_no_partials(scratch / "cache");
-    }
+    conta::Config config = index_config(scratch, {publish(scratch / "site", index_text(local_shard(scratch / "source"), entry(ABC_SHA1, ABC_SHA256)))});
+    config.search_paths = {(scratch / "extra").string()};
+    std::string path, error;
+    ASSERT_TRUE(conta::resolve(config, ABC_SHA1, path, error)) << error;
+    ASSERT_EQ(path, (scratch / "cache" / ABC_SHA1).string());
+    ASSERT_EQ(read_text(path), "abc");
+    expect_no_partials(scratch / "cache");
     ASSERT_EQ(read_text(scratch / "extra" / (std::string(ABC_SHA1) + ".gz")), "not gzip");
     ASSERT_FALSE(std::filesystem::exists(scratch / "extra" / ABC_SHA1));
 }
 
-TEST(UTILS_CONTA, DOWNLOAD_FILE_URL){
-    std::filesystem::path scratch = scratch_directory();
-    conta::Config config;
-    config.cache = (scratch / "cache").string();
-    config.url_base = file_url(scratch / "store") + "/";
-    write_file(scratch / "store" / ABC_SHA1, "abc");
-    std::string path, error;
-    ASSERT_TRUE(conta::resolve(config, ABC_SHA1, path, error)) << error;
-    ASSERT_EQ(path, (scratch / "cache" / ABC_SHA1).string());
-    std::string hex;
-    ASSERT_TRUE(conta::detail::sha1_file(path, hex));
-    ASSERT_EQ(hex, ABC_SHA1);
-}
-
 TEST(UTILS_CONTA, DOWNLOAD_HASH_MISMATCH){
     std::filesystem::path scratch = scratch_directory();
-    conta::Config config;
-    config.cache = (scratch / "cache").string();
-    config.url_base = file_url(scratch / "store") + "/";
+    conta::Config config = index_config(scratch, {publish(scratch / "site", index_text(local_shard(scratch / "store"), entry(ABC_SHA1, ABC_SHA256)))});
     write_file(scratch / "store" / ABC_SHA1, "not abc");
     std::string path, error;
     ASSERT_FALSE(conta::resolve(config, ABC_SHA1, path, error));
@@ -247,9 +174,7 @@ TEST(UTILS_CONTA, DOWNLOAD_HASH_MISMATCH){
 
 TEST(UTILS_CONTA, BATCH_ALL_OR_NOTHING){
     std::filesystem::path scratch = scratch_directory();
-    conta::Config config;
-    config.cache = (scratch / "cache").string();
-    config.url_base = file_url(scratch / "store") + "/";
+    conta::Config config = index_config(scratch, {publish(scratch / "site", index_text(local_shard(scratch / "store"), entry(ABC_SHA1, ABC_SHA256) + ",\n" + entry(EMPTY_SHA1, EMPTY_SHA256)))});
     write_file(scratch / "store" / ABC_SHA1, "abc");
     std::vector<std::string> hashes = {ABC_SHA1, EMPTY_SHA1};
     std::vector<std::string> paths;
@@ -276,12 +201,11 @@ TEST(UTILS_CONTA, SHA256_KNOWN_VECTORS){
 
 TEST(UTILS_CONTA, REFERENCES){
     std::filesystem::path scratch = scratch_directory();
-    conta::Config config;
-    config.root = (scratch / "root").string();
-    write_file(scratch / "root" / "data" / ABC_SHA1, "abc");
+    conta::Config config = index_config(scratch, {});
+    write_file(scratch / "cache" / ABC_SHA1, "abc");
     std::string path, error;
     ASSERT_TRUE(conta::resolve(config, std::string("conta:") + ABC_SHA1, path, error)) << error;
-    ASSERT_EQ(path, (scratch / "root" / "data" / ABC_SHA1).string());
+    ASSERT_EQ(path, (scratch / "cache" / ABC_SHA1).string());
     ASSERT_TRUE(conta::resolve(config, "A9993E364706816ABA3E25717850C26C9CD0D89D", path, error)) << error;
     ASSERT_FALSE(conta::resolve(config, std::string("conta:") + ABC_SHA256, path, error));
     ASSERT_NE(error.find("is a sha256"), std::string::npos);
@@ -483,7 +407,7 @@ TEST(UTILS_CONTA, DEFAULT_CACHE_DIRECTORY){
     }
 }
 
-TEST(UTILS_CONTA, LOAD_PLAIN_CACHE_AND_ROOT){
+TEST(UTILS_CONTA, LOAD_PLAIN_CACHE){
     std::filesystem::path scratch = scratch_directory();
     conta::Config config = index_config(scratch, {});
     write_file(scratch / "cache" / ABC_SHA1, "abc");
@@ -491,11 +415,6 @@ TEST(UTILS_CONTA, LOAD_PLAIN_CACHE_AND_ROOT){
     std::vector<std::uint8_t> bytes;
     std::string error;
     ASSERT_TRUE(conta::load(config, std::string("conta:") + ABC_SHA1, bytes, error)) << error;
-    ASSERT_EQ(bytes, (std::vector<std::uint8_t>{'a', 'b', 'c'}));
-    config.root = (scratch / "root").string();
-    write_file(scratch / "root" / "data" / ABC_SHA1, "abc");
-    config.cache.clear();
-    ASSERT_TRUE(conta::load(config, ABC_SHA1, bytes, error)) << error;
     ASSERT_EQ(bytes, (std::vector<std::uint8_t>{'a', 'b', 'c'}));
     ASSERT_FALSE(conta::load(config, "invalid", bytes, error));
     ASSERT_TRUE(bytes.empty());
@@ -662,47 +581,6 @@ TEST(UTILS_CONTA, LOAD_PLAIN_CACHE_POLICY){
     expect_no_partials(scratch / "cache");
 }
 
-TEST(UTILS_CONTA, ROOT_GZIP_MEMORY_AND_PATH){
-    std::filesystem::path scratch = scratch_directory();
-    conta::Config config;
-    config.root = (scratch / "root").string();
-    std::filesystem::path gzip_path = scratch / "root" / "data" / (std::string(ABC_SHA1) + ".gz");
-    write_file(gzip_path, gzip_abc());
-    std::vector<std::uint8_t> bytes;
-    std::string path, error;
-    ASSERT_TRUE(conta::load(config, ABC_SHA1, bytes, error)) << error;
-    ASSERT_EQ(bytes, (std::vector<std::uint8_t>{'a', 'b', 'c'}));
-    ASSERT_FALSE(conta::resolve(config, ABC_SHA1, path, error));
-    ASSERT_NE(error.find("CONTA_CACHE"), std::string::npos);
-    config.cache = (scratch / "cache").string();
-    ASSERT_TRUE(conta::resolve(config, ABC_SHA1, path, error)) << error;
-    ASSERT_EQ(path, (scratch / "cache" / ABC_SHA1).string());
-    ASSERT_EQ(read_text(path), "abc");
-    ASSERT_FALSE(std::filesystem::exists(scratch / "root" / "data" / ABC_SHA1));
-    ASSERT_EQ(read_text(gzip_path), gzip_abc());
-    auto modified = std::filesystem::last_write_time(path);
-    ASSERT_TRUE(conta::resolve(config, ABC_SHA1, path, error)) << error;
-    ASSERT_EQ(std::filesystem::last_write_time(path), modified);
-    std::filesystem::remove(gzip_path);
-    ASSERT_FALSE(conta::resolve(config, ABC_SHA1, path, error));
-    ASSERT_NE(error.find("CONTA_ROOT"), std::string::npos);
-}
-
-TEST(UTILS_CONTA, ROOT_GZIP_LFS_POINTER){
-    std::filesystem::path scratch = scratch_directory();
-    conta::Config config = index_config(scratch, {});
-    config.root = (scratch / "root").string();
-    write_file(scratch / "root" / "data" / (std::string(ABC_SHA1) + ".gz"), "version https://git-lfs.github.com/spec/v1\noid sha256:0000000000000000000000000000000000000000000000000000000000000000\nsize 23\n");
-    std::vector<std::uint8_t> bytes;
-    std::string error;
-    ASSERT_FALSE(conta::load(config, ABC_SHA1, bytes, error));
-    ASSERT_NE(error.find("git lfs pull"), std::string::npos);
-    ASSERT_TRUE(bytes.empty());
-    write_file(scratch / "cache" / ABC_SHA1, "abc");
-    ASSERT_FALSE(conta::load(config, ABC_SHA1, bytes, error));
-    ASSERT_NE(error.find("git lfs pull"), std::string::npos);
-}
-
 TEST(UTILS_CONTA, DOWNLOAD_GZIP_RETAINED_FOR_LOAD){
     std::filesystem::path scratch = scratch_directory();
     write_file(scratch / "store" / (std::string(ABC_SHA1) + ".gz"), gzip_abc());
@@ -770,8 +648,8 @@ TEST(UTILS_CONTA, GZIP_VERIFIES_ORIGINAL_HASHES){
     write_file(scratch / "cache" / (std::string(ABC_SHA1) + ".gz"), gzip_abc());
     ASSERT_FALSE(conta::load(config, ABC_SHA1, bytes, error));
     ASSERT_NE(error.find("sha256 mismatch"), std::string::npos) << error;
-    config.root = (scratch / "root").string();
-    write_file(scratch / "root" / "data" / (std::string(EMPTY_SHA1) + ".gz"), gzip_abc());
+    config.search_paths = {(scratch / "search").string()};
+    write_file(scratch / "search" / (std::string(EMPTY_SHA1) + ".gz"), gzip_abc());
     ASSERT_FALSE(conta::load(config, EMPTY_SHA1, bytes, error));
     ASSERT_NE(error.find("hash mismatch"), std::string::npos) << error;
     ASSERT_TRUE(bytes.empty());
@@ -780,8 +658,8 @@ TEST(UTILS_CONTA, GZIP_VERIFIES_ORIGINAL_HASHES){
 TEST(UTILS_CONTA, GZIP_STREAM_VALIDATION){
     std::filesystem::path scratch = scratch_directory();
     conta::Config config = index_config(scratch, {});
-    config.root = (scratch / "root").string();
-    std::filesystem::path source = scratch / "root" / "data" / (std::string(ABC_SHA1) + ".gz");
+    config.search_paths = {(scratch / "search").string()};
+    std::filesystem::path source = scratch / "search" / (std::string(ABC_SHA1) + ".gz");
     std::vector<std::string> invalid = {"abc", gzip_abc().substr(0, 19), gzip_abc() + "garbage"};
     std::string bad_crc = gzip_abc();
     bad_crc[15] = 0;
@@ -800,7 +678,7 @@ TEST(UTILS_CONTA, GZIP_STREAM_VALIDATION){
     conta::detail::Sha1 sha1;
     sha1.update(reinterpret_cast<const unsigned char*>(double_abc.data()), double_abc.size());
     std::string hash = sha1.finalize();
-    write_file(scratch / "root" / "data" / (hash + ".gz"), gzip_abc() + gzip_abc());
+    write_file(scratch / "search" / (hash + ".gz"), gzip_abc() + gzip_abc());
     std::vector<std::uint8_t> bytes;
     std::string error;
     ASSERT_TRUE(conta::load(config, hash, bytes, error)) << error;
@@ -810,12 +688,12 @@ TEST(UTILS_CONTA, GZIP_STREAM_VALIDATION){
 TEST(UTILS_CONTA, GZIP_LARGE_STREAM_AND_EMPTY){
     std::filesystem::path scratch = scratch_directory();
     conta::Config config = index_config(scratch, {});
-    config.root = (scratch / "root").string();
+    config.search_paths = {(scratch / "search").string()};
     for(const std::string& content: {std::string(), std::string(200000, 'a')}){
         conta::detail::Sha1 sha1;
         sha1.update(reinterpret_cast<const unsigned char*>(content.data()), content.size());
         std::string hash = sha1.finalize();
-        std::filesystem::path source = scratch / "root" / "data" / (hash + ".gz");
+        std::filesystem::path source = scratch / "search" / (hash + ".gz");
         std::filesystem::create_directories(source.parent_path());
         gzFile gzip = gzopen(source.string().c_str(), "wb9");
         ASSERT_NE(gzip, nullptr);
@@ -845,18 +723,18 @@ TEST(UTILS_CONTA, GZIP_UNAVAILABLE_USES_RAW){
     expect_no_partials(scratch / "cache");
 }
 
-TEST(UTILS_CONTA, ROOT_GZIP_UNAVAILABLE){
+TEST(UTILS_CONTA, SEARCH_PATHS_GZIP_UNAVAILABLE){
     std::filesystem::path scratch = scratch_directory();
     conta::Config config = index_config(scratch, {});
-    config.root = (scratch / "root").string();
-    write_file(scratch / "root" / "data" / (std::string(ABC_SHA1) + ".gz"), gzip_abc());
+    config.search_paths = {(scratch / "search").string()};
+    write_file(scratch / "search" / (std::string(ABC_SHA1) + ".gz"), gzip_abc());
     std::vector<std::uint8_t> bytes;
     std::string path, error;
     ASSERT_FALSE(conta::load(config, ABC_SHA1, bytes, error));
     ASSERT_NE(error.find("CONTA_ENABLE_ZLIB"), std::string::npos) << error;
     ASSERT_FALSE(conta::resolve(config, ABC_SHA1, path, error));
     ASSERT_NE(error.find("plain blob"), std::string::npos) << error;
-    ASSERT_FALSE(std::filesystem::exists(scratch / "cache"));
+    ASSERT_FALSE(std::filesystem::exists(scratch / "cache" / ABC_SHA1));
 }
 #endif
 
@@ -877,19 +755,3 @@ TEST(UTILS_CONTA, NETWORK_INDEX){
     ASSERT_TRUE(std::filesystem::exists(scratch / "cache" / conta::CACHED_INDEX_NAME));
 }
 
-TEST(UTILS_CONTA, NETWORK_DOWNLOAD){
-    const char* enabled = std::getenv("RL_TOOLS_TEST_CONTA_NETWORK");
-    if(enabled == nullptr || std::string(enabled) != "1"){
-        GTEST_SKIP() << "set RL_TOOLS_TEST_CONTA_NETWORK=1 to enable";
-    }
-    std::filesystem::path scratch = scratch_directory();
-    conta::Config config;
-    config.cache = (scratch / "cache").string();
-    config.url_base = "https://huggingface.co/datasets/rl-tools/conta/resolve/main/data/";
-    constexpr char BLOB[] = "a38b2994e7674f467fe81e86d2f21c45bfd965a0";
-    std::string path, error;
-    ASSERT_TRUE(conta::resolve(config, BLOB, path, error)) << error;
-    std::string hex;
-    ASSERT_TRUE(conta::detail::sha1_file(path, hex));
-    ASSERT_EQ(hex, BLOB);
-}

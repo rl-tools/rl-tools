@@ -363,8 +363,8 @@ namespace {
     }
 
     TEST_F(GlbEnvironment, hssd_catalog_scene_carries_labels){
-        if(std::getenv("CONTA_ROOT") == nullptr){
-            GTEST_SKIP() << "Set CONTA_ROOT to a local store containing the HSSD scenes";
+        if(std::getenv("CONTA_SEARCH_PATHS") == nullptr){
+            GTEST_SKIP() << "Set CONTA_SEARCH_PATHS to a local store directory containing the HSSD scenes";
         }
         using DATASET = rlt::hyperlux::datasets::hssd::Train125;
         const std::string reference = DATASET::SCENES[63].reference;
