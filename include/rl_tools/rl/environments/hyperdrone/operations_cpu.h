@@ -10,6 +10,7 @@
 #include "pose.h"
 
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
+#include "kinematic/operations_generic.h"
 #include <rl_tools/random/operations_generic_array.h>
 #include <rl_tools/hyperlux/operations_cpu_mux.h>
 #include <rl_tools/hyperlux/datasets/operations_cpu.h>

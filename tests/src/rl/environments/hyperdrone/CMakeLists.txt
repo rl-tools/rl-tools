@@ -344,7 +344,14 @@ if(RL_TOOLS_ENABLE_HYPERLUX)
             hyperlux_stb
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_drones)
+    add_executable(test_rl_environments_hyperdrone_kinematic kinematic.cpp)
+    target_link_libraries(test_rl_environments_hyperdrone_kinematic PRIVATE RLtools::RLtools RLtools::Test hyperlux_backend hyperlux_stb)
+    gtest_discover_tests(test_rl_environments_hyperdrone_kinematic)
     if(RL_TOOLS_BACKEND_ENABLE_CUDA AND TARGET owl::owl)
+        add_executable(test_rl_environments_hyperdrone_kinematic_cuda kinematic_cuda.cu)
+        target_link_libraries(test_rl_environments_hyperdrone_kinematic_cuda PRIVATE RLtools::RLtools RLtools::Test owl::owl hyperlux_device_ptx assimp::assimp hyperlux_stb)
+        set_target_properties(test_rl_environments_hyperdrone_kinematic_cuda PROPERTIES CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED ON)
+        gtest_discover_tests(test_rl_environments_hyperdrone_kinematic_cuda)
         add_executable(test_rl_environments_hyperdrone_drones_cuda drones_cuda.cu)
         target_link_libraries(test_rl_environments_hyperdrone_drones_cuda
             PRIVATE

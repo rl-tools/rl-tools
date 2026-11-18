@@ -7,6 +7,7 @@
 #include "../environments.h"
 #include "../observation.h"
 #include "../l2f/multirotor.h"
+#include "kinematic/kinematic.h"
 #include "pose.h"
 #include "rotorcraft/rotorcraft.h"
 #include "controllers/direct/direct.h"
@@ -61,6 +62,9 @@ namespace rl_tools::rl::environments::hyperdrone {
         using TI = T_TI;
         using DYNAMICS_STATIC_PARAMETERS = T_DYNAMICS_STATIC_PARAMETERS;
         using CONTROLLER = controllers::direct::Config<DYNAMICS_STATIC_PARAMETERS::ACTION_INTERFACE>;
+        // the dynamics over the l2f layout; KinematicMultirotor replaces the transition with level velocity-command kinematics
+        template <typename DYNAMICS_SPEC>
+        using DYNAMICS_ENV = Multirotor<DYNAMICS_SPEC>;
         // derive-and-shadow: override by deriving from this Specification and shadowing members
         static constexpr TI INSTANCES_PER_WORLD = 64;
         static constexpr TI N_AGENTS = 1;
@@ -249,7 +253,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using DYNAMICS_STATIC_PARAMETERS = typename SPEC::CONTROLLER::template DynamicsParameters<typename SPEC::DYNAMICS_STATIC_PARAMETERS>;
-        using DYNAMICS_ENV = Multirotor<l2f::Specification<typename SPEC::T, typename SPEC::TI, DYNAMICS_STATIC_PARAMETERS>>;
+        using DYNAMICS_ENV = typename SPEC::template DYNAMICS_ENV<l2f::Specification<typename SPEC::T, typename SPEC::TI, DYNAMICS_STATIC_PARAMETERS>>;
         typename DYNAMICS_ENV::Parameters dynamics = DYNAMICS_STATIC_PARAMETERS::PARAMETER_VALUES;
         Camera<T> cameras[SPEC::CAMERA_OUTPUTS::COUNT];
     };
@@ -335,7 +339,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         using CONTROLLER_CONFIG = typename SPEC::CONTROLLER;
         using CONTROLLER = typename CONTROLLER_CONFIG::template Bind<numeric_types::Policy<T>, TI, SPEC::INSTANCES_PER_WORLD * SPEC::N_AGENTS>;
         using DYNAMICS_STATIC_PARAMETERS = typename CONTROLLER_CONFIG::template DynamicsParameters<typename SPEC::DYNAMICS_STATIC_PARAMETERS>;
-        using DYNAMICS_ENV = Multirotor<l2f::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS>>;
+        using DYNAMICS_ENV = typename SPEC::template DYNAMICS_ENV<l2f::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS>>;
         using State = utils::typing::conditional_t<SPEC::N_AGENTS == 1, typename DYNAMICS_ENV::State, world::MultiAgentState<typename DYNAMICS_ENV::State, TI, SPEC::N_AGENTS>>;
         using Parameters = hyperdrone::Parameters<SPEC>;
 

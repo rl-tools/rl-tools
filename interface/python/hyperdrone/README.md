@@ -105,6 +105,15 @@ struct Spec: ExistingSpec {
 
 `l2f::WithIdealRates` sets `ACTUATION_MODEL = l2f::actuation::IdealRates` (the default is `Rotors`) and appends the `ParametersIdealRates` component with the thrust-to-weight ratio derived from the base vehicle's rotors. l2f derives the adapter between signal and model: identity when they agree, the PD rate controller for CTBR commands on rotors (which needs `ParametersRateController` and `StateRateController` in the chains), and a compile-time error for motor commands on ideal rates.
 
+`DYNAMICS_ENV` selects the transition over that layout (default `Multirotor`). `hyperdrone::KinematicMultirotor<DYNAMICS_SPEC, LIMITS = KinematicLimits<T>>` is a level rigid body for velocity-command baselines: the direct controller's four commands are `[linear_velocity (3), yaw_rate]`, scaled by `LIMITS::LINEAR_VELOCITY` (m/s per body FLU axis) and `LIMITS::YAW_RATE` (rad/s), held over the interval and integrated exactly. Resets are level and at rest: the position within `mdp.init.max_position` per axis of `mdp.init.position`, the yaw within `±mdp.init.max_angle` of the twist of `mdp.init.orientation` about z, `guidance` included. State, parameters, observations, reward and termination stay l2f's (rotor states only animate the props): `Squared`'s action term measures commands against the hover throttle, so its action weights belong at zero, while its velocity weights penalize the commanded speed. Python reports the bound controller's name (`"motor"` on the presets):
+
+```cpp
+struct Spec: ExistingSpec {
+    template <typename DYNAMICS_SPEC>
+    using DYNAMICS_ENV = rl_tools::rl::environments::hyperdrone::KinematicMultirotor<DYNAMICS_SPEC>;
+};
+```
+
 Include controller operations before World operations so static overload lookup sees them. The shared `control(device, controller, state, buffer, parameters, physical_states, commands, rng)` returns the borrowed dynamics actions; it aliases commands for direct control and controller output for RAPTOR. The reset entry points run `complete_reset(device, world, mask, rng)` after `reset_state`, which clears the selected controller rows and requests rendering, so task overrides never do.
 
 The contract is structural: `Config` supplies `Bind` and `DynamicsParameters`; the bound controller exposes `COMMAND_DIM`, `ACTION_INTERFACE`, `NAME`, `SUPPORTS_SCALAR`, `State` and `Buffer`. Device-first overloads in `rl_tools` provide allocation/free, initialization, reset, control and dynamics validation; constexpr `command_bounds` supplies API metadata. Persistent memory belongs in `State`, scratch in `Buffer`; `transition_action` selects the native reward input from the command or resulting physical state, so deferred rewards do not depend on mutable controller output.
